@@ -47,6 +47,10 @@ final class Engine {
     runner.overlays = overlays
     overlays.place = { [weak self] window, frame in self?.runner.place(window, at: frame, label: "Grid") }
     tap.onHotstring = { [weak self] match in self?.expand(match) }
+    tap.onHyperHotkey = { [weak self] code, down in
+      guard let self, let key = KeyCodes.key(for: code) else { return }
+      hotkeys.trigger(KeyCombo(key: key, modifiers: store.configuration.keyboard.hyperModifiers), phase: down ? .pressed : .released)
+    }
 
     observeSystem()
     // A mapping left over from a crash would leave Caps Lock dead; adopt it so `applyKeyboard`
@@ -174,7 +178,9 @@ final class Engine {
     options.hyperModifiers = config.keyboard.hyperModifiers
     options.capsLockAloneSendsEscape = config.keyboard.capsLockAlone == .escape
     options.hotstringsEnabled = wantsHotstrings
-    tap.update(options: options, hotstrings: config.hotstrings)
+    let hyperCodes = Set(
+      hotkeys.boundCombos.filter { $0.modifiers == config.keyboard.hyperModifiers }.compactMap { KeyCodes.code(for: $0.key) })
+    tap.update(options: options, hotstrings: config.hotstrings, hyperHotkeys: remap ? hyperCodes : [])
     tap.setFrontmostApp(bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
     status.hyperKeyActive = remap

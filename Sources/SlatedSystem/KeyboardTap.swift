@@ -31,6 +31,10 @@ public final class KeyboardTap: @unchecked Sendable {
 
   /// Runs on the main actor when a hotstring trigger completes.
   public var onHotstring: (@MainActor @Sendable (HotstringMatch) -> Void)?
+  /// Runs on the main actor for a Hyper combo Slated binds (key code, true = down / false = up).
+  /// These are handled here rather than by Carbon so they work even if the window server matched
+  /// hotkeys before our injected modifiers.
+  public var onHyperHotkey: (@MainActor @Sendable (UInt16, Bool) -> Void)?
 
   private let lock = NSLock()
   private var options = Options()
@@ -38,6 +42,8 @@ public final class KeyboardTap: @unchecked Sendable {
   private var frontmostBundleID: String?
   private var hyperDown = false
   private var hyperUsed = false
+  private var hyperHotkeyCodes: Set<Int64> = []
+  private var hyperHotkeyHeld: Set<Int64> = []
   private var machPort: CFMachPort?
   private var runLoop: CFRunLoop?
 
@@ -95,10 +101,12 @@ public final class KeyboardTap: @unchecked Sendable {
     if let loop { CFRunLoopStop(loop) }
   }
 
-  public func update(options: Options, hotstrings: [Hotstring]) {
+  /// `hyperHotkeys`: key codes bound with exactly the Hyper modifiers.
+  public func update(options: Options, hotstrings: [Hotstring], hyperHotkeys: Set<UInt16> = []) {
     lock.withLock {
       self.options = options
       matcher.update(hotstrings)
+      hyperHotkeyCodes = Set(hyperHotkeys.map(Int64.init))
       if !options.hyperEnabled { hyperDown = false }
     }
   }
@@ -123,6 +131,7 @@ public final class KeyboardTap: @unchecked Sendable {
 
     var sendEscape = false
     var match: HotstringMatch?
+    var hyperHotkey: (code: UInt16, down: Bool)?
     let result: Unmanaged<CGEvent>? = lock.withLock {
       if options.suspended { return pass }
       let hyperFlags = Self.flags(for: options.hyperModifiers)
@@ -142,8 +151,22 @@ public final class KeyboardTap: @unchecked Sendable {
           }
           return nil  // the stand-in key itself never reaches apps
         }
+        // Finish a Hyper combo we swallowed even if Caps Lock was released first.
+        if type == .keyUp && hyperHotkeyHeld.remove(keyCode) != nil {
+          hyperHotkey = (UInt16(keyCode), false)
+          return nil
+        }
         if hyperDown {
           if type == .keyDown { hyperUsed = true }
+          let extra = event.flags.intersection([.maskControl, .maskAlternate, .maskShift, .maskCommand])
+          if type == .keyDown && extra.isEmpty && hyperHotkeyCodes.contains(keyCode) {
+            // Key repeat is handled by Slated's own repeat timer.
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+              hyperHotkeyHeld.insert(keyCode)
+              hyperHotkey = (UInt16(keyCode), true)
+            }
+            return nil
+          }
           event.flags.formUnion(hyperFlags)
           return pass
         }
@@ -166,6 +189,9 @@ public final class KeyboardTap: @unchecked Sendable {
     }
 
     if sendEscape { Self.postKey(53) }
+    if let hyperHotkey, let handler = onHyperHotkey {
+      DispatchQueue.main.async { MainActor.assumeIsolated { handler(hyperHotkey.code, hyperHotkey.down) } }
+    }
     if let match, let handler = onHotstring {
       DispatchQueue.main.async { MainActor.assumeIsolated { handler(match) } }
     }

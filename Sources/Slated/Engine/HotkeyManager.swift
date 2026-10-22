@@ -18,6 +18,7 @@ final class HotkeyManager {
   private(set) var statuses: [String: HotkeyStatus] = [:]
   private var settings = SlateSettings()
   private var tokens: [UInt32] = []
+  private var direct: [KeyCombo: Entry] = [:]
   private var modalEntries: [KeyCombo: [Entry]] = [:]
   private var activeModal: KeyCombo?
   private var modalTokens: [UInt32] = []
@@ -44,6 +45,7 @@ final class HotkeyManager {
       }
     }
     for entry in direct {
+      self.direct[entry.keys] = entry
       register(entry.keys, id: entry.id) { [weak self] phase in self?.handle(entry, phase: phase) }
     }
     for modalKeys in modalEntries.keys {
@@ -57,10 +59,22 @@ final class HotkeyManager {
     }
   }
 
+  /// Non-modal combos currently bound, so the keyboard tap can catch Hyper combos itself.
+  var boundCombos: [KeyCombo] { Array(direct.keys) }
+
+  /// Runs the binding for `keys` as if its hotkey fired. Returns false if nothing is bound.
+  @discardableResult
+  func trigger(_ keys: KeyCombo, phase: HotKeyCenter.Phase) -> Bool {
+    guard let entry = direct[keys] else { return false }
+    handle(entry, phase: phase)
+    return true
+  }
+
   func unregisterAll() {
     exitModal()
     for token in tokens { HotKeyCenter.shared.unregister(token) }
     tokens.removeAll()
+    direct.removeAll()
     modalEntries.removeAll()
     stopRepeating()
   }
