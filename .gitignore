@@ -20,3 +20,6 @@ notarization/
 
 # Local scratch
 /scratch/
+
+# Claude Code agent worktrees
+.claude/worktrees/
