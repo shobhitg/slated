@@ -151,6 +151,13 @@ final class ActionRunner {
     }
   }
 
+  /// Places a window at an explicit frame (used by the grid), with undo.
+  func place(_ window: AXWindow, at target: CGRect, label: String) {
+    if let frame = window.frame { pushUndo(window, frame) }
+    window.setFrame(target)
+    report(label, window)
+  }
+
   private func pushUndo(_ window: AXWindow, _ frame: CGRect) {
     undoStack.append((window, frame))
     let limit = max(settings.undoMaxStackSize, 1)

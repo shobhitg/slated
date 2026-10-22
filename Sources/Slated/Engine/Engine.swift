@@ -12,6 +12,7 @@ final class Engine {
   let hotkeys = HotkeyManager()
   let tap = KeyboardTap()
   let sources = SlateSourceLoader()
+  let overlays = OverlayController()
 
   private(set) var status = RuntimeStatus()
   private var changeHandlers: [() -> Void] = []
@@ -38,6 +39,8 @@ final class Engine {
       self?.notify()
     }
     runner.onRelaunch = { [weak self] in self?.reload() }
+    runner.overlays = overlays
+    overlays.place = { [weak self] window, frame in self?.runner.place(window, at: frame, label: "Grid") }
     tap.onHotstring = { [weak self] match in self?.expand(match) }
 
     observeSystem()
