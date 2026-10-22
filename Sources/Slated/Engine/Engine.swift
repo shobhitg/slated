@@ -16,6 +16,8 @@ final class Engine {
   let hud = ActionHUD()
 
   private(set) var status = RuntimeStatus()
+  /// Other software that fights over the same keys, with advice.
+  private(set) var warnings: [String] = []
   private var changeHandlers: [() -> Void] = []
   private var permissionTimer: Timer?
   private var suspended = false
@@ -112,9 +114,34 @@ final class Engine {
       hotkeys.apply(entries, disabled: disabled, settings: settings)
     }
     applyKeyboard()
+    warnings = Self.detectConflicts(hyperWanted: config.keyboard.capsLock == .hyper)
     status.hotkeys = hotkeys.statuses
     status.lastError = store.loadError
     notify()
+  }
+
+  /// The original Slate registers the same hotkeys (whoever starts first wins), and Karabiner-Elements
+  /// may already be turning Caps Lock into Hyper.
+  static func detectConflicts(hyperWanted: Bool) -> [String] {
+    var result: [String] = []
+    if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.slate.Slate" }) {
+      result.append("Slate is running and owns the same shortcuts. Quit Slate so Slated can take over.")
+    }
+    if hyperWanted && isProcessRunning("karabiner_grabber") {
+      result.append("Karabiner-Elements is running. If it also remaps Caps Lock, turn that rule off or quit it.")
+    }
+    return result
+  }
+
+  private static func isProcessRunning(_ name: String) -> Bool {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    process.arguments = ["-x", name]
+    process.standardOutput = Pipe()
+    process.standardError = Pipe()
+    guard (try? process.run()) != nil else { return false }
+    process.waitUntilExit()
+    return process.terminationStatus == 0
   }
 
   /// Hyper key and hotstrings both need the event tap, which needs Accessibility permission.

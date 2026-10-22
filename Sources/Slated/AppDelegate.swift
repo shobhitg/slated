@@ -67,6 +67,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       item.isEnabled = false
       menu.addItem(item)
     }
+    for warning in engine.warnings {
+      let item = NSMenuItem(title: "⚠︎ \(warning)", action: nil, keyEquivalent: "")
+      item.isEnabled = false
+      menu.addItem(item)
+    }
     menu.addItem(.separator())
     if !status.accessibilityGranted {
       menu.addItem(withTitle: "Grant Accessibility Access…", action: #selector(grantAccess), keyEquivalent: "").target = self
