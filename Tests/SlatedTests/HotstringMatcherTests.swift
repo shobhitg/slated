@@ -61,3 +61,14 @@ let hotstringMatcherTests = Suite("HotstringMatcher", [
     expect(type("f", into: &m) == nil)
   }),
 ])
+
+let hotstringTemplateTests = Suite("HotstringTemplate", [
+  ("expands placeholders", {
+    let date = Date(timeIntervalSince1970: 1_793_000_000)  // 2026-10-26
+    let en = Locale(identifier: "en_US_POSIX")
+    expectEqual(HotstringTemplate.expand("on {date:yyyy-MM-dd}", now: date, locale: en), "on 2026-10-26")
+    expectEqual(HotstringTemplate.expand("paste: {clipboard}", clipboard: "hi"), "paste: hi")
+    expectEqual(HotstringTemplate.expand("{unknown} {{braces}}"), "{unknown} {braces}")
+    expectEqual(HotstringTemplate.expand("no placeholders"), "no placeholders")
+  }),
+])

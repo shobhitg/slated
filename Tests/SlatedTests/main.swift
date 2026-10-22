@@ -5,6 +5,7 @@ let suites: [Suite] = [
   configurationTests,
   slateKeystrokeTests,
   hotstringMatcherTests,
+  hotstringTemplateTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first
