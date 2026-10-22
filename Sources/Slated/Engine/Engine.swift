@@ -13,6 +13,7 @@ final class Engine {
   let tap = KeyboardTap()
   let sources = SlateSourceLoader()
   let overlays = OverlayController()
+  let hud = ActionHUD()
 
   private(set) var status = RuntimeStatus()
   private var changeHandlers: [() -> Void] = []
@@ -31,8 +32,10 @@ final class Engine {
     sources.onChange = { [weak self] in self?.apply() }
 
     runner.onPerformed = { [weak self] message in
-      self?.status.lastAction = message
-      self?.notify()
+      guard let self else { return }
+      status.lastAction = message
+      if store.configuration.general.showActionHUD { hud.show(message) }
+      notify()
     }
     runner.onError = { [weak self] message in
       self?.status.lastError = message

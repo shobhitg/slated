@@ -13,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     engine.start()
     setUpStatusItem()
     engine.onChange { [weak self] in self?.refreshStatusItem() }
+    engine.hotkeys.onModalChange = { [weak self] modal in
+      // Slate showed modal mode in the menu bar; so do we.
+      let symbol = modal == nil ? "rectangle.split.2x2" : "rectangle.split.2x2.fill"
+      self?.statusItem?.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Slated")
+      self?.statusItem?.button?.image?.isTemplate = true
+    }
     handleTerminationSignals()
     if !Permissions.isAccessibilityTrusted {
       // First run (or permission revoked): explain and ask.
