@@ -1,0 +1,22 @@
+# SwiftPM / build output
+.build/
+.build-*/
+/build/
+/Packages/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Signing / release artifacts
+*.p12
+*.cer
+*.dmg
+*.zip
+notarization/
+
+# Local scratch
+/scratch/
