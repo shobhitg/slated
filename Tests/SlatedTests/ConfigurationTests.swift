@@ -54,3 +54,23 @@ let configurationTests = Suite("Configuration", [
     expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
   }),
 ])
+
+let slateKeystrokeTests = Suite("SlateKeystroke", [
+  ("parses Slate keystrokes", {
+    let hyperA = try SlateSyntax.parseKeystroke("a:ctrl,shift,alt,cmd")
+    expectEqual(hyperA.keys, KeyCombo(key: "a", modifiers: .hyper))
+    expect(hyperA.modal == nil)
+    expectEqual(try SlateSyntax.parseKeystroke("left:ctrl;cmd").keys, KeyCombo(key: "left", modifiers: [.control, .command]))
+    expectEqual(try SlateSyntax.parseKeystroke("':ctrl,shift,alt,cmd").keys.key, "'")
+    expectEqual(try SlateSyntax.parseKeystroke(";:ctrl").keys, KeyCombo(key: ";", modifiers: .control))
+    expectEqual(try SlateSyntax.parseKeystroke("return:ctrl,shift,alt,cmd").keys.key, "return")
+  }),
+  ("parses modal keystrokes", {
+    let modal = try SlateSyntax.parseKeystroke("1:f4,ctrl,alt")
+    expectEqual(modal.keys, KeyCombo(key: "1"))
+    expectEqual(modal.modal, ModalKey(keys: KeyCombo(key: "f4", modifiers: [.control, .option])))
+    let toggle = try SlateSyntax.parseKeystroke("1:ctrl,f4:toggle")
+    expectEqual(toggle.modal?.toggle, true)
+    expectThrows { _ = try SlateSyntax.parseKeystroke("a:ctrl,bogus") }
+  }),
+])

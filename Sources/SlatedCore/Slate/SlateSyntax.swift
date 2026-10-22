@@ -62,7 +62,43 @@ public enum SlateSyntax {
   /// Parses a Slate keystroke: `a:ctrl,shift,alt,cmd`, `left:ctrl;cmd`, `1:f4,ctrl,alt` (modal key `f4`
   /// with ⌃⌥), or `1:ctrl,f4:toggle`.
   public static func parseKeystroke(_ string: String) throws -> (keys: KeyCombo, modal: ModalKey?) {
-    throw SlatedError.notImplemented("SlateSyntax.parseKeystroke")
+    var rest = string.trimmingCharacters(in: .whitespaces)
+    var toggle = false
+    if rest.lowercased().hasSuffix(":toggle") {
+      toggle = true
+      rest = String(rest.dropLast(":toggle".count))
+    }
+    // The key comes first and is never ":" itself, so the first colon separates it from the
+    // modifier list. Keys like ";" and "," are fine because they come before that colon.
+    let key: String
+    let modifierList: String
+    if let colon = rest.dropFirst().firstIndex(of: ":") {
+      key = String(rest[..<colon])
+      modifierList = String(rest[rest.index(after: colon)...])
+    } else {
+      key = rest
+      modifierList = ""
+    }
+    guard KeyNames.isValid(key) else { throw SlatedError.invalidSyntax("Unknown key \"\(key)\" in \"\(string)\"") }
+
+    var modifiers: Modifiers = []
+    var modalKey: String?
+    for token in modifierList.split(whereSeparator: { $0 == "," || $0 == ";" }) {
+      let t = token.trimmingCharacters(in: .whitespaces)
+      if let m = Modifiers.token(t) {
+        modifiers.formUnion(m)
+      } else if KeyNames.isValid(t), modalKey == nil {
+        modalKey = t
+      } else {
+        throw SlatedError.invalidSyntax("Unknown modifier \"\(t)\" in \"\(string)\"")
+      }
+    }
+    if let modalKey {
+      // Slate applies the listed modifiers to the modal key; the binding's own key is pressed bare.
+      return (KeyCombo(key: key), ModalKey(keys: KeyCombo(key: modalKey, modifiers: modifiers), toggle: toggle))
+    }
+    if toggle { throw SlatedError.invalidSyntax(":toggle needs a modal key in \"\(string)\"") }
+    return (KeyCombo(key: key, modifiers: modifiers), nil)
   }
 }
 
