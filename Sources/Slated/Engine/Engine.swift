@@ -49,6 +49,9 @@ final class Engine {
     tap.onHotstring = { [weak self] match in self?.expand(match) }
 
     observeSystem()
+    // A mapping left over from a crash would leave Caps Lock dead; adopt it so `applyKeyboard`
+    // removes it when Hyper is off (or keeps it when on).
+    capsLockRemapped = HIDRemapper.isCapsLockRemapped
     apply()
     // Permission can be granted or revoked at any time in System Settings; react within a second.
     permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
