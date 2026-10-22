@@ -10,7 +10,7 @@ DEV_CERT      := Slated Dev
 SIGN_IDENTITY ?= $(shell security find-identity -p codesigning 2>/dev/null | grep -q '"$(DEV_CERT)"' && echo "$(DEV_CERT)" || echo "-")
 APP           := build/$(APP_NAME).app
 
-.PHONY: all build app run stop test fmt lint dev-cert reset-permissions logs clean
+.PHONY: all build app run stop install test fmt lint icon dev-cert reset-permissions logs clean
 
 all: app
 
@@ -26,8 +26,16 @@ run: app stop
 stop:
 	-@pkill -x $(APP_NAME) 2>/dev/null; true
 
+# Release build installed to ~/Applications (a stable place for daily use and launch at login).
+install:
+	$(MAKE) app CONFIG=release APP="$(HOME)/Applications/$(APP_NAME).app"
+	@echo "Installed ~/Applications/$(APP_NAME).app — open it from there."
+
 test:
 	swift run SlatedTests $(FILTER)
+
+icon:
+	swift scripts/make-icon.swift Resources/AppIcon.icns
 
 fmt:
 	swift format --in-place --recursive Sources Tests Package.swift
