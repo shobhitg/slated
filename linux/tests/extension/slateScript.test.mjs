@@ -517,6 +517,17 @@ test('overwriting an existing global is undone', () => {
   }
 });
 
+test('non-enumerable globals appearing during a run (lazy standard classes) are left alone', () => {
+  try {
+    const {engine, result} = engineWith('Object.defineProperty(globalThis, "slatedLazyForTest", {value: 1, enumerable: false, configurable: true});');
+    assert.deepEqual(result.diagnostics, []);
+    engine.destroy();
+    assert.equal(globalThis.slatedLazyForTest, 1);
+  } finally {
+    delete globalThis.slatedLazyForTest;
+  }
+});
+
 test('destroy removes leaked globals too', () => {
   const {engine} = engineWith('slatedLeakedTwice = 1;');
   assert.ok('slatedLeakedTwice' in globalThis);

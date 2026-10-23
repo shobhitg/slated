@@ -239,8 +239,8 @@ export class SlatedRuntime {
     this._step('hotstrings', () => this._espanso?.destroy({keepFile: locked}));
     this._timers.clearAll();
     this._step('status', () => this._writeStatus(false));
-    this._log.record('app.quit', {reason: locked ? 'screen locked' : 'disabled', hyperRestored: this._hyper.mode === 'xkb'}, 'notice');
-    this._log.close();
+    this._log?.record('app.quit', {reason: locked ? 'screen locked' : 'disabled', hyperRestored: this._hyper.mode === 'xkb'}, 'notice');
+    this._log?.close();
 
     this._debugService = this._monitors = this._screensChanged = this._store = this._sources = null;
     this._scriptEvents = this._scriptHost = this._keybindings = this._overlays = this._hud = null;

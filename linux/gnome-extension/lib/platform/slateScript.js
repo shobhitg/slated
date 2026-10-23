@@ -518,6 +518,9 @@ export class SlateScriptEngine {
     for (const name of Object.getOwnPropertyNames(globalThis)) {
       if (!before.names.has(name)) {
         if (this._addedGlobals.has(name)) continue;
+        // Sloppy-mode assignments create enumerable properties; SpiderMonkey's lazily resolved
+        // standard classes (Intl, WeakRef…) are not enumerable and must never be touched.
+        if (!Object.getOwnPropertyDescriptor(globalThis, name)?.enumerable) continue;
         this._addedGlobals.add(name);
         this._diagnostics.push({
           severity: 'warning',

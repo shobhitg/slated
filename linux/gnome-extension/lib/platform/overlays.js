@@ -269,7 +269,8 @@ export class OverlayController {
     }
     root.grab_key_focus();
     root.connect('key-press-event', (_actor, event) => {
-      onKey(event);
+      // A modifier on its own (e.g. still holding Hyper) neither picks nor dismisses.
+      if (!isModifierKeysym(event.get_key_symbol())) onKey(event);
       return Clutter.EVENT_STOP;
     });
     root.connect('button-press-event', (_actor, event) => {
@@ -296,6 +297,11 @@ export class OverlayController {
     this.dismiss();
     this._place = null;
   }
+}
+
+/** Shift, Control, Caps Lock, Meta, Alt, Super, Hyper (left and right) and AltGr. */
+export function isModifierKeysym(keysym) {
+  return (keysym >= 0xffe1 && keysym <= 0xffee) || keysym === 0xfe03;
 }
 
 /** The lowercase character a key press typed ("a"), or the Escape marker. */

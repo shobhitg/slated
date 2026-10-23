@@ -142,6 +142,7 @@ export class InputInjector {
     this._focusedAppId = focusedAppId;
     this._device = null;
     this._clock = 0;
+    this._destroyed = false;
   }
 
   insertText(text, method = 'auto') {
@@ -164,6 +165,7 @@ export class InputInjector {
   }
 
   destroy() {
+    this._destroyed = true;
     // Releases anything the virtual device still holds right away (as GNOME's keyboard does).
     this._device?.run_dispose();
     this._device = null;
@@ -172,6 +174,8 @@ export class InputInjector {
   // --- Internals ---------------------------------------------------------------------------------
 
   _virtualKeyboard() {
+    // A clipboard callback can arrive after disable(); never create a device then.
+    if (this._destroyed) throw new Error('Slated is stopping');
     this._device ??= defaultSeat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
     return this._device;
   }
@@ -219,6 +223,7 @@ export class InputInjector {
   _paste(text) {
     const clipboard = St.Clipboard.get_default();
     clipboard.get_text(St.ClipboardType.CLIPBOARD, (_clipboard, previous) => {
+      if (this._destroyed) return;
       clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
       const modifiers = isTerminal(this._focusedAppId())
         ? [MODIFIER_KEYSYMS.ctrl, MODIFIER_KEYSYMS.shift]

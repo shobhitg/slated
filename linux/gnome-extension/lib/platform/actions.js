@@ -27,6 +27,21 @@ import {
 export const DEFAULT_HINT_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const MAX_CHAINS = 500;
 
+/**
+ * A copy of `action` safe for the event log: `insert-text` content is replaced by its length, like
+ * hotstring replacements, which are never logged.
+ */
+export function redactForLog(action) {
+  if (Array.isArray(action)) return action.map(redactForLog);
+  if (!action || typeof action !== 'object') return action;
+  const copy = {};
+  for (const [key, value] of Object.entries(action)) {
+    if (key === 'text' && action.op === 'insert-text') copy[key] = `(${[...String(value)].length} characters)`;
+    else copy[key] = typeof value === 'object' ? redactForLog(value) : value;
+  }
+  return copy;
+}
+
 /** The text of an error thrown by the core or GNOME. */
 export function errorMessage(error) {
   if (error === null || error === undefined) return 'Unknown error';
@@ -113,7 +128,7 @@ export class ActionRunner {
       ok ? 'action.done' : 'action.failed',
       {
         trigger,
-        action: truncate(this.describe(action), 200),
+        action: truncate(this.describe(redactForLog(action)), 200),
         ms: this.platform.now() - start,
         label,
         source,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
-import {ActionRunner} from '../../gnome-extension/lib/platform/actions.js';
+import {ActionRunner, redactForLog} from '../../gnome-extension/lib/platform/actions.js';
 import {fakeCore} from './fake-core.mjs';
 import {FakePlatform, FakeWindow} from './fake-platform.mjs';
 import {MemoryLog, leftHalf, rightHalf, topHalf} from './fixtures.mjs';
@@ -275,6 +275,20 @@ test('shell, URLs, text and keystrokes go to the platform', () => {
   assert.deepEqual(platform.calls.at(-1), ['pressKeys', {key: '4', modifiers: ['shift', 'cmd']}]);
   runner.run({op: 'keystroke', keys: {key: 'v', modifiers: ['ctrl']}}, {trigger: 't'});
   assert.deepEqual(platform.calls.at(-1), ['pressKeys', {key: 'v', modifiers: ['ctrl']}]);
+});
+
+test('inserted text never reaches the log, even inside a sequence', () => {
+  const {log, runner} = setup();
+  runner.core = {...fakeCore, formatOperation: (action) => JSON.stringify(action)};
+  runner.run({op: 'insert-text', text: 'my secret phrase'}, {trigger: 't'});
+  runner.run({op: 'sequence', operations: [{op: 'insert-text', text: 'another secret'}]}, {trigger: 't'});
+  const logged = JSON.stringify(log.events);
+  assert.ok(!logged.includes('secret'), logged);
+  assert.deepEqual(redactForLog({op: 'sequence', steps: [{action: {op: 'insert-text', text: 'héllo'}, keepWindow: false}]}), {
+    op: 'sequence',
+    steps: [{action: {op: 'insert-text', text: '(5 characters)'}, keepWindow: false}],
+  });
+  assert.deepEqual(redactForLog({op: 'shell', command: 'echo', text: 'kept'}), {op: 'shell', command: 'echo', text: 'kept'});
 });
 
 test('hints and the grid open overlays; the grid needs a window', () => {

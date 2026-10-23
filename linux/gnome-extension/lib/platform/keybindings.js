@@ -184,6 +184,8 @@ export class KeybindingManager {
   _toggleModal(group) {
     // Grabbing from inside Mutter's key handling is avoided: do it on the next main-loop turn.
     this._grabber.defer(() => {
+      // The bindings may have been re-applied since the key press.
+      if (this._modalGroups.get(group.id) !== group) return;
       if (this._activeModal === group.id) {
         this._exitModal();
         return;

@@ -160,11 +160,126 @@ export class FakeMetaWindow {
   }
 }
 
+/** A Clutter/St actor: a tree with positions, signals, style pseudo classes and instant animations. */
+export class FakeActor {
+  constructor(props = {}) {
+    Object.assign(this, {x: 0, y: 0, width: 0, height: 0, opacity: 255, visible: true}, props);
+    this.children = [];
+    this.parent = null;
+    this.handlers = new Map();
+    this.nextHandler = 1;
+    this.pseudoClasses = new Set();
+    this.destroyed = false;
+  }
+  add_child(child) {
+    child.parent = this;
+    this.children.push(child);
+  }
+  remove_child(child) {
+    this.children = this.children.filter((c) => c !== child);
+    child.parent = null;
+  }
+  set_child(child) {
+    for (const c of [...this.children]) this.remove_child(c);
+    this.add_child(child);
+    this.child = child;
+  }
+  set_child_above_sibling() {}
+  set_position(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+  connect(signal, callback) {
+    const id = this.nextHandler++;
+    this.handlers.set(id, {signal, callback});
+    return id;
+  }
+  disconnect(id) {
+    this.handlers.delete(id);
+  }
+  /** Delivers an event the way Clutter does: to this actor, then up to its parents until stopped. */
+  emit(signal, event) {
+    for (let actor = this; actor; actor = actor.parent) {
+      for (const {signal: s, callback} of [...actor.handlers.values()]) {
+        if (s === signal && callback(actor, event) === true) return true;
+      }
+    }
+    return false;
+  }
+  add_style_pseudo_class(name) {
+    this.pseudoClasses.add(name);
+  }
+  remove_style_pseudo_class(name) {
+    this.pseudoClasses.delete(name);
+  }
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    for (const child of [...this.children]) child.destroy();
+    this.parent?.remove_child(this);
+    this.handlers.clear();
+  }
+  ease(params) {
+    for (const key of ['opacity', 'x', 'y']) if (key in params) this[key] = params[key];
+    params.onComplete?.();
+  }
+  remove_all_transitions() {}
+  grab_key_focus() {
+    FakeActor.keyFocus = this;
+  }
+  show() {
+    this.visible = true;
+  }
+  hide() {
+    this.visible = false;
+  }
+  get_preferred_width() {
+    return [0, this.width || 120];
+  }
+  get_preferred_height() {
+    return [0, this.height || 36];
+  }
+  transform_stage_point(x, y) {
+    let ox = 0;
+    let oy = 0;
+    for (let actor = this; actor; actor = actor.parent) {
+      ox += actor.x;
+      oy += actor.y;
+    }
+    return [true, x - ox, y - oy];
+  }
+  /** Every descendant matching `predicate`. */
+  find(predicate) {
+    const found = [];
+    const visit = (actor) => {
+      for (const child of actor.children) {
+        if (predicate(child)) found.push(child);
+        visit(child);
+      }
+    };
+    visit(this);
+    return found;
+  }
+}
+
+/** A key or button event as the extension reads it. */
+export function fakeEvent({keysym = 0, unicode = '', x = 0, y = 0, actor = null} = {}) {
+  return {
+    get_key_symbol: () => keysym,
+    get_key_unicode: () => unicode,
+    get_coords: () => [x, y],
+    actor,
+  };
+}
+
 export class FakeShellApp {
   constructor({id, name}) {
     this.id = id;
     this.name = name;
     this.windows = [];
+  }
+  create_icon_texture(size) {
+    return new FakeActor({width: size, height: size, icon: this.id});
   }
   get_id() {
     return `${this.id}.desktop`;
@@ -385,6 +500,55 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     list_windows: () => state.windows,
   };
 
+  class Widget extends FakeActor {}
+  class Label extends FakeActor {}
+  const St = {
+    Widget,
+    Label,
+    Bin: class extends FakeActor {
+      constructor(props = {}) {
+        super(props);
+        if (props.child) this.set_child(props.child);
+      }
+    },
+    BoxLayout: class extends FakeActor {},
+    Icon: class extends FakeActor {},
+    ClipboardType: {PRIMARY: 0, CLIPBOARD: 1},
+    Clipboard: {
+      get_default: () => ({
+        get_text: (_type, callback) => callback(null, state.clipboard ?? null),
+        set_text: (_type, text) => {
+          state.clipboard = text;
+        },
+      }),
+    },
+  };
+  const Clutter = {
+    BinLayout: class {},
+    ActorAlign: {FILL: 0, START: 1, END: 2, CENTER: 3},
+    EVENT_STOP: true,
+    EVENT_PROPAGATE: false,
+    KEY_Escape: 0xff1b,
+    GrabState: {NONE: 0, POINTER: 1, KEYBOARD: 2, ALL: 3},
+    AnimationMode: {EASE_OUT_QUAD: 2},
+    keysym_to_unicode: (keysym) => (keysym < 0x100 ? keysym : 0),
+    InputDeviceType: {KEYBOARD_DEVICE: 1},
+    KeyState: {RELEASED: 0, PRESSED: 1},
+    ModifierType: {SHIFT_MASK: 1, CONTROL_MASK: 4, MOD1_MASK: 8, MOD4_MASK: 64, SUPER_MASK: 1 << 26, HYPER_MASK: 1 << 27, META_MASK: 1 << 28},
+    get_default_backend: () => ({
+      get_default_seat: () => ({
+        create_virtual_device: () => ({
+          notify_keyval: (time, keysym, keyState) => state.typed.push({keysym, pressed: keyState === 1}),
+          run_dispose() {},
+        }),
+      }),
+    }),
+  };
+  state.chrome = new Set();
+  state.modal = [];
+  state.typed = [];
+  const uiGroup = new FakeActor();
+
   const global = {
     display: {
       get_n_monitors: () => screens.length,
@@ -406,7 +570,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     },
     workspace_manager: {get_active_workspace: () => workspace},
     get_window_actors: () => state.windows.map((w) => ({get_meta_window: () => w})),
-    stage: {width: 3000, height: 1920},
+    stage: {width: 3000, height: 1920, get_event_actor: (event) => event.actor},
     get_pointer: () => [0, 0, 0],
     create_app_launch_context: () => null,
   };
@@ -422,7 +586,10 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       disconnect: (id) => layoutSignals.disconnect(id),
       primaryIndex: 0,
       getWorkAreaForMonitor: (i) => ({...screens[i].visibleFrame}),
+      addTopChrome: (actor) => state.chrome.add(actor),
+      removeChrome: (actor) => state.chrome.delete(actor),
     },
+    uiGroup,
     sessionMode: {
       get isLocked() {
         return state.locked;
@@ -430,6 +597,13 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     },
     activateWindow(window) {
       state.focused = window;
+    },
+    pushModal(actor, params) {
+      state.modal.push({actor, params});
+      return {get_seat_state: () => 3};
+    },
+    popModal() {
+      state.modal.pop();
     },
   };
 
@@ -443,6 +617,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'gi://Gio': Gio,
       'gi://Meta': Meta,
       'gi://Shell': Shell,
+      'gi://St': St,
+      'gi://Clutter': Clutter,
       'resource:///org/gnome/shell/ui/main.js': Main,
       'resource:///org/gnome/shell/misc/config.js': {PACKAGE_VERSION: '47.1'},
     },
