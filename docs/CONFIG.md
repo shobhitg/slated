@@ -178,10 +178,11 @@ Safety rails:
 - Many games accept synthesized input, but online games with anti-cheat may block it or forbid it in
   their terms.
 
-**On Linux (GNOME):** the same actions and settings work, with two limits:
-- GNOME can't use mouse buttons as shortcuts. Map side buttons to keys with keyd (e.g.
+**On Linux (GNOME): in progress.** The GNOME extension doesn't run these actions yet; they're
+being added with the same config. Two limits are expected:
+- GNOME can't use mouse buttons as shortcuts. You'll map side buttons to keys with keyd (e.g.
   `mouse1 = f13`) and bind those keys.
-- `while-held` works through key repeat, so it stops a moment after you let go.
+- `while-held` will work through key repeat, so it may stop a moment after you let go.
 
 ## Clipboard history
 
