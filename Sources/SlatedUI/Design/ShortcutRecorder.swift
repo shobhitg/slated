@@ -6,13 +6,18 @@ import SwiftUI
 /// so the shortcut reaches this field instead of triggering an action.
 ///
 /// Holding Caps Lock records ✦ (Hyper) even while the Hyper event tap is suspended: the recorder
-/// reads F18, Caps Lock's remapped key, as ⌃⌥⇧⌘ itself. Esc cancels.
+/// reads F18, Caps Lock's remapped key, as ⌃⌥⇧⌘ itself. Esc cancels. Pressing the middle or a side
+/// mouse button over the window records Mouse 3/4/5 when `allowsMouseButtons`.
 struct ShortcutRecorder: View {
   @Binding var combo: KeyCombo
   /// Global shortcuts need a modifier; "Press Keys" actions may send any key on its own.
   var requiresModifier = true
+  /// Accepts the middle and side mouse buttons (triggers can be mouse buttons; keys to send can't).
+  var allowsMouseButtons = true
   /// Starts recording as soon as the field appears (new bindings).
   var autoStart = false
+  /// Added to the "needs a modifier" hint, e.g. how to allow plain keys.
+  var plainKeyHint: String?
 
   @Environment(AppModel.self) private var model
   @State private var monitor = KeyEventMonitor()
@@ -55,7 +60,7 @@ struct ShortcutRecorder: View {
           .symbolEffect(.pulse, options: .repeating)
         let live = KeyCombo(key: "", modifiers: hyperHeld ? held.union(.hyper) : held)
         if live.modifiers.isEmpty {
-          Text("Type a shortcut…").foregroundStyle(.secondary)
+          Text(allowsMouseButtons ? "Press keys or a side button…" : "Type a shortcut…").foregroundStyle(.secondary)
         } else {
           KeyComboView(combo: live)
         }
@@ -126,6 +131,8 @@ struct ShortcutRecorder: View {
       stop()
       stoppedAt = Date()
       return event
+    case .otherMouseDown:
+      return recordMouse(event)
     case .flagsChanged:
       held = KeyEventMapping.modifiers(event.modifierFlags)
       return nil
@@ -158,8 +165,27 @@ struct ShortcutRecorder: View {
     if requiresModifier, !ShortcutRules.isAcceptableGlobalShortcut(candidate) {
       hint =
         "Add ⌃, ⌥ or ⌘, or hold Caps Lock for ✦. On its own, \(KeyNames.displayName(for: key)) would get in the way of typing."
+        + (plainKeyHint.map { " \($0)" } ?? "")
       return nil
     }
+    accept(candidate)
+    return nil
+  }
+
+  /// Middle and side buttons (AppKit numbers them 2, 3, 4) record as Mouse 3, 4 and 5.
+  private func recordMouse(_ event: NSEvent) -> NSEvent? {
+    guard allowsMouseButtons else {
+      hint = "Mouse buttons can't be sent as keys. Press a key instead."
+      return nil
+    }
+    guard let key = KeyEventMapping.mouseButtonName(for: event.buttonNumber) else { return event }
+    var modifiers = KeyEventMapping.modifiers(event.modifierFlags)
+    if hyperHeld { modifiers.formUnion(.hyper) }
+    accept(KeyCombo(key: key, modifiers: modifiers))
+    return nil
+  }
+
+  private func accept(_ candidate: KeyCombo) {
     combo = candidate
     hint = nil
     stop()
@@ -168,6 +194,35 @@ struct ShortcutRecorder: View {
       try? await Task.sleep(for: .seconds(1.4))
       withAnimation(Theme.snappy) { confirmed = false }
     }
-    return nil
+  }
+}
+
+/// A shortcut that can be turned off (`nil`): the recorder, a button to clear it, and one to go
+/// back to the default. For Slated's built-in shortcuts (clipboard history, stop automations).
+struct OptionalShortcutRecorder: View {
+  @Binding var combo: KeyCombo?
+  let defaultCombo: KeyCombo?
+
+  var body: some View {
+    HStack(spacing: 8) {
+      ShortcutRecorder(
+        combo: Binding(get: { combo ?? KeyCombo(key: "") }, set: { combo = $0.key.isEmpty ? nil : $0 }))
+      if combo != nil {
+        Button {
+          withAnimation(Theme.snappy) { combo = nil }
+        } label: {
+          Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(.tertiary)
+        }
+        .buttonStyle(.plain)
+        .help("Turn this shortcut off")
+        .accessibilityLabel("Clear shortcut")
+      }
+      if let defaultCombo, combo != defaultCombo {
+        Button("Use \(defaultCombo.display())") { withAnimation(Theme.snappy) { combo = defaultCombo } }
+          .buttonStyle(.link)
+          .font(.system(size: 12))
+          .fixedSize()
+      }
+    }
   }
 }

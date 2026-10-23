@@ -16,7 +16,13 @@ struct BindingEditor: View {
         if let explanation = state.explanation, state != .disabled {
           Notice(style: state == .duplicate ? .warning : .error, title: state.pill.text, message: explanation)
         }
-        if PlacementCalculator.previews(binding.action) {
+        if binding.action.containsAutomation {
+          AutomationSafetyNote()
+        }
+        // Automations that never touch a window get no window preview.
+        if PlacementCalculator.previews(binding.action),
+          !binding.action.containsAutomation || binding.action.containsWindowGeometry
+        {
           PlacementPreviewCard(action: binding.action)
         }
         shortcutCard
@@ -40,7 +46,11 @@ struct BindingEditor: View {
 
   private func header(_ state: BindingState) -> some View {
     HStack(alignment: .center, spacing: 12) {
-      ActionGlyph(action: binding.action, width: 40, height: 28)
+      if binding.action.containsAutomation {
+        AutomationThumbnail(action: binding.action)
+      } else {
+        ActionGlyph(action: binding.action, width: 40, height: 28)
+      }
       VStack(alignment: .leading, spacing: 4) {
         Text(BindingTitle.title(for: binding))
           .font(.system(size: 19, weight: .bold))
@@ -81,8 +91,12 @@ struct BindingEditor: View {
         }
         LabeledField("Keys") {
           VStack(alignment: .leading, spacing: 6) {
-            ShortcutRecorder(combo: $binding.keys, autoStart: model.recordShortcutFor == binding.id)
-              .onAppear { model.recordShortcutFor = nil }
+            ShortcutRecorder(
+              combo: $binding.keys, requiresModifier: binding.onlyInApps.isEmpty,
+              autoStart: model.recordShortcutFor == binding.id,
+              plainKeyHint: "Or limit the shortcut to a game below to use a plain key there."
+            )
+            .onAppear { model.recordShortcutFor = nil }
             let others = model.otherUses(of: binding.keys, modal: binding.modal, excluding: binding.id)
             if !others.isEmpty {
               Label(
@@ -92,7 +106,20 @@ struct BindingEditor: View {
               .font(.system(size: 11.5))
               .foregroundStyle(Theme.caution)
             }
+            // Typing and mouse-button warnings; shared keys are listed just above.
+            let warnings = model.issues(for: .binding(binding.id)).filter {
+              $0.field == .keys && $0.severity == .warning && !$0.message.hasPrefix("Same ")
+            }
+            ForEach(warnings) { issue in
+              Label(issue.message, systemImage: "exclamationmark.triangle.fill")
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.caution)
+                .fixedSize(horizontal: false, vertical: true)
+            }
           }
+        }
+        LabeledField("Works in") {
+          AppScopeEditor(apps: $binding.onlyInApps)
         }
         DisclosureGroup(isExpanded: $showAdvanced) {
           VStack(alignment: .leading, spacing: 14) {
@@ -135,6 +162,49 @@ struct BindingEditor: View {
   }
 }
 
+/// Everywhere, or only while one of some apps (usually a game) is in front. Limited to an app, a
+/// shortcut can be a plain key like F without taking that key away from typing anywhere else.
+struct AppScopeEditor: View {
+  @Binding var apps: [String]
+  /// Keeps "Only in…" selected while the list is still empty.
+  @State private var choosing = false
+  @Environment(AppModel.self) private var model
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Picker("Works in", selection: limited) {
+        Text("Everywhere").tag(false)
+        Text("Only in…").tag(true)
+      }
+      .labelsHidden()
+      .pickerStyle(.segmented)
+      .fixedSize()
+      if limited.wrappedValue {
+        BundleChips(
+          ids: $apps,
+          emptyText:
+            "Add the game or app it's for. It then works only there, and plain keys like F are fine as shortcuts.",
+          sections: model.gameFirstSections, addTitle: "Add Game or App")
+        if let first = apps.first {
+          Hint(
+            "Active only while \(apps.count == 1 ? model.appName(bundleID: first) : "one of these apps") is in front; the keys work normally everywhere else."
+          )
+        }
+      }
+    }
+    .animation(Theme.snappy, value: limited.wrappedValue)
+  }
+
+  private var limited: Binding<Bool> {
+    Binding(
+      get: { !apps.isEmpty || choosing },
+      set: { value in
+        choosing = value
+        if !value { apps = [] }
+      })
+  }
+}
+
 /// Slate's modal key: press it first, then the shortcut's own key.
 private struct ModalKeyEditor: View {
   @Binding var modal: ModalKey?
@@ -144,7 +214,9 @@ private struct ModalKeyEditor: View {
       Toggle("Press a modal key first", isOn: enabled)
         .toggleStyle(.checkbox)
       if let current = modal {
-        ShortcutRecorder(combo: Binding(get: { current.keys }, set: { modal?.keys = $0 }), requiresModifier: false)
+        ShortcutRecorder(
+          combo: Binding(get: { current.keys }, set: { modal?.keys = $0 }), requiresModifier: false,
+          allowsMouseButtons: false)
         Toggle(
           "Stay in modal mode after the shortcut runs",
           isOn: Binding(get: { current.toggle }, set: { modal?.toggle = $0 })

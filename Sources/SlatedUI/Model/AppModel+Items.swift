@@ -71,6 +71,22 @@ extension AppModel {
     showToast("Deleted “\(name)”", symbol: "trash")
   }
 
+  /// Reorders the bindings listed in one section of the Windows list (`subset`, in list order),
+  /// leaving every other binding where it is.
+  func moveBindings(_ subset: [UUID], fromOffsets offsets: IndexSet, toOffset destination: Int) {
+    var ordered = subset
+    ordered.move(fromOffsets: offsets, toOffset: destination)
+    let members = Set(subset)
+    let slots = configuration.bindings.indices.filter { members.contains(configuration.bindings[$0].id) }
+    guard slots.count == ordered.count else { return }
+    let byID = Dictionary(configuration.bindings.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    var bindings = configuration.bindings
+    for (slot, id) in zip(slots, ordered) {
+      if let binding = byID[id] { bindings[slot] = binding }
+    }
+    configuration.bindings = bindings
+  }
+
   func addStarterBindings() {
     let existing = Set(configuration.bindings.map { BindingStatusKey.key($0.keys, modal: $0.modal) })
     let fresh = WindowPresets.starterBindings.filter { !existing.contains(BindingStatusKey.key($0.keys, modal: nil)) }
@@ -119,17 +135,33 @@ extension AppModel {
     }
   }
 
-  /// Slate bindings and Slated bindings that share `keys` with the given one, for duplicate hints.
-  func otherUses(of keys: KeyCombo, modal: ModalKey?, excluding id: UUID?) -> [String] {
+  /// Slate bindings, Slated bindings and Slated's built-in shortcuts (clipboard history, stop
+  /// automations) that share `keys` with the given one, for duplicate hints.
+  func otherUses(
+    of keys: KeyCombo, modal: ModalKey?, excluding id: UUID?, excludingBuiltIn: BuiltInShortcut? = nil
+  ) -> [String] {
     guard !keys.key.isEmpty else { return [] }
     let key = BindingStatusKey.key(keys, modal: modal)
+    let editing = id.flatMap { binding($0) }
     var uses = configuration.bindings
-      .filter { $0.id != id && $0.enabled && BindingStatusKey.key($0.keys, modal: $0.modal) == key }
+      .filter { other in
+        other.id != id && other.enabled && BindingStatusKey.key(other.keys, modal: other.modal) == key
+          && (editing.map { $0.sharesApps(with: other) } ?? true)
+      }
       .map { "“\(BindingTitle.title(for: $0))”" }
     if configuration.general.loadSlateConfigs {
       for source in sources where source.loaded {
         for binding in source.bindings where binding.id == key {
           uses.append("“\(binding.summary)” in \(source.displayName)")
+        }
+      }
+    }
+    if modal == nil {
+      // A binding that runs the same thing as the built-in shortcut doesn't get in its way.
+      let action = id.flatMap { binding($0)?.action }
+      for builtIn in BuiltInShortcut.allCases where builtIn != excludingBuiltIn && builtIn.action != action {
+        if let builtInKeys = builtIn.keys(in: configuration), BindingStatusKey.key(builtInKeys, modal: nil) == key {
+          uses.append(builtIn.title)
         }
       }
     }

@@ -227,6 +227,8 @@ extension SettingsPane {
     case .overview: return "sparkles"
     case .windows: return "macwindow.on.rectangle"
     case .hotstrings: return "text.insert"
+    case .clipboard: return "list.clipboard"
+    case .automation: return "cursorarrow.click.2"
     case .keyboard: return "keyboard"
     case .layouts: return "rectangle.3.group"
     case .slate: return "doc.text.magnifyingglass"
@@ -240,6 +242,9 @@ extension SettingsPane {
     case .overview: return Theme.accent
     case .windows: return Color(hex: 0x2F7BF5)
     case .hotstrings: return Color(hex: 0xF08A24)
+    case .clipboard: return Color(hex: 0xE5507F)
+    // Matches the Mouse & Keys actions it's about.
+    case .automation: return ActionKind.Category.input.tint
     case .keyboard: return Color(hex: 0x7A5AF8)
     case .layouts: return Color(hex: 0x14A89A)
     case .slate: return Color(hex: 0x4F5BD5)

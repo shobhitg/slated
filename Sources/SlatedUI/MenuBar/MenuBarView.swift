@@ -14,6 +14,12 @@ struct MenuBarView: View {
           .padding(.horizontal, 10)
           .padding(.bottom, 8)
       }
+      if !model.activeAutomations.isEmpty {
+        RunningSection(model: model)
+          .padding(.horizontal, 10)
+          .padding(.bottom, 10)
+          .transition(.opacity.combined(with: .move(edge: .top)))
+      }
       MenuDivider()
       VStack(spacing: 2) {
         SwitchRow(
@@ -37,6 +43,19 @@ struct MenuBarView: View {
       ActivitySection(model: model, actions: actions)
       MenuDivider()
       VStack(spacing: 1) {
+        CommandRow(
+          title: "Clipboard History…", symbol: "list.clipboard",
+          shortcut: model.configuration.clipboard.enabled
+            ? model.configuration.clipboard.shortcut?.display() ?? "" : "Off"
+        ) {
+          if model.configuration.clipboard.enabled {
+            actions.dismiss?()
+            model.showClipboardHistory()
+          } else {
+            model.selectedPane = .clipboard
+            actions.openSettings()
+          }
+        }
         CommandRow(title: "Open Settings…", symbol: "gearshape", shortcut: "⌘,") { actions.openSettings() }
           .keyboardShortcut(",", modifiers: .command)
         CommandRow(title: "Reload Configuration", symbol: "arrow.clockwise", shortcut: "⌘R") { model.reload() }
@@ -52,6 +71,7 @@ struct MenuBarView: View {
     .frame(width: SlatedUI.menuBarWidth)
     .environment(model)
     .tint(Theme.accent)
+    .animation(Theme.spring, value: model.activeAutomations.isEmpty)
     .onAppear { model.refresh() }
   }
 
@@ -82,6 +102,57 @@ struct MenuBarView: View {
     let hotstrings = model.runtimeStatus.hotstringsEnabled ? model.enabledHotstringCount : 0
     let shortcutText = "\(shortcuts) shortcut\(shortcuts == 1 ? "" : "s")"
     return hotstrings == 0 ? shortcutText : "\(shortcutText) · \(hotstrings) hotstring\(hotstrings == 1 ? "" : "s")"
+  }
+}
+
+/// Automations running right now, with Stop: the menu bar is where you look when something's
+/// clicking away.
+private struct RunningSection: View {
+  @Bindable var model: AppModel
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      HStack(spacing: 8) {
+        LiveDot(size: 7)
+        Text(
+          model.activeAutomations.count == 1
+            ? "Automation running" : "\(model.activeAutomations.count) automations running"
+        )
+        .font(.system(size: 12, weight: .semibold))
+        Spacer(minLength: 6)
+        Button {
+          model.stopAutomations()
+        } label: {
+          Label("Stop", systemImage: "stop.fill")
+        }
+        .buttonStyle(StopButtonStyle(compact: true))
+      }
+      .padding(.horizontal, 8)
+      .padding(.top, 8)
+      .padding(.bottom, 2)
+      ForEach(model.activeAutomations) { automation in
+        RunningAutomationRow(automation: automation, compact: true)
+      }
+      if let stop = model.configuration.automation.stopShortcut {
+        HStack(spacing: 5) {
+          Text("Or press").font(.system(size: 10.5)).foregroundStyle(.secondary)
+          KeyComboView(combo: stop, size: .small)
+          Text("in any app").font(.system(size: 10.5)).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 6)
+      }
+    }
+    .background(Theme.critical.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.critical.opacity(0.25), lineWidth: 0.6)
+    )
+    .task(id: model.activeAutomations.map(\.id)) {
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .milliseconds(500))
+        model.refreshAutomations()
+      }
+    }
   }
 }
 

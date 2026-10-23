@@ -56,14 +56,22 @@ try FileManager.default.createDirectory(at: outputURL, withIntermediateDirectori
 
 func settings(
   _ name: String, scenario: PreviewServices.Scenario = .configured, pane: SettingsPane,
-  configure: @escaping @MainActor (AppModel) -> Void = { _ in }
+  configure: @escaping @MainActor (AppModel) -> Void = { _ in },
+  services prepare: @escaping @MainActor (PreviewServices) -> Void = { _ in }
 ) -> Shot {
   Shot(name: name, size: SlatedUI.settingsWindowSize) {
-    let model = AppModel(services: PreviewServices(scenario: scenario))
+    let services = PreviewServices(scenario: scenario)
+    prepare(services)
+    let model = AppModel(services: services)
     model.selectedPane = pane
     configure(model)
     return AnyView(SlatedUI.makeSettingsView(model: model, layout: .flat))
   }
+}
+
+/// Automations running, as the engine would report them.
+@MainActor func running(_ services: PreviewServices) {
+  services.automations = PreviewServices.sampleAutomations()
 }
 
 func selectBinding(named name: String) -> @MainActor (AppModel) -> Void {
@@ -98,6 +106,24 @@ var shots: [Shot] = [
   settings("settings-hotstrings", pane: .hotstrings) { model in
     model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
   },
+  settings("settings-clipboard", pane: .clipboard),
+  settings(
+    "settings-clipboard-off", pane: .clipboard,
+    services: { services in
+      var config = services.configuration
+      config.clipboard.enabled = false
+      config.clipboard.shortcut = nil
+      try? services.saveConfiguration(config)
+    }),
+  settings("settings-automation", pane: .automation),
+  settings("settings-automation-running", pane: .automation, services: running),
+  settings("settings-windows-autoclick", pane: .windows, configure: selectBinding(named: "Auto-Click Left")),
+  settings("settings-windows-hold", pane: .windows, configure: selectBinding(named: "Hold W (Auto-Run)")),
+  settings("settings-windows-macro", pane: .windows) { model in
+    model.addRecipe(id: "macro", keys: KeyCombo(string: "hyper+7"))
+    model.selectedPane = .windows
+  },
+  settings("settings-overview-running", pane: .overview, services: running),
   settings("settings-keyboard", pane: .keyboard),
   settings("settings-layouts", pane: .layouts) { model in model.selectedLayout = .slated(name: "Coding") },
   settings("settings-layouts-source", pane: .layouts) { model in
@@ -112,6 +138,8 @@ var shots: [Shot] = [
   settings("state-empty-hotstrings", scenario: .empty, pane: .hotstrings),
   settings("state-empty-layouts", scenario: .empty, pane: .layouts),
   settings("state-empty-slate", scenario: .empty, pane: .slate),
+  settings("state-empty-clipboard", scenario: .empty, pane: .clipboard),
+  settings("state-empty-automation", scenario: .empty, pane: .automation),
   settings("state-broken-config", scenario: .brokenConfig, pane: .overview),
 ]
 
@@ -123,16 +151,46 @@ for step in OnboardingStep.allCases {
     })
 }
 
-for (name, scenario, paused) in [
-  ("menubar", PreviewServices.Scenario.configured, false), ("menubar-firstrun", .firstRun, false),
-  ("menubar-paused", .configured, true),
+for (name, scenario, paused, automations) in [
+  ("menubar", PreviewServices.Scenario.configured, false, false), ("menubar-firstrun", .firstRun, false, false),
+  ("menubar-paused", .configured, true, false), ("menubar-automation", .configured, false, true),
 ] {
   shots.append(
     Shot(name: name, size: CGSize(width: SlatedUI.menuBarWidth, height: 0)) {
       let services = PreviewServices(scenario: scenario)
       if paused { services.setPaused(true) }
+      if automations { running(services) }
       let model = AppModel(services: services)
       return AnyView(SlatedUI.makeMenuBarView(model: model, actions: MenuBarActions(openSettings: {}, quit: {})))
+    })
+}
+
+func switcher(
+  _ name: String, scenario: PreviewServices.Scenario = .configured,
+  configure: @escaping @MainActor (ClipboardSwitcherModel) -> Void = { _ in }
+) -> Shot {
+  Shot(name: name, size: CGSize(width: 780, height: 480)) {
+    let model = ClipboardSwitcherModel(services: PreviewServices(scenario: scenario))
+    model.resetForShowing()
+    configure(model)
+    return AnyView(SlatedUI.makeClipboardSwitcherView(model: model))
+  }
+}
+
+shots += [
+  switcher("clipboard-switcher"),
+  switcher("clipboard-switcher-code") { model in model.selectedID = model.items.first { $0.text.hasPrefix("func") }?.id
+  },
+  switcher("clipboard-switcher-color") { model in model.selectedID = model.items.first { $0.text.hasPrefix("#") }?.id },
+  switcher("clipboard-switcher-search") { model in model.query = "git" },
+  switcher("clipboard-switcher-nomatch") { model in model.query = "invoice" },
+  switcher("clipboard-switcher-empty", scenario: .empty),
+]
+
+for recipe in ["auto-click-left", "toggle-sprint"] {
+  shots.append(
+    Shot(name: "automation-recipe-\(recipe)", size: CGSize(width: 470, height: 0)) {
+      AnyView(SlatedUI.makeRecipeSheet(model: AppModel(services: PreviewServices()), recipeID: recipe))
     })
 }
 

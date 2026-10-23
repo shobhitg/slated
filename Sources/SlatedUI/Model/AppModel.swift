@@ -19,8 +19,9 @@ enum SaveState: Equatable {
 /// Views edit `configuration` directly (through bindings); every change is validated and saved
 /// after a short pause, so there is no Save button. Items with errors are held back (their last
 /// saved version stays on disk) and flagged in the UI. The model refreshes runtime status, Slate
-/// sources, screens and apps whenever the app reports a change through `AppServices.onChange`,
-/// and picks up hand edits to config.json when there are no unsaved edits.
+/// sources, screens, apps, the clipboard history and running automations whenever the app reports
+/// a change through `AppServices.onChange`, and picks up hand edits to config.json when there are
+/// no unsaved edits. Clipboard and automation commands go through `AppServices` too.
 @MainActor
 @Observable
 public final class AppModel {
@@ -51,6 +52,10 @@ public final class AppModel {
   public private(set) var sources: [SlateSource]
   public private(set) var screens: [ScreenInfo]
   public private(set) var runningApps: [AppInfo]
+  /// Clipboard history, newest first (pinned items wherever they fall).
+  public private(set) var clipboardItems: [ClipboardItem]
+  /// Auto-repeats and held inputs running right now.
+  public private(set) var activeAutomations: [ActiveAutomation]
 
   // MARK: Navigation
 
@@ -89,6 +94,8 @@ public final class AppModel {
     sources = services.slateSources()
     screens = services.screens()
     runningApps = services.runningApplications()
+    clipboardItems = services.clipboardItems()
+    activeAutomations = services.activeAutomations()
     issues = ConfigValidator.validate(loaded, knownLayouts: knownLayoutNames)
     services.onChange { [weak self] in self?.servicesDidChange() }
   }
@@ -145,7 +152,8 @@ public final class AppModel {
 
   // MARK: Refreshing
 
-  /// Re-reads runtime status, Slate sources, screens and running apps from the app.
+  /// Re-reads runtime status, Slate sources, screens, running apps, the clipboard history and
+  /// running automations from the app.
   public func refresh() {
     let status = services.runtimeStatus()
     if status != runtimeStatus { runtimeStatus = status }
@@ -158,6 +166,16 @@ public final class AppModel {
     if newScreens != screens { screens = newScreens }
     let apps = services.runningApplications()
     if apps != runningApps { runningApps = apps }
+    let clipboard = services.clipboardItems()
+    if clipboard != clipboardItems { clipboardItems = clipboard }
+    refreshAutomations()
+  }
+
+  /// Re-reads only the running automations: cheap enough to poll while they're on screen, so
+  /// repetition counts stay current between change notifications.
+  public func refreshAutomations() {
+    let automations = services.activeAutomations()
+    if automations != activeAutomations { activeAutomations = automations }
   }
 
   private func servicesDidChange() {

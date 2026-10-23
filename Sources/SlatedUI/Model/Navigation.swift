@@ -5,6 +5,8 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Hashable, Sendable
   case overview
   case windows
   case hotstrings
+  case clipboard
+  case automation
   case keyboard
   case layouts
   case slate
@@ -18,6 +20,8 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Hashable, Sendable
     case .overview: return "Overview"
     case .windows: return "Windows"
     case .hotstrings: return "Hotstrings"
+    case .clipboard: return "Clipboard"
+    case .automation: return "Automation"
     case .keyboard: return "Keyboard"
     case .layouts: return "Layouts"
     case .slate: return "Slate Compatibility"

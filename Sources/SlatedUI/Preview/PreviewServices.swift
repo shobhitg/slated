@@ -50,6 +50,7 @@ public final class PreviewServices: AppServices {
       status = RuntimeStatus(
         accessibilityGranted: true, hyperKeyActive: true, hotstringsActive: true,
         lastAction: "Left Half · Safari", lastError: "Couldn't resize “Calculator”: its window has a fixed size.")
+      clipboard = ClipboardHistory(items: PreviewData.clipboard())
     case .firstRun:
       configuration = SlatedConfiguration()
       sources = [
@@ -126,26 +127,41 @@ public final class PreviewServices: AppServices {
 
   // MARK: Clipboard and automation sample data
 
-  public var clipboard = ClipboardHistory(items: PreviewServices.sampleClipboard)
+  /// The clipboard history the UI sees. Empty in the `.empty` and `.firstRun` scenarios.
+  public var clipboard = ClipboardHistory()
+  /// Running automations the UI sees; none until a test or snapshot sets some.
   public var automations: [ActiveAutomation] = []
+  /// Items "pasted" or "copied" from the UI, newest last, for tests.
+  public private(set) var pastedClipboardItems: [UUID] = []
 
-  static let sampleClipboard: [ClipboardItem] = {
-    let now = Date(timeIntervalSince1970: 1_793_000_000)
-    let samples: [(String, String?, Double, Bool)] = [
-      ("https://github.com/shobhit-aida/slated", "com.apple.Safari", 40, false),
-      ("Let's sync tomorrow at 10 — I'll bring the layout sketches.", "com.tinyspeck.slackmacgap", 300, false),
-      ("git commit -m \"Make the author's Slate config the default\"", "com.apple.Terminal", 900, false),
-      ("1 Infinite Loop\nCupertino, CA 95014", "com.apple.Notes", 5_400, true),
-      ("screenOriginX+screenSizeX/2", "com.microsoft.VSCode", 86_000, false),
-    ]
-    return samples.map { text, app, ago, pinned in
-      ClipboardItem(text: text, copiedAt: now.addingTimeInterval(-ago), sourceApp: app, pinned: pinned)
-    }
-  }()
+  /// Sample running automations (an auto-clicker and a held key), for snapshots and tests.
+  public static func sampleAutomations(now: Date = Date()) -> [ActiveAutomation] {
+    PreviewData.activeAutomations(now: now)
+  }
+
+  /// Replaces the running automations and notifies the UI, as the engine would.
+  public func setActiveAutomations(_ automations: [ActiveAutomation]) {
+    self.automations = automations
+    notifyChange()
+  }
+
+  /// Records a copy and notifies the UI, as the pasteboard watcher would.
+  public func simulateCopy(_ text: String, from app: String? = nil, at date: Date = Date()) {
+    clipboard.add(text, from: app, at: date, limit: configuration.clipboard.maxItems)
+    notifyChange()
+  }
 
   public func clipboardItems() -> [ClipboardItem] { clipboard.items }
-  public func pasteClipboardItem(id: UUID) {}
-  public func copyClipboardItem(id: UUID) {}
+
+  public func pasteClipboardItem(id: UUID) { copyClipboardItem(id: id) }
+
+  public func copyClipboardItem(id: UUID) {
+    guard let item = clipboard.items.first(where: { $0.id == id }) else { return }
+    pastedClipboardItems.append(id)
+    // Like the app: the item moves to the top, keeping its pin.
+    clipboard.add(item.text, from: item.sourceApp, at: Date(), limit: configuration.clipboard.maxItems)
+    notifyChange()
+  }
   public func deleteClipboardItem(id: UUID) {
     clipboard.remove(id: id)
     notifyChange()
@@ -171,25 +187,50 @@ public final class PreviewServices: AppServices {
 
   private func notify() { handlers.forEach { $0() } }
 
-  /// Registers every enabled binding like the app would: shared keys are duplicates, and one
-  /// sample shortcut is "taken by another app".
+  /// Registers every enabled binding like the app would: shared keys are duplicates (bindings
+  /// limited to different apps don't clash), mouse buttons need Accessibility permission, Slated's
+  /// built-in shortcuts register after the bindings, and one sample shortcut is "taken by another app".
   private func recomputeStatus() {
     var keys: [String: Int] = [:]
+    var apps: [String: [[String]]] = [:]
     let slated = configuration.bindings.filter { $0.enabled && KeyNames.isValid($0.keys.key) }
-    for binding in slated { keys[BindingStatusKey.key(binding.keys, modal: binding.modal), default: 0] += 1 }
+    for binding in slated {
+      let key = BindingStatusKey.key(binding.keys, modal: binding.modal)
+      keys[key, default: 0] += 1
+      apps[key, default: []].append(binding.onlyInApps)
+    }
     if configuration.general.loadSlateConfigs {
       for source in sources where source.loaded {
-        for binding in source.bindings { keys[binding.id, default: 0] += 1 }
+        for binding in source.bindings {
+          keys[binding.id, default: 0] += 1
+          apps[binding.id, default: []].append([])
+        }
       }
+    }
+    if configuration.clipboard.enabled, let shortcut = configuration.clipboard.shortcut {
+      keys[shortcut.string, default: 0] += 1
+      apps[shortcut.string, default: []].append([])
+    }
+    if let stop = configuration.automation.stopShortcut {
+      keys[stop.string, default: 0] += 1
+      apps[stop.string, default: []].append([])
     }
     var hotkeys: [String: HotkeyStatus] = [:]
     for (key, count) in keys {
+      let scopes = apps[key] ?? []
+      let everywhere = scopes.filter(\.isEmpty).count
+      let perApp = scopes.filter { !$0.isEmpty }
+      let overlapping =
+        everywhere > 1 || (everywhere == 1 && !perApp.isEmpty)
+        || Set(perApp.flatMap { $0 }).count < perApp.reduce(0) { $0 + $1.count }
       if key == PreviewData.failedKey {
         hotkeys[key] = .failed("Another app already uses ✦Space. Quit it or pick another shortcut.")
       } else if key == "alt+tab" {
         hotkeys[key] = .failed("macOS reserves ⌥⇥ for an input source shortcut.")
+      } else if KeyNames.isMouseButton(KeyCombo(string: key)?.key ?? ""), !status.accessibilityGranted {
+        hotkeys[key] = .failed("Mouse button shortcuts need Accessibility permission")
       } else {
-        hotkeys[key] = count > 1 ? .duplicate : .active
+        hotkeys[key] = count > 1 && overlapping ? .duplicate : .active
       }
     }
     status.hotkeys = hotkeys

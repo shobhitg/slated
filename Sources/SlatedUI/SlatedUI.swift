@@ -1,4 +1,5 @@
 import AppKit
+import SlatedCore
 import SwiftUI
 
 /// Entry points for the app target.
@@ -114,6 +115,25 @@ public enum SlatedUI {
   @_spi(Snapshots) public static func makeOnboardingView(model: AppModel, step: OnboardingStep) -> some View {
     OnboardingView(model: model, initialStep: step, openSettings: {}, onFinish: {})
   }
+
+  /// The sheet a recipe card opens (normally in a popover, which snapshots can't capture).
+  @_spi(Snapshots) public static func makeRecipeSheet(model: AppModel, recipeID: String) -> some View {
+    Group {
+      if let recipe = AutomationRecipes.recipe(recipeID) {
+        RecipeSheet(recipe: recipe) {}
+      }
+    }
+    .environment(model)
+    .tint(Theme.accent)
+    .background(Theme.cardBackground)
+  }
+}
+
+@_spi(Snapshots) extension AppModel {
+  /// Adds a recipe's binding, as its card would.
+  public func addRecipe(id: String, keys: KeyCombo?) {
+    if let recipe = AutomationRecipes.recipe(id) { addRecipe(recipe, keys: keys) }
+  }
 }
 
 /// What the menu bar popover asks the app to do.
@@ -124,13 +144,16 @@ public struct MenuBarActions {
   public var quit: @MainActor () -> Void
   /// Show the onboarding flow again (offered when Accessibility permission is missing). Optional.
   public var showOnboarding: (@MainActor () -> Void)?
+  /// Close the popover, before the clipboard switcher opens in its own panel. Optional.
+  public var dismiss: (@MainActor () -> Void)?
 
   public init(
     openSettings: @escaping @MainActor () -> Void, quit: @escaping @MainActor () -> Void,
-    showOnboarding: (@MainActor () -> Void)? = nil
+    showOnboarding: (@MainActor () -> Void)? = nil, dismiss: (@MainActor () -> Void)? = nil
   ) {
     self.openSettings = openSettings
     self.quit = quit
     self.showOnboarding = showOnboarding
+    self.dismiss = dismiss
   }
 }

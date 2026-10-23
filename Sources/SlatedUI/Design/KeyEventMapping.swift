@@ -30,6 +30,17 @@ enum KeyEventMapping {
     return KeyNames.isValid(key) ? key : nil
   }
 
+  /// Slate key names for the extra mouse buttons: AppKit numbers the middle button 2 and the side
+  /// buttons 3 and 4; users (and `KeyNames.mouseButtons`) call them Mouse 3, 4 and 5.
+  static func mouseButtonName(for buttonNumber: Int) -> String? {
+    switch buttonNumber {
+    case 2: return "mouse3"
+    case 3: return "mouse4"
+    case 4: return "mouse5"
+    default: return nil
+    }
+  }
+
   /// ⌃⌥⇧⌘ from AppKit flags. `fn` is left out: macOS sets it on every arrow and function key.
   static func modifiers(_ flags: NSEvent.ModifierFlags) -> Modifiers {
     var modifiers: Modifiers = []
@@ -50,8 +61,10 @@ final class KeyEventMonitor {
 
   func start(_ handler: @escaping @MainActor (NSEvent) -> NSEvent?) {
     stop()
-    // Local monitors run on the main thread, before the event reaches any view.
-    token = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged, .leftMouseDown]) { event in
+    // Local monitors run on the main thread, before the event reaches any view. Middle and side
+    // mouse buttons (`otherMouseDown`) can be recorded as Mouse 3–5 shortcuts.
+    let events: NSEvent.EventTypeMask = [.keyDown, .keyUp, .flagsChanged, .leftMouseDown, .otherMouseDown]
+    token = NSEvent.addLocalMonitorForEvents(matching: events) { event in
       handler(event)
     }
   }

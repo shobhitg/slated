@@ -141,14 +141,16 @@ struct ToastView: View {
 /// The primary call to action: accent gradient, white label, soft glow.
 struct GradientButtonStyle: ButtonStyle {
   var large = false
+  /// Tighter padding, for buttons inside small cards.
+  var compact = false
   @Environment(\.isEnabled) private var isEnabled
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .font(.system(size: large ? 14 : 12.5, weight: .semibold))
+      .font(.system(size: large ? 14 : (compact ? 12 : 12.5), weight: .semibold))
       .foregroundStyle(.white)
-      .padding(.horizontal, large ? 22 : 14)
-      .frame(height: large ? 38 : 28)
+      .padding(.horizontal, large ? 22 : (compact ? 10 : 14))
+      .frame(height: large ? 38 : (compact ? 26 : 28))
       .background {
         RoundedRectangle(cornerRadius: large ? 11 : 8, style: .continuous)
           .fill(Theme.accentGradientHorizontal)
@@ -198,6 +200,7 @@ struct SoftButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == GradientButtonStyle {
   static var gradient: GradientButtonStyle { GradientButtonStyle() }
   static var gradientLarge: GradientButtonStyle { GradientButtonStyle(large: true) }
+  static var gradientCompact: GradientButtonStyle { GradientButtonStyle(compact: true) }
 }
 
 extension ButtonStyle where Self == SoftButtonStyle {

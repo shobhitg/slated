@@ -10,7 +10,9 @@ struct SettingsSidebar: View {
         .listRowSeparator(.hidden)
         .selectionDisabled()
       Section {
-        ForEach([SettingsPane.overview, .windows, .hotstrings, .keyboard, .layouts, .slate]) { row($0) }
+        ForEach([SettingsPane.overview, .windows, .hotstrings, .clipboard, .automation, .keyboard, .layouts, .slate]) {
+          row($0)
+        }
       }
       Section {
         ForEach([SettingsPane.general, .about]) { row($0) }
@@ -48,6 +50,23 @@ struct SettingsSidebar: View {
       SidebarBadge(text: "\(model.configuration.bindings.count)")
     case .hotstrings:
       SidebarBadge(text: "\(model.configuration.hotstrings.count)")
+    case .clipboard where !model.configuration.clipboard.enabled:
+      SidebarBadge(text: "Off")
+    case .clipboard where !model.clipboardItems.isEmpty:
+      SidebarBadge(text: "\(model.clipboardItems.count)")
+    case .automation where !model.activeAutomations.isEmpty:
+      HStack(spacing: 4) {
+        LiveDot(size: 5)
+        Text("\(model.activeAutomations.count)")
+          .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+          .foregroundStyle(Theme.critical)
+      }
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1.5)
+      .background(Theme.critical.opacity(0.12), in: Capsule())
+      .help("Automations running now")
+    case .automation where !model.automationBindings.isEmpty:
+      SidebarBadge(text: "\(model.automationBindings.count)")
     case .layouts:
       SidebarBadge(text: "\(model.configuration.layouts.count + model.sources.reduce(0) { $0 + $1.layouts.count })")
     case .slate where model.sources.contains { $0.errorCount > 0 }:

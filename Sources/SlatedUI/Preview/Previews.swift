@@ -54,4 +54,25 @@
   struct ComponentGalleryPreviews: PreviewProvider {
     static var previews: some View { ComponentGallery() }
   }
+
+  struct ClipboardSwitcherPreviews: PreviewProvider {
+    static var previews: some View {
+      ClipboardSwitcherView(model: ClipboardSwitcherModel(services: PreviewServices()))
+        .previewDisplayName("Clipboard switcher")
+      ClipboardSwitcherView(model: ClipboardSwitcherModel(services: PreviewServices(scenario: .empty)))
+        .previewDisplayName("Clipboard switcher, empty")
+    }
+  }
+
+  struct AutomationRunningPreviews: PreviewProvider {
+    static var previews: some View {
+      let services = PreviewServices()
+      services.automations = PreviewServices.sampleAutomations()
+      let model = AppModel(services: services)
+      model.selectedPane = .automation
+      return SettingsView(model: model)
+        .frame(width: SlatedUI.settingsWindowSize.width, height: SlatedUI.settingsWindowSize.height)
+        .previewDisplayName("Automation, running")
+    }
+  }
 #endif

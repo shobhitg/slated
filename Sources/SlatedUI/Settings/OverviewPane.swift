@@ -8,6 +8,8 @@ struct OverviewPane: View {
   var body: some View {
     PaneScroll {
       HeroCard()
+      RunningAutomationsCard(hidesWhenIdle: true)
+        .animation(Theme.spring, value: model.activeAutomations.isEmpty)
       VStack(alignment: .leading, spacing: 10) {
         SectionHeader("Status", symbol: "waveform.path.ecg")
         StatusGrid()
@@ -103,6 +105,7 @@ private struct HeroCard: View {
     parts.append(model.activeBindingCount == 1 ? "1 shortcut" : "\(model.activeBindingCount) shortcuts")
     if status.hotstringsActive { parts.append("\(model.enabledHotstringCount) hotstrings") }
     if status.hyperKeyActive { parts.append("the Hyper key") }
+    if model.configuration.clipboard.enabled { parts.append("clipboard history") }
     let list = ListFormatter.localizedString(byJoining: parts)
     return "\(list) \(parts.count == 1 && model.activeBindingCount == 1 ? "is" : "are") live."
   }
@@ -170,7 +173,51 @@ private struct StatusGrid: View {
           Button("Details") { model.selectedPane = .slate }
         }
       }
+      HStack(spacing: 12) {
+        let clipboard = model.configuration.clipboard
+        StatusTile(
+          title: "Clipboard", symbol: SettingsPane.clipboard.symbol, tint: SettingsPane.clipboard.tint,
+          value: clipboard.enabled
+            ? "\(model.clipboardItems.count) item\(model.clipboardItems.count == 1 ? "" : "s")" : "Off",
+          state: clipboard.enabled ? .good : .neutral, detail: clipboardDetail
+        ) {
+          if clipboard.enabled {
+            Button("Open") { model.showClipboardHistory() }
+          } else {
+            Button("Turn On") { model.selectedPane = .clipboard }
+          }
+        }
+        let running = model.activeAutomations.count
+        StatusTile(
+          title: "Automation", symbol: SettingsPane.automation.symbol, tint: SettingsPane.automation.tint,
+          value: running > 0 ? "\(running) running" : automationValue,
+          state: running > 0 ? .live : (model.automationBindings.isEmpty ? .neutral : .good), detail: automationDetail
+        ) {
+          if running > 0 {
+            Button("Stop") { model.stopAutomations() }
+          } else {
+            Button(model.automationBindings.isEmpty ? "Set Up" : "Edit") { model.selectedPane = .automation }
+          }
+        }
+      }
     }
+  }
+
+  private var clipboardDetail: String {
+    let clipboard = model.configuration.clipboard
+    guard clipboard.enabled else { return "Copies aren't remembered" }
+    guard let shortcut = clipboard.shortcut else { return "Open it from the menu bar" }
+    return "\(shortcut.display()) to search and paste"
+  }
+
+  private var automationValue: String {
+    let count = model.automationBindings.filter(\.enabled).count
+    return count == 0 ? "None yet" : "\(count) ready"
+  }
+
+  private var automationDetail: String {
+    guard let stop = model.configuration.automation.stopShortcut else { return "No stop shortcut" }
+    return model.activeAutomations.isEmpty ? "\(stop.display()) stops everything" : "Press \(stop.display()) to stop"
   }
 
   private var shortcutDetail: String {
@@ -209,13 +256,15 @@ private struct StatusGrid: View {
 }
 
 private enum TileState {
-  case good, attention, neutral
+  /// `live`: something is running right now (automations).
+  case good, attention, neutral, live
 
   var color: Color {
     switch self {
     case .good: return Theme.positive
     case .attention: return Theme.caution
     case .neutral: return Theme.neutral
+    case .live: return Theme.critical
     }
   }
 }
@@ -315,37 +364,51 @@ private struct QuickTips: View {
     var keys: AnyView
   }
 
+  /// Up to three tips drawn from the user's own setup, each about a different feature: a window
+  /// shortcut, clipboard history, a hotstring, then a second window tip or an automation.
   private var tips: [Tip] {
-    var tips: [Tip] = []
     let bindings = model.configuration.bindings.filter(\.enabled)
+    var snapTip: Tip?
     if let snap = bindings.first(where: { WindowPresets.matching($0.action)?.group == .halves }) {
-      tips.append(
-        Tip(
-          title: "Snap a window", detail: "\(BindingTitle.title(for: snap)) for the window in front.",
-          keys: AnyView(KeyComboView(combo: snap.keys, modal: snap.modal))))
+      snapTip = Tip(
+        title: "Snap a window", detail: "\(BindingTitle.title(for: snap)) for the window in front.",
+        keys: AnyView(KeyComboView(combo: snap.keys, modal: snap.modal)))
     }
+    var windowTip: Tip?
     if let chain = bindings.first(where: { if case .chain = $0.action { return true } else { return false } }),
       case .chain(let steps) = chain.action
     {
       let names = steps.prefix(3).map(ActionDescriber.title).joined(separator: " → ")
-      tips.append(
-        Tip(
-          title: "Cycle sizes", detail: "Press it again and again: \(names).",
-          keys: AnyView(KeyComboView(combo: chain.keys, modal: chain.modal))))
+      windowTip = Tip(
+        title: "Cycle sizes", detail: "Press it again and again: \(names).",
+        keys: AnyView(KeyComboView(combo: chain.keys, modal: chain.modal)))
     } else if let screen = bindings.first(where: { WindowPresets.matching($0.action)?.group == .screens }) {
-      tips.append(
-        Tip(
-          title: "Switch displays", detail: "\(BindingTitle.title(for: screen)) — the window keeps its size.",
-          keys: AnyView(KeyComboView(combo: screen.keys, modal: screen.modal))))
+      windowTip = Tip(
+        title: "Switch displays", detail: "\(BindingTitle.title(for: screen)) — the window keeps its size.",
+        keys: AnyView(KeyComboView(combo: screen.keys, modal: screen.modal)))
     }
+    var clipboardTip: Tip?
+    if model.configuration.clipboard.enabled, let shortcut = model.configuration.clipboard.shortcut {
+      clipboardTip = Tip(
+        title: "Paste from history", detail: "Anything you copied lately: type to search, then press Return.",
+        keys: AnyView(KeyComboView(combo: shortcut)))
+    }
+    var hotstringTip: Tip?
     if let hotstring = model.configuration.hotstrings.first(where: { $0.enabled && !$0.trigger.isEmpty }) {
-      tips.append(
-        Tip(
-          title: "Expand text",
-          detail:
-            "Type \(hotstring.trigger) anywhere to get “\(ActionDescriber.truncate(ActionDescriber.singleLine(hotstring.replacement), 22))”.",
-          keys: AnyView(TriggerChip(trigger: hotstring.trigger))))
+      hotstringTip = Tip(
+        title: "Expand text",
+        detail:
+          "Type \(hotstring.trigger) anywhere to get “\(ActionDescriber.truncate(ActionDescriber.singleLine(hotstring.replacement), 22))”.",
+        keys: AnyView(TriggerChip(trigger: hotstring.trigger)))
     }
+    var automationTip: Tip?
+    if let automation = model.automationBindings.first(where: { $0.enabled && !$0.keys.key.isEmpty }) {
+      automationTip = Tip(
+        title: "Start \(BindingTitle.title(for: automation))",
+        detail: "Press it again to stop. The stop shortcut stops everything.",
+        keys: AnyView(KeyComboView(combo: automation.keys, modal: automation.modal)))
+    }
+    var tips = [snapTip, clipboardTip, hotstringTip, windowTip, automationTip].compactMap { $0 }
     if tips.isEmpty, model.hyperKeyEnabled {
       tips.append(
         Tip(
@@ -447,6 +510,20 @@ private struct NextSteps: View {
             model.selectedPane = .hotstrings
             model.addHotstring()
           }))
+    }
+    if !model.configuration.clipboard.enabled {
+      steps.append(
+        Step(
+          title: "Turn on clipboard history", detail: "Paste anything you copied earlier, from one shortcut.",
+          symbol: SettingsPane.clipboard.symbol, tint: SettingsPane.clipboard.tint,
+          run: { model.selectedPane = .clipboard }))
+    }
+    if model.automationBindings.isEmpty {
+      steps.append(
+        Step(
+          title: "Try an auto-clicker", detail: "Let Slated click, hold or press keys for you, with a stop shortcut.",
+          symbol: SettingsPane.automation.symbol, tint: SettingsPane.automation.tint,
+          run: { model.selectedPane = .automation }))
     }
     if model.configuration.layouts.isEmpty {
       steps.append(
