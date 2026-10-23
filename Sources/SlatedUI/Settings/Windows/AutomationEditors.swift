@@ -100,3 +100,37 @@ struct RepeatedActionRow: View {
     .wellStyle()
   }
 }
+
+/// "Until stopped" or after N runs.
+struct RepeatLimitField: View {
+  @Binding var times: Int?
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Toggle("After", isOn: Binding(get: { times != nil }, set: { times = $0 ? (times ?? 10) : nil }))
+        .toggleStyle(.checkbox)
+      if let current = times {
+        TextField("10", value: Binding(get: { current }, set: { times = max(1, $0) }), format: .number)
+          .textFieldStyle(.roundedBorder)
+          .frame(width: 64)
+        Text("runs").font(.system(size: 12)).foregroundStyle(.secondary)
+      } else {
+        Text("Runs until stopped").font(.system(size: 12)).foregroundStyle(.secondary)
+      }
+    }
+  }
+}
+
+/// Random variation of each interval, 0–50%.
+struct JitterField: View {
+  @Binding var jitter: Double
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Slider(value: $jitter, in: 0...0.5, step: 0.05).frame(width: 140)
+      Text(jitter == 0 ? "Exact timing" : "±\(Int((jitter * 100).rounded()))%")
+        .font(.system(size: 12)).foregroundStyle(.secondary)
+        .frame(width: 90, alignment: .leading)
+    }
+  }
+}

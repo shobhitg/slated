@@ -48,8 +48,9 @@ enum ActionDescriber {
       return (count == 2 ? "Double-Click " : count > 2 ? "\(count)× Click " : "Click ") + button.rawValue.capitalized
     case .press(let input, let phase): return (phase == .down ? "Press " : "Release ") + inputTitle(input)
     case .hold(let input): return "Hold \(inputTitle(input))"
-    case .autoRepeat(let action, let interval, let mode):
+    case .autoRepeat(let action, let interval, let mode, let times, _):
       return "Repeat \(title(action)) every \(seconds(interval))" + (mode == .whileHeld ? " while held" : "")
+        + (times.map { ", \($0)×" } ?? "")
     case .wait(let s): return "Wait \(seconds(s))"
     case .stopAutomations: return "Stop Automations"
     }

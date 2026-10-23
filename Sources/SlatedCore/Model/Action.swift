@@ -283,7 +283,9 @@ public indirect enum Action: Hashable, Sendable {
   /// Hold a mouse button or key down until the trigger fires again.
   case hold(SyntheticInput)
   /// Run `action` every `interval` seconds, toggled by the trigger or while its key is held.
-  case autoRepeat(Action, interval: Double, mode: RepeatMode)
+  /// `times` stops it after that many runs; `jitter` (0…0.5) varies each interval by up to that
+  /// fraction, which some games need to register rapid clicks.
+  case autoRepeat(Action, interval: Double, mode: RepeatMode, times: Int? = nil, jitter: Double = 0)
   /// Pause a sequence (macro) for this many seconds.
   case wait(Double)
   /// Stop every running automation and release anything held.
@@ -357,7 +359,7 @@ extension Action: Codable {
     case op, x, y, width, height, screen, anchor, direction, style, operations, steps, name
     case app, save, stack, all, delete, characters, padding, grids, command, wait, path
     case text, method, url, keys, landscape, portrait
-    case button, count, input, phase, action, interval, mode, seconds
+    case button, count, input, phase, action, interval, mode, seconds, times, jitter
   }
 
   private struct GridSize: Codable {
@@ -498,9 +500,17 @@ extension Action: Codable {
       guard interval.isFinite, interval > 0 else {
         throw DecodingError.dataCorruptedError(forKey: .interval, in: c, debugDescription: "interval must be more than 0 seconds")
       }
+      let times = try c.decodeIfPresent(Int.self, forKey: .times)
+      if let times, times < 1 {
+        throw DecodingError.dataCorruptedError(forKey: .times, in: c, debugDescription: "times must be at least 1")
+      }
+      let jitter = try c.decodeIfPresent(Double.self, forKey: .jitter) ?? 0
+      guard jitter.isFinite, (0...0.5).contains(jitter) else {
+        throw DecodingError.dataCorruptedError(forKey: .jitter, in: c, debugDescription: "jitter must be between 0 and 0.5")
+      }
       self = .autoRepeat(
         try c.decode(Action.self, forKey: .action), interval: interval,
-        mode: try c.decodeIfPresent(RepeatMode.self, forKey: .mode) ?? .toggle)
+        mode: try c.decodeIfPresent(RepeatMode.self, forKey: .mode) ?? .toggle, times: times, jitter: jitter)
     case "wait":
       let seconds = try c.decode(Double.self, forKey: .seconds)
       guard seconds.isFinite, seconds >= 0 else {
@@ -603,10 +613,12 @@ extension Action: Codable {
       try c.encode(phase, forKey: .phase)
     case .hold(let input):
       try c.encode(input, forKey: .input)
-    case .autoRepeat(let action, let interval, let mode):
+    case .autoRepeat(let action, let interval, let mode, let times, let jitter):
       try c.encode(action, forKey: .action)
       try c.encode(interval, forKey: .interval)
       if mode != .toggle { try c.encode(mode, forKey: .mode) }
+      try c.encodeIfPresent(times, forKey: .times)
+      if jitter != 0 { try c.encode(jitter, forKey: .jitter) }
     case .wait(let seconds):
       try c.encode(seconds, forKey: .seconds)
     case .stopAutomations, .clipboardHistory:

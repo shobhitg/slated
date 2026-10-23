@@ -96,9 +96,10 @@ enum SlateOperationFormatter {
       return join("press", word(input.string), phase.rawValue)
     case .hold(let input):
       return join("hold", word(input.string))
-    case .autoRepeat(let action, let interval, let mode):
+    case .autoRepeat(let action, let interval, let mode, let times, let jitter):
       return join(
-        "repeat", number(interval), mode == .toggle ? nil : mode.rawValue, SlateTokenizer.quote(format(action)))
+        "repeat", number(interval), mode == .toggle ? nil : mode.rawValue, times.map { "times:\($0)" },
+        jitter == 0 ? nil : "jitter:\(number(jitter))", SlateTokenizer.quote(format(action)))
     case .wait(let seconds):
       return join("wait", number(seconds))
     case .stopAutomations, .clipboardHistory:

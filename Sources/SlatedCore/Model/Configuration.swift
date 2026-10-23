@@ -209,10 +209,14 @@ public struct HotkeyBinding: Hashable, Sendable, Identifiable {
   /// Repeat while held. `nil` uses Slate's `repeatOnHoldOps` setting.
   public var repeats: Bool?
   public var enabled: Bool
+  /// Only active while one of these apps is in front (macOS bundle identifiers or GNOME app ids, e.g.
+  /// a game). Empty means everywhere. Lets plain keys like F be shortcuts inside a game without
+  /// affecting typing anywhere else.
+  public var onlyInApps: [String]
 
   public init(
     id: UUID = UUID(), name: String? = nil, keys: KeyCombo, modal: ModalKey? = nil,
-    action: Action, repeats: Bool? = nil, enabled: Bool = true
+    action: Action, repeats: Bool? = nil, enabled: Bool = true, onlyInApps: [String] = []
   ) {
     self.id = id
     self.name = name
@@ -221,11 +225,12 @@ public struct HotkeyBinding: Hashable, Sendable, Identifiable {
     self.action = action
     self.repeats = repeats
     self.enabled = enabled
+    self.onlyInApps = onlyInApps
   }
 }
 
 extension HotkeyBinding: Codable {
-  private enum Key: String, CodingKey { case id, name, keys, modal, action, repeats, enabled }
+  private enum Key: String, CodingKey { case id, name, keys, modal, action, repeats, enabled, onlyInApps }
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: Key.self)
@@ -236,7 +241,25 @@ extension HotkeyBinding: Codable {
       modal: try c.decodeIfPresent(ModalKey.self, forKey: .modal),
       action: try c.decode(Action.self, forKey: .action),
       repeats: try c.decodeIfPresent(Bool.self, forKey: .repeats),
-      enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true)
+      enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true,
+      onlyInApps: try c.decodeIfPresent([String].self, forKey: .onlyInApps) ?? [])
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: Key.self)
+    try c.encode(id, forKey: .id)
+    try c.encodeIfPresent(name, forKey: .name)
+    try c.encode(keys, forKey: .keys)
+    try c.encodeIfPresent(modal, forKey: .modal)
+    try c.encode(action, forKey: .action)
+    try c.encodeIfPresent(repeats, forKey: .repeats)
+    try c.encode(enabled, forKey: .enabled)
+    if !onlyInApps.isEmpty { try c.encode(onlyInApps, forKey: .onlyInApps) }
+  }
+
+  /// Whether the binding applies while `bundleID` (the frontmost app) is in front.
+  public func isActive(inApp bundleID: String?) -> Bool {
+    onlyInApps.isEmpty || bundleID.map(onlyInApps.contains) == true
   }
 }
 

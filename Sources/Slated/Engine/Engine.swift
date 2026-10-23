@@ -88,6 +88,11 @@ final class Engine {
       if down { Log.record("hyper.combo", level: bound ? .debug : .notice, ["keys": combo.string, "bound": bound]) }
     }
     tap.onEvent = { event in Log.record("tap.\(event)", level: .notice) }
+    tap.onMouseHotkey = { [weak self] hotkey, down in
+      let combo = KeyCombo(key: "mouse\(hotkey.button)", modifiers: hotkey.modifiers)
+      self?.hotkeys.trigger(combo, phase: down ? .pressed : .released)
+    }
+    hotkeys.setFrontmostApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
     observeSystem()
     // A mapping left over from a crash would leave Caps Lock dead; adopt it so `applyKeyboard`
@@ -178,7 +183,9 @@ final class Engine {
       // Slated's own bindings come first so they win over Slate-file duplicates.
       var entries: [HotkeyManager.Entry] = config.bindings.filter(\.enabled).map { binding in
         let repeats = binding.repeats ?? settings.repeatOnHoldOps.contains(binding.action.name)
-        return HotkeyManager.Entry(keys: binding.keys, modal: binding.modal, repeats: repeats, source: "Slated") {
+        return HotkeyManager.Entry(
+          keys: binding.keys, modal: binding.modal, repeats: repeats, source: "Slated", apps: binding.onlyInApps
+        ) {
           [weak self] in
           self?.runner.run(
             binding.action, label: binding.name, chainKey: binding.id.uuidString,
@@ -190,6 +197,7 @@ final class Engine {
       let disabled = config.bindings.filter { !$0.enabled }.map { binding in
         (binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string
       }
+      hotkeys.mouseTriggersAvailable = Permissions.isAccessibilityTrusted && allowsKeyboardChanges
       hotkeys.apply(entries, disabled: disabled, settings: settings)
     }
     automation.settings = config.automation
@@ -255,9 +263,10 @@ final class Engine {
     status.accessibilityGranted = trusted
     let wantsHyper = config.keyboard.capsLock == .hyper && !suspended
     let wantsHotstrings = config.general.hotstringsEnabled && config.hotstrings.contains(where: \.enabled) && !suspended
+    let mouseCombos = suspended ? [] : hotkeys.boundMouseCombos
 
     var tapFailed = false
-    if trusted && allowsKeyboardChanges && (wantsHyper || wantsHotstrings) {
+    if trusted && allowsKeyboardChanges && (wantsHyper || wantsHotstrings || !mouseCombos.isEmpty) {
       if !tap.isRunning && !tap.start() { tapFailed = true }
     } else if tap.isRunning {
       tap.stop()
@@ -291,7 +300,13 @@ final class Engine {
     options.hotstringsEnabled = wantsHotstrings
     let hyperCodes = Set(
       hotkeys.boundCombos.filter { $0.modifiers == config.keyboard.hyperModifiers }.compactMap { KeyCodes.code(for: $0.key) })
-    tap.update(options: options, hotstrings: config.hotstrings, hyperHotkeys: remap ? hyperCodes : [])
+    let mouseHotkeys = Set(
+      mouseCombos.compactMap { combo -> KeyboardTap.MouseHotkey? in
+        guard let n = Int(combo.key.dropFirst("mouse".count)) else { return nil }
+        return KeyboardTap.MouseHotkey(button: n, modifiers: combo.modifiers.subtracting(.function))
+      })
+    tap.update(
+      options: options, hotstrings: config.hotstrings, hyperHotkeys: remap ? hyperCodes : [], mouseHotkeys: mouseHotkeys)
     tap.setFrontmostApp(bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
     status.hyperKeyActive = remap
@@ -340,8 +355,14 @@ final class Engine {
         let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         let bundleID = app?.bundleIdentifier
         MainActor.assumeIsolated {
-          self?.tap.setFrontmostApp(bundleID: bundleID)
-          self?.automation.frontmostAppChanged(to: bundleID)
+          guard let self else { return }
+          self.tap.setFrontmostApp(bundleID: bundleID)
+          self.automation.frontmostAppChanged(to: bundleID)
+          // Per-app bindings follow the frontmost app; refresh what the tap catches too.
+          if self.hotkeys.setFrontmostApp(bundleID) {
+            self.applyKeyboard()
+            self.status.hotkeys = self.hotkeys.statuses
+          }
         }
       })
     observers.append(

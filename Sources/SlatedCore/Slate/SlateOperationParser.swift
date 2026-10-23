@@ -438,24 +438,36 @@ struct SlateOperationParser {
     return .hold(input)
   }
 
-  /// `repeat <seconds> [toggle|while-held] '<operation>'`
+  /// `repeat <seconds> [toggle|while-held] [times:N] [jitter:F] '<operation>'`
   private func parseRepeat() throws -> Action {
     let words = try tokens()
-    guard words.count == 2 || words.count == 3 else {
+    guard words.count >= 2, words.count <= 5 else {
       throw fail("repeat needs an interval and a quoted operation", hint: "like repeat 0.1 'click left'")
     }
     guard let interval = Double(words[0].text), interval.isFinite, interval > 0 else {
       throw fail("The interval must be a number of seconds above 0", hint: "like repeat 0.1 'click left'")
     }
     var mode = RepeatMode.toggle
-    if words.count == 3 {
-      guard let m = RepeatMode(rawValue: words[1].text.lowercased()) else {
-        throw fail("Unknown repeat mode \"\(words[1].text)\"", hint: "use toggle or while-held")
+    var times: Int?
+    var jitter = 0.0
+    for word in words.dropFirst().dropLast() {
+      let lower = word.text.lowercased()
+      if let m = RepeatMode(rawValue: lower) {
+        mode = m
+      } else if lower.hasPrefix("times:"), let n = Int(lower.dropFirst("times:".count)), n >= 1 {
+        times = n
+      } else if lower.hasPrefix("jitter:"), let j = Double(lower.dropFirst("jitter:".count)), j.isFinite,
+        (0...0.5).contains(j)
+      {
+        jitter = j
+      } else {
+        throw fail(
+          "Unknown repeat option \"\(word.text)\"",
+          hint: "use toggle or while-held, times:N (1 or more) and jitter:F (0 to 0.5)")
       }
-      mode = m
     }
     let action = try SlateSyntax.parseOperation(words[words.count - 1].text)
-    return .autoRepeat(action, interval: interval, mode: mode)
+    return .autoRepeat(action, interval: interval, mode: mode, times: times, jitter: jitter)
   }
 
   /// `wait <seconds>`

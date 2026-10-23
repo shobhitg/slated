@@ -24,13 +24,28 @@ public enum InputSynth {
     post(mouse: button, down: down, at: pointerLocation, clickState: 1)
   }
 
-  /// Presses or releases a key with modifiers.
+  /// Presses or releases a key with modifiers. Modifier keys themselves (Shift, Control, Option,
+  /// Command; left or right) are sent as flags-changed events, the way the keyboard reports them, so
+  /// holding Shift for sprint looks like a real held Shift.
   public static func key(_ code: CGKeyCode, modifiers: Modifiers = [], down: Bool) {
     guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down) else { return }
-    event.flags = KeyboardTap.flags(for: modifiers)
+    if let flag = modifierFlags[code] {
+      if down { heldModifiers.insert(flag) } else { heldModifiers.remove(flag) }
+      event.type = .flagsChanged
+      event.flags = heldModifiers.union(KeyboardTap.flags(for: modifiers))
+    } else {
+      event.flags = heldModifiers.union(KeyboardTap.flags(for: modifiers))
+    }
     mark(event)
     event.post(tap: .cghidEventTap)
   }
+
+  private static let modifierFlags: [CGKeyCode: CGEventFlags] = [
+    56: .maskShift, 60: .maskShift, 59: .maskControl, 62: .maskControl, 58: .maskAlternate, 61: .maskAlternate,
+    55: .maskCommand, 54: .maskCommand,
+  ]
+  /// Modifier keys Slated is holding down right now (automation only touches this on the main thread).
+  nonisolated(unsafe) private static var heldModifiers: CGEventFlags = []
 
   /// Presses and releases a key.
   public static func tap(_ code: CGKeyCode, modifiers: Modifiers = []) {

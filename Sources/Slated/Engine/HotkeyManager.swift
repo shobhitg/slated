@@ -14,6 +14,8 @@ final class HotkeyManager {
     var repeats: Bool
     /// Where the binding is defined ("Slated", "~/.slate.js", …), for logs.
     var source: String = "Slated"
+    /// Only registered while one of these apps is frontmost; empty means everywhere.
+    var apps: [String] = []
     var run: () -> Void
   }
 
@@ -33,15 +35,29 @@ final class HotkeyManager {
   var onModalChange: ((KeyCombo?) -> Void)?
   /// A binding's key went up (while-held auto-repeats stop then).
   var onRelease: ((Entry) -> Void)?
+  /// Whether the keyboard tap can deliver mouse button shortcuts (needs Accessibility permission).
+  var mouseTriggersAvailable = false
+
+  private var lastEntries: [Entry] = []
+  private var lastDisabled: [String] = []
+  private var frontmostApp: String?
 
   func apply(_ entries: [Entry], disabled: [String] = [], settings: SlateSettings) {
     unregisterAll()
     self.settings = settings
+    lastEntries = entries
+    lastDisabled = disabled
     var seen = Set<String>()
     var direct: [Entry] = []
     statuses = Dictionary(disabled.map { ($0, HotkeyStatus.disabled) }, uniquingKeysWith: { a, _ in a })
     duplicates = []
-    for entry in entries {
+    // App-specific bindings are registered only while their app is in front, so a plain key in a
+    // game never steals that key anywhere else. The rest count as ready.
+    let live = entries.filter { $0.apps.isEmpty || frontmostApp.map($0.apps.contains) == true }
+    for entry in entries where !entry.apps.isEmpty && statuses[entry.id] == nil {
+      statuses[entry.id] = .active
+    }
+    for entry in live {
       guard seen.insert(entry.id).inserted else {
         duplicates.append(entry.id)
         continue
@@ -53,7 +69,17 @@ final class HotkeyManager {
       }
     }
     for entry in direct {
+      if KeyNames.isModifierKey(entry.keys.key) {
+        statuses[entry.id] = .failed("A modifier key can't be a shortcut on its own")
+        continue
+      }
       self.direct[entry.keys] = entry
+      if KeyNames.isMouseButton(entry.keys.key) {
+        // Delivered by the keyboard tap, not Carbon (which only knows keys).
+        statuses[entry.id] =
+          mouseTriggersAvailable ? .active : .failed("Mouse button shortcuts need Accessibility permission")
+        continue
+      }
       register(entry.keys, id: entry.id) { [weak self] phase in self?.handle(entry, phase: phase) }
     }
     defer { logRegistration() }
@@ -70,6 +96,20 @@ final class HotkeyManager {
 
   /// Non-modal combos currently bound, so the keyboard tap can catch Hyper combos itself.
   var boundCombos: [KeyCombo] { Array(direct.keys) }
+
+  /// Mouse button shortcuts currently bound (delivered by the keyboard tap).
+  var boundMouseCombos: [KeyCombo] { direct.keys.filter { KeyNames.isMouseButton($0.key) } }
+
+  /// Re-registers app-specific bindings when another app comes to the front. Returns true if
+  /// anything had to change.
+  @discardableResult
+  func setFrontmostApp(_ bundleID: String?) -> Bool {
+    let previous = frontmostApp
+    frontmostApp = bundleID
+    guard previous != bundleID, lastEntries.contains(where: { !$0.apps.isEmpty }) else { return false }
+    apply(lastEntries, disabled: lastDisabled, settings: settings)
+    return true
+  }
 
   /// Runs the binding for `keys` as if its hotkey fired. Returns false if nothing is bound.
   @discardableResult
@@ -89,7 +129,8 @@ final class HotkeyManager {
       return nil
     }.sorted()
     let active = statuses.values.filter { $0 == .active }.count
-    let signature = "\(active)|\(failed)|\(duplicates)"
+    // Problems only: app switches re-register app-specific bindings without changing them.
+    let signature = "\(failed)|\(duplicates)"
     guard signature != lastLoggedRegistration else { return }
     lastLoggedRegistration = signature
     var data: [String: Any] = ["active": active, "total": statuses.count]

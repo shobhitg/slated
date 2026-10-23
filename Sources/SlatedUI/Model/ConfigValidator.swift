@@ -41,7 +41,14 @@ enum ConfigValidator {
       let target = ValidationIssue.Target.binding(binding.id)
       if let problem = keyProblem(binding.keys) {
         issues.append(.init(severity: .error, target: target, field: .keys, message: problem))
-      } else if let warning = typingWarning(binding.keys, modal: binding.modal) {
+      } else if KeyNames.isModifierKey(binding.keys.key) {
+        issues.append(
+          .init(
+            severity: .error, target: target, field: .keys,
+            message: "A modifier key can't be a shortcut on its own. Add a key, or use it as a held input instead."))
+      } else if binding.onlyInApps.isEmpty, !KeyNames.isMouseButton(binding.keys.key),
+        let warning = typingWarning(binding.keys, modal: binding.modal)
+      {
         issues.append(.init(severity: .warning, target: target, field: .keys, message: warning))
       }
       for problem in actionProblems(binding.action, knownLayouts: knownLayouts) {
@@ -122,7 +129,7 @@ enum ConfigValidator {
           Problem(severity: $0.severity, message: "Step \(i + 1): \($0.message)")
         }
       }
-    case .autoRepeat(let repeated, let interval, _):
+    case .autoRepeat(let repeated, let interval, _, _, _):
       var problems = actionProblems(repeated, knownLayouts: knownLayouts).map {
         Problem(severity: $0.severity, message: "Repeated: \($0.message)")
       }

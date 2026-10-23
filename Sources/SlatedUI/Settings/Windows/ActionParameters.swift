@@ -172,6 +172,8 @@ struct ActionParameters: View {
           }
           .labelsHidden().pickerStyle(.segmented).fixedSize()
         }
+        LabeledField("Stop", labelWidth: 56) { RepeatLimitField(times: field(\.repeatTimes)) }
+        LabeledField("Vary", labelWidth: 56) { JitterField(jitter: field(\.jitter)) }
       }
     case .wait:
       LabeledField("Seconds", labelWidth: 56) { SecondsField(seconds: field(\.seconds), minimum: 0) }

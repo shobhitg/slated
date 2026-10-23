@@ -100,3 +100,67 @@ let clipboardHistoryTests = Suite("ClipboardHistory", [
     expect(h.items.isEmpty)
   }),
 ])
+
+let repeatScheduleTests = Suite("RepeatSchedule", [
+  ("stops after the requested number of runs", {
+    let once = RepeatSchedule(interval: 0.1, times: 1)
+    expect(!once.shouldRunAgain(afterRuns: 1))
+    let thrice = RepeatSchedule(interval: 0.1, times: 3)
+    expect(thrice.shouldRunAgain(afterRuns: 1))
+    expect(thrice.shouldRunAgain(afterRuns: 2))
+    expect(!thrice.shouldRunAgain(afterRuns: 3))
+    let forever = RepeatSchedule(interval: 0.1)
+    expect(forever.shouldRunAgain(afterRuns: 1_000_000))
+  }),
+  ("jitter stays within its range and exact timing has none", {
+    let exact = RepeatSchedule(interval: 0.1)
+    expectEqual(exact.nextInterval(random: 0), 0.1)
+    expectEqual(exact.nextInterval(random: 1), 0.1)
+    let varied = RepeatSchedule(interval: 0.1, jitter: 0.2)
+    expect(abs(varied.nextInterval(random: 0) - 0.08) < 1e-9)
+    expect(abs(varied.nextInterval(random: 1) - 0.12) < 1e-9)
+    expect(abs(varied.nextInterval(random: 0.5) - 0.1) < 1e-9)
+  }),
+  ("inputs are clamped to safe values", {
+    let s = RepeatSchedule(interval: 0, times: 0, jitter: 3)
+    expectEqual(s.interval, 0.01)
+    expectEqual(s.times, 1)
+    expectEqual(s.jitter, 0.5)
+    expect(RepeatSchedule(interval: 0.01, jitter: 0.5).nextInterval(random: 0) >= 0.01)
+  }),
+])
+
+let automationOptionsTests = Suite("AutomationOptions", [
+  ("repeat limit and jitter round-trip through JSON and Slate syntax", {
+    let action = Action.autoRepeat(.click(.left, count: 1), interval: 0.1, mode: .toggle, times: 50, jitter: 0.15)
+    expectEqual(try JSONDecoder().decode(Action.self, from: JSONEncoder().encode(action)), action)
+    expectEqual(SlateSyntax.format(action), "repeat 0.1 times:50 jitter:0.15 'click left'")
+    expectEqual(try SlateSyntax.parseOperation(SlateSyntax.format(action)), action)
+    expectEqual(
+      try SlateSyntax.parseOperation("repeat 0.05 while-held jitter:0.1 'keystroke w'"),
+      .autoRepeat(.keystroke(KeyCombo(key: "w")), interval: 0.05, mode: .whileHeld, times: nil, jitter: 0.1))
+    expectThrows { _ = try SlateSyntax.parseOperation("repeat 0.1 times:0 'click left'") }
+    expectThrows { _ = try SlateSyntax.parseOperation("repeat 0.1 jitter:0.9 'click left'") }
+    expectThrows { _ = try JSONDecoder().decode(Action.self, from: Data(#"{"op":"repeat","action":"click","interval":0.1,"jitter":1}"#.utf8)) }
+  }),
+  ("modifier keys can be held; mouse buttons can be triggers", {
+    expectEqual(SyntheticInput(string: "key:shift"), .key(KeyCombo(key: "shift")))
+    expectEqual(SyntheticInput(string: "key:rightCtrl")?.string, "key:rightCtrl")
+    expect(KeyNames.isModifierKey("shift"))
+    expect(KeyNames.isMouseButton("mouse4"))
+    expectEqual(KeyCombo(string: "mouse4"), KeyCombo(key: "mouse4"))
+    expectEqual(KeyCombo(key: "mouse5").display(), "Mouse 5")
+    expectEqual(try SlateSyntax.parseOperation("hold key:shift"), .hold(.key(KeyCombo(key: "shift"))))
+  }),
+  ("bindings can be limited to apps, and only write the list when set", {
+    let game = HotkeyBinding(keys: KeyCombo(key: "f"), action: .hold(.mouse(.left)), onlyInApps: ["com.mojang.minecraft"])
+    expect(game.isActive(inApp: "com.mojang.minecraft"))
+    expect(!game.isActive(inApp: "com.apple.Safari"))
+    expect(!game.isActive(inApp: nil))
+    let everywhere = HotkeyBinding(keys: KeyCombo(string: "hyper+a")!, action: .undo)
+    expect(everywhere.isActive(inApp: nil))
+    let json = String(decoding: try JSONEncoder().encode(everywhere), as: UTF8.self)
+    expect(!json.contains("onlyInApps"), json)
+    expectEqual(try JSONDecoder().decode(HotkeyBinding.self, from: JSONEncoder().encode(game)), game)
+  }),
+])

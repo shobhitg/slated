@@ -1,0 +1,13 @@
+{
+  // Game automation: a plain key only inside one game, a mouse side button, a limited, jittered
+  // auto-clicker, and a modifier on its own (not allowed as a shortcut).
+  "general": { "loadSlateConfigs": false },
+  "bindings": [
+    { "name": "Hold left click in the game", "keys": "f", "onlyInApps": ["com.example.game"],
+      "action": { "op": "hold", "input": "mouse:left" } },
+    { "name": "Auto-click", "keys": "mouse4",
+      "action": { "op": "repeat", "action": { "op": "click", "button": "left" }, "interval": 0.1, "times": 50, "jitter": 0.1 } },
+    { "name": "Sprint toggle", "keys": "hyper+r", "action": "hold key:shift" },
+    { "name": "Not allowed", "keys": "shift", "action": "undo" },
+  ],
+}

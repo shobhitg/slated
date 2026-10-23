@@ -11,6 +11,8 @@ let suites: [Suite] = [
   crossPlatformBugTests,
   automationModelTests,
   clipboardHistoryTests,
+  repeatScheduleTests,
+  automationOptionsTests,
   hotstringMatcherTests,
   hotstringTemplateTests,
   slateScriptTests,

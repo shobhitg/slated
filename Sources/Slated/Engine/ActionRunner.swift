@@ -184,11 +184,12 @@ final class ActionRunner {
       guard let automation else { return fail("Automation isn't available") }
       automation.toggleHold(input, trigger: currentTrigger)
       return true
-    case .autoRepeat(let repeated, let interval, let mode):
+    case .autoRepeat(let repeated, let interval, let mode, let times, let jitter):
       guard let automation else { return fail("Automation isn't available") }
       if case .autoRepeat = repeated { return fail("An auto-repeat can't repeat another auto-repeat") }
       let id = currentTrigger ?? chainKey ?? "repeat \(SlateSyntax.format(repeated))"
-      automation.toggleRepeat(repeated, interval: interval, mode: mode, id: id, trigger: currentTrigger)
+      automation.toggleRepeat(
+        repeated, interval: interval, mode: mode, times: times, jitter: jitter, id: id, trigger: currentTrigger)
       return true
     case .wait:
       return true  // waits only mean something inside a sequence

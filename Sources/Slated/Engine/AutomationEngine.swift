@@ -14,8 +14,10 @@ final class AutomationEngine {
   var onChange: (() -> Void)?
 
   private struct Repeater {
-    var timer: Timer
+    var timer: Timer?
     var info: ActiveAutomation
+    var action: Action
+    var schedule: RepeatSchedule
     var mode: RepeatMode
   }
 
@@ -34,23 +36,31 @@ final class AutomationEngine {
   // MARK: Auto-repeat
 
   /// Starts an auto-repeat identified by `id` (its trigger), or stops it if it's already running
-  /// (toggle mode, or a second press in while-held mode).
-  func toggleRepeat(_ action: Action, interval: Double, mode: RepeatMode, id: String, trigger: String?) {
+  /// (toggle mode, or a second press in while-held mode). `times` stops it after that many runs;
+  /// `jitter` varies each interval randomly by up to that fraction.
+  func toggleRepeat(
+    _ action: Action, interval: Double, mode: RepeatMode, times: Int? = nil, jitter: Double = 0, id: String,
+    trigger: String?
+  ) {
     if repeaters[id] != nil {
       stopRepeat(id: id, reason: "toggled off")
       return
     }
-    let interval = max(interval, 0.01)
-    let info = ActiveAutomation(
-      id: id, title: "Repeat \(SlateSyntax.format(action)) every \(Self.describe(seconds: interval))",
-      trigger: trigger, startedAt: Date(), repetitions: 1)
-    perform?(action)  // the first repetition happens right away
-    let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
-      MainActor.assumeIsolated { self?.tick(id: id, action: action) }
+    let schedule = RepeatSchedule(interval: interval, times: times, jitter: jitter)
+    var title = "Repeat \(SlateSyntax.format(action)) every \(Self.describe(seconds: schedule.interval))"
+    if let times = schedule.times { title += ", \(times)×" }
+    let info = ActiveAutomation(id: id, title: title, trigger: trigger, startedAt: Date(), repetitions: 1)
+    repeaters[id] = Repeater(timer: nil, info: info, action: action, schedule: schedule, mode: mode)
+    var extra: [String: Any] = ["interval": schedule.interval, "mode": mode.rawValue]
+    extra["times"] = schedule.times
+    if schedule.jitter > 0 { extra["jitter"] = schedule.jitter }
+    began(info, extra: extra)
+    perform?(action)  // the first run happens right away
+    if schedule.shouldRunAgain(afterRuns: 1) {
+      scheduleNext(id: id)
+    } else {
+      stopRepeat(id: id, reason: "finished")
     }
-    RunLoop.main.add(timer, forMode: .common)
-    repeaters[id] = Repeater(timer: timer, info: info, mode: mode)
-    began(info, extra: ["interval": interval, "mode": mode.rawValue])
   }
 
   /// The trigger's key was released: stops the while-held repeat it started.
@@ -59,15 +69,32 @@ final class AutomationEngine {
     stopRepeat(id: id, reason: "released")
   }
 
-  private func tick(id: String, action: Action) {
-    guard repeaters[id] != nil else { return }
-    repeaters[id]?.info.repetitions += 1
-    perform?(action)
+  /// One-shot timers rescheduled after each run, so every interval can get its own jitter.
+  private func scheduleNext(id: String) {
+    guard let repeater = repeaters[id] else { return }
+    let wait = repeater.schedule.nextInterval(random: Double.random(in: 0...1))
+    let timer = Timer(timeInterval: wait, repeats: false) { [weak self] _ in
+      MainActor.assumeIsolated { self?.tick(id: id) }
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    repeaters[id]?.timer = timer
+  }
+
+  private func tick(id: String) {
+    guard let repeater = repeaters[id] else { return }
+    let count = repeater.info.repetitions + 1
+    repeaters[id]?.info.repetitions = count
+    perform?(repeater.action)
+    if repeater.schedule.shouldRunAgain(afterRuns: count) {
+      scheduleNext(id: id)  // no-op if the action itself stopped automations
+    } else {
+      stopRepeat(id: id, reason: "finished")
+    }
   }
 
   private func stopRepeat(id: String, reason: String, notify: Bool = true) {
     guard let repeater = repeaters.removeValue(forKey: id) else { return }
-    repeater.timer.invalidate()
+    repeater.timer?.invalidate()
     ended(repeater.info, reason: reason, notify: notify)
   }
 
@@ -87,6 +114,8 @@ final class AutomationEngine {
   func press(_ input: SyntheticInput, phase: PressPhase, trigger: String? = nil) {
     switch phase {
     case .down:
+      // Pressing something already held would send a second "down" without an "up".
+      guard held[input] == nil else { return }
       guard send(input, down: true) else { return }
       if held[input] == nil {
         let info = ActiveAutomation(
@@ -137,6 +166,12 @@ final class AutomationEngine {
     guard settings.stopOnAppSwitch, isRunning, let startedInApp, bundleID != startedInApp else { return }
     // Our own windows (the switcher, settings) don't count as leaving the game.
     if bundleID == Bundle.main.bundleIdentifier { return }
+    // Started while Slated's own window was in front (e.g. testing from Settings): the app you switch
+    // to next is the one it's for.
+    if startedInApp == Bundle.main.bundleIdentifier {
+      self.startedInApp = bundleID
+      return
+    }
     stopAll(reason: "switched to another app")
   }
 

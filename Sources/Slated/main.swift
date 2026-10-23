@@ -17,7 +17,12 @@ if CommandLine.arguments.contains("--smoke") {
       for d in source.diagnostics { print("  ", d) }
     }
     print("hotkeys:", status.hotkeys.count, "registered,", status.hotkeys.values.filter { $0 == .active }.count, "active")
-    for (key, value) in status.hotkeys.sorted(by: { $0.key < $1.key }) where value != .active { print("  ", key, value) }
+    for (key, value) in status.hotkeys.sorted(by: { $0.key < $1.key }) where value != .active {
+      switch value {
+      case .failed(let reason): print("  ", key, "failed:", reason)
+      default: print("  ", key, value)
+      }
+    }
     for key in engine.hotkeys.duplicates { print("   duplicate:", key) }
     for warning in engine.warnings { print("warning:", warning) }
     print("accessibility:", status.accessibilityGranted, "hyper:", status.hyperKeyActive, "hotstrings:", status.hotstringsActive)

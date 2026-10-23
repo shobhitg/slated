@@ -24,6 +24,17 @@ public final class KeyboardTap: @unchecked Sendable {
     public init() {}
   }
 
+  /// A mouse button shortcut: button 3 (middle), 4 (back) or 5 (forward) with modifiers.
+  public struct MouseHotkey: Hashable, Sendable {
+    public var button: Int
+    public var modifiers: Modifiers
+
+    public init(button: Int, modifiers: Modifiers) {
+      self.button = button
+      self.modifiers = modifiers
+    }
+  }
+
   /// Value written into `eventSourceUserData` of events Slated posts, so the tap ignores them.
   public static let syntheticEventMarker: Int64 = 0x534C_4154_4544
   /// The virtual key code Caps Lock is remapped to (F18).
@@ -38,6 +49,8 @@ public final class KeyboardTap: @unchecked Sendable {
   /// Runs on the main actor for tap lifecycle events worth logging: "reenabled_after_timeout",
   /// "reenabled_after_user_input" (macOS disables slow taps), "started", "stopped".
   public var onEvent: (@MainActor @Sendable (String) -> Void)?
+  /// Runs on the main actor for a bound mouse button shortcut (true = down, false = up).
+  public var onMouseHotkey: (@MainActor @Sendable (MouseHotkey, Bool) -> Void)?
 
   private let lock = NSLock()
   private var options = Options()
@@ -47,6 +60,9 @@ public final class KeyboardTap: @unchecked Sendable {
   private var hyperUsed = false
   private var hyperHotkeyCodes: Set<Int64> = []
   private var hyperHotkeyHeld: Set<Int64> = []
+  private var mouseHotkeys: Set<MouseHotkey> = []
+  /// Mouse buttons whose press we swallowed, so their release is swallowed too.
+  private var mouseHotkeyHeld: [Int: MouseHotkey] = [:]
   private var machPort: CFMachPort?
   private var runLoop: CFRunLoop?
 
@@ -112,11 +128,14 @@ public final class KeyboardTap: @unchecked Sendable {
   }
 
   /// `hyperHotkeys`: key codes bound with exactly the Hyper modifiers.
-  public func update(options: Options, hotstrings: [Hotstring], hyperHotkeys: Set<UInt16> = []) {
+  public func update(
+    options: Options, hotstrings: [Hotstring], hyperHotkeys: Set<UInt16> = [], mouseHotkeys: Set<MouseHotkey> = []
+  ) {
     lock.withLock {
       self.options = options
       matcher.update(hotstrings)
       hyperHotkeyCodes = Set(hyperHotkeys.map(Int64.init))
+      self.mouseHotkeys = mouseHotkeys
       if !options.hyperEnabled { hyperDown = false }
     }
   }
@@ -143,6 +162,7 @@ public final class KeyboardTap: @unchecked Sendable {
     var sendEscape = false
     var match: HotstringMatch?
     var hyperHotkey: (code: UInt16, down: Bool)?
+    var mouseHotkey: (hotkey: MouseHotkey, down: Bool)?
     let result: Unmanaged<CGEvent>? = lock.withLock {
       if options.suspended { return pass }
       let hyperFlags = Self.flags(for: options.hyperModifiers)
@@ -189,6 +209,30 @@ public final class KeyboardTap: @unchecked Sendable {
       case .flagsChanged:
         if hyperDown { event.flags.formUnion(hyperFlags) }
         return pass
+      case .otherMouseDown, .otherMouseUp:
+        // Button numbers start at 0 (left); Slate-style names start at 1 ("mouse4" is number 3).
+        let button = Int(event.getIntegerValueField(.mouseEventButtonNumber)) + 1
+        if type == .otherMouseUp, let held = mouseHotkeyHeld.removeValue(forKey: button) {
+          mouseHotkey = (held, false)
+          return nil
+        }
+        if type == .otherMouseDown && !mouseHotkeys.isEmpty {
+          var modifiers = Self.modifiers(from: event.flags)
+          if hyperDown { modifiers.formUnion(options.hyperModifiers) }
+          let candidate = MouseHotkey(button: button, modifiers: modifiers)
+          if mouseHotkeys.contains(candidate) {
+            if hyperDown { hyperUsed = true }
+            mouseHotkeyHeld[button] = candidate
+            mouseHotkey = (candidate, true)
+            return nil
+          }
+        }
+        if hyperDown {
+          hyperUsed = true
+          event.flags.formUnion(hyperFlags)
+        }
+        if type == .otherMouseDown { matcher.reset() }
+        return pass
       default:  // mouse buttons and drags
         if hyperDown {
           hyperUsed = true
@@ -200,6 +244,9 @@ public final class KeyboardTap: @unchecked Sendable {
     }
 
     if sendEscape { Self.postKey(53) }
+    if let mouseHotkey, let handler = onMouseHotkey {
+      DispatchQueue.main.async { MainActor.assumeIsolated { handler(mouseHotkey.hotkey, mouseHotkey.down) } }
+    }
     if let hyperHotkey, let handler = onHyperHotkey {
       DispatchQueue.main.async { MainActor.assumeIsolated { handler(hyperHotkey.code, hyperHotkey.down) } }
     }
@@ -233,6 +280,15 @@ public final class KeyboardTap: @unchecked Sendable {
       text = String(utf16CodeUnits: chars, count: length)
     }
     return matcher.feed(text, appBundleID: frontmostBundleID)
+  }
+
+  static func modifiers(from flags: CGEventFlags) -> Modifiers {
+    var modifiers: Modifiers = []
+    if flags.contains(.maskControl) { modifiers.insert(.control) }
+    if flags.contains(.maskAlternate) { modifiers.insert(.option) }
+    if flags.contains(.maskShift) { modifiers.insert(.shift) }
+    if flags.contains(.maskCommand) { modifiers.insert(.command) }
+    return modifiers
   }
 
   static func flags(for modifiers: Modifiers) -> CGEventFlags {

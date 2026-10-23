@@ -141,7 +141,7 @@ public enum KeyNames {
       "left", "right", "up", "down", "return", "tab", "space", "delete", "forwardDelete", "esc",
       "home", "end", "pageUp", "pageDown", "help", "caps", "mute", "volumeUp", "volumeDown",
       "backslash", "padClear", "padEnter", "pad=", "pad*", "pad+", "pad-", "pad.", "pad/",
-    ]
+    ] + modifierKeys + mouseButtons
     for n in names { map[n.lowercased()] = n }
     for i in 0...9 { map["pad\(i)"] = "pad\(i)" }
     for i in 1...20 { map["f\(i)"] = "f\(i)" }
@@ -158,6 +158,17 @@ public enum KeyNames {
     if let named = named[key.lowercased()] { return named }
     return key.count == 1 ? key.lowercased() : key
   }
+
+  /// Modifier keys on their own: holdable for automation (toggle sprint with Shift), but not usable as
+  /// shortcuts by themselves.
+  public static let modifierKeys = ["shift", "ctrl", "alt", "cmd", "rightShift", "rightCtrl", "rightAlt", "rightCmd"]
+
+  /// Extra mouse buttons usable as triggers: middle (3), back (4) and forward (5).
+  public static let mouseButtons = ["mouse3", "mouse4", "mouse5"]
+
+  public static func isModifierKey(_ key: String) -> Bool { modifierKeys.contains(canonical(key)) }
+
+  public static func isMouseButton(_ key: String) -> Bool { mouseButtons.contains(canonical(key)) }
 
   public static func isValid(_ key: String) -> Bool {
     named[key.lowercased()] != nil || key.count == 1
@@ -182,6 +193,17 @@ public enum KeyNames {
     case "padEnter": return "⌤"
     case "backslash": return "\\"
     case "caps": return "⇪"
+    case "shift": return "⇧"
+    case "ctrl": return "⌃"
+    case "alt": return "⌥"
+    case "cmd": return "⌘"
+    case "rightShift": return "Right ⇧"
+    case "rightCtrl": return "Right ⌃"
+    case "rightAlt": return "Right ⌥"
+    case "rightCmd": return "Right ⌘"
+    case "mouse3": return "Middle Click"
+    case "mouse4": return "Mouse 4"
+    case "mouse5": return "Mouse 5"
     default:
       if key.hasPrefix("pad") { return "Pad " + key.dropFirst(3) }
       if key.hasPrefix("f"), Int(key.dropFirst()) != nil { return key.uppercased() }

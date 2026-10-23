@@ -65,6 +65,8 @@ public enum KeyCodes {
     "padClear": 71, "padEnter": 76, "pad=": 81, "pad*": 67, "pad+": 69, "pad-": 78, "pad.": 65,
     "pad/": 75, "pad0": 82, "pad1": 83, "pad2": 84, "pad3": 85, "pad4": 86, "pad5": 87,
     "pad6": 88, "pad7": 89, "pad8": 91, "pad9": 92,
+    "shift": 56, "rightShift": 60, "ctrl": 59, "rightCtrl": 62, "alt": 58, "rightAlt": 61, "cmd": 55,
+    "rightCmd": 54,
   ]
 
   /// US ANSI positions, the fallback when the layout doesn't produce a character.

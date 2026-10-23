@@ -68,6 +68,9 @@ struct ActionForm: Hashable {
   var repeatAction: Action = .click(.left, count: 1)
   var interval = 0.1
   var repeatMode: RepeatMode = .toggle
+  /// nil: until stopped.
+  var repeatTimes: Int?
+  var jitter = 0.0
   var seconds = 0.5
 
   init(kind: ActionKind) {
@@ -111,7 +114,8 @@ struct ActionForm: Hashable {
     case .click(let button, let count): (mouseButton, clickCount) = (button, count)
     case .press(let input, let phase): (self.input, self.phase) = (input, phase)
     case .hold(let input): self.input = input
-    case .autoRepeat(let action, let interval, let mode): (repeatAction, self.interval, repeatMode) = (action, interval, mode)
+    case .autoRepeat(let action, let interval, let mode, let times, let jitter):
+      (repeatAction, self.interval, repeatMode, repeatTimes, self.jitter) = (action, interval, mode, times, jitter)
     case .wait(let seconds): self.seconds = seconds
     case .stopAutomations, .clipboardHistory: break
     case .undo, .relaunch, .switchApp: break
@@ -153,7 +157,10 @@ struct ActionForm: Hashable {
     case .click: return .click(mouseButton, count: max(1, clickCount))
     case .press: return .press(input, phase: phase)
     case .hold: return .hold(input)
-    case .autoRepeat: return .autoRepeat(repeatAction, interval: max(0.01, interval), mode: repeatMode)
+    case .autoRepeat:
+      return .autoRepeat(
+        repeatAction, interval: max(0.01, interval), mode: repeatMode, times: repeatTimes.map { max(1, $0) },
+        jitter: min(max(jitter, 0), 0.5))
     case .wait: return .wait(max(0, seconds))
     case .stopAutomations: return .stopAutomations
     }

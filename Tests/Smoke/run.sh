@@ -79,6 +79,16 @@ cp "$FIXTURES/config-no-builtins.json" "$home/.config/slated/config.json"
 out=$(smoke "$home")
 expect_output "null turns off the built-in shortcuts" "$out" "hotkeys: 1 registered"
 
+# 4c. Game automation bindings: per-app, mouse buttons, repeat options, modifier-only rejected.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-automation.json" "$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "automation config loads" "$out" "native: 4 bindings"
+expect_output "all bindings and built-ins get a status" "$out" "hotkeys: 6 registered"
+expect_output "a modifier alone is rejected as a shortcut, with the reason" "$out" "A modifier key can't be a shortcut on its own"
+expect_output "mouse button shortcuts explain what they need" "$out" "Mouse button shortcuts need Accessibility permission"
+
 # 5. A broken config.json is reported, not fatal.
 home=$(new_home)
 mkdir -p "$home/.config/slated"
