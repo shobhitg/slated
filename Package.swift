@@ -26,11 +26,18 @@ let package = Package(
       dependencies: ["SlatedCore", "SlatedSystem", "SlatedScript", "SlatedUI"],
       swiftSettings: [.defaultIsolation(MainActor.self)]
     ),
+    // Renders every settings pane, onboarding step and the menu bar view to PNGs (light and dark)
+    // with sample data: `swift run SlatedUISnapshots <output-dir>`.
+    .executableTarget(
+      name: "SlatedUISnapshots",
+      dependencies: ["SlatedUI", "SlatedCore"],
+      swiftSettings: [.defaultIsolation(MainActor.self)]
+    ),
     // Tests run as an executable (`make test`): Swift Testing and XCTest need Xcode, and this
     // machine only has the Command Line Tools. The harness mirrors Swift Testing's #expect/#require.
     .executableTarget(
       name: "SlatedTests",
-      dependencies: ["SlatedCore", "SlatedScript"],
+      dependencies: ["SlatedCore", "SlatedScript", "SlatedUI"],
       path: "Tests/SlatedTests"
     ),
   ]

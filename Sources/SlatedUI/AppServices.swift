@@ -52,17 +52,20 @@ public struct SlateSource: Identifiable, Hashable, Sendable {
   public var exists: Bool
   public var loaded: Bool
   public var bindings: [SourceBinding]
+  /// Layouts the file defines (`slate.layout(...)` / `layout` lines), shown read-only in Settings.
+  public var layouts: [Layout]
   public var diagnostics: [Diagnostic]
 
   public init(
     path: String, kind: Kind, exists: Bool, loaded: Bool, bindings: [SourceBinding] = [],
-    diagnostics: [Diagnostic] = []
+    layouts: [Layout] = [], diagnostics: [Diagnostic] = []
   ) {
     self.path = path
     self.kind = kind
     self.exists = exists
     self.loaded = loaded
     self.bindings = bindings
+    self.layouts = layouts
     self.diagnostics = diagnostics
   }
 }
@@ -81,7 +84,12 @@ public enum HotkeyStatus: Hashable, Sendable {
 public struct RuntimeStatus: Hashable, Sendable {
   public var accessibilityGranted: Bool
   public var hyperKeyActive: Bool
+  /// The user's text-expansion switch (`setHotstringsEnabled`), kept across launches.
+  public var hotstringsEnabled: Bool
+  /// Hotstrings are matching right now (enabled, not paused, permission granted).
   public var hotstringsActive: Bool
+  /// Everything is paused from the menu bar (`setPaused`): no hotkeys, Hyper key or hotstrings.
+  public var paused: Bool
   /// Keyed by `KeyCombo.string`, prefixed with the modal key's string and a space for modal bindings.
   public var hotkeys: [String: HotkeyStatus]
   /// Last thing Slated did, e.g. "Left half · Safari".
@@ -89,12 +97,15 @@ public struct RuntimeStatus: Hashable, Sendable {
   public var lastError: String?
 
   public init(
-    accessibilityGranted: Bool = false, hyperKeyActive: Bool = false, hotstringsActive: Bool = false,
-    hotkeys: [String: HotkeyStatus] = [:], lastAction: String? = nil, lastError: String? = nil
+    accessibilityGranted: Bool = false, hyperKeyActive: Bool = false, hotstringsEnabled: Bool = true,
+    hotstringsActive: Bool = false, paused: Bool = false, hotkeys: [String: HotkeyStatus] = [:],
+    lastAction: String? = nil, lastError: String? = nil
   ) {
     self.accessibilityGranted = accessibilityGranted
     self.hyperKeyActive = hyperKeyActive
+    self.hotstringsEnabled = hotstringsEnabled
     self.hotstringsActive = hotstringsActive
+    self.paused = paused
     self.hotkeys = hotkeys
     self.lastAction = lastAction
     self.lastError = lastError
@@ -119,8 +130,19 @@ public protocol AppServices: AnyObject {
   /// Reloads the config file and Slate sources from disk.
   func reload()
   func revealConfigurationFile()
-  /// Suspends global hotkeys, Hyper and hotstrings while the UI records a shortcut.
+  /// Shows a file in the Finder, e.g. a Slate config. `path` may start with `~`.
+  func revealFile(atPath path: String)
+  /// Suspends global hotkeys, Hyper and hotstrings while the UI records a shortcut, and while the
+  /// hotstring "try it" field has focus (so the real engine doesn't expand into it too).
+  /// The recorder reads F18, the Hyper key's raw key, as ⌃⌥⇧⌘ itself, so Hyper shortcuts can be
+  /// recorded even though the Hyper event tap is suspended.
   func setHotkeysSuspended(_ suspended: Bool)
+  /// Pauses or resumes all hotkeys, the Hyper key and hotstrings (menu bar "Pause Slated").
+  /// Runtime only: not saved in the configuration. Reflected in `RuntimeStatus.paused`.
+  func setPaused(_ paused: Bool)
+  /// Master switch for text expansion that leaves each hotstring's own `enabled` flag alone.
+  /// The app keeps it across launches; reflected in `RuntimeStatus.hotstringsEnabled`.
+  func setHotstringsEnabled(_ enabled: Bool)
   func setLaunchAtLogin(_ enabled: Bool) throws
   /// Called with a closure the app invokes whenever runtime status or sources change.
   func onChange(_ handler: @escaping @MainActor () -> Void)
