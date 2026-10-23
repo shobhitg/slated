@@ -61,6 +61,15 @@ struct ActionForm: Hashable {
   var url = "https://"
   var keys = KeyCombo(key: "4", modifiers: [.command, .shift])
 
+  var mouseButton: MouseButton = .left
+  var clickCount = 1
+  var input: SyntheticInput = .mouse(.right)
+  var phase: PressPhase = .down
+  var repeatAction: Action = .click(.left, count: 1)
+  var interval = 0.1
+  var repeatMode: RepeatMode = .toggle
+  var seconds = 0.5
+
   init(kind: ActionKind) {
     self.kind = kind
   }
@@ -99,6 +108,12 @@ struct ActionForm: Hashable {
     case .insertText(let text, let method): (self.text, self.method) = (text, method)
     case .openURL(let url): self.url = url
     case .keystroke(let combo): keys = combo
+    case .click(let button, let count): (mouseButton, clickCount) = (button, count)
+    case .press(let input, let phase): (self.input, self.phase) = (input, phase)
+    case .hold(let input): self.input = input
+    case .autoRepeat(let action, let interval, let mode): (repeatAction, self.interval, repeatMode) = (action, interval, mode)
+    case .wait(let seconds): self.seconds = seconds
+    case .stopAutomations, .clipboardHistory: break
     case .undo, .relaunch, .switchApp: break
     }
   }
@@ -134,6 +149,13 @@ struct ActionForm: Hashable {
     case .openURL: return .openURL(url)
     case .shell: return .shell(command: command, wait: wait, path: workingDirectory.isEmpty ? nil : workingDirectory)
     case .relaunch: return .relaunch
+    case .clipboardHistory: return .clipboardHistory
+    case .click: return .click(mouseButton, count: max(1, clickCount))
+    case .press: return .press(input, phase: phase)
+    case .hold: return .hold(input)
+    case .autoRepeat: return .autoRepeat(repeatAction, interval: max(0.01, interval), mode: repeatMode)
+    case .wait: return .wait(max(0, seconds))
+    case .stopAutomations: return .stopAutomations
     }
   }
 

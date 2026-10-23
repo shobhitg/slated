@@ -130,6 +130,51 @@ struct ActionParameters: View {
       }
     case .keystroke:
       LabeledField("Keys", labelWidth: 56) { ShortcutRecorder(combo: field(\.keys), requiresModifier: false) }
+    case .clipboardHistory, .stopAutomations:
+      EmptyView()
+    case .click:
+      VStack(alignment: .leading, spacing: 10) {
+        LabeledField("Button", labelWidth: 56) { MouseButtonPicker(button: field(\.mouseButton)) }
+        LabeledField("Clicks", labelWidth: 56) {
+          Picker("Clicks", selection: field(\.clickCount)) {
+            Text("Single").tag(1)
+            Text("Double").tag(2)
+            Text("Triple").tag(3)
+          }
+          .labelsHidden().pickerStyle(.segmented).fixedSize()
+        }
+      }
+    case .press:
+      VStack(alignment: .leading, spacing: 10) {
+        SyntheticInputPicker(input: field(\.input))
+        LabeledField("Action", labelWidth: 56) {
+          Picker("Action", selection: field(\.phase)) {
+            Text("Press down").tag(PressPhase.down)
+            Text("Release").tag(PressPhase.up)
+          }
+          .labelsHidden().pickerStyle(.segmented).fixedSize()
+        }
+      }
+    case .hold:
+      VStack(alignment: .leading, spacing: 10) {
+        SyntheticInputPicker(input: field(\.input))
+        Text("The first press holds it down; the next press releases it. The stop shortcut releases everything.")
+          .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+      }
+    case .autoRepeat:
+      VStack(alignment: .leading, spacing: 10) {
+        RepeatedActionRow(action: field(\.repeatAction), depth: depth)
+        LabeledField("Every", labelWidth: 56) { SecondsField(seconds: field(\.interval), minimum: 0.01) }
+        LabeledField("Runs", labelWidth: 56) {
+          Picker("Runs", selection: field(\.repeatMode)) {
+            Text("Until pressed again").tag(RepeatMode.toggle)
+            Text("While held").tag(RepeatMode.whileHeld)
+          }
+          .labelsHidden().pickerStyle(.segmented).fixedSize()
+        }
+      }
+    case .wait:
+      LabeledField("Seconds", labelWidth: 56) { SecondsField(seconds: field(\.seconds), minimum: 0) }
     case .openURL:
       LabeledField("URL", labelWidth: 56) {
         TextField("https://example.com", text: field(\.url))

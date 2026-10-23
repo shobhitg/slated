@@ -54,6 +54,13 @@ struct SlateOperationParser {
     case "insert-text": return try parseInsertText()
     case "open-url": return try parseOpenURL()
     case "keystroke": return try parseKeystrokeAction()
+    case "click": return try parseClick()
+    case "press": return try parsePress()
+    case "hold": return try parseHold()
+    case "repeat": return try parseRepeat()
+    case "wait": return try parseWait()
+    case "stop-automations": return try parseBare(.stopAutomations)
+    case "clipboard-history": return try parseBare(.clipboardHistory)
     default:
       throw SlatedError.unknownOperation(name)
     }
@@ -390,6 +397,78 @@ struct SlateOperationParser {
       return .keystroke(parsed.keys)
     }
     throw fail("Unknown keystroke \"\(text)\"", hint: "write it like cmd+shift+4")
+  }
+
+  // MARK: Automation
+
+  /// `click [left|right|middle] [count]`
+  private func parseClick() throws -> Action {
+    let words = try tokens()
+    guard words.count <= 2 else { throw fail("Too many parameters", hint: "like click right 2") }
+    var button = MouseButton.left
+    var count = 1
+    for word in words {
+      if let b = MouseButton(rawValue: word.text.lowercased()) {
+        button = b
+      } else if let n = Int(word.text), n >= 1, n <= 10 {
+        count = n
+      } else {
+        throw fail("Unknown click option \"\(word.text)\"", hint: "use left, right or middle and a count from 1 to 10")
+      }
+    }
+    return .click(button, count: count)
+  }
+
+  /// `press <mouse:button|key:combo> <down|up>`
+  private func parsePress() throws -> Action {
+    let words = try tokens()
+    guard words.count == 2 else { throw fail("press needs an input and down or up", hint: "like press key:w down") }
+    guard let input = SyntheticInput(string: words[0].text) else { throw invalidInput(words[0].text) }
+    guard let phase = PressPhase(rawValue: words[1].text.lowercased()) else {
+      throw fail("Unknown press phase \"\(words[1].text)\"", hint: "use down or up")
+    }
+    return .press(input, phase: phase)
+  }
+
+  /// `hold <mouse:button|key:combo>`
+  private func parseHold() throws -> Action {
+    let words = try tokens()
+    guard words.count == 1 else { throw fail("hold needs one input", hint: "like hold mouse:right or hold key:w") }
+    guard let input = SyntheticInput(string: words[0].text) else { throw invalidInput(words[0].text) }
+    return .hold(input)
+  }
+
+  /// `repeat <seconds> [toggle|while-held] '<operation>'`
+  private func parseRepeat() throws -> Action {
+    let words = try tokens()
+    guard words.count == 2 || words.count == 3 else {
+      throw fail("repeat needs an interval and a quoted operation", hint: "like repeat 0.1 'click left'")
+    }
+    guard let interval = Double(words[0].text), interval.isFinite, interval > 0 else {
+      throw fail("The interval must be a number of seconds above 0", hint: "like repeat 0.1 'click left'")
+    }
+    var mode = RepeatMode.toggle
+    if words.count == 3 {
+      guard let m = RepeatMode(rawValue: words[1].text.lowercased()) else {
+        throw fail("Unknown repeat mode \"\(words[1].text)\"", hint: "use toggle or while-held")
+      }
+      mode = m
+    }
+    let action = try SlateSyntax.parseOperation(words[words.count - 1].text)
+    return .autoRepeat(action, interval: interval, mode: mode)
+  }
+
+  /// `wait <seconds>`
+  private func parseWait() throws -> Action {
+    let words = try tokens()
+    guard words.count == 1, let seconds = Double(words[0].text), seconds.isFinite, seconds >= 0 else {
+      throw fail("wait needs a number of seconds", hint: "like wait 0.5")
+    }
+    return .wait(seconds)
+  }
+
+  private func invalidInput(_ text: String) -> SlatedError {
+    fail("Unknown input \"\(text)\"", hint: "use mouse:left, mouse:right, mouse:middle or key:<key>, like key:w")
   }
 
   private func parseBare(_ action: Action) throws -> Action {

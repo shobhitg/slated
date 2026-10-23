@@ -99,6 +99,12 @@ public enum SlatedUI {
     return controller
   }
 
+  /// The clipboard history switcher. Host it in a floating panel; the model's `onClose` asks the app
+  /// to close it. Call `model.resetForShowing()` each time it opens.
+  public static func makeClipboardSwitcherView(model: ClipboardSwitcherModel) -> some View {
+    ClipboardSwitcherView(model: model)
+  }
+
   // MARK: Snapshots
 
   @_spi(Snapshots) public static func makeSettingsView(model: AppModel, layout: SettingsLayout) -> some View {

@@ -55,7 +55,8 @@ cp "$FIXTURES/slate.js" "$home/.slate.js"
 out=$(smoke "$home")
 expect_output "an existing ~/.slate.js stays the default" "$out" "native: 0 bindings"
 expect_output "~/.slate.js loads all its bindings" "$out" "source: ~/.slate.js loaded 4 bindings"
-expect_output "~/.slate.js bindings are registered as hotkeys" "$out" "hotkeys: 4 registered"
+# 4 from the file, plus Slated's clipboard switcher (⇧⌘V) and automation stop (Hyper+Esc).
+expect_output "~/.slate.js bindings are registered as hotkeys" "$out" "hotkeys: 6 registered"
 expect_output "the event log records the Slate file" "$(log_of "$home")" '"bindings":4,"kind":"javascript"'
 
 # 3. A classic ~/.slate file.
@@ -70,6 +71,13 @@ mkdir -p "$home/.config/slated"
 cp "$FIXTURES/config-hand-edited.json" "$home/.config/slated/config.json"
 out=$(smoke "$home")
 expect_output "hand-edited JSON with comments loads" "$out" "native: 1 bindings, 2 hotstrings, capsLock: off, loadSlateConfigs: false"
+
+# 4b. Built-in shortcuts can be turned off with null.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-no-builtins.json" "$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "null turns off the built-in shortcuts" "$out" "hotkeys: 1 registered"
 
 # 5. A broken config.json is reported, not fatal.
 home=$(new_home)

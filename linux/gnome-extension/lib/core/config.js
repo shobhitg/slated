@@ -96,6 +96,12 @@ const int = (v, path) => {
   if (n === null) throw decodingError(path, 'The given data was not valid JSON.');
   return n;
 };
+const double = (v, path) => {
+  if (!isNumberValue(v)) throw typeMismatch(path, 'Double', v);
+  const d = asDouble(v);
+  if (d === null) throw decodingError(path, 'The given data was not valid JSON.');
+  return d;
+};
 const arrayOf = (decode) => (v, path) => {
   if (!Array.isArray(v)) throw typeMismatch(path, 'Array<Any>', v);
   return v.map((item, k) => decode(item, [...path, k]));
@@ -371,6 +377,55 @@ function defaultKeyboard() {
   return {capsLock: 'off', capsLockAlone: 'nothing', hyperModifiers: ['ctrl', 'alt', 'shift', 'cmd']};
 }
 
+const DEFAULT_EXCLUDED_APPS = [
+  'com.1password.1password', 'com.agilebits.onepassword7', 'com.bitwarden.desktop', 'com.apple.keychainaccess',
+  'com.apple.Passwords', 'com.lastpass.LastPass', 'com.dashlane.dashlanephonefinal',
+];
+
+function defaultClipboard() {
+  return {
+    enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
+    excludedApps: [...DEFAULT_EXCLUDED_APPS], pasteAfterSelecting: true,
+  };
+}
+
+function defaultAutomation() {
+  return {stopShortcut: 'hyper+esc', stopOnAppSwitch: true, maxRunMinutes: 0, showIndicator: true};
+}
+
+/** A shortcut that `null` turns off; a missing key keeps the default (Swift's `contains` check). */
+function optionalShortcut(c, key, fallback) {
+  const v = c.raw(key);
+  if (v === undefined) return fallback;
+  return v === null ? null : keyCombo(v, c.at(key));
+}
+
+function clipboard(v, path) {
+  const c = new Keyed(v, path);
+  const d = defaultClipboard();
+  return {
+    enabled: c.optional('enabled', bool) ?? d.enabled,
+    shortcut: optionalShortcut(c, 'shortcut', d.shortcut),
+    maxItems: c.optional('maxItems', int) ?? d.maxItems,
+    persist: c.optional('persist', bool) ?? d.persist,
+    retentionDays: c.optional('retentionDays', int) ?? d.retentionDays,
+    ignoreConcealed: c.optional('ignoreConcealed', bool) ?? d.ignoreConcealed,
+    excludedApps: c.optional('excludedApps', arrayOf(str)) ?? d.excludedApps,
+    pasteAfterSelecting: c.optional('pasteAfterSelecting', bool) ?? d.pasteAfterSelecting,
+  };
+}
+
+function automation(v, path) {
+  const c = new Keyed(v, path);
+  const d = defaultAutomation();
+  return {
+    stopShortcut: optionalShortcut(c, 'stopShortcut', d.stopShortcut),
+    stopOnAppSwitch: c.optional('stopOnAppSwitch', bool) ?? d.stopOnAppSwitch,
+    maxRunMinutes: c.optional('maxRunMinutes', double) ?? d.maxRunMinutes,
+    showIndicator: c.optional('showIndicator', bool) ?? d.showIndicator,
+  };
+}
+
 const defaultOptions = () => ({ignoreFail: false, mainFirst: false, mainLast: false, repeat: false, repeatLast: false, sortTitle: false});
 
 function general(v, path) {
@@ -515,6 +570,8 @@ function configuration(v, path) {
     layouts: c.optional('layouts', arrayOf(layout)) ?? [],
     defaults: c.optional('defaults', arrayOf(screenDefault)) ?? [],
     hotstrings: c.optional('hotstrings', arrayOf(hotstring)) ?? [],
+    clipboard: c.optional('clipboard', clipboard) ?? defaultClipboard(),
+    automation: c.optional('automation', automation) ?? defaultAutomation(),
   };
 }
 
@@ -620,6 +677,8 @@ export function starterConfiguration() {
     layouts: [],
     defaults: [],
     hotstrings: [],
+    clipboard: defaultClipboard(),
+    automation: defaultAutomation(),
   };
 }
 

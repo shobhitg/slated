@@ -122,6 +122,15 @@ enum ConfigValidator {
           Problem(severity: $0.severity, message: "Step \(i + 1): \($0.message)")
         }
       }
+    case .autoRepeat(let repeated, let interval, _):
+      var problems = actionProblems(repeated, knownLayouts: knownLayouts).map {
+        Problem(severity: $0.severity, message: "Repeated: \($0.message)")
+      }
+      if interval < 0.01 { problems += error("Repeat at most 100 times a second (an interval of 10 ms or more).") }
+      if case .autoRepeat = repeated { problems += error("An auto-repeat can't repeat another auto-repeat.") }
+      return problems
+    case .wait(let seconds):
+      return seconds > 600 ? [Problem(severity: .warning, message: "That's a wait of over 10 minutes.")] : []
     case .byOrientation(let landscape, let portrait):
       let prefixed = { (label: String, action: Action) in
         actionProblems(action, knownLayouts: knownLayouts).map { Problem(severity: $0.severity, message: "\(label): \($0.message)") }
@@ -158,7 +167,9 @@ enum ConfigValidator {
       return keyProblem(combo).map(error) ?? []
     case .switchApp:
       return [Problem(severity: .warning, message: "Slated doesn't run the app switcher yet.")]
-    case .focus, .hint, .undo, .relaunch:
+    case .press(.key(let combo), _), .hold(.key(let combo)):
+      return keyProblem(combo).map(error) ?? []
+    case .focus, .hint, .undo, .relaunch, .click, .press, .hold, .stopAutomations, .clipboardHistory:
       return []
     }
   }

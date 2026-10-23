@@ -16,6 +16,13 @@ final class ActionRunner {
   var overlays: OverlayPresenting?
   /// Runs a layout defined outside the static `layouts` (JavaScript layouts). Returns false if unknown.
   var externalLayout: ((String) -> Bool)?
+  /// Auto-repeats and held inputs.
+  var automation: AutomationEngine?
+  /// Clipboard history (the switcher).
+  var clipboard: ClipboardService?
+  /// What triggered the action being run (e.g. "hotkey hyper+r"); identifies auto-repeats so the
+  /// same shortcut toggles them and its key-up ends while-held ones.
+  private var currentTrigger: String?
 
   private var undoStack: [(window: AXWindow, frame: CGRect)] = []
   /// The app the current action touched and why it failed, for the event log.
@@ -34,6 +41,8 @@ final class ActionRunner {
     let start = CFAbsoluteTimeGetCurrent()
     lastApp = nil
     lastFailure = nil
+    currentTrigger = trigger
+    defer { currentTrigger = nil }
     let ok = perform(action, on: window, label: label, chainKey: chainKey)
     var data: [String: Any] = [
       "trigger": trigger, "action": String(SlateSyntax.format(action).prefix(200)),
@@ -73,15 +82,7 @@ final class ActionRunner {
       return perform(actions[index], on: target, label: label, chainKey: "\(key)/\(index)")
 
     case .sequence(let steps):
-      // `|` steps act on whatever is focused when they run; `>` steps (keepWindow) act on the window
-      // that was focused when their run began.
-      var anchor = window ?? Accessibility.focusedWindow()
-      var ok = true
-      for (i, step) in steps.enumerated() {
-        if i > 0 && !step.keepWindow { anchor = Accessibility.focusedWindow() }
-        ok = perform(step.action, on: anchor, chainKey: chainKey.map { "\($0)/\(i)" }) && ok
-      }
-      return ok
+      return runSequence(steps, from: 0, anchor: window ?? Accessibility.focusedWindow(), chainKey: chainKey)
 
     case .layout(let name):
       guard let layout = layouts[name] else {
@@ -171,7 +172,60 @@ final class ActionRunner {
       guard let code = KeyCodes.code(for: combo.key) else { return fail("Unknown key \(combo.key)") }
       TextInjector.shared.press(keyCode: code, modifiers: combo.modifiers)
       return true
+
+    case .click(let button, let count):
+      InputSynth.click(button, count: count)
+      return true
+    case .press(let input, let phase):
+      guard let automation else { return fail("Automation isn't available") }
+      automation.press(input, phase: phase, trigger: currentTrigger)
+      return true
+    case .hold(let input):
+      guard let automation else { return fail("Automation isn't available") }
+      automation.toggleHold(input, trigger: currentTrigger)
+      return true
+    case .autoRepeat(let repeated, let interval, let mode):
+      guard let automation else { return fail("Automation isn't available") }
+      if case .autoRepeat = repeated { return fail("An auto-repeat can't repeat another auto-repeat") }
+      let id = currentTrigger ?? chainKey ?? "repeat \(SlateSyntax.format(repeated))"
+      automation.toggleRepeat(repeated, interval: interval, mode: mode, id: id, trigger: currentTrigger)
+      return true
+    case .wait:
+      return true  // waits only mean something inside a sequence
+    case .stopAutomations:
+      automation?.stopAll(reason: "stop shortcut")
+      return true
+    case .clipboardHistory:
+      guard let clipboard else { return fail("Clipboard history isn't available") }
+      clipboard.showSwitcher()
+      return true
     }
+  }
+
+  /// Runs sequence steps from `start`. A `wait` step schedules the rest instead of blocking, so
+  /// macros like "press W, wait 2 s, release W" never freeze Slated.
+  @discardableResult
+  private func runSequence(_ steps: [SequenceStep], from start: Int, anchor: AXWindow?, chainKey: String?) -> Bool {
+    // `|` steps act on whatever is focused when they run; `>` steps (keepWindow) act on the window
+    // that was focused when their run began.
+    var anchor = anchor
+    var ok = true
+    var i = start
+    while i < steps.count {
+      let step = steps[i]
+      if case .wait(let seconds) = step.action {
+        let next = i + 1
+        let resumeAnchor = anchor
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+          self?.runSequence(steps, from: next, anchor: resumeAnchor, chainKey: chainKey)
+        }
+        return ok
+      }
+      if i > 0 && !step.keepWindow { anchor = Accessibility.focusedWindow() }
+      ok = perform(step.action, on: anchor, chainKey: chainKey.map { "\($0)/\(i)" }) && ok
+      i += 1
+    }
+    return ok
   }
 
   // MARK: Geometry

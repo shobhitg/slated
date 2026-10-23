@@ -1,0 +1,7 @@
+{
+  // Turning off Slated's built-in shortcuts (clipboard switcher, automation stop) with null.
+  "general": { "loadSlateConfigs": false },
+  "bindings": [ { "keys": "hyper+w", "action": "push top bar-resize:screenSizeY/2" } ],
+  "clipboard": { "shortcut": null },
+  "automation": { "stopShortcut": null },
+}

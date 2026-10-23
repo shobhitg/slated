@@ -146,4 +146,46 @@ public protocol AppServices: AnyObject {
   func setLaunchAtLogin(_ enabled: Bool) throws
   /// Called with a closure the app invokes whenever runtime status or sources change.
   func onChange(_ handler: @escaping @MainActor () -> Void)
+
+  // MARK: Clipboard history
+
+  /// Newest first; pinned items are included wherever they fall.
+  func clipboardItems() -> [ClipboardItem]
+  /// Puts the item on the clipboard and, if `clipboard.pasteAfterSelecting`, pastes it into the app
+  /// that was frontmost before Slated's switcher opened.
+  func pasteClipboardItem(id: UUID)
+  /// Puts the item on the clipboard without pasting.
+  func copyClipboardItem(id: UUID)
+  func deleteClipboardItem(id: UUID)
+  func togglePinClipboardItem(id: UUID)
+  /// Removes everything except pinned items.
+  func clearClipboardHistory()
+  /// Opens the clipboard switcher panel.
+  func showClipboardHistory()
+
+  // MARK: Automation
+
+  /// Auto-repeats and held inputs that are running right now.
+  func activeAutomations() -> [ActiveAutomation]
+  /// Stops every automation and releases anything held down.
+  func stopAutomations()
+}
+
+/// A running automation, for the UI: an auto-repeat or a held mouse button or key.
+public struct ActiveAutomation: Identifiable, Hashable, Sendable {
+  public var id: String
+  /// E.g. "Repeat Click Left every 100 ms" or "Hold Right Button".
+  public var title: String
+  /// What started it, e.g. "hotkey hyper+r".
+  public var trigger: String?
+  public var startedAt: Date
+  public var repetitions: Int
+
+  public init(id: String, title: String, trigger: String?, startedAt: Date, repetitions: Int) {
+    self.id = id
+    self.title = title
+    self.trigger = trigger
+    self.startedAt = startedAt
+    self.repetitions = repetitions
+  }
 }

@@ -9,6 +9,8 @@ let suites: [Suite] = [
   slateKeystrokeTests,
   numericEdgeTests,
   crossPlatformBugTests,
+  automationModelTests,
+  clipboardHistoryTests,
   hotstringMatcherTests,
   hotstringTemplateTests,
   slateScriptTests,

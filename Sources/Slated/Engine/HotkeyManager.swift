@@ -31,6 +31,8 @@ final class HotkeyManager {
   private var repeatAction: (() -> Void)?
   /// Invoked when modal mode starts or ends (the menu bar icon reflects it).
   var onModalChange: ((KeyCombo?) -> Void)?
+  /// A binding's key went up (while-held auto-repeats stop then).
+  var onRelease: ((Entry) -> Void)?
 
   func apply(_ entries: [Entry], disabled: [String] = [], settings: SlateSettings) {
     unregisterAll()
@@ -121,8 +123,10 @@ final class HotkeyManager {
       if entry.repeats { startRepeating(entry.run) }
     case .released where repeatAction != nil:
       stopRepeating()
+      onRelease?(entry)
     case .released:
       stopRepeating()
+      onRelease?(entry)
     }
   }
 

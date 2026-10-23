@@ -66,6 +66,9 @@ let uiActionTests = Suite(
             .byOrientation(
               landscape: .push(direction: .left, style: .none, screen: nil),
               portrait: .corner(.topLeft, width: nil, height: nil, screen: nil)),
+            .clipboardHistory, .click(.right, count: 2), .press(.key(KeyCombo(key: "w")), phase: .down),
+            .hold(.mouse(.right)), .autoRepeat(.click(.left, count: 1), interval: 0.1, mode: .whileHeld), .wait(0.5),
+            .stopAutomations,
             .keystroke(KeyCombo(key: "4", modifiers: [.command, .shift])),
           ]
           expectEqual(Set(samples.map { ActionKind($0) }).count, ActionKind.allCases.count)

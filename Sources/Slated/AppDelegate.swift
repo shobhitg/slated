@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var settingsWindow: NSWindow?
   private var onboardingWindow: NSWindow?
   private var signalSource: DispatchSourceSignal?
+  private lazy var clipboardPanel = ClipboardPanel(services: services)
   private var modalActive = false
   private static let onboardingDoneKey = "onboardingCompleted"
 
@@ -23,7 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     engine.start()
     _ = model  // loads the configuration and subscribes to engine changes
     setUpStatusItem()
-    engine.onChange { [weak self] in self?.refreshStatusIcon() }
+    engine.onChange { [weak self] in
+      self?.refreshStatusIcon()
+      self?.clipboardPanel.refresh()
+    }
+    engine.clipboard.presentSwitcher = { [weak self] in self?.clipboardPanel.show() }
     engine.hotkeys.onModalChange = { [weak self] modal in
       self?.modalActive = modal != nil
       self?.refreshStatusIcon()

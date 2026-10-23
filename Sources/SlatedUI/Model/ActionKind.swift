@@ -12,7 +12,8 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
   case focus, focusApp, hint, grid
   case hide, show, toggle, switchApp
   case snapshot, activateSnapshot, deleteSnapshot, undo
-  case insertText, keystroke, openURL, shell, relaunch
+  case insertText, keystroke, openURL, shell, relaunch, clipboardHistory
+  case click, press, hold, autoRepeat, wait, stopAutomations
 
   enum Category: String, CaseIterable, Identifiable {
     case window = "Window"
@@ -21,6 +22,7 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case apps = "Apps"
     case snapshots = "Snapshots"
     case automation = "Automation"
+    case input = "Mouse & Keys"
 
     var id: String { rawValue }
 
@@ -58,6 +60,13 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .insertText: self = .insertText
     case .openURL: self = .openURL
     case .keystroke: self = .keystroke
+    case .clipboardHistory: self = .clipboardHistory
+    case .click: self = .click
+    case .press: self = .press
+    case .hold: self = .hold
+    case .autoRepeat: self = .autoRepeat
+    case .wait: self = .wait
+    case .stopAutomations: self = .stopAutomations
     }
   }
 
@@ -68,7 +77,8 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .focus, .focusApp, .hint, .grid: return .focus
     case .hide, .show, .toggle, .switchApp: return .apps
     case .snapshot, .activateSnapshot, .deleteSnapshot, .undo: return .snapshots
-    case .insertText, .keystroke, .openURL, .shell, .relaunch: return .automation
+    case .insertText, .keystroke, .openURL, .shell, .relaunch, .clipboardHistory: return .automation
+    case .click, .press, .hold, .autoRepeat, .wait, .stopAutomations: return .input
     }
   }
 
@@ -101,6 +111,13 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .openURL: return "Open URL"
     case .shell: return "Run Shell Command"
     case .relaunch: return "Reload Configuration"
+    case .clipboardHistory: return "Clipboard History"
+    case .click: return "Click"
+    case .press: return "Press or Release"
+    case .hold: return "Hold Down"
+    case .autoRepeat: return "Auto-Repeat"
+    case .wait: return "Wait"
+    case .stopAutomations: return "Stop Automations"
     }
   }
 
@@ -134,6 +151,13 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .openURL: return "Open a link or app URL scheme."
     case .shell: return "Run a command in the background."
     case .relaunch: return "Reload config.json and your Slate files."
+    case .clipboardHistory: return "Open the clipboard history to search and paste something you copied earlier."
+    case .click: return "Click a mouse button where the pointer is."
+    case .press: return "Press or release a mouse button or key on its own: a building block for macros with waits."
+    case .hold: return "Hold a mouse button or key down until this shortcut fires again — e.g. keep W pressed to auto-run."
+    case .autoRepeat: return "Repeat an action on a timer — an auto-clicker or key spammer — toggled by the shortcut or while it's held."
+    case .wait: return "Pause a sequence for a moment, to time macro steps."
+    case .stopAutomations: return "Stop every running auto-repeat and release anything held down."
     }
   }
 
@@ -166,6 +190,13 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .openURL: return "link.circle"
     case .shell: return "terminal"
     case .relaunch: return "arrow.clockwise"
+    case .clipboardHistory: return "list.clipboard"
+    case .click: return "cursorarrow.click"
+    case .press: return "hand.point.up.left"
+    case .hold: return "hand.tap"
+    case .autoRepeat: return "repeat"
+    case .wait: return "hourglass"
+    case .stopAutomations: return "stop.circle"
     }
   }
 

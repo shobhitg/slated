@@ -124,6 +124,49 @@ public final class PreviewServices: AppServices {
 
   public func onChange(_ handler: @escaping @MainActor () -> Void) { handlers.append(handler) }
 
+  // MARK: Clipboard and automation sample data
+
+  public var clipboard = ClipboardHistory(items: PreviewServices.sampleClipboard)
+  public var automations: [ActiveAutomation] = []
+
+  static let sampleClipboard: [ClipboardItem] = {
+    let now = Date(timeIntervalSince1970: 1_793_000_000)
+    let samples: [(String, String?, Double, Bool)] = [
+      ("https://github.com/shobhit-aida/slated", "com.apple.Safari", 40, false),
+      ("Let's sync tomorrow at 10 — I'll bring the layout sketches.", "com.tinyspeck.slackmacgap", 300, false),
+      ("git commit -m \"Make the author's Slate config the default\"", "com.apple.Terminal", 900, false),
+      ("1 Infinite Loop\nCupertino, CA 95014", "com.apple.Notes", 5_400, true),
+      ("screenOriginX+screenSizeX/2", "com.microsoft.VSCode", 86_000, false),
+    ]
+    return samples.map { text, app, ago, pinned in
+      ClipboardItem(text: text, copiedAt: now.addingTimeInterval(-ago), sourceApp: app, pinned: pinned)
+    }
+  }()
+
+  public func clipboardItems() -> [ClipboardItem] { clipboard.items }
+  public func pasteClipboardItem(id: UUID) {}
+  public func copyClipboardItem(id: UUID) {}
+  public func deleteClipboardItem(id: UUID) {
+    clipboard.remove(id: id)
+    notifyChange()
+  }
+  public func togglePinClipboardItem(id: UUID) {
+    clipboard.togglePin(id: id)
+    notifyChange()
+  }
+  public func clearClipboardHistory() {
+    clipboard.clear()
+    notifyChange()
+  }
+  public func showClipboardHistory() {}
+  public func activeAutomations() -> [ActiveAutomation] { automations }
+  public func stopAutomations() {
+    automations = []
+    notifyChange()
+  }
+
+  private func notifyChange() { for handler in handlers { handler() } }
+
   // MARK: Simulation
 
   private func notify() { handlers.forEach { $0() } }

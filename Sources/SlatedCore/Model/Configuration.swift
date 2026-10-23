@@ -16,6 +16,8 @@ public struct SlatedConfiguration: Hashable, Sendable {
   public var layouts: [Layout]
   public var defaults: [ScreenDefault]
   public var hotstrings: [Hotstring]
+  public var clipboard: ClipboardSettings
+  public var automation: AutomationSettings
 
   public init(
     version: Int = SlatedConfiguration.currentVersion,
@@ -25,7 +27,9 @@ public struct SlatedConfiguration: Hashable, Sendable {
     bindings: [HotkeyBinding] = [],
     layouts: [Layout] = [],
     defaults: [ScreenDefault] = [],
-    hotstrings: [Hotstring] = []
+    hotstrings: [Hotstring] = [],
+    clipboard: ClipboardSettings = .init(),
+    automation: AutomationSettings = .init()
   ) {
     self.version = version
     self.general = general
@@ -35,12 +39,14 @@ public struct SlatedConfiguration: Hashable, Sendable {
     self.layouts = layouts
     self.defaults = defaults
     self.hotstrings = hotstrings
+    self.clipboard = clipboard
+    self.automation = automation
   }
 }
 
 extension SlatedConfiguration: Codable {
   private enum Key: String, CodingKey {
-    case version, general, settings, keyboard, bindings, layouts, defaults, hotstrings
+    case version, general, settings, keyboard, bindings, layouts, defaults, hotstrings, clipboard, automation
   }
 
   public init(from decoder: Decoder) throws {
@@ -53,7 +59,9 @@ extension SlatedConfiguration: Codable {
       bindings: try c.decodeIfPresent([HotkeyBinding].self, forKey: .bindings) ?? [],
       layouts: try c.decodeIfPresent([Layout].self, forKey: .layouts) ?? [],
       defaults: try c.decodeIfPresent([ScreenDefault].self, forKey: .defaults) ?? [],
-      hotstrings: try c.decodeIfPresent([Hotstring].self, forKey: .hotstrings) ?? [])
+      hotstrings: try c.decodeIfPresent([Hotstring].self, forKey: .hotstrings) ?? [],
+      clipboard: try c.decodeIfPresent(ClipboardSettings.self, forKey: .clipboard) ?? .init(),
+      automation: try c.decodeIfPresent(AutomationSettings.self, forKey: .automation) ?? .init())
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -66,6 +74,8 @@ extension SlatedConfiguration: Codable {
     try c.encode(layouts, forKey: .layouts)
     try c.encode(defaults, forKey: .defaults)
     try c.encode(hotstrings, forKey: .hotstrings)
+    try c.encode(clipboard, forKey: .clipboard)
+    try c.encode(automation, forKey: .automation)
   }
 
   /// Decodes JSON, allowing JSON5 conveniences (comments, trailing commas) in hand-edited files.

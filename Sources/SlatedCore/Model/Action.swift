@@ -275,6 +275,24 @@ public indirect enum Action: Hashable, Sendable {
   case openURL(String)
   case keystroke(KeyCombo)
 
+  // MARK: Automation (AutoHotkey-style)
+  /// Click a mouse button where the pointer is, `count` times (2 is a double-click).
+  case click(MouseButton, count: Int)
+  /// Press or release a mouse button or key: building blocks for macros.
+  case press(SyntheticInput, phase: PressPhase)
+  /// Hold a mouse button or key down until the trigger fires again.
+  case hold(SyntheticInput)
+  /// Run `action` every `interval` seconds, toggled by the trigger or while its key is held.
+  case autoRepeat(Action, interval: Double, mode: RepeatMode)
+  /// Pause a sequence (macro) for this many seconds.
+  case wait(Double)
+  /// Stop every running automation and release anything held.
+  case stopAutomations
+
+  // MARK: Clipboard
+  /// Open the clipboard history switcher.
+  case clipboardHistory
+
   /// The name used in configs and Slate syntax.
   public var name: String {
     switch self {
@@ -304,6 +322,21 @@ public indirect enum Action: Hashable, Sendable {
     case .insertText: return "insert-text"
     case .openURL: return "open-url"
     case .keystroke: return "keystroke"
+    case .click: return "click"
+    case .press: return "press"
+    case .hold: return "hold"
+    case .autoRepeat: return "repeat"
+    case .wait: return "wait"
+    case .stopAutomations: return "stop-automations"
+    case .clipboardHistory: return "clipboard-history"
+    }
+  }
+
+  /// Automation actions synthesize mouse and keyboard input.
+  public var isAutomation: Bool {
+    switch self {
+    case .click, .press, .hold, .autoRepeat, .wait, .stopAutomations: return true
+    default: return false
     }
   }
 
@@ -324,6 +357,7 @@ extension Action: Codable {
     case op, x, y, width, height, screen, anchor, direction, style, operations, steps, name
     case app, save, stack, all, delete, characters, padding, grids, command, wait, path
     case text, method, url, keys, landscape, portrait
+    case button, count, input, phase, action, interval, mode, seconds
   }
 
   private struct GridSize: Codable {
@@ -450,6 +484,31 @@ extension Action: Codable {
       self = .openURL(try required(.url))
     case "keystroke":
       self = .keystroke(try c.decode(KeyCombo.self, forKey: .keys))
+    case "click":
+      self = .click(
+        try c.decodeIfPresent(MouseButton.self, forKey: .button) ?? .left,
+        count: max(1, try c.decodeIfPresent(Int.self, forKey: .count) ?? 1))
+    case "press":
+      self = .press(
+        try c.decode(SyntheticInput.self, forKey: .input), phase: try c.decode(PressPhase.self, forKey: .phase))
+    case "hold":
+      self = .hold(try c.decode(SyntheticInput.self, forKey: .input))
+    case "repeat":
+      let interval = try c.decode(Double.self, forKey: .interval)
+      guard interval.isFinite, interval > 0 else {
+        throw DecodingError.dataCorruptedError(forKey: .interval, in: c, debugDescription: "interval must be more than 0 seconds")
+      }
+      self = .autoRepeat(
+        try c.decode(Action.self, forKey: .action), interval: interval,
+        mode: try c.decodeIfPresent(RepeatMode.self, forKey: .mode) ?? .toggle)
+    case "wait":
+      let seconds = try c.decode(Double.self, forKey: .seconds)
+      guard seconds.isFinite, seconds >= 0 else {
+        throw DecodingError.dataCorruptedError(forKey: .seconds, in: c, debugDescription: "seconds can't be negative")
+      }
+      self = .wait(seconds)
+    case "stop-automations": self = .stopAutomations
+    case "clipboard-history": self = .clipboardHistory
     default:
       throw DecodingError.dataCorruptedError(forKey: .op, in: c, debugDescription: "Unknown operation \"\(op)\"")
     }
@@ -536,6 +595,22 @@ extension Action: Codable {
       try c.encode(url, forKey: .url)
     case .keystroke(let combo):
       try c.encode(combo, forKey: .keys)
+    case .click(let button, let count):
+      try c.encode(button, forKey: .button)
+      if count != 1 { try c.encode(count, forKey: .count) }
+    case .press(let input, let phase):
+      try c.encode(input, forKey: .input)
+      try c.encode(phase, forKey: .phase)
+    case .hold(let input):
+      try c.encode(input, forKey: .input)
+    case .autoRepeat(let action, let interval, let mode):
+      try c.encode(action, forKey: .action)
+      try c.encode(interval, forKey: .interval)
+      if mode != .toggle { try c.encode(mode, forKey: .mode) }
+    case .wait(let seconds):
+      try c.encode(seconds, forKey: .seconds)
+    case .stopAutomations, .clipboardHistory:
+      break
     }
   }
 }

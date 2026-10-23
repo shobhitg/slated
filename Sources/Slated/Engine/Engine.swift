@@ -15,6 +15,9 @@ final class Engine {
   let sources = SlateSourceLoader()
   let overlays = OverlayController()
   let hud = ActionHUD()
+  let automation = AutomationEngine()
+  let clipboard = ClipboardService()
+  let automationIndicator = AutomationIndicator()
 
   private(set) var status = RuntimeStatus()
   /// Other software that fights over the same keys, with advice.
@@ -64,6 +67,18 @@ final class Engine {
     }
     runner.onRelaunch = { [weak self] in self?.reload() }
     runner.overlays = overlays
+    runner.automation = automation
+    runner.clipboard = clipboard
+    automation.perform = { [weak self] action in self?.runner.perform(action) }
+    automation.onChange = { [weak self] in
+      guard let self else { return }
+      automationIndicator.update(
+        active: automation.active, stopShortcut: store.configuration.automation.stopShortcut,
+        visible: store.configuration.automation.showIndicator)
+      notify()
+    }
+    clipboard.onChange = { [weak self] in self?.notify() }
+    hotkeys.onRelease = { [weak self] entry in self?.automation.released(id: "hotkey \(entry.id)") }
     overlays.place = { [weak self] window, frame in self?.runner.place(window, at: frame, label: "Grid") }
     tap.onHotstring = { [weak self] match in self?.expand(match) }
     tap.onHyperHotkey = { [weak self] code, down in
@@ -87,6 +102,8 @@ final class Engine {
 
   /// Puts the keyboard back the way it was. Called on quit.
   func shutdown() {
+    automation.stopAll(reason: "quit")
+    clipboard.stop()
     Log.record("app.quit", level: .notice, ["capsLockRestored": capsLockRemapped])
     tap.stop()
     if capsLockRemapped { HIDRemapper.setCapsLockRemapped(false) }
@@ -127,6 +144,7 @@ final class Engine {
   func setPaused(_ value: Bool) {
     guard value != pausedByUser else { return }
     pausedByUser = value
+    if value { automation.stopAll(reason: "paused") }
     Log.record(value ? "app.paused" : "app.resumed", level: .notice)
     apply()
   }
@@ -168,11 +186,14 @@ final class Engine {
         }
       }
       entries += sources.entries(settings: settings)
+      entries += builtInEntries(config)
       let disabled = config.bindings.filter { !$0.enabled }.map { binding in
         (binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string
       }
       hotkeys.apply(entries, disabled: disabled, settings: settings)
     }
+    automation.settings = config.automation
+    clipboard.apply(config.clipboard)
     applyKeyboard()
     warnings = Self.detectConflicts(hyperWanted: config.keyboard.capsLock == .hyper)
     if warnings != loggedWarnings {
@@ -182,6 +203,25 @@ final class Engine {
     status.hotkeys = hotkeys.statuses
     status.lastError = store.loadError
     notify()
+  }
+
+  /// Slated's own shortcuts: the clipboard switcher and the automation stop shortcut. They come after
+  /// the user's bindings, so a binding on the same keys wins.
+  private func builtInEntries(_ config: SlatedConfiguration) -> [HotkeyManager.Entry] {
+    var entries: [HotkeyManager.Entry] = []
+    if config.clipboard.enabled, let keys = config.clipboard.shortcut {
+      entries.append(
+        HotkeyManager.Entry(keys: keys, modal: nil, repeats: false, source: "Slated clipboard") { [weak self] in
+          self?.runner.run(.clipboardHistory, trigger: "hotkey \(keys.string)", source: "Slated clipboard")
+        })
+    }
+    if let keys = config.automation.stopShortcut {
+      entries.append(
+        HotkeyManager.Entry(keys: keys, modal: nil, repeats: false, source: "Slated automation") { [weak self] in
+          self?.runner.run(.stopAutomations, trigger: "hotkey \(keys.string)", source: "Slated automation")
+        })
+    }
+    return entries
   }
 
   /// The original Slate registers the same hotkeys (whoever starts first wins), and Karabiner-Elements
@@ -299,7 +339,20 @@ final class Engine {
         [weak self] note in
         let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         let bundleID = app?.bundleIdentifier
-        MainActor.assumeIsolated { self?.tap.setFrontmostApp(bundleID: bundleID) }
+        MainActor.assumeIsolated {
+          self?.tap.setFrontmostApp(bundleID: bundleID)
+          self?.automation.frontmostAppChanged(to: bundleID)
+        }
+      })
+    observers.append(
+      center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.automation.stopAll(reason: "sleep") }
+      })
+    observers.append(
+      DistributedNotificationCenter.default().addObserver(
+        forName: NSNotification.Name("com.apple.screenIsLocked"), object: nil, queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated { self?.automation.stopAll(reason: "screen locked") }
       })
     observers.append(
       center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in

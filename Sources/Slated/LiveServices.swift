@@ -70,4 +70,35 @@ final class LiveServices: AppServices {
   func setLaunchAtLogin(_ enabled: Bool) throws { try engine.setLaunchAtLogin(enabled) }
 
   func onChange(_ handler: @escaping @MainActor () -> Void) { engine.onChange(handler) }
+
+  // MARK: Clipboard history
+
+  func clipboardItems() -> [ClipboardItem] { engine.clipboard.history.items }
+
+  func pasteClipboardItem(id: UUID) { engine.clipboard.paste(id: id) }
+
+  func copyClipboardItem(id: UUID) { engine.clipboard.copy(id: id) }
+
+  func deleteClipboardItem(id: UUID) { engine.clipboard.delete(id: id) }
+
+  func togglePinClipboardItem(id: UUID) { engine.clipboard.togglePin(id: id) }
+
+  func clearClipboardHistory() {
+    Log.record("ui.clipboard_clear")
+    engine.clipboard.clear()
+  }
+
+  func showClipboardHistory() {
+    Log.record("ui.clipboard_open")
+    engine.clipboard.showSwitcher()
+  }
+
+  // MARK: Automation
+
+  func activeAutomations() -> [ActiveAutomation] { engine.automation.active }
+
+  func stopAutomations() {
+    Log.record("ui.automation_stop")
+    engine.automation.stopAll(reason: "stopped from Slated")
+  }
 }

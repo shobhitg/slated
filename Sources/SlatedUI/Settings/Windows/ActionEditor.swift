@@ -137,6 +137,7 @@ extension ActionKind.Category {
     case .apps: return Color(hex: 0xE5484D)
     case .snapshots: return Color(hex: 0xD6409F)
     case .automation: return Color(hex: 0xF08A24)
+    case .input: return Color(hex: 0x0EA5E9)
     }
   }
 }

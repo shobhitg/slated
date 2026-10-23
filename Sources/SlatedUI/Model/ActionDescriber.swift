@@ -43,7 +43,29 @@ enum ActionDescriber {
       return text.isEmpty ? "Insert Text" : "Insert “\(truncate(singleLine(text), 24))”"
     case .openURL(let url): return "Open \(URL(string: url)?.host ?? truncate(url, 28))"
     case .keystroke(let combo): return "Press \(combo.display())"
+    case .clipboardHistory: return "Clipboard History"
+    case .click(let button, let count):
+      return (count == 2 ? "Double-Click " : count > 2 ? "\(count)× Click " : "Click ") + button.rawValue.capitalized
+    case .press(let input, let phase): return (phase == .down ? "Press " : "Release ") + inputTitle(input)
+    case .hold(let input): return "Hold \(inputTitle(input))"
+    case .autoRepeat(let action, let interval, let mode):
+      return "Repeat \(title(action)) every \(seconds(interval))" + (mode == .whileHeld ? " while held" : "")
+    case .wait(let s): return "Wait \(seconds(s))"
+    case .stopAutomations: return "Stop Automations"
     }
+  }
+
+  static func inputTitle(_ input: SyntheticInput) -> String {
+    switch input {
+    case .mouse(let button): return "\(button.rawValue.capitalized) Button"
+    case .key(let combo): return combo.display()
+    }
+  }
+
+  /// "100 ms", "0.5 s", "2 s".
+  static func seconds(_ value: Double) -> String {
+    if value < 1 { return "\(Int((value * 1000).rounded())) ms" }
+    return value == value.rounded() ? "\(Int(value)) s" : String(format: "%.1f s", value)
   }
 
   /// Slate syntax for secondary text, e.g. `push left bar-resize:screenSizeX/2`.
@@ -97,6 +119,8 @@ enum ActionDescriber {
       return "insert-text" + (method == .auto ? "" : " (\(method.rawValue))") + " “\(truncate(singleLine(text), 40))”"
     case .openURL(let url): return url
     case .keystroke(let combo): return "keystroke \(combo.string)"
+    case .clipboardHistory, .click, .press, .hold, .autoRepeat, .wait, .stopAutomations:
+      return SlateSyntax.format(action)
     }
   }
 

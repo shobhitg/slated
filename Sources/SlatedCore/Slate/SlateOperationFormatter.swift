@@ -89,7 +89,27 @@ enum SlateOperationFormatter {
 
     case .keystroke(let combo):
       return join("keystroke", word(combo.string))
+
+    case .click(let button, let count):
+      return join("click", button.rawValue, count == 1 ? nil : String(count))
+    case .press(let input, let phase):
+      return join("press", word(input.string), phase.rawValue)
+    case .hold(let input):
+      return join("hold", word(input.string))
+    case .autoRepeat(let action, let interval, let mode):
+      return join(
+        "repeat", number(interval), mode == .toggle ? nil : mode.rawValue, SlateTokenizer.quote(format(action)))
+    case .wait(let seconds):
+      return join("wait", number(seconds))
+    case .stopAutomations, .clipboardHistory:
+      return action.name
     }
+  }
+
+  /// `2` rather than `2.0`; `0.1` rather than `0.1000000001`.
+  private static func number(_ value: Double) -> String {
+    if value == value.rounded() && abs(value) < 1e15 { return String(Int(value)) }
+    return String(value)
   }
 
   private static func join(_ name: String, _ parameters: String?...) -> String {
