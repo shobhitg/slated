@@ -3,8 +3,9 @@
 Slated for Linux is a **GNOME Shell extension** with a settings window. It uses the same files as
 the Mac app: your Slated `config.json`, `~/.slate.js` and `~/.slate`.
 
-> **Status:** early development, for GNOME 46–49 (Ubuntu 24.04 to 25.10, Fedora 40 to 43). GNOME 50
-> and later aren't supported yet. There's no extensions.gnome.org release yet, so install from source.
+> **Status:** early development, for GNOME 46–51 (Ubuntu 24.04 to 26.04, Fedora 40 to 45). It was
+> written and reviewed against GNOME 46–49; 50 and 51 load it but haven't been tested yet. There's no
+> extensions.gnome.org release yet, so install from source.
 
 ## Why an extension
 
@@ -20,7 +21,7 @@ under [Limitations](#limitations): it works only on GNOME, and updates load when
 
 ## Install
 
-You need GNOME 46–49, `git`, `python3` and `gnome-extensions` (it comes with GNOME Shell).
+You need GNOME 46–51, `git`, `python3` and `gnome-extensions` (it comes with GNOME Shell).
 
 ```sh
 git clone https://github.com/shobhit-aida/slated && cd slated
@@ -179,8 +180,8 @@ these to point everything at a throwaway home.
 
 - **GNOME only, within Wayland's rules.** Other desktops would need their own extension or a
   different approach.
-- **GNOME 46–49.** The extension declares those versions, so GNOME 50 and later mark it as
-  unsupported.
+- **GNOME 46–51.** The extension declares those versions; newer ones mark it as unsupported until
+  it's tested and added. GNOME 50 and 51 are declared but not yet tested.
 - **Updates load at your next login.** GNOME Shell can't reload an extension's code while it's
   running. In an Xorg session (GNOME 48 and earlier), Alt+F2 `r` restarts GNOME Shell instead. Use
   the nested shell while developing (see below). The settings window runs as a separate process, so

@@ -19,7 +19,7 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 UUID="slated@shobhit-aida.github.io"
-FEDORA_VERSION="${FEDORA_VERSION:-43}"
+FEDORA_VERSION="${FEDORA_VERSION:-44}"
 
 # --- On the host: build the image and run this script inside it --------------------------------------
 if [ "${SLATED_IN_CONTAINER:-}" != "1" ]; then

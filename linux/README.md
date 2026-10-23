@@ -7,7 +7,7 @@ uses GNOME's own window and shortcut APIs from inside the desktop.
 | Part | Where | Status |
 |---|---|---|
 | Engine (expressions, Slate syntax, window math, config, hotstring matching) | `gnome-extension/lib/core/` | JavaScript port of `SlatedCore`, held to the Swift behavior by golden vectors in `/fixtures` |
-| Window management, hotkeys, overlays, Slate JS API, logging | `gnome-extension/extension.js`, `lib/platform/` | GNOME Shell extension (GNOME 46–49) |
+| Window management, hotkeys, overlays, Slate JS API, logging | `gnome-extension/extension.js`, `lib/platform/` | GNOME Shell extension (GNOME 46–51; 50 and 51 untested) |
 | Settings UI | `gnome-extension/prefs.js`, `lib/prefs/` | libadwaita preferences window |
 | Hyper key | GNOME keyboard option or `keyd` | Caps Lock → Hyper |
 | Hotstrings | espanso, driven by Slated's config | Slated writes espanso's config from `config.json` |

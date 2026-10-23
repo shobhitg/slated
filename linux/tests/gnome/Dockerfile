@@ -1,9 +1,9 @@
 # A headless GNOME Shell for Slated's end-to-end extension tests (see run.sh).
 #
 # The GNOME version follows the Fedora release:
-#   FEDORA_VERSION=43 → GNOME 49 (default)    42 → GNOME 48    41 → GNOME 47    40 → GNOME 46
+#   FEDORA_VERSION=44 → GNOME 50 (default)   45 → GNOME 51   43 → GNOME 49   42 → GNOME 48   41 → 47   40 → 46
 # Releases past their end of life live on Fedora's archive mirror; build them with FEDORA_ARCHIVE=1.
-ARG FEDORA_VERSION=43
+ARG FEDORA_VERSION=44
 FROM registry.fedoraproject.org/fedora:${FEDORA_VERSION}
 
 ARG FEDORA_ARCHIVE=0

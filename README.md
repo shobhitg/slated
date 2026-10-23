@@ -55,7 +55,7 @@ Accessibility**), not after every reinstall.
 
 ## Linux (GNOME)
 
-Slated also runs on GNOME 46–49 as a GNOME Shell extension, with the same `config.json` and Slate
+Slated also runs on GNOME 46–51 as a GNOME Shell extension, with the same `config.json` and Slate
 files. Run `linux/install.sh`, then log out and back in. [docs/LINUX.md](docs/LINUX.md) covers
 installing, the Hyper key and hotstrings on GNOME, and how it differs from the Mac.
 
