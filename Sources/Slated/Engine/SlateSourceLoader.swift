@@ -16,7 +16,7 @@ final class SlateSourceLoader {
   private weak var runner: ActionRunner?
   private var modificationDates: [String: Date] = [:]
   private var pollTimer: Timer?
-  private let javascript = JavaScriptSources()
+  let javascript = JavaScriptSources()
 
   func load(paths: [String], runner: ActionRunner) {
     self.runner = runner
@@ -26,6 +26,7 @@ final class SlateSourceLoader {
     defaults = []
     bindings = []
     modificationDates = [:]
+    javascript.reset()
 
     for raw in paths {
       let path = NSString(string: raw).expandingTildeInPath

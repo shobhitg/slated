@@ -2,7 +2,14 @@ import Foundation
 import SlatedCore
 import os
 
-let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "slated", category: "app")
+/// Loggers; view with `make logs`. Never log keystrokes.
+enum SlatedLog {
+  static let subsystem = Bundle.main.bundleIdentifier ?? "slated"
+  static let app = Logger(subsystem: subsystem, category: "app")
+  static let script = Logger(subsystem: subsystem, category: "script")
+}
+
+let log = SlatedLog.app
 
 /// Loads, saves and watches `~/.config/slated/config.json`.
 final class ConfigStore {

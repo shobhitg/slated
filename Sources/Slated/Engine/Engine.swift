@@ -32,6 +32,10 @@ final class Engine {
     store.onExternalChange = { [weak self] in self?.apply() }
     store.startWatching()
     sources.onChange = { [weak self] in self?.apply() }
+    sources.javascript.onDiagnostics = { [weak self] diagnostics in
+      self?.status.lastError = diagnostics.map(\.description).joined(separator: "\n")
+      self?.notify()
+    }
 
     runner.onPerformed = { [weak self] message in
       guard let self else { return }
@@ -257,13 +261,15 @@ final class Engine {
       case .resolutions(let list): matches = list.sorted() == resolutions
       }
       guard matches else { continue }
-      if runner.layouts[entry.target] != nil {
+      if runner.layouts[entry.target] != nil || runner.externalLayout?(entry.target) == true {
+        if runner.layouts[entry.target] == nil { break }
         runner.perform(.layout(name: entry.target))
       } else {
         runner.perform(.activateSnapshot(name: entry.target, delete: false))
       }
       break
     }
+    sources.javascript.runCallbackDefaults(screens: screens)
     notify()
   }
 
