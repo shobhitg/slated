@@ -1,6 +1,7 @@
 import AppKit
 import ServiceManagement
 import SlatedCore
+import SlatedScript
 import SlatedSystem
 import SlatedUI
 
@@ -276,6 +277,50 @@ final class Engine {
   private func notify() {
     status.hotkeys = hotkeys.statuses
     for handler in changeHandlers { handler() }
+  }
+
+  // MARK: Importing Slate configs
+
+  struct ImportSummary {
+    var imported: Int
+    var skipped: [String]
+  }
+
+  /// Copies the bindings from the Slate config files into Slated's own configuration, so they can be
+  /// edited in Settings. When everything converts, Slate files stop loading (they'd only duplicate).
+  @discardableResult
+  func importSlateConfigs() throws -> ImportSummary {
+    var config = store.configuration
+    var bound = Set(config.bindings.map { (($0.modal?.keys.string).map { $0 + " " } ?? "") + $0.keys.string })
+    var imported = 0
+    var skipped: [String] = []
+    func add(_ binding: HotkeyBinding) {
+      let id = ((binding.modal?.keys.string).map { $0 + " " } ?? "") + binding.keys.string
+      guard bound.insert(id).inserted else { return }
+      config.bindings.append(binding)
+      imported += 1
+    }
+    for raw in config.general.slateConfigPaths {
+      let path = NSString(string: raw).expandingTildeInPath
+      guard FileManager.default.fileExists(atPath: path) else { continue }
+      if path.hasSuffix(".js") {
+        let result = SlateImporter.importJavaScript(path: path)
+        result.bindings.forEach(add)
+        skipped += result.skipped.map { "\($0.keystroke): \($0.reason)" }
+        // Settings the script set, without overriding ones already in Slated's config.
+        config.settings = sources.javascript.settings.merging(config.settings)
+        config.layouts += sources.javascript.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
+      } else if let text = try? String(contentsOfFile: path, encoding: .utf8) {
+        let file = SlateConfigParser.parse(text, path: path)
+        file.bindings.forEach(add)
+        config.settings = file.settings.merging(config.settings)
+        config.layouts += file.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
+        config.defaults += file.defaults
+      }
+    }
+    if skipped.isEmpty { config.general.loadSlateConfigs = false }
+    try save(config)
+    return ImportSummary(imported: imported, skipped: skipped)
   }
 
   // MARK: Launch at login

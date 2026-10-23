@@ -13,6 +13,7 @@ let suites: [Suite] = [
   slateScriptTests,
   starterTests,
   starterSlateJSTests,
+  importerTests,
   expressionTests,
   slateSyntaxTests,
   slateConfigParserTests,

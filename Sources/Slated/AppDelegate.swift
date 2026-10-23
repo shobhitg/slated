@@ -87,6 +87,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let summary = NSMenuItem(title: "\(active) hotkeys active", action: nil, keyEquivalent: "")
     summary.isEnabled = false
     menu.addItem(summary)
+    if engine.configuration.general.loadSlateConfigs && engine.sources.sources.contains(where: { $0.loaded }) {
+      menu.addItem(withTitle: "Import Slate Config into Slated…", action: #selector(importSlate), keyEquivalent: "").target = self
+    }
     menu.addItem(withTitle: "Reload Configuration", action: #selector(reload), keyEquivalent: "r").target = self
     menu.addItem(withTitle: "Open Config File", action: #selector(openConfig), keyEquivalent: "").target = self
     menu.addItem(.separator())
@@ -108,6 +111,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @objc private func togglePause() { engine.setSuspended(!engine.isSuspended) }
 
   @objc private func reload() { engine.reload() }
+
+  @objc private func importSlate() {
+    let alert = NSAlert()
+    do {
+      let summary = try engine.importSlateConfigs()
+      alert.messageText = "Imported \(summary.imported) bindings"
+      alert.informativeText =
+        summary.skipped.isEmpty
+        ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
+        : "These need JavaScript and still run from your Slate file:\n" + summary.skipped.joined(separator: "\n")
+    } catch {
+      alert.messageText = "Couldn't import"
+      alert.informativeText = error.localizedDescription
+    }
+    NSApp.activate()
+    alert.runModal()
+  }
 
   @objc private func openConfig() { NSWorkspace.shared.open(engine.store.fileURL) }
 }

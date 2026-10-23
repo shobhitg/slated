@@ -70,3 +70,38 @@ func starterMatchesSlateJS() throws {
 let starterSlateJSTests = Suite("StarterVsSlateJS", [
   ("starter config matches ~/.slate.js", { try MainActor.assumeIsolated { try starterMatchesSlateJS() } })
 ])
+
+@MainActor
+func importerChecks() throws {
+  // A fixture: one static operation, one orientation-dependent function, one that needs real JS.
+  let script = """
+    var half = slate.operation("push", {"direction": "left", "style": "bar-resize:screenSizeX/2"});
+    slate.bind("a:ctrl,shift,alt,cmd", half);
+    slate.bind("f:ctrl,shift,alt,cmd", function (win) {
+      var r = slate.screen().rect();
+      win.doOperation(r.width > r.height ? "push" : "corner", r.width > r.height ? {"direction": "left"} : {"direction": "top-left"});
+    });
+    slate.bind("z:ctrl,shift,alt,cmd", function (win) { win.move({x: 0, y: 0}); });
+    """
+  let result = SlateImporter.importJavaScript(path: "/fixture.js", readFile: { _ in script })
+  expectEqual(result.bindings.count, 2)
+  expectEqual(result.skipped.map(\.keystroke), ["z:ctrl,shift,alt,cmd"])
+  expectEqual(result.bindings.first?.action, .push(direction: .left, style: .barResize("screenSizeX/2"), screen: nil))
+  expectEqual(
+    result.bindings.last?.action,
+    .byOrientation(
+      landscape: .push(direction: .left, style: .none, screen: nil),
+      portrait: .corner(.topLeft, width: nil, height: nil, screen: nil)))
+
+  // The author's real config converts completely, into exactly the starter bindings.
+  let path = NSString(string: "~/.slate.js").expandingTildeInPath
+  guard FileManager.default.fileExists(atPath: path) else { return }
+  let real = SlateImporter.importJavaScript(path: path)
+  expect(real.skipped.isEmpty, "\(real.skipped)")
+  let starter = Dictionary(uniqueKeysWithValues: SlatedConfiguration.starter.bindings.map { ($0.keys, $0.action) })
+  expectEqual(Dictionary(uniqueKeysWithValues: real.bindings.map { ($0.keys, $0.action) }), starter)
+}
+
+let importerTests = Suite("SlateImporter", [
+  ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } })
+])
