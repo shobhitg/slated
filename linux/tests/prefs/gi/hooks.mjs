@@ -13,10 +13,7 @@ const forward = expression => `export default new Proxy({}, {
 });`;
 
 export async function resolve(specifier, context, nextResolve) {
-  // The preferences' imports of the engine get the stand-in (which imports the real engine itself).
-  if (specifier.endsWith('/core/index.js') && !context.parentURL?.endsWith('/core-standin.mjs')) {
-    return {url: new URL('./core-standin.mjs', import.meta.url).href, shortCircuit: true};
-  }
+  // The engine (lib/core) is the real one: the preferences run against it unchanged.
   if (specifier.startsWith('gi://')) {
     return {url: `slated-mock:gi/${specifier.slice('gi://'.length).split('?')[0]}`, shortCircuit: true};
   }

@@ -4,8 +4,10 @@ import {
 } from '../../gnome-extension/lib/prefs/presets.js';
 import {
   KINDS, CATEGORIES, kindOf, kindById, formFromAction, actionFromForm, convertAction, updateAction, actionTitle,
-  actionDetail, localDetail, bindingTitle, bindingSubtitle, isWindowGeometry, screenName, appsPhrase,
+  actionDetail, localDetail, bindingTitle, bindingSubtitle, isWindowGeometry, screenName, appsPhrase, isMacOnly,
+  uneditableExplanation,
 } from '../../gnome-extension/lib/prefs/actions.js';
+import {actionProblems} from '../../gnome-extension/lib/prefs/validator.js';
 import {canonicalActionLocal} from '../../gnome-extension/lib/prefs/canonical.js';
 
 /** One example of every kind, in canonical form. */
@@ -142,5 +144,25 @@ export default suite('Presets and actions', [
     expect(isWindowGeometry(EXAMPLES.move) && isWindowGeometry(EXAMPLES['by-orientation']));
     expect(!isWindowGeometry(EXAMPLES.chain) && !isWindowGeometry(EXAMPLES.undo));
     expect(!isWindowGeometry({op: 'by-orientation', landscape: {op: 'undo'}, portrait: {op: 'push', direction: 'left'}}));
+  }],
+  ['the Mac app\'s automation and clipboard operations are titled and kept as they are', () => {
+    expectEqual(actionTitle({op: 'click', button: 'right', count: 2}), 'Double-Click Right');
+    expectEqual(actionTitle({op: 'click', count: 3}), '3× Click Left');
+    expectEqual(actionTitle({op: 'press', input: 'mouse:left', phase: 'down'}), 'Press Left Button');
+    expectEqual(actionTitle({op: 'press', input: 'key:shift+w', phase: 'up'}), 'Release Shift W');
+    expectEqual(actionTitle({op: 'hold', input: 'key:w'}), 'Hold W');
+    expectEqual(actionTitle({op: 'repeat', action: {op: 'click'}, interval: 0.1, mode: 'while-held'}),
+      'Repeat Click Left every 100 ms while held');
+    expectEqual(actionTitle({op: 'wait', seconds: 1.5}), 'Wait 1.5 s');
+    expectEqual(actionTitle({op: 'wait', seconds: 2}), 'Wait 2 s');
+    expectEqual(actionTitle({op: 'stop-automations'}), 'Stop Automations');
+    expectEqual(actionTitle({op: 'clipboard-history'}), 'Clipboard History');
+    expect(isMacOnly({op: 'wait', seconds: 1}) && !isMacOnly({op: 'undo'}) && !isMacOnly('wait 1'));
+    const raw = {op: 'hold', input: 'mouse:left'};
+    expectEqual(kindOf(raw), 'unknown');
+    expectEqual(actionFromForm(formFromAction(raw)), raw, 'kept unchanged');
+    expect(/Slated for Mac/.test(uneditableExplanation(raw)) && !/Slated for Mac/.test(uneditableExplanation({op: 'teleport'})));
+    expectEqual(actionProblems(raw), [{severity: 'warning', message: 'Only Slated for Mac runs this operation.'}], 'not an error');
+    expectEqual(actionProblems({op: 'teleport'})[0].severity, 'error');
   }],
 ]);

@@ -11,7 +11,7 @@ import Gtk from 'gi://Gtk';
 
 import {
   CATEGORIES, kindById, kindsInCategory, kindOf, isGeometryKind, formFromAction, updateAction, convertAction,
-  actionTitle, actionDetail, EXTRA_STEPS,
+  actionTitle, actionDetail, EXTRA_STEPS, isMacOnly, uneditableExplanation,
 } from '../actions.js';
 import {PRESETS, PRESET_GROUPS, presetMatches} from '../presets.js';
 import {checkExpression, sampleVariables} from '../expressions.js';
@@ -318,7 +318,7 @@ export class ActionEditor {
     const form = formFromAction(action);
     this.picker.set(form.kind, {composition: this.depth < 2});
     const kind = kindById(form.kind);
-    this.operationGroup.set_description(kind?.explanation ?? '');
+    this.operationGroup.set_description(form.kind === 'unknown' ? uneditableExplanation(action) : kind?.explanation ?? '');
     this.presetsBox.set_visible(isGeometryKind(form.kind));
     this.presets.sync(action);
     const key = this._layoutKey(form);
@@ -552,8 +552,11 @@ export class ActionEditor {
       break;
     }
     case 'unknown':
-      this._add({row: notice({level: 'warning', title: `Slated doesn't know “${form.raw?.op ?? '?'}”`,
-        detail: 'It stays in config.json unchanged. Pick an operation above to replace it.'}).widget});
+      this._add({row: notice(isMacOnly(form.raw)
+        ? {level: 'info', title: `${actionTitle(form.raw)}: runs only in Slated for Mac`,
+          detail: 'It stays in config.json unchanged. Pick an operation above to replace it.'}
+        : {level: 'warning', title: `Slated doesn't know “${form.raw?.op ?? '?'}”`,
+          detail: 'It stays in config.json unchanged. Pick an operation above to replace it.'}).widget});
       break;
     default:
       break;

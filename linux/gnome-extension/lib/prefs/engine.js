@@ -1,10 +1,12 @@
 // The preferences' only door into the engine (lib/core/index.js).
 //
-// The engine is a JavaScript port of SlatedCore. While parts of it are still stubs that throw
-// SlatedError("notImplemented"), the preferences keep working: configuration reading and writing,
-// key combos and action normalization fall back to local implementations that follow the same
-// rules; everything else (expression values, Slate syntax, window math) reports that it is
-// unavailable, and the UI says "Preview unavailable" instead of failing.
+// The engine is the JavaScript port of SlatedCore, held to the Swift behavior by golden vectors, so
+// config.json reads and writes exactly as on the Mac (ids must be UUIDs; new ones come from its
+// randomUUID, see ids.js). Should a function throw SlatedError("notImplemented"), the preferences
+// keep working: configuration reading and writing, key combos and action normalization fall back to
+// local implementations that follow the same rules (and keep sections they don't model); everything
+// else (expression values, Slate syntax, window math) reports that it is unavailable, and the UI
+// says "Preview unavailable" instead of failing.
 //
 // Pure ES module.
 
@@ -19,11 +21,21 @@ export function isNotImplemented(error) {
   return error?.kind === 'notImplemented';
 }
 
-/** A readable message for any engine error. */
+/**
+ * A readable message for any engine error. Configuration errors say where the problem is, e.g.
+ * "bindings[2].id: Attempted to decode UUID from invalid UUID string."
+ */
 export function describeError(error) {
   if (!error) return 'Unknown error';
   if (typeof error === 'string') return error;
-  return error.message || String(error);
+  const message = error.message || String(error);
+  const path = Array.isArray(error.codingPath) ? formatCodingPath(error.codingPath) : '';
+  return path ? `${path}: ${message}` : message;
+}
+
+/** ["bindings", 2, "id"] → "bindings[2].id". */
+export function formatCodingPath(path) {
+  return path.map((key, i) => (typeof key === 'number' ? `[${key}]` : i ? `.${key}` : String(key))).join('');
 }
 
 function withFallback(call, fallback) {
@@ -56,6 +68,8 @@ export function implemented(name) {
 
 /** config.json text → configuration with every default filled in. Throws a readable Error. */
 export function decodeConfiguration(text) {
+  // The engine also takes parsed objects; the preferences always pass the file's text.
+  if (typeof text !== 'string') throw new TypeError(`Expected config.json text, got ${text === null ? 'null' : typeof text}`);
   return withFallback(() => core.decodeConfiguration(text), () => fillDefaults(parseLenientJSON(text)));
 }
 
@@ -75,6 +89,10 @@ export function starterConfiguration() {
  */
 export function canonicalAction(action) {
   return withFallback(() => {
+    if (action === undefined || action === null) throw new Error('Choose an operation.');
+    // decodeAction keeps error paths relative to the action ("operations[1].x"). The JSON round trip
+    // hands it plain data, as config.json would.
+    if (typeof core.decodeAction === 'function') return core.decodeAction(JSON.parse(JSON.stringify(action)));
     const config = core.decodeConfiguration(JSON.stringify({bindings: [{keys: 'f1', action}]}));
     const decoded = config?.bindings?.[0]?.action;
     if (decoded === undefined) throw new Error('The engine returned no action');

@@ -174,6 +174,7 @@ these to point everything at a throwaway home.
 | Permissions | Accessibility, granted once | None needed |
 | Installing an update | `./install.sh` relaunches the app | Log out and back in (Wayland) or Alt+F2 `r` (Xorg). A nested shell lets you try it first |
 | Logs | `~/Library/Logs/Slated`, Console.app | `~/.local/state/slated`, `journalctl` |
+| Automation (click, press, hold, repeat, wait) and clipboard history | ✓ | Not yet. Settings keeps their `config.json` sections as they are |
 
 ## Limitations
 
@@ -254,4 +255,5 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | Caps Lock isn't Hyper | Settings → Keyboard shows which method is active and whether it works. With keyd, check `sudo systemctl status keyd`. |
 | Hotstrings don't expand | Settings → Hotstrings shows espanso's status. Check `espanso status` and `espanso log`. |
 | Editing `config.json` by hand changes nothing | The file must be valid JSON (comments and trailing commas are fine). Settings → Overview shows what's wrong, and `scripts/logs.py --errors` shows what the extension saw. |
+| Settings says it can't read `config.json` | The message names the spot, such as `bindings[2].id`. Ids must be UUIDs: delete a bad `"id"` line and Slated makes a new one. Settings won't save until the file reads, so nothing in it is lost. Operations from a newer Slated for Mac than the engine knows also stop it here. |
 | User extensions are turned off | Run `gsettings set org.gnome.shell disable-user-extensions false`, or turn them on in the Extensions app. |

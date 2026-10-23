@@ -27,6 +27,10 @@ const api = JSON.parse(fs.readFileSync(path.join(here, 'gi/api.json'), 'utf8'));
 const author = fs.readFileSync(path.join(here, 'fixtures/slate-author-like.js'), 'utf8');
 const UUID = 'slated@shobhit-aida.github.io';
 
+// Fixture ids: config.json ids must be UUIDs (the engine rejects anything else, as Swift does).
+const ID = Object.fromEntries(['HALF', 'CHAIN', 'ORIENT', 'LAYOUT', 'BAD', 'SYNTAX', 'OFF', 'SHRUG', 'SIG']
+  .map((name, i) => [name, `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`]));
+
 // Deprecated API the preferences can't avoid: GNOME Shell hands every extension an
 // Adw.PreferencesWindow (deprecated in libadwaita 1.6; this test creates it in GNOME Shell's
 // place), and Slated must add a page to it and turn its search off.
@@ -55,24 +59,27 @@ function makeHome() {
   const config = {
     keyboard: {capsLock: 'hyper'},
     bindings: [
-      {id: 'B-HALF', name: 'Left half', keys: 'hyper+a', action: {op: 'push', direction: 'left', style: 'bar-resize:screenSizeX/2'}},
-      {id: 'B-CHAIN', name: 'Cycle', keys: 'hyper+[', action: {op: 'chain', operations: [
+      {id: ID.HALF, name: 'Left half', keys: 'hyper+a', action: {op: 'push', direction: 'left', style: 'bar-resize:screenSizeX/2'}},
+      {id: ID.CHAIN, name: 'Cycle', keys: 'hyper+[', action: {op: 'chain', operations: [
         {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/2', height: 'screenSizeY'},
         {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/3', height: 'screenSizeY'},
       ]}},
-      {id: 'B-ORIENT', keys: 'hyper+f', action: {op: 'by-orientation',
+      {id: ID.ORIENT, keys: 'hyper+f', action: {op: 'by-orientation',
         landscape: {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/3', height: 'screenSizeY'},
         portrait: {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX', height: 'screenSizeY/3'}}},
-      {id: 'B-LAYOUT', keys: 'hyper+1', action: {op: 'layout', name: 'Coding'}},
-      {id: 'B-BAD', name: 'Typo', keys: 'hyper+b', action: {op: 'move', x: 'screnOriginX', y: '0', width: '10', height: '10'}},
-      {id: 'B-SYNTAX', keys: 'hyper+s', action: 'push right bar-resize:screenSizeX/3'},
-      {id: 'B-OFF', keys: 'hyper+o', enabled: false, action: {op: 'undo'}},
+      {id: ID.LAYOUT, keys: 'hyper+1', action: {op: 'layout', name: 'Coding'}},
+      {id: ID.BAD, name: 'Typo', keys: 'hyper+b', action: {op: 'move', x: 'screnOriginX', y: '0', width: '10', height: '10'}},
+      {id: ID.SYNTAX, keys: 'hyper+s', action: 'push right bar-resize:screenSizeX/3'},
+      {id: ID.OFF, keys: 'hyper+o', enabled: false, action: {op: 'undo'}},
     ],
     layouts: [{name: 'Coding', apps: [{app: 'Firefox', operations: [{op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX', height: 'screenSizeY'}]}]}],
     hotstrings: [
-      {id: 'H-SHRUG', trigger: ';s', replacement: '¯\\_(ツ)_/¯'},
-      {id: 'H-SIG', trigger: ';sig', replacement: 'Thanks', onlyInApps: ['org.gnome.Evolution']},
+      {id: ID.SHRUG, trigger: ';s', replacement: '¯\\_(ツ)_/¯'},
+      {id: ID.SIG, trigger: ';sig', replacement: 'Thanks', onlyInApps: ['org.gnome.Evolution']},
     ],
+    // Mac-only sections this window doesn't edit: they must survive every save.
+    clipboard: {maxItems: 42, shortcut: null},
+    automation: {showIndicator: false},
   };
   fs.mkdirSync(path.join(home, '.config/slated'), {recursive: true});
   fs.writeFileSync(path.join(home, '.config/slated/config.json'), JSON.stringify(config, null, 2));
@@ -200,9 +207,9 @@ async function run(mode) {
   });
 
   await step('editing a binding: name, recorded keys (Hyper), modal key, repeat', async () => {
-    settings.navigate('windows', {binding: 'B-HALF'});
+    settings.navigate('windows', {binding: ID.HALF});
     const page = visible('windows');
-    check(world.stateOf(page).expandos._slatedKey === 'binding:B-HALF', 'the editor is open');
+    check(world.stateOf(page).expandos._slatedKey === `binding:${ID.HALF}`, 'the editor is open');
     const name = titled(page, 'Adw.EntryRow', 'Name')[0];
     name.set_text('Left Half!');
     const recorderButton = findAll(world, page, 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-recorder'))[0];
@@ -211,13 +218,13 @@ async function run(mode) {
     check(controller, 'recording attaches a key controller to the window');
     world.emit(controller, 'modifiers', Gdk.ModifierType.HYPER_MASK);
     world.emit(controller, 'key-pressed', 97, 97, Gdk.ModifierType.HYPER_MASK);
-    check(model.binding('B-HALF').keys === 'hyper+a', `recorded ${model.binding('B-HALF').keys}`);
+    check(model.binding(ID.HALF).keys === 'hyper+a', `recorded ${model.binding(ID.HALF).keys}`);
     check(findAll(world, window, 'Gtk.EventControllerKey').length === 0, 'recording stops after a key');
     // A key without Ctrl/Alt/Super is refused for a global shortcut.
     click(recorderButton);
     const again = findAll(world, window, 'Gtk.EventControllerKey')[0];
     world.emit(again, 'key-pressed', 49, 49, 0);
-    check(model.binding('B-HALF').keys === 'hyper+a', 'a bare key is refused');
+    check(model.binding(ID.HALF).keys === 'hyper+a', 'a bare key is refused');
     world.emit(again, 'key-pressed', 65307, 65307, 0);
     check(findAll(world, window, 'Gtk.EventControllerKey').length === 0, 'Escape cancels');
     // Where caps:hyper shares Super's modifier, GTK may report both masks, or only Super: the key held decides.
@@ -226,26 +233,28 @@ async function run(mode) {
     let keysController = findAll(world, window, 'Gtk.EventControllerKey')[0];
     world.emit(keysController, 'key-pressed', 65515, 65515, 0);
     world.emit(keysController, 'key-pressed', 97, 97, shared);
-    check(model.binding('B-HALF').keys === 'cmd+a', `Super+A records as Super, not ✦: ${model.binding('B-HALF').keys}`);
+    check(model.binding(ID.HALF).keys === 'cmd+a', `Super+A records as Super, not ✦: ${model.binding(ID.HALF).keys}`);
     click(recorderButton);
     keysController = findAll(world, window, 'Gtk.EventControllerKey')[0];
     world.emit(keysController, 'key-pressed', 65515, 65515, 0);
     world.emit(keysController, 'key-released', 65515, 65515, shared);
     world.emit(keysController, 'key-pressed', 65517, 65517, 0);
     world.emit(keysController, 'key-pressed', 97, 97, Gdk.ModifierType.SUPER_MASK);
-    check(model.binding('B-HALF').keys === 'hyper+a', `Caps Lock+A records as ✦: ${model.binding('B-HALF').keys}`);
+    check(model.binding(ID.HALF).keys === 'hyper+a', `Caps Lock+A records as ✦: ${model.binding(ID.HALF).keys}`);
     const modal = titled(page, 'Adw.SwitchRow', 'Press a modal key first')[0];
     modal.set_active(true);
-    check(model.binding('B-HALF').modal?.keys === 'ctrl+f4', 'modal key added');
+    check(model.binding(ID.HALF).modal?.keys === 'ctrl+f4', 'modal key added');
     modal.set_active(false);
     const repeat = titled(page, 'Adw.ComboRow', 'Repeat while held')[0];
     repeat.set_selected(1);
-    check(model.binding('B-HALF').repeats === true, 'repeat while held');
+    check(model.binding(ID.HALF).repeats === true, 'repeat while held');
     repeat.set_selected(0);
-    check(model.binding('B-HALF').repeats === undefined, 'default repeat');
+    check(model.binding(ID.HALF).repeats === undefined, 'default repeat');
     await settle();
     const saved = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
-    check(saved.bindings.find(b => b.id === 'B-HALF').name === 'Left Half!', 'saved to config.json after the pause');
+    check(saved.bindings.find(b => b.id === ID.HALF).name === 'Left Half!', 'saved to config.json after the pause');
+    check(saved.clipboard.maxItems === 42 && saved.clipboard.shortcut === null && saved.automation.showIndicator === false,
+      'the clipboard and automation sections were kept');
   });
 
   await step('the action editor: every kind, its parameters, presets', async () => {
@@ -288,12 +297,12 @@ async function run(mode) {
     const presets = findAll(world, page, 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-preset'));
     check(presets.length === 20, `20 presets, found ${presets.length}`);
     for (const p of presets) click(p);
-    check(model.binding('B-HALF').action.op === 'throw', 'the last preset (Next Display, Maximized) applied');
+    check(model.binding(ID.HALF).action.op === 'throw', 'the last preset (Next Display, Maximized) applied');
   });
 
   await step('chains and by-orientation open nested editors', async () => {
     pop('windows');
-    settings.navigate('windows', {binding: 'B-CHAIN'});
+    settings.navigate('windows', {binding: ID.CHAIN});
     let page = visible('windows');
     const step2 = rowsIn(page, (w, s) => String(s.props.get('title')).startsWith('Press 2'))[0];
     activate(step2);
@@ -301,22 +310,22 @@ async function run(mode) {
     check(nested !== page, 'a step opens its own page');
     const entries = findAll(world, nested, 'Gtk.Entry', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-mono'));
     entries[2].set_text('screenSizeX/5');
-    check(model.binding('B-CHAIN').action.operations[1].width === 'screenSizeX/5', 'nested edits reach the chain');
+    check(model.binding(ID.CHAIN).action.operations[1].width === 'screenSizeX/5', 'nested edits reach the chain');
     pop('windows');
     // Remove the step from its menu: the list updates.
     page = visible('windows');
     const remove = findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('label') === 'Remove')[1];
     click(remove);
-    check(model.binding('B-CHAIN').action.operations.length === 1, 'step removed');
+    check(model.binding(ID.CHAIN).action.operations.length === 1, 'step removed');
     pop('windows');
-    settings.navigate('windows', {binding: 'B-ORIENT'});
+    settings.navigate('windows', {binding: ID.ORIENT});
     page = visible('windows');
     const portrait = rowsIn(page, (w, s) => s.props.get('title') === 'Portrait displays')[0];
     activate(portrait);
     const branch = visible('windows');
     const presets = findAll(world, branch, 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-preset'));
     click(presets[2]);
-    check(model.binding('B-ORIENT').action.portrait.height === 'screenSizeY/2', 'the portrait branch took the Top Half preset');
+    check(model.binding(ID.ORIENT).action.portrait.height === 'screenSizeY/2', 'the portrait branch took the Top Half preset');
     pop('windows');
     pop('windows');
   });
@@ -363,12 +372,12 @@ async function run(mode) {
     const add = titled(page, 'Adw.EntryRow', 'Add a Mac app (bundle identifier)')[0];
     add.set_text('com.apple.mail');
     world.emit(add, 'apply');
-    check(model.hotstring('H-SHRUG').onlyInApps.includes('com.apple.mail'), 'app filter added');
+    check(model.hotstring(ID.SHRUG).onlyInApps.includes('com.apple.mail'), 'app filter added');
     const where = findAll(world, page, 'Adw.PreferencesGroup', (w, s) => s.props.get('title') === 'Where It Works')[0];
     check(/Mac only/.test(prop(world, where, 'description') ?? ''), 'says app filters are Mac only on GNOME');
     const trigger = titled(page, 'Adw.EntryRow', 'Trigger')[0];
     trigger.set_text('');
-    check(model.issues.some(i => i.target === 'hotstring:H-SHRUG' && i.severity === 'error'), 'an empty trigger is an error');
+    check(model.issues.some(i => i.target === `hotstring:${ID.SHRUG}` && i.severity === 'error'), 'an empty trigger is an error');
     trigger.set_text(';shrug');
     pop('hotstrings');
     const master = findAll(world, visible('hotstrings'), 'Gtk.Switch')[0];
@@ -387,7 +396,7 @@ async function run(mode) {
     check(model.configuration.layouts[0].apps.length === 2, 'app added');
     const name = titled(page, 'Adw.EntryRow', 'Name')[0];
     name.set_text('Code');
-    check(model.binding('B-LAYOUT').action.name === 'Code', 'renaming keeps the shortcut pointing at it');
+    check(model.binding(ID.LAYOUT).action.name === 'Code', 'renaming keeps the shortcut pointing at it');
     pop('layouts');
   });
 
@@ -429,7 +438,7 @@ async function run(mode) {
   });
 
   await step('the preview steps through a chain and starts from a clicked display', async () => {
-    settings.navigate('windows', {binding: 'B-CHAIN'});
+    settings.navigate('windows', {binding: ID.CHAIN});
     const page = visible('windows');
     const drawnBefore = world.report.drawn;
     const stepButton = tooltip => findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === tooltip)[0];

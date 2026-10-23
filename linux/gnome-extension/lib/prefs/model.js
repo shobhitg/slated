@@ -8,7 +8,8 @@
 //
 // Pure ES module: file access, timers and logging are injected, so tests drive it with fakes.
 
-import {Emitter, clone, deepEqual, expandHome, tildify, uuid as newUUID} from './util.js';
+import {Emitter, clone, deepEqual, expandHome, tildify} from './util.js';
+import {newId} from './ids.js';
 import {
   decodeConfiguration, encodeConfiguration, starterConfiguration, parseSlateConfig, describeError, isNotImplemented,
 } from './engine.js';
@@ -39,7 +40,7 @@ export class PrefsModel extends Emitter {
    * @param {() => string} [options.makeId] new binding/hotstring ids
    * @param {number} [options.saveDelay] milliseconds to wait after the last edit before saving
    */
-  constructor({io, scheduler = {setTimeout, clearTimeout}, log = () => {}, makeId = newUUID, saveDelay = 450}) {
+  constructor({io, scheduler = {setTimeout, clearTimeout}, log = () => {}, makeId = newId, saveDelay = 450}) {
     super();
     this.io = io;
     this.scheduler = scheduler;
@@ -55,6 +56,9 @@ export class PrefsModel extends Emitter {
     this.loadError = null;
     /** True while config.json doesn't exist yet: the first edit creates it. */
     this.firstRun = false;
+    /** config.json's text as last read or written (null: none yet), and text that failed to decode. */
+    this._diskText = null;
+    this._badText = null;
 
     this.status = emptyStatus();
     this.shell = extensionState(null);
@@ -83,7 +87,9 @@ export class PrefsModel extends Emitter {
         this.draft = decodeConfiguration(text);
         this.saved = clone(this.draft);
         this.firstRun = false;
+        this._diskText = text;
       } catch (error) {
+        this._badText = text;
         this._blocked(describeError(error));
         return;
       }
@@ -195,7 +201,10 @@ export class PrefsModel extends Emitter {
       let reread = output;
       try {
         const text = this.io.readConfig();
-        if (text !== null && text !== undefined) reread = decodeConfiguration(text);
+        if (text !== null && text !== undefined) {
+          reread = decodeConfiguration(text);
+          this._diskText = text;
+        }
       } catch {
         reread = output;
       }
@@ -223,13 +232,19 @@ export class PrefsModel extends Emitter {
       return;
     }
     if (text === null || text === undefined) return; // Deleted: keep what's shown; the next save recreates it.
+    // The same text again (a file monitor event, the reload nudge): nothing to adopt.
+    if (this.loadError ? text === this._badText : text === this._diskText) return;
     let disk;
     try {
       disk = decodeConfiguration(text);
     } catch (error) {
+      this._badText = text;
       this._blocked(describeError(error));
       return;
     }
+    this._diskText = text;
+    this._badText = null;
+    keepGeneratedIds(disk, this.saved, text);
     const wasBlocked = this.loadError !== null;
     this.loadError = null;
     this.firstRun = false;
@@ -608,6 +623,30 @@ export class PrefsModel extends Emitter {
       source: 'prefs',
     });
   }
+}
+
+/**
+ * Entries written without an "id" get a new random one each time config.json is decoded (as in
+ * Swift). Gives unchanged ones the ids the window already uses, so re-reading a hand-written file
+ * doesn't count as an edit or close the editor that's open.
+ */
+export function keepGeneratedIds(disk, previous, text) {
+  const written = String(text).toUpperCase();
+  for (const key of ['bindings', 'hotstrings']) {
+    const before = previous?.[key] ?? [];
+    const list = disk[key] ?? [];
+    const used = new Set(list.filter(item => written.includes(item.id)).map(item => item.id));
+    list.forEach((item, index) => {
+      if (written.includes(item.id)) return;
+      const same = other => other && !used.has(other.id) && !written.includes(other.id)
+        && deepEqual({...other, id: ''}, {...item, id: ''});
+      const match = same(before[index]) ? before[index] : before.find(same);
+      if (!match) return;
+      item.id = match.id;
+      used.add(match.id);
+    });
+  }
+  return disk;
 }
 
 function memo(fn) {
