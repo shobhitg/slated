@@ -49,7 +49,9 @@ Sources/
                  through a host protocol.
   SlatedUI/      SwiftUI: settings window, onboarding, menu bar content. Talks to the app only through
                  the `AppServices` protocol (AppServices.swift); `PreviewServices` provides sample data.
-  Slated/        The app: AppDelegate, wiring config → triggers (hotkeys, hotstrings) → actions.
+  Slated/        The app: AppDelegate hosts the UI (status item + popover, settings window, onboarding);
+                 Engine wires config → triggers (hotkeys, hotstrings, Hyper) → actions; Logging/.
+  SlatedUISnapshots/  Renders the UI to PNGs with PreviewServices (`make snapshots`) for visual review.
 Tests/SlatedTests/  Test harness executable; one file per suite, registered in main.swift.
 ```
 
@@ -92,6 +94,7 @@ Dependency rules: `SlatedCore` imports nothing above it. `SlatedUI` and `SlatedS
 - `./install.sh` (`make install`) — build, sign with "Slated Dev", replace `~/Applications/Slated.app`,
   relaunch, verify via the log. Run it after every change; `--debug` (`make run`) builds faster.
 - `make logs` / `scripts/logs.py` — read the event log; `make test-install` — installer test
+- `make snapshots` — render every screen to `build/ui-snapshots` (look at them after UI changes)
 - `make check` — all automated tests (`make test [FILTER=name]` for unit/contract, `make smoke` end-to-end)
 - `make dev-cert` — one-time self-signed signing identity so permissions survive rebuilds
 - `make reset-permissions`, `make logs`, `make fmt`, `make lint`, `make clean`

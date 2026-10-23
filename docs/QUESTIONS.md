@@ -92,3 +92,18 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
   `\t`, `\\` escapes), `open-url 'https://…'`, `keystroke cmd+shift+4`.
 - **Not supported yet:** per-app settings (`config snapshotTitleMatch:'App' …`) and sourcing a
   `.js` file from a `.slate` file; both load with a warning.
+
+## Settings UI: decisions and open items
+
+- **Hotstrings on/off switch** is saved in `config.json` as `general.hotstringsEnabled`, so it
+  survives restarts and can be set by hand. **Pause Slated** (menu bar) lasts only until you resume
+  or relaunch.
+- **Menu bar:** left click opens the status panel; right click opens a classic menu with power-user
+  items (Import Slate Config, Open Config File, Show Log).
+- **Not built yet:**
+  - an editor for Slate's display-change defaults (`default` / `ScreenDefault`);
+  - reordering layouts by drag;
+  - Hyper modifier sets other than Hyper (⌃⌥⇧⌘) or Meh (⌃⌥⇧).
+
+  Tell me which matter.
+- **About pane link** to the GitHub repo waits on question 2 (where the repo will live).

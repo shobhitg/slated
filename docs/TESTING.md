@@ -92,6 +92,18 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Nothing expands in a password field (Secure Input).
 - [ ] `onlyInApps` / `exceptInApps` filters work.
 
+**Settings UI**
+- [ ] First launch shows onboarding. After finishing it, it doesn't come back unless Accessibility
+      permission goes missing.
+- [ ] Left-clicking the menu bar icon opens the status panel, and its toggles work. Right-click opens
+      the classic menu.
+- [ ] The settings window takes keyboard focus, and Slated shows in the Dock and Cmd-Tab only while
+      it's open.
+- [ ] Recording a shortcut with the real Caps Lock (Hyper) works. Global hotkeys pause while recording.
+- [ ] Editing a binding takes effect within about half a second, with no Save button.
+      `scripts/logs.py --grep config.saved` shows the change.
+- [ ] The sidebar renders correctly (the Liquid Glass sidebar can't be captured by `make snapshots`).
+
 **Slate compatibility**
 - [ ] `~/.slate.js` loads (the menu shows 21 hotkeys). Editing and saving it reloads within 2 seconds.
 - [ ] "Import Slate Config into Slated…" converts all bindings and stops loading the file.
