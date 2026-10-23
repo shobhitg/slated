@@ -74,3 +74,18 @@ let slateKeystrokeTests = Suite("SlateKeystroke", [
     expectThrows { _ = try SlateSyntax.parseKeystroke("a:ctrl,bogus") }
   }),
 ])
+
+let numericEdgeTests = Suite("NumericEdges", [
+  ("huge numbers in actions and settings don't crash", {
+    let json = #"{"op": "move", "x": 1e21, "y": 0, "width": 100, "height": 1e300}"#
+    let action = try JSONDecoder().decode(Action.self, from: Data(json.utf8))
+    if case .move(let x, _, _, let h, _) = action {
+      expectEqual(x, "1e+21")
+      expect(h.contains("e+300"))
+    } else {
+      expect(false, "expected move")
+    }
+    expectEqual(SettingValue.number(1e20).stringValue, "1e+20")
+    expectEqual(SettingValue.number(42).stringValue, "42")
+  }),
+])

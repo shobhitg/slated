@@ -56,7 +56,7 @@ public enum SettingValue: Hashable, Sendable, Codable {
   public var stringValue: String {
     switch self {
     case .bool(let b): return b ? "true" : "false"
-    case .number(let n): return n == n.rounded() ? String(Int(n)) : String(n)
+    case .number(let n): return n == n.rounded() && abs(n) < 1e15 ? String(Int(n)) : String(n)
     case .string(let s): return s
     }
   }

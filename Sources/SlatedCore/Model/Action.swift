@@ -343,7 +343,8 @@ extension Action: Codable {
     func expr(_ key: Key) throws -> String? {
       if let s = try? c.decodeIfPresent(String.self, forKey: key) { return s }
       if let d = try? c.decodeIfPresent(Double.self, forKey: key) {
-        return d == d.rounded() ? String(Int(d)) : String(d)
+        // Int(d) traps outside Int's range, so only shorten modest whole numbers.
+        return d == d.rounded() && abs(d) < 1e15 ? String(Int(d)) : String(d)
       }
       return nil
     }
