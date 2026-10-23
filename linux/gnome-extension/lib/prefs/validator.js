@@ -10,7 +10,7 @@
 import {formatList, isObject, deepEqual} from './util.js';
 import {keysCombo, keysString, statusKey, isValidKey, isFunctionKey, keyLabel} from './keys.js';
 import {checkExpression} from './expressions.js';
-import {bindingTitle, actionDetail} from './actions.js';
+import {bindingTitle, actionDetail, isMacOnly} from './actions.js';
 import {parseOperation, isNotImplemented, describeError} from './engine.js';
 
 /** Issue targets are strings: "binding:<id>", "hotstring:<id>", "layout:<name>". */
@@ -165,7 +165,10 @@ export function actionProblems(action, knownLayouts = new Set()) {
   }
   case 'switch': return [{severity: 'warning', message: "Slated doesn't run the app switcher yet."}];
   case 'hint': case 'undo': case 'relaunch': return [];
-  default: return err(`Slated doesn't know the operation “${a.op}”.`);
+  default:
+    // The Mac app's automation and clipboard operations: kept as they are, just not run here.
+    if (isMacOnly(a)) return [{severity: 'warning', message: 'Only Slated for Mac runs this operation.'}];
+    return err(`Slated doesn't know the operation “${a.op}”.`);
   }
 }
 

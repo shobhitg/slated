@@ -73,7 +73,7 @@ export class SlatedSettings {
       },
       scheduler: glibScheduler,
       log: (event, data, level) => this.logger.record(event, data, level),
-      makeId: () => GLib.uuid_string_random().toUpperCase(),
+      // New ids come from the engine's randomUUID (the model's default), as config.json requires.
     });
     this.model.load();
     this.model.setBuildInfo(readBuildInfo(ext.path));

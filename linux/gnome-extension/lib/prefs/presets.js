@@ -3,7 +3,8 @@
 //
 // Pure ES module.
 
-import {deepEqual, uuid as newUUID} from './util.js';
+import {deepEqual} from './util.js';
+import {newId} from './ids.js';
 import {canonicalAction} from './engine.js';
 
 export const PRESET_GROUPS = [
@@ -118,7 +119,7 @@ function structuredCopy(value) {
 }
 
 /** The small starter set offered when Slated has no bindings of its own (as on macOS). */
-export function starterBindings(makeId = newUUID) {
+export function starterBindings(makeId = newId) {
   const pairs = [
     ['left', 'left-half'], ['right', 'right-half'], ['up', 'top-half'], ['down', 'bottom-half'],
     ['return', 'maximize'], ['c', 'center'], ['n', 'throw-next'], ['z', 'undo'],

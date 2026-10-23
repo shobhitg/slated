@@ -67,6 +67,7 @@ export {targetFrame, targetOrigin, resolveScreen, screenContaining, orderedLeftT
  * isWindowGeometry(action) → true for actions that move or resize the focused window (and can be undone).
  * readSettings(settings) → Slate's global settings with typed values and Slate's defaults
  *   (defaultToCurrentScreen, repeatOnHoldOps, secondsBeforeRepeat, undoMaxStackSize, …).
+ * randomUUID() → a new binding/hotstring id in Swift's uppercase form (ids must be UUIDs to decode).
  */
 export {
   decodeConfiguration,
@@ -75,6 +76,7 @@ export {
   decodeAction,
   isWindowGeometry,
   readSettings,
+  randomUUID,
 } from './config.js';
 
 // --- Keys -----------------------------------------------------------------------------------------

@@ -11,7 +11,8 @@
 //
 // Pure ES module: no gi:// imports. File access is injected (`readFile`).
 
-import {isObject, deepEqual, expandHome, uuid as newUUID} from './util.js';
+import {isObject, deepEqual, expandHome} from './util.js';
+import {newId} from './ids.js';
 import {keysString, canonicalKey, isValidKey, modifierToken, statusKey} from './keys.js';
 import {coerceParameter} from './canonical.js';
 import {actionDetail} from './actions.js';
@@ -909,7 +910,7 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
  *   diagnostics: Array}}
  */
 export function importSlateScript(source, options = {}) {
-  const makeId = options.makeId ?? newUUID;
+  const makeId = options.makeId ?? newId;
   const loaded = loadSlateScript(source, options);
   const bindings = [];
   const skipped = [];
@@ -933,7 +934,7 @@ export function importSlateScript(source, options = {}) {
 }
 
 /** A classic ~/.slate file through the engine: {bindings, layouts, settings, defaults, diagnostics}. */
-export function importClassic(text, {path, home = '/home/user', readFile = () => null, makeId = newUUID} = {}) {
+export function importClassic(text, {path, home = '/home/user', readFile = () => null, makeId = newId} = {}) {
   const parsed = parseSlateConfig(text, {path, readFile: p => readFile(expandHome(p, home))});
   const bindings = (parsed.bindings ?? []).filter(b => b.enabled !== false).map(b => {
     const out = {id: makeId(), keys: keysString(b.keys), action: canonicalAction(b.action), enabled: true};

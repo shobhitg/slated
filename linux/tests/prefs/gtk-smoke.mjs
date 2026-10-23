@@ -67,15 +67,20 @@ if (!home.includes('slated-gtk-smoke')) {
 const uuid = 'slated@shobhit-aida.github.io';
 const extension = GLib.build_filenamev([home, '.local/share/gnome-shell/extensions', uuid]);
 write(GLib.build_filenamev([extension, 'build-info.json']), JSON.stringify({version: '0.1.0', commit: 'test', builtAt: '2026-10-22T00:00:00Z'}));
+// config.json ids must be UUIDs (the engine rejects anything else, as Swift does).
+const B1 = '00000000-0000-4000-8000-000000000001';
+const B2 = '00000000-0000-4000-8000-000000000002';
+const B3 = '00000000-0000-4000-8000-000000000003';
+const H1 = '00000000-0000-4000-8000-000000000101';
 write(GLib.build_filenamev([home, '.config/slated/config.json']), JSON.stringify({
   keyboard: {capsLock: 'hyper'},
   bindings: [
-    {id: 'B1', name: 'Left half', keys: 'hyper+a', action: {op: 'push', direction: 'left', style: 'bar-resize:screenSizeX/2'}},
-    {id: 'B2', keys: 'hyper+[', action: {op: 'chain', operations: [{op: 'undo'}, {op: 'relaunch'}]}},
-    {id: 'B3', keys: 'hyper+f', action: {op: 'by-orientation', landscape: {op: 'push', direction: 'left'}, portrait: {op: 'push', direction: 'up'}}},
+    {id: B1, name: 'Left half', keys: 'hyper+a', action: {op: 'push', direction: 'left', style: 'bar-resize:screenSizeX/2'}},
+    {id: B2, keys: 'hyper+[', action: {op: 'chain', operations: [{op: 'undo'}, {op: 'relaunch'}]}},
+    {id: B3, keys: 'hyper+f', action: {op: 'by-orientation', landscape: {op: 'push', direction: 'left'}, portrait: {op: 'push', direction: 'up'}}},
   ],
   layouts: [{name: 'Coding', apps: [{app: 'Firefox', operations: [{op: 'undo'}]}]}],
-  hotstrings: [{id: 'H1', trigger: ';s', replacement: 'shrug'}],
+  hotstrings: [{id: H1, trigger: ';s', replacement: 'shrug'}],
 }));
 write(GLib.build_filenamev([home, '.local/state/slated/status.json']), JSON.stringify({
   session: 'gtk00001', running: true, hyper: {wanted: true, mode: 'xkb', active: true},
@@ -101,17 +106,17 @@ if (settings) {
     step(`shows ${id}`, () => settings.showPane(id));
   }
   step('opens and edits a binding', () => {
-    settings.navigate('windows', {binding: 'B1'});
-    settings.model.setBinding('B1', b => {
+    settings.navigate('windows', {binding: B1});
+    settings.model.setBinding(B1, b => {
       b.action = {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/3', height: 'screenSizeY'};
     });
     spin(600);
     settings.panes.get('windows').nav.pop();
   });
   step('opens the chain and by-orientation editors', () => {
-    settings.navigate('windows', {binding: 'B2'});
+    settings.navigate('windows', {binding: B2});
     spin();
-    settings.navigate('windows', {binding: 'B3'});
+    settings.navigate('windows', {binding: B3});
     spin();
     settings.panes.get('windows').nav.pop();
   });

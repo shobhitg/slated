@@ -83,14 +83,22 @@ export default suite('Config and canonical actions', [
     expectEqual(hs, {id: 'H', trigger: ';x', replacement: '', enabled: true, caseSensitive: true, fire: 'immediately',
       wordBoundary: false, method: 'auto', onlyInApps: [], exceptInApps: []});
     expectThrows(() => fillDefaults([]), /JSON object/);
+    // Sections the stand-in doesn't model pass through, so a save never drops them.
+    const kept = fillDefaults({clipboard: {enabled: false}, automation: {maxRunMinutes: 5}, future: [1]});
+    expectEqual([kept.clipboard, kept.automation, kept.future], [{enabled: false}, {maxRunMinutes: 5}, [1]]);
   }],
-  ['the engine facade decodes, encodes and round-trips (engine or fallback)', () => {
-    const config = decodeConfiguration('{ "keyboard": {"capsLock": "hyper"}, "hotstrings": [{"id": "A", "trigger": ";s", "replacement": "x"}], }');
+  ['the engine facade decodes, encodes and round-trips', () => {
+    const id = '3F2A9C1E-0B7D-4E5F-8A6B-1C2D3E4F5A6B';
+    const config = decodeConfiguration(`{ "keyboard": {"capsLock": "hyper"}, "hotstrings": [{"id": "${id.toLowerCase()}", "trigger": ";s", "replacement": "x"}],
+      "clipboard": {"shortcut": null, "maxItems": 20}, "automation": {"showIndicator": false}, }`);
     expectEqual(config.keyboard.capsLock, 'hyper');
     expectEqual(config.general.loadSlateConfigs, true);
-    expectEqual(config.hotstrings[0].trigger, ';s');
+    expectEqual([config.hotstrings[0].trigger, config.hotstrings[0].id], [';s', id], 'ids come back uppercase, as Swift writes them');
+    expectEqual([config.clipboard.shortcut, config.clipboard.maxItems, config.clipboard.enabled], [null, 20, true]);
+    expectEqual(config.automation.showIndicator, false);
     const again = decodeConfiguration(encodeConfiguration(config));
     expectEqual(again, config, 'encode → decode keeps every value');
+    expectThrows(() => decodeConfiguration(undefined), /Expected config.json text/);
     expect(encodeLocal({b: 1, a: 2}).indexOf('"a"') < encodeLocal({b: 1, a: 2}).indexOf('"b"'), 'keys are sorted');
   }],
   ['canonicalAction agrees with the local rules', () => {

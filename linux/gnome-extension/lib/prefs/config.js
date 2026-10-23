@@ -4,7 +4,8 @@
 //
 // Pure ES module.
 
-import {isObject, stableStringify, uuid as newUUID} from './util.js';
+import {isObject, stableStringify} from './util.js';
+import {newId} from './ids.js';
 
 export const DEFAULT_SLATE_PATHS = ['~/.slate.js', '~/.slate'];
 
@@ -27,7 +28,7 @@ export function defaultLayoutAppOptions() {
 }
 
 /** A new hotstring with Swift's defaults. */
-export function newHotstring(fields = {}, makeId = newUUID) {
+export function newHotstring(fields = {}, makeId = newId) {
   return {
     id: makeId(),
     trigger: '',
@@ -44,7 +45,7 @@ export function newHotstring(fields = {}, makeId = newUUID) {
 }
 
 /** A new binding. `keys` is the config string ("hyper+a"; "" while it waits to be recorded). */
-export function newBinding(fields = {}, makeId = newUUID) {
+export function newBinding(fields = {}, makeId = newId) {
   return {id: makeId(), keys: '', action: {op: 'undo'}, enabled: true, ...fields};
 }
 
@@ -176,11 +177,16 @@ function fillLayout(raw) {
   };
 }
 
-/** A configuration object with every default filled in (the shape decodeConfiguration returns). */
-export function fillDefaults(raw, makeId = newUUID) {
+/**
+ * A configuration object with every default filled in (the shape decodeConfiguration returns).
+ * Sections this stand-in doesn't model (clipboard, automation, anything newer) pass through as they
+ * are, so saving never drops them.
+ */
+export function fillDefaults(raw, makeId = newId) {
   const c = isObject(raw) ? raw : {};
   if (raw !== undefined && !isObject(raw)) throw new Error('config.json must contain a JSON object');
   return {
+    ...c,
     version: Number.isInteger(c.version) ? c.version : 1,
     general: {...defaultGeneral(), ...(isObject(c.general) ? c.general : {})},
     settings: isObject(c.settings) ? {...c.settings} : {},

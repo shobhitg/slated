@@ -75,6 +75,24 @@ export function kindsInCategory(categoryId) {
   return KINDS.filter(k => k.category === categoryId);
 }
 
+/**
+ * Operations only the Mac app runs (automation and clipboard history, Action.swift). The editor shows
+ * them and keeps them unchanged; Slated for GNOME doesn't run them.
+ */
+export const MAC_ONLY_OPS = Object.freeze(['click', 'press', 'hold', 'repeat', 'wait', 'stop-automations', 'clipboard-history']);
+
+/** True for an action only the Mac app runs. */
+export function isMacOnly(action) {
+  return isObject(action) && MAC_ONLY_OPS.includes(action.op);
+}
+
+/** What the editor says about an operation it can't edit. */
+export function uneditableExplanation(action) {
+  return isMacOnly(action)
+    ? "Slated for Mac runs this operation. Slated for GNOME doesn't yet, and keeps it in config.json unchanged."
+    : UNKNOWN_KIND.explanation;
+}
+
 /** Pseudo-kind for an object whose "op" Slated doesn't know (kept unchanged until replaced). */
 export const UNKNOWN_KIND = kind('unknown', 'automation', 'Unknown Operation', 'dialog-question-symbolic',
   "Slated doesn't know this operation. Pick another one to replace it.");
@@ -434,8 +452,38 @@ export function actionTitle(action) {
   case 'insert-text': return a.text ? `Insert “${truncate(singleLine(a.text), 24)}”` : 'Insert Text';
   case 'open-url': return `Open ${urlHost(a.url) ?? truncate(a.url ?? '', 28)}`;
   case 'keystroke': return `Press ${comboLabel(a.keys)}`;
+  // The Mac app's automation and clipboard operations (titles as in ActionDescriber.swift).
+  case 'click': {
+    const count = Number.isInteger(a.count) ? a.count : 1;
+    return `${count === 2 ? 'Double-Click' : count > 2 ? `${count}× Click` : 'Click'} ${capitalized(a.button ?? 'left')}`;
+  }
+  case 'press': return `${a.phase === 'up' ? 'Release' : 'Press'} ${inputTitle(a.input)}`;
+  case 'hold': return `Hold ${inputTitle(a.input)}`;
+  case 'repeat':
+    return `Repeat ${actionTitle(a.action)} every ${secondsText(a.interval)}${a.mode === 'while-held' ? ' while held' : ''}`;
+  case 'wait': return `Wait ${secondsText(a.seconds)}`;
+  case 'stop-automations': return 'Stop Automations';
+  case 'clipboard-history': return 'Clipboard History';
   default: return `Unknown “${a.op}”`;
   }
+}
+
+const capitalized = text => String(text).charAt(0).toUpperCase() + String(text).slice(1);
+
+/** "mouse:right" → "Right Button", "key:shift+w" → the keycap label. */
+function inputTitle(input) {
+  const text = String(input ?? '');
+  if (text.toLowerCase().startsWith('mouse:')) return `${capitalized(text.slice('mouse:'.length))} Button`;
+  if (text.toLowerCase().startsWith('key:')) return comboLabel(text.slice('key:'.length));
+  return text || 'Input';
+}
+
+/** "100 ms", "0.5 s", "2 s", as on the Mac. */
+function secondsText(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '? s';
+  if (n < 1) return `${Math.round(n * 1000)} ms`;
+  return Number.isInteger(n) ? `${n} s` : `${n.toFixed(1)} s`;
 }
 
 /** Slate syntax for secondary text: the engine's formatting, else a local approximation. */

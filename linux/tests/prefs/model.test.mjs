@@ -33,7 +33,7 @@ function harness(files = {}) {
     },
     clearTimeout: id => timers.delete(id),
   };
-  const model = new PrefsModel({io, scheduler, log: (event, data, level) => logged.push({event, data, level}), makeId: () => `ID${n++}`});
+  const model = new PrefsModel({io, scheduler, log: (event, data, level) => logged.push({event, data, level}), makeId: () => testId(1000 + n++)});
   const tick = () => {
     for (const [id, timer] of [...timers]) {
       timers.delete(id);
@@ -44,6 +44,12 @@ function harness(files = {}) {
 }
 
 const half = presetById('left-half').action;
+
+/** config.json ids must be UUIDs, as in Swift: deterministic ones for the tests. */
+const testId = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const A = testId(0xa);
+const B = testId(0xb);
+const H = testId(0x100);
 
 export default suite('Preferences model', [
   ['first run without config.json or Slate files starts from the starter set, and writes nothing yet', () => {
@@ -99,19 +105,19 @@ export default suite('Preferences model', [
     expectEqual(written.settings, {nudgePercentOf: 'screenSize'}, 'hand-set values survive');
   }],
   ['items with errors are held back; a new binding waiting for keys is not an error', () => {
-    const {model, disk, tick} = harness({[CONFIG]: JSON.stringify({bindings: [{id: 'a', keys: 'hyper+a', action: half}]})});
+    const {model, disk, tick} = harness({[CONFIG]: JSON.stringify({bindings: [{id: A, keys: 'hyper+a', action: half}]})});
     model.load();
     model.addBinding();
     tick();
     expectEqual(model.saveState, {kind: 'saved'});
-    expectEqual(decodeConfiguration(disk[CONFIG]).bindings.map(b => b.id), ['a'], 'the empty binding is not written');
-    model.setBinding('a', b => {
+    expectEqual(decodeConfiguration(disk[CONFIG]).bindings.map(b => b.id), [A], 'the empty binding is not written');
+    model.setBinding(A, b => {
       b.action = {...half, width: 'screnSizeX/2'};
     });
     tick();
     expectEqual(model.saveState, {kind: 'partial', count: 1});
     expectEqual(decodeConfiguration(disk[CONFIG]).bindings[0].action, half, 'the last saved version stays on disk');
-    expectEqual(model.bindingState(model.binding('a')).state, 'not-saved');
+    expectEqual(model.bindingState(model.binding(A)).state, 'not-saved');
   }],
   ['hand edits on disk are adopted unless there are unsaved edits', () => {
     const {model, disk} = harness({[CONFIG]: '{}'});
@@ -154,21 +160,21 @@ export default suite('Preferences model', [
     expectEqual(logged.map(e => [e.event, e.level]), [['config.save_failed', 'error']]);
   }],
   ['status drives binding states', () => {
-    const {model} = harness({[CONFIG]: JSON.stringify({bindings: [{id: 'a', keys: 'hyper+a', action: half}]})});
+    const {model} = harness({[CONFIG]: JSON.stringify({bindings: [{id: A, keys: 'hyper+a', action: half}]})});
     model.load();
     model.setShellInfo({state: 1});
     model.setStatusText(JSON.stringify({running: true, hotkeys: {'hyper+a': 'failed: taken'}}));
-    expectEqual(model.bindingState(model.binding('a')), {state: 'failed', reason: 'taken'});
+    expectEqual(model.bindingState(model.binding(A)), {state: 'failed', reason: 'taken'});
     model.setStatusText(null);
-    expectEqual(model.bindingState(model.binding('a')).state, 'not-running');
+    expectEqual(model.bindingState(model.binding(A)).state, 'not-running');
   }],
   ['binding helpers: starter set, duplicate, delete, copy from Slate', () => {
-    const {model} = harness({[CONFIG]: JSON.stringify({bindings: [{id: 'a', keys: 'hyper+left', action: half, name: 'Mine'}]}),
+    const {model} = harness({[CONFIG]: JSON.stringify({bindings: [{id: A, keys: 'hyper+left', action: half, name: 'Mine'}]}),
       [`${HOME}/.slate.js`]: author});
     model.load();
     expectEqual(model.addStarterBindings(), 7, 'hyper+left is taken already');
     expectEqual(model.addStarterBindings(), 0);
-    const copy = model.duplicateBinding('a');
+    const copy = model.duplicateBinding(A);
     expectEqual([model.binding(copy).name, model.binding(copy).keys], ['Mine Copy', '']);
     expectEqual(model.deleteBinding(copy), 'Mine Copy');
     const source = model.sources[0].bindings.find(b => b.keys === 'hyper+a');
@@ -181,30 +187,30 @@ export default suite('Preferences model', [
   ['renaming a layout keeps the shortcuts that apply it', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({
       layouts: [{name: 'Coding', apps: []}],
-      bindings: [{id: 'a', keys: 'hyper+1', action: {op: 'layout', name: 'Coding'}}],
+      bindings: [{id: A, keys: 'hyper+1', action: {op: 'layout', name: 'Coding'}}],
     })});
     model.load();
     expectEqual(model.addLayout(), 'New Layout');
     expectEqual(model.setLayout('Coding', l => {
       l.name = 'Writing';
     }), 'Writing');
-    expectEqual(model.binding('a').action, {op: 'layout', name: 'Writing'});
+    expectEqual(model.binding(A).action, {op: 'layout', name: 'Writing'});
     expectEqual(model.triggersForLayout('Writing'), [{keys: 'hyper+1', modal: null}]);
   }],
   ['moving, deleting and duplicating', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({
-      bindings: [{id: 'a', keys: 'hyper+a', action: half}, {id: 'b', keys: 'hyper+b', action: half}],
-      hotstrings: [{id: 'h', trigger: ';x', replacement: 'y'}],
+      bindings: [{id: A, keys: 'hyper+a', action: half}, {id: B, keys: 'hyper+b', action: half}],
+      hotstrings: [{id: H, trigger: ';x', replacement: 'y'}],
       layouts: [{name: 'L'}],
     })});
     model.load();
-    model.moveBinding('a', 1);
-    expectEqual(model.configuration.bindings.map(b => b.id), ['b', 'a']);
-    model.moveBinding('a', 1);
-    expectEqual(model.configuration.bindings.map(b => b.id), ['b', 'a'], 'moving past the end does nothing');
-    const copy = model.duplicateHotstring('h');
+    model.moveBinding(A, 1);
+    expectEqual(model.configuration.bindings.map(b => b.id), [B, A]);
+    model.moveBinding(A, 1);
+    expectEqual(model.configuration.bindings.map(b => b.id), [B, A], 'moving past the end does nothing');
+    const copy = model.duplicateHotstring(H);
     expectEqual(model.hotstring(copy).trigger, ';x2');
-    expectEqual(model.deleteHotstring('h'), ';x');
+    expectEqual(model.deleteHotstring(H), ';x');
     expectEqual(model.deleteHotstring('nope'), null);
     model.deleteLayout('L');
     expectEqual(model.configuration.layouts, []);
@@ -219,6 +225,65 @@ export default suite('Preferences model', [
     model.reload();
     expectEqual(writes.length, 1, 'the pending edit was saved first');
     expectEqual(model.sources[0].bindings.length, 1, 'the Slate file was re-read');
+  }],
+  ['sections the window doesn\'t edit (clipboard, automation) survive saving', () => {
+    const {model, writes} = harness({[CONFIG]: JSON.stringify({
+      bindings: [{id: A, keys: 'hyper+a', action: half}],
+      clipboard: {enabled: false, shortcut: null, maxItems: 50, excludedApps: ['org.keepassxc.KeePassXC']},
+      automation: {stopShortcut: 'ctrl+alt+esc', maxRunMinutes: 2.5},
+    })});
+    model.load();
+    model.setBinding(A, b => {
+      b.name = 'Renamed';
+    });
+    model.saveNow();
+    const written = JSON.parse(writes[writes.length - 1]);
+    expectEqual(written.bindings[0].name, 'Renamed');
+    expectEqual([written.clipboard.enabled, written.clipboard.shortcut, written.clipboard.maxItems, written.clipboard.excludedApps],
+      [false, null, 50, ['org.keepassxc.KeePassXC']], 'clipboard settings kept, null shortcut included');
+    expectEqual([written.automation.stopShortcut, written.automation.maxRunMinutes], ['ctrl+alt+esc', 2.5]);
+    expectEqual(decodeConfiguration(writes[writes.length - 1]), model.configuration, 'and the file decodes to what is shown');
+  }],
+  ['a config.json the engine can\'t read is never overwritten', () => {
+    // E.g. a newer action from the Mac app that this engine doesn't know yet, or an id that isn't a UUID.
+    for (const text of [
+      JSON.stringify({bindings: [{id: A, keys: 'hyper+c', action: {op: 'teleport'}}]}),
+      JSON.stringify({bindings: [{id: 'not-a-uuid', keys: 'hyper+c', action: half}]}),
+    ]) {
+      const {model, disk, writes, tick} = harness({[CONFIG]: text});
+      model.load();
+      expect(model.loadError !== null, 'reported');
+      model.update(config => {
+        config.general.showActionHUD = true;
+      });
+      tick();
+      model.saveNow();
+      expectEqual(writes.length, 0, 'nothing written');
+      expectEqual(disk[CONFIG], text, 'the file is untouched');
+    }
+    const {model} = harness({[CONFIG]: JSON.stringify({bindings: [{id: 'not-a-uuid', keys: 'hyper+c', action: half}]})});
+    model.load();
+    expectEqual(model.loadError, 'bindings[0].id: Attempted to decode UUID from invalid UUID string.', 'says where');
+  }],
+  ['entries written without ids keep theirs when the file is read again', () => {
+    // Hand-written files often leave ids out; each decode invents new ones, as in Swift.
+    const text = JSON.stringify({bindings: [{keys: 'hyper+a', action: half}, {keys: 'hyper+b', action: {op: 'undo'}}],
+      hotstrings: [{trigger: ';x', replacement: 'y'}]});
+    const {model, disk, writes} = harness({[CONFIG]: text});
+    model.load();
+    const ids = () => [...model.configuration.bindings.map(b => b.id), ...model.configuration.hotstrings.map(h => h.id)];
+    const before = ids();
+    expect(before.every(id => /^[0-9A-F-]{36}$/.test(id)), 'generated ids are UUIDs');
+    model.syncFromDisk();
+    expectEqual(ids(), before, 'the same text: nothing changes');
+    // A hand edit to one entry keeps the other entries' ids, so their open editors stay open.
+    disk[CONFIG] = JSON.stringify({bindings: [{keys: 'hyper+a', action: half}, {keys: 'hyper+b', action: {op: 'hint'}}],
+      hotstrings: [{trigger: ';x', replacement: 'y'}]});
+    model.syncFromDisk();
+    expectEqual(model.configuration.bindings[0].id, before[0]);
+    expectEqual(model.configuration.bindings[1].action, {op: 'hint'}, 'the edit was adopted');
+    expectEqual(model.configuration.hotstrings[0].id, before[2]);
+    expectEqual(writes.length, 0, 'reading never writes');
   }],
   ['importing the Slate config adds its bindings and logs it', () => {
     const {model, logged, tick} = harness({[CONFIG]: '{}', [`${HOME}/.slate.js`]: author});
