@@ -727,10 +727,10 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"bindings\" : [\n\n  ],\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "encoded": "{\n  \"bindings\" : [\n\n  ],\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"fn\",\n      \"ctrl\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
       "input": "{\"keyboard\": {\"hyperModifiers\": [\"fn\", \"ctrl\"]}}",
       "name": "keyboard fn is dropped on output",
-      "roundTrips": false
+      "roundTrips": true
     },
     {
       "encoded": "{\n  \"bindings\" : [\n\n  ],\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"escape\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",

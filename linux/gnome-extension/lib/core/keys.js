@@ -105,8 +105,14 @@ export function parseKeyCombo(string) {
   const parts = trimmed.split('+');
   let key;
   if (hasSuffix(trimmed, '+')) {
+    if (hasSuffix(lowercased(trimmed), 'pad+')) {
+      key = 'pad+';
+    } else if (trimmed === '+' || hasSuffix(trimmed, '++')) {
+      key = '+';
+    } else {
+      return null; // "cmd+": modifiers but no key
+    }
     parts.splice(-2, 2);
-    key = hasSuffix(lowercased(trimmed), 'pad+') ? 'pad+' : '+';
   } else {
     key = parts.pop();
   }

@@ -59,6 +59,26 @@
       "target": "SlatedUISnapshots",
       "configuration": "release",
       "preLaunchTask": "swift: Build Release SlatedUISnapshots"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:slated}",
+      "name": "Debug SlatedFixtures",
+      "target": "SlatedFixtures",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug SlatedFixtures"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:slated}",
+      "name": "Release SlatedFixtures",
+      "target": "SlatedFixtures",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release SlatedFixtures"
     }
   ]
 }

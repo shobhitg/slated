@@ -89,3 +89,34 @@ let numericEdgeTests = Suite("NumericEdges", [
     expectEqual(SettingValue.number(42).stringValue, "42")
   }),
 ])
+
+/// Bugs found by the Linux port's golden-vector comparison.
+let crossPlatformBugTests = Suite("CrossPlatformBugs", [
+  ("a key combo ending in + without a key is invalid", {
+    expect(KeyCombo(string: "cmd+") == nil)
+    expect(KeyCombo(string: "a+") == nil)
+    expect(KeyCombo(string: "ctrl+ ") == nil)
+    expectEqual(KeyCombo(string: "cmd++"), KeyCombo(key: "+", modifiers: .command))
+    expectEqual(KeyCombo(string: "+"), KeyCombo(key: "+"))
+    expectEqual(KeyCombo(string: "ctrl+pad+"), KeyCombo(key: "pad+", modifiers: .control))
+  }),
+  ("open-url with an empty URL says the URL is missing", {
+    do {
+      _ = try SlateSyntax.parseOperation("open-url ''")
+      expect(false, "expected an error")
+    } catch {
+      expect("\(error)".contains("Missing the URL"), "\(error)")
+    }
+  }),
+  ("malformed resolutions are rejected", {
+    expect(ScreenRef(slate: "1920xx1080") == nil)
+    expect(ScreenRef(slate: "x1080") == nil)
+    expect(ScreenRef(slate: "1920x") == nil)
+    expectEqual(ScreenRef(slate: "1920x1080"), .resolution(width: 1920, height: 1080))
+  }),
+  ("fn in the Hyper modifiers survives saving", {
+    let config = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":["fn","ctrl"]}}"#.utf8))
+    expectEqual(config.keyboard.hyperModifiers, [.function, .control])
+    expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+  }),
+])

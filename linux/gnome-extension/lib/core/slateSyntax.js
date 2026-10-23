@@ -427,7 +427,7 @@ class OperationParser {
   openURL() {
     const words = this.tokens();
     if (words.length !== 1 || words[0].text === '') {
-      if (words.length === 0) throw this.fail('Missing the URL');
+      if (words.length === 0 || (words.length === 1 && words[0].text === '')) throw this.fail('Missing the URL');
       throw this.fail('URLs with spaces need quotes', "like open-url 'https://example.com/a b'");
     }
     return {op: 'open-url', url: words[0].text};

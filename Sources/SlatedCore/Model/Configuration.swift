@@ -176,6 +176,7 @@ extension KeyboardSettings: Codable {
     try c.encode(capsLock, forKey: .capsLock)
     try c.encode(capsLockAlone, forKey: .capsLockAlone)
     var tokens: [String] = []
+    if hyperModifiers.contains(.function) { tokens.append("fn") }
     if hyperModifiers.contains(.control) { tokens.append("ctrl") }
     if hyperModifiers.contains(.option) { tokens.append("alt") }
     if hyperModifiers.contains(.shift) { tokens.append("shift") }

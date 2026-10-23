@@ -90,7 +90,8 @@ export function screenRefFromSlate(raw) {
   if (lower === 'previous' || lower === 'prev') return {kind: 'previous'};
   const direction = directionFromSlate(s);
   if (direction !== null) return {kind: 'relative', direction};
-  const parts = splitCharacters(lower, (c) => c === 'x');
+  // Keep empty pieces (like Swift's components(separatedBy:)) so "1920xx1080" is rejected.
+  const parts = lower.split('x');
   if (parts.length !== 2) return null;
   const width = parseInt64(parts[0]);
   const height = parseInt64(parts[1]);

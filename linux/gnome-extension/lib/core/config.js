@@ -407,7 +407,9 @@ function keyboard(v, path) {
   let mask = 15;
   const tokens = c.optional('hyperModifiers', arrayOf(str));
   if (tokens !== undefined) mask = tokens.reduce((m, t) => m | (modifierMask(t) ?? 0), 0);
-  const hyperModifiers = [['ctrl', 1], ['alt', 2], ['shift', 4], ['cmd', 8]].filter(([, bit]) => mask & bit).map(([n]) => n);
+  const hyperModifiers = [['fn', 16], ['ctrl', 1], ['alt', 2], ['shift', 4], ['cmd', 8]]
+    .filter(([, bit]) => mask & bit)
+    .map(([n]) => n);
   return {
     capsLock: c.optional('capsLock', enumOf(['off', 'hyper'], 'CapsLockMode')) ?? 'off',
     capsLockAlone: c.optional('capsLockAlone', enumOf(['nothing', 'escape'], 'CapsLockAlone')) ?? 'nothing',

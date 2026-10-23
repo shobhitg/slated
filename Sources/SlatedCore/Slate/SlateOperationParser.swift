@@ -373,7 +373,7 @@ struct SlateOperationParser {
   private func parseOpenURL() throws -> Action {
     let words = try tokens()
     guard words.count == 1, !words[0].text.isEmpty else {
-      if words.isEmpty { throw fail("Missing the URL") }
+      if words.isEmpty || (words.count == 1 && words[0].text.isEmpty) { throw fail("Missing the URL") }
       throw fail("URLs with spaces need quotes", hint: "like open-url 'https://example.com/a b'")
     }
     return .openURL(words[0].text)

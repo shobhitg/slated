@@ -84,9 +84,11 @@ public struct KeyCombo: Hashable, Sendable {
       if trimmed.lowercased().hasSuffix("pad+") {
         parts.removeLast(2)
         key = "pad+"
-      } else {
+      } else if trimmed == "+" || trimmed.hasSuffix("++") {
         parts.removeLast(2)
         key = "+"
+      } else {
+        return nil  // "cmd+": modifiers but no key
       }
     } else {
       key = parts.removeLast()

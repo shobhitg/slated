@@ -49,7 +49,8 @@ public enum ScreenRef: Hashable, Sendable {
     } else if let d = Direction(slate: s) {
       self = .relative(d)
     } else {
-      let parts = s.lowercased().split(separator: "x")
+      // components (not split) so "1920xx1080" and "x1080" are rejected rather than collapsed.
+      let parts = s.lowercased().components(separatedBy: "x")
       guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) else { return nil }
       self = .resolution(width: w, height: h)
     }
