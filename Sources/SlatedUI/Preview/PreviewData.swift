@@ -56,8 +56,26 @@ enum PreviewData {
       HotkeyBinding(
         name: "Paste as Plain Text", keys: hyper("v"),
         action: .keystroke(KeyCombo(key: "v", modifiers: [.command, .option, .shift])), enabled: false),
+    ] + automationBindings
+  }
+
+  /// Game automation: an auto-clicker on F6, and Minecraft-only holds on a side mouse button and a
+  /// plain key.
+  static var automationBindings: [HotkeyBinding] {
+    [
+      HotkeyBinding(
+        name: "Auto-Click Left", keys: KeyCombo(key: "f6"),
+        action: .autoRepeat(.click(.left, count: 1), interval: 0.1, mode: .toggle)),
+      HotkeyBinding(
+        name: "Hold W (Auto-Run)", keys: KeyCombo(key: "mouse4"), action: .hold(.key(KeyCombo(key: "w"))),
+        onlyInApps: [minecraft]),
+      HotkeyBinding(
+        name: "Toggle Sprint (Shift)", keys: KeyCombo(key: "r"), action: .hold(.key(KeyCombo(key: "shift"))),
+        onlyInApps: [minecraft]),
     ]
   }
+
+  static let minecraft = "com.mojang.minecraft"
 
   /// The binding the "failed" status is reported for in the sample runtime status.
   static let failedKey = "hyper+space"
@@ -206,5 +224,52 @@ enum PreviewData {
     AppInfo(name: "Xcode", bundleID: "com.apple.dt.Xcode", path: "/Applications/Xcode.app"),
     AppInfo(name: "Slack", bundleID: "com.tinyspeck.slackmacgap", path: "/Applications/Slack.app"),
     AppInfo(name: "Music", bundleID: "com.apple.Music", path: "/System/Applications/Music.app"),
+    AppInfo(name: "Minecraft", bundleID: minecraft, path: "/Applications/Minecraft.app"),
   ]
+
+  // MARK: Clipboard
+
+  /// A varied history: links, code, a color, an address (pinned) and plain text, from minutes to
+  /// days ago, relative to `now` so relative times read naturally.
+  static func clipboard(now: Date = Date()) -> [ClipboardItem] {
+    let minute = 60.0
+    let hour = 3_600.0
+    let day = 86_400.0
+    let samples: [(String, String?, Double, Bool)] = [
+      ("https://github.com/shobhit-aida/slated", "com.apple.Safari", 40, false),
+      ("Let's sync tomorrow at 10 — I'll bring the layout sketches.", "com.tinyspeck.slackmacgap", 5 * minute, false),
+      ("git commit -m \"Make the author's Slate config the default\"", "com.apple.Terminal", 15 * minute, false),
+      (
+        "func greet(_ name: String) -> String {\n  let greeting = \"Hello, \\(name)!\"\n  return greeting\n}",
+        "com.apple.dt.Xcode", 42 * minute, false
+      ),
+      ("1 Infinite Loop\nCupertino, CA 95014", "com.apple.Notes", 90 * minute, true),
+      ("#6B5EFC", "com.apple.Safari", 2 * hour, true),
+      ("hello@example.com", "com.apple.mail", 3 * hour, false),
+      ("screenOriginX+screenSizeX/2", "com.apple.dt.Xcode", 26 * hour, false),
+      (
+        "The original Slate is GPLv3, so Slated re-derives behavior from its README and never copies code. Window math, expressions and the JavaScript API are all reimplemented and pinned by tests.",
+        "com.apple.Notes", 3 * day, false
+      ),
+      ("~/Library/Application Support/Slated", "com.apple.finder", 6 * day, false),
+      ("42.50", "com.apple.Safari", 9 * day, false),
+    ]
+    return samples.map { text, app, ago, pinned in
+      ClipboardItem(text: text, copiedAt: now.addingTimeInterval(-ago), sourceApp: app, pinned: pinned)
+    }
+  }
+
+  // MARK: Automation
+
+  /// An auto-clicker that has run for a minute and a held key, as the engine reports them.
+  static func activeAutomations(now: Date = Date()) -> [ActiveAutomation] {
+    [
+      ActiveAutomation(
+        id: "hotkey f6", title: "Repeat click left every 100 ms", trigger: "hotkey f6",
+        startedAt: now.addingTimeInterval(-72), repetitions: 721),
+      ActiveAutomation(
+        id: "hold:key:w", title: "Hold W", trigger: "hotkey mouse4", startedAt: now.addingTimeInterval(-15),
+        repetitions: 1),
+    ]
+  }
 }

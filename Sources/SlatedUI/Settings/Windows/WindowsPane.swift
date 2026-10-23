@@ -8,7 +8,7 @@ struct WindowsPane: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      PaneHeader(pane: .windows, subtitle: "Keyboard shortcuts that move, resize and focus windows.") {
+      PaneHeader(pane: .windows, subtitle: "Shortcuts that move, resize and focus windows, or run automations.") {
         NewBindingButton()
       }
       .padding(.horizontal, Theme.paneHorizontalPadding)
@@ -90,6 +90,11 @@ private struct NewBindingButton: View {
             }
           }
         }
+        Section("Automation") {
+          ForEach(AutomationRecipes.all) { recipe in
+            Button(recipe.title) { model.addRecipe(recipe, keys: nil) }
+          }
+        }
       } label: {
         Text("From Preset")
       }
@@ -133,26 +138,38 @@ private struct BindingList: View {
   private var list: some View {
     List(selection: selection) {
       Section {
-        if slated.isEmpty {
+        if windowBindings.isEmpty {
           emptySlatedRow
         }
-        ForEach(slated) { binding in
-          BindingRow(binding: binding)
-            .tag(BindingSelection.slated(binding.id))
-            .id(BindingSelection.slated(binding.id))
-            .contextMenu {
-              Button("Duplicate") { model.duplicateBinding(binding.id) }
-              Button(binding.enabled ? "Turn Off" : "Turn On") { toggle(binding.id) }
-              Divider()
-              Button("Delete", role: .destructive) { model.deleteBinding(binding.id) }
-            }
+        ForEach(windowBindings) { binding in
+          row(binding)
         }
         .onMove { from, to in
           guard search.isEmpty else { return }
-          model.configuration.bindings.move(fromOffsets: from, toOffset: to)
+          model.moveBindings(windowBindings.map(\.id), fromOffsets: from, toOffset: to)
         }
       } header: {
-        ListSectionHeader(title: "Slated", count: model.configuration.bindings.count, symbol: nil)
+        ListSectionHeader(
+          title: "Slated", count: model.configuration.bindings.count - model.automationBindings.count, symbol: nil)
+      }
+      // Automations live in config.bindings like any shortcut; grouping them keeps them easy to find.
+      if !model.automationBindings.isEmpty {
+        Section {
+          if automationBindings.isEmpty {
+            Text("No matches").font(.system(size: 12)).foregroundStyle(.tertiary).selectionDisabled()
+          }
+          ForEach(automationBindings) { binding in
+            row(binding)
+          }
+          .onMove { from, to in
+            guard search.isEmpty else { return }
+            model.moveBindings(automationBindings.map(\.id), fromOffsets: from, toOffset: to)
+          }
+        } header: {
+          ListSectionHeader(
+            title: "Automation", count: model.automationBindings.count, symbol: SettingsPane.automation.symbol,
+            caption: "Mouse & keys")
+        }
       }
       if model.configuration.general.loadSlateConfigs {
         ForEach(model.sources.filter { $0.loaded && !$0.bindings.isEmpty }) { source in
@@ -173,7 +190,8 @@ private struct BindingList: View {
                 }
             }
           } header: {
-            ListSectionHeader(title: source.displayName, count: source.bindings.count, symbol: "lock.fill")
+            ListSectionHeader(
+              title: source.displayName, count: source.bindings.count, symbol: "lock.fill", caption: "Read-only")
           }
         }
       }
@@ -202,6 +220,21 @@ private struct BindingList: View {
     }
   }
 
+  private var windowBindings: [HotkeyBinding] { slated.filter { !$0.action.containsAutomation } }
+  private var automationBindings: [HotkeyBinding] { slated.filter { $0.action.containsAutomation } }
+
+  private func row(_ binding: HotkeyBinding) -> some View {
+    BindingRow(binding: binding)
+      .tag(BindingSelection.slated(binding.id))
+      .id(BindingSelection.slated(binding.id))
+      .contextMenu {
+        Button("Duplicate") { model.duplicateBinding(binding.id) }
+        Button(binding.enabled ? "Turn Off" : "Turn On") { toggle(binding.id) }
+        Divider()
+        Button("Delete", role: .destructive) { model.deleteBinding(binding.id) }
+      }
+  }
+
   private func filtered(_ source: SlateSource) -> [SourceBinding] {
     guard !query.isEmpty else { return source.bindings }
     return source.bindings.filter { matches([$0.summary, $0.keys.display(), $0.keys.string]) }
@@ -219,7 +252,8 @@ private struct BindingList: View {
   @ViewBuilder private var emptySlatedRow: some View {
     if query.isEmpty {
       VStack(alignment: .leading, spacing: 8) {
-        Text("No shortcuts of your own yet.").font(.system(size: 12.5, weight: .medium))
+        Text(model.configuration.bindings.isEmpty ? "No shortcuts of your own yet." : "No window shortcuts yet.")
+          .font(.system(size: 12.5, weight: .medium))
         Text("Start with a set of Hyper shortcuts for halves, maximize and more.")
           .font(.system(size: 11.5)).foregroundStyle(.secondary)
         Button("Add Starter Shortcuts") { model.addStarterBindings() }
@@ -238,6 +272,8 @@ private struct ListSectionHeader: View {
   let title: String
   let count: Int
   let symbol: String?
+  /// Small trailing text: "Read-only", "Mouse & keys".
+  var caption: String?
 
   var body: some View {
     HStack(spacing: 5) {
@@ -245,8 +281,8 @@ private struct ListSectionHeader: View {
       Text(title).font(.system(size: 11.5, weight: .semibold))
       Text("\(count)").font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.tertiary)
       Spacer()
-      if symbol != nil {
-        Text("Read-only").font(.system(size: 10.5)).foregroundStyle(.tertiary)
+      if let caption {
+        Text(caption).font(.system(size: 10.5)).foregroundStyle(.tertiary)
       }
     }
     .foregroundStyle(.secondary)
@@ -278,14 +314,23 @@ private struct BindingRow: View {
     HStack(spacing: 10) {
       ActionGlyph(action: binding.action, width: 26, height: 18)
       VStack(alignment: .leading, spacing: 2) {
-        Text(BindingTitle.title(for: binding))
-          .font(.system(size: 13, weight: .medium))
-          .lineLimit(1)
+        HStack(spacing: 6) {
+          Text(BindingTitle.title(for: binding))
+            .font(.system(size: 13, weight: .medium))
+            .lineLimit(1)
+          if !model.activeAutomations(for: binding).isEmpty {
+            LiveDot(size: 6).help("Running now")
+          }
+        }
         HStack(spacing: 4) {
           if let badge = state.rowBadge {
             Image(systemName: badge.symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(badge.color)
             Text(badge.text).foregroundStyle(badge.color)
           } else {
+            if let app = binding.onlyInApps.first {
+              AppIconView(bundleID: app, size: 12)
+                .help("Only in \(binding.onlyInApps.map { model.appName(bundleID: $0) }.joined(separator: ", "))")
+            }
             Text(BindingTitle.subtitle(for: binding)).foregroundStyle(.secondary)
           }
         }

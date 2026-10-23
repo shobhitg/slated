@@ -43,9 +43,28 @@ struct SequenceEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      let schedule = MacroSchedule(steps: steps.map(\.action))
+      if steps.contains(where: { $0.action.containsAutomation }), schedule.duration > 0 {
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(spacing: 6) {
+            Image(systemName: "timeline.selection").font(.system(size: 10.5, weight: .semibold))
+              .foregroundStyle(Theme.accent)
+            Text("Timeline").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.secondary)
+            Spacer()
+            Text("\(ActionDescriber.seconds(schedule.duration)) in all")
+              .font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
+          }
+          MacroTimeline(schedule: schedule)
+        }
+        .padding(12)
+        .wellStyle()
+      }
       VStack(spacing: 0) {
         ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-          if index > 0 {
+          // "Same window" only means something for steps that act on windows.
+          if index > 0 && (step.action.containsAutomation || isInput(step.action)) {
+            CardDivider(inset: 44)
+          } else if index > 0 {
             HStack(spacing: 6) {
               Rectangle().fill(Theme.hairline).frame(height: 0.5)
               Toggle(isOn: keepWindow(index)) {
@@ -74,6 +93,14 @@ struct SequenceEditor: View {
     Binding(
       get: { steps.indices.contains(index) ? steps[index].action : .undo },
       set: { if steps.indices.contains(index) { steps[index].action = $0 } })
+  }
+
+  /// Steps that type, press keys or open things rather than acting on a window.
+  private func isInput(_ action: Action) -> Bool {
+    switch action {
+    case .keystroke, .insertText, .openURL, .shell, .clipboardHistory: return true
+    default: return false
+    }
   }
 
   private func keepWindow(_ index: Int) -> Binding<Bool> {
@@ -155,6 +182,15 @@ private struct AddStepMenu: View {
             Button(preset.title) { add(preset.action) }
           }
         }
+      }
+      Section("Mouse & Keys") {
+        Button("Click Left") { add(.click(.left, count: 1)) }
+        Button("Click Right") { add(.click(.right, count: 1)) }
+        Button("Press W Down") { add(.press(.key(KeyCombo(key: "w")), phase: .down)) }
+        Button("Release W") { add(.press(.key(KeyCombo(key: "w")), phase: .up)) }
+        Button("Press a Key…") { add(.keystroke(KeyCombo(key: "e"))) }
+        Button("Wait Half a Second") { add(.wait(0.5)) }
+        Button("Wait 1 Second") { add(.wait(1)) }
       }
       Section("Other") {
         Button("Focus Window to the Left") { add(.focus(.left)) }

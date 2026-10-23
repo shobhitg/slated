@@ -99,6 +99,57 @@ import SwiftUI
         HStack(spacing: 12) {
           ShortcutRecorder(combo: .constant(KeyCombo(key: "left", modifiers: .hyper)))
           ShortcutRecorder(combo: .constant(KeyCombo(key: "", modifiers: [])))
+          KeyComboView(combo: KeyCombo(key: "mouse4"))
+        }
+      }
+      section("Automation art") {
+        VStack(alignment: .leading, spacing: 18) {
+          HStack(alignment: .bottom, spacing: 26) {
+            MouseGlyph(lit: .left, height: 44)
+            MouseGlyph(lit: .right, height: 44, held: true)
+            MouseGlyph(lit: .middle, height: 44)
+            ForEach(AutomationRecipes.all.prefix(6)) { recipe in
+              RecipeArt(art: recipe.art, badge: RecipeCard.badge(for: recipe.action), scale: 0.8)
+                .frame(width: 70, height: 56)
+            }
+          }
+          HStack(spacing: 18) {
+            RateRuler(interval: 0.1).frame(width: 220)
+            RateRuler(interval: 0.05, jitter: 0.3).frame(width: 220)
+            AutomationIndicatorPreview(stop: KeyCombo(key: "esc", modifiers: .hyper))
+          }
+          if let macro = AutomationRecipes.recipe("macro"), case .sequence(let steps) = macro.action {
+            MacroTimeline(schedule: MacroSchedule(steps: steps.map(\.action))).frame(width: 420)
+          }
+          HStack(spacing: 8) {
+            PresetChip(title: "50 ms", selected: false) {}
+            PresetChip(title: "100 ms", selected: true) {}
+            ArtBadge(text: "10/s")
+            HoldBadge()
+            LiveDot()
+            Button {
+            } label: {
+              Label("Stop All", systemImage: "stop.fill")
+            }
+            .buttonStyle(StopButtonStyle())
+          }
+        }
+      }
+      section("Clipboard") {
+        HStack(alignment: .top, spacing: 24) {
+          VStack(alignment: .leading, spacing: 10) {
+            ForEach(PreviewData.clipboard(now: Date()).prefix(6)) { item in
+              HStack(spacing: 8) {
+                ClipSourceIcon(item: item, size: 20)
+                ClipPreviewLine(item: item, fontSize: 12.5)
+                Spacer(minLength: 4)
+                ClipKindBadge(kind: ClipboardContent.kind(of: item.text))
+              }
+            }
+          }
+          .frame(width: 440)
+          ClipboardStackArt(items: PreviewData.clipboard(now: Date()))
+            .frame(width: 210, height: 100)
         }
       }
     }

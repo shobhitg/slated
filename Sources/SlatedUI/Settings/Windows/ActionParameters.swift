@@ -129,13 +129,17 @@ struct ActionParameters: View {
         LabeledField("Insert by", labelWidth: 64) { InsertMethodPicker(method: field(\.method)) }
       }
     case .keystroke:
-      LabeledField("Keys", labelWidth: 56) { ShortcutRecorder(combo: field(\.keys), requiresModifier: false) }
-    case .clipboardHistory, .stopAutomations:
-      EmptyView()
+      LabeledField("Keys", labelWidth: 56) {
+        ShortcutRecorder(combo: field(\.keys), requiresModifier: false, allowsMouseButtons: false)
+      }
+    case .clipboardHistory:
+      ClipboardHistoryInfo()
+    case .stopAutomations:
+      StopAutomationsInfo()
     case .click:
-      VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Button", labelWidth: 56) { MouseButtonPicker(button: field(\.mouseButton)) }
-        LabeledField("Clicks", labelWidth: 56) {
+      VStack(alignment: .leading, spacing: 14) {
+        FieldGroup("Button") { MouseButtonPicker(button: field(\.mouseButton)) }
+        FieldGroup("Clicks") {
           Picker("Clicks", selection: field(\.clickCount)) {
             Text("Single").tag(1)
             Text("Double").tag(2)
@@ -143,40 +147,35 @@ struct ActionParameters: View {
           }
           .labelsHidden().pickerStyle(.segmented).fixedSize()
         }
+        Hint("Clicks where the pointer is, without moving it.")
       }
     case .press:
-      VStack(alignment: .leading, spacing: 10) {
-        SyntheticInputPicker(input: field(\.input))
-        LabeledField("Action", labelWidth: 56) {
-          Picker("Action", selection: field(\.phase)) {
-            Text("Press down").tag(PressPhase.down)
-            Text("Release").tag(PressPhase.up)
-          }
-          .labelsHidden().pickerStyle(.segmented).fixedSize()
-        }
+      VStack(alignment: .leading, spacing: 14) {
+        FieldGroup("Input") { InputPicker(input: field(\.input)) }
+        FieldGroup("Action") { PressPhasePicker(phase: field(\.phase)) }
+        Hint("Something pressed down stays down until a Release step, or until you press the stop shortcut.")
       }
     case .hold:
-      VStack(alignment: .leading, spacing: 10) {
-        SyntheticInputPicker(input: field(\.input))
-        Text("The first press holds it down; the next press releases it. The stop shortcut releases everything.")
-          .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+      VStack(alignment: .leading, spacing: 14) {
+        FieldGroup("Hold Down") { InputPicker(input: field(\.input)) }
+        Hint("The first press holds it down; the next press lets go. Stopping automations lets go too.")
       }
     case .autoRepeat:
-      VStack(alignment: .leading, spacing: 10) {
-        RepeatedActionRow(action: field(\.repeatAction), depth: depth)
-        LabeledField("Every", labelWidth: 56) { SecondsField(seconds: field(\.interval), minimum: 0.01) }
-        LabeledField("Runs", labelWidth: 56) {
-          Picker("Runs", selection: field(\.repeatMode)) {
-            Text("Until pressed again").tag(RepeatMode.toggle)
-            Text("While held").tag(RepeatMode.whileHeld)
+      let form = ActionForm(action)
+      VStack(alignment: .leading, spacing: 16) {
+        AutomationSummary(text: AutomationDescriber.sentence(action))
+        FieldGroup("What to Repeat") { RepeatedActionEditor(action: field(\.repeatAction), depth: depth) }
+        FieldGroup("How Often") { IntervalField(interval: field(\.interval), jitter: form.jitter) }
+        FieldGroup("Starting and Stopping") {
+          VStack(alignment: .leading, spacing: 10) {
+            RepeatModePicker(mode: field(\.repeatMode))
+            RepeatLimitField(times: field(\.repeatTimes), interval: form.interval)
           }
-          .labelsHidden().pickerStyle(.segmented).fixedSize()
         }
-        LabeledField("Stop", labelWidth: 56) { RepeatLimitField(times: field(\.repeatTimes)) }
-        LabeledField("Vary", labelWidth: 56) { JitterField(jitter: field(\.jitter)) }
+        FieldGroup("Timing") { JitterField(jitter: field(\.jitter)) }
       }
     case .wait:
-      LabeledField("Seconds", labelWidth: 56) { SecondsField(seconds: field(\.seconds), minimum: 0) }
+      FieldGroup("Wait") { DurationField(seconds: field(\.seconds)) }
     case .openURL:
       LabeledField("URL", labelWidth: 56) {
         TextField("https://example.com", text: field(\.url))
@@ -207,6 +206,48 @@ struct ActionParameters: View {
         return ""
       },
       set: { field(\.pushStyle).wrappedValue = .barResize($0) })
+  }
+}
+
+/// A titled group of fields, for editors whose controls are too large for a label column.
+struct FieldGroup<Content: View>: View {
+  let title: String
+  @ViewBuilder var content: Content
+
+  init(_ title: String, @ViewBuilder content: () -> Content) {
+    self.title = title
+    self.content = content()
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Text(title)
+        .font(.system(size: 11.5, weight: .semibold))
+        .foregroundStyle(.secondary)
+      content
+    }
+  }
+}
+
+/// What an automation does, in one sentence, at the top of its editor.
+struct AutomationSummary: View {
+  let text: String
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "sparkles")
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(Theme.accentGradient)
+      Text(text)
+        .font(.system(size: 12.5, weight: .medium))
+        .fixedSize(horizontal: false, vertical: true)
+      Spacer(minLength: 0)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 9)
+    .background(Theme.selection, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.accent.opacity(0.18), lineWidth: 0.6))
   }
 }
 

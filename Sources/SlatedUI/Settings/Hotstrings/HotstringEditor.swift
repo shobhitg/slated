@@ -202,9 +202,13 @@ struct HotstringEditor: View {
         case .everywhere:
           Hint("Expands in every app. Slated never expands in password fields.")
         case .only:
-          BundleChips(ids: $hotstring.onlyInApps, emptyText: "Add the apps where this hotstring should expand.")
+          BundleChips(
+            ids: $hotstring.onlyInApps, emptyText: "Add the apps where this hotstring should expand.",
+            sections: [AppChoiceSection(title: "Running Apps", apps: model.runningAppChoices)])
         case .except:
-          BundleChips(ids: $hotstring.exceptInApps, emptyText: "Add the apps where this hotstring should stay quiet.")
+          BundleChips(
+            ids: $hotstring.exceptInApps, emptyText: "Add the apps where this hotstring should stay quiet.",
+            sections: [AppChoiceSection(title: "Running Apps", apps: model.runningAppChoices)])
         }
       }
       .padding(16)
@@ -213,54 +217,6 @@ struct HotstringEditor: View {
 
   private var notesBinding: Binding<String> {
     Binding(get: { hotstring.notes ?? "" }, set: { hotstring.notes = $0.isEmpty ? nil : $0 })
-  }
-}
-
-/// Apps by bundle identifier, as removable chips, with an "Add App" menu of running apps.
-private struct BundleChips: View {
-  @Binding var ids: [String]
-  let emptyText: String
-  @Environment(AppModel.self) private var model
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      FlowLayout(spacing: 6) {
-        ForEach(ids, id: \.self) { id in
-          HStack(spacing: 6) {
-            AppIconView(bundleID: id, size: 16)
-            Text(AppIcons.name(bundleID: id, running: model.runningApps)).font(.system(size: 12.5))
-            Button {
-              ids.removeAll { $0 == id }
-            } label: {
-              Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Remove")
-          }
-          .padding(.leading, 6)
-          .padding(.trailing, 9)
-          .padding(.vertical, 5)
-          .background(Theme.cardBackground, in: Capsule())
-          .overlay(Capsule().strokeBorder(Theme.wellStroke))
-        }
-        Menu {
-          let available = model.runningApps.filter { app in app.bundleID.map { !ids.contains($0) } ?? false }
-          if available.isEmpty {
-            Text("No other apps are running")
-          }
-          ForEach(available) { app in
-            Button(app.name) { if let id = app.bundleID { ids.append(id) } }
-          }
-        } label: {
-          Label("Add App", systemImage: "plus")
-            .font(.system(size: 12.5, weight: .medium))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-      }
-      if ids.isEmpty { Hint(emptyText) }
-    }
   }
 }
 

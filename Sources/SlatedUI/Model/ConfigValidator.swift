@@ -26,7 +26,8 @@ struct ValidationIssue: Identifiable, Hashable {
 enum ConfigValidator {
   static func validate(_ config: SlatedConfiguration, knownLayouts: Set<String>) -> [ValidationIssue] {
     var issues: [ValidationIssue] = []
-    issues += bindingIssues(config.bindings, knownLayouts: knownLayouts)
+    let builtIns = BuiltInShortcut.allCases.compactMap { builtIn in builtIn.keys(in: config).map { (builtIn, $0) } }
+    issues += bindingIssues(config.bindings, knownLayouts: knownLayouts, builtIns: builtIns)
     issues += hotstringIssues(config.hotstrings)
     issues += layoutIssues(config.layouts, knownLayouts: knownLayouts)
     return issues
@@ -34,7 +35,9 @@ enum ConfigValidator {
 
   // MARK: Bindings
 
-  private static func bindingIssues(_ bindings: [HotkeyBinding], knownLayouts: Set<String>) -> [ValidationIssue] {
+  private static func bindingIssues(
+    _ bindings: [HotkeyBinding], knownLayouts: Set<String>, builtIns: [(BuiltInShortcut, KeyCombo)] = []
+  ) -> [ValidationIssue] {
     var issues: [ValidationIssue] = []
     var byKeys: [String: [HotkeyBinding]] = [:]
     for binding in bindings {
@@ -50,6 +53,25 @@ enum ConfigValidator {
         let warning = typingWarning(binding.keys, modal: binding.modal)
       {
         issues.append(.init(severity: .warning, target: target, field: .keys, message: warning))
+      } else if binding.onlyInApps.isEmpty, binding.modal == nil, let warning = mouseButtonWarning(binding.keys) {
+        issues.append(.init(severity: .warning, target: target, field: .keys, message: warning))
+      }
+      // Bindings are registered before the built-in shortcuts, so they win.
+      if binding.enabled, binding.modal == nil {
+        for (builtIn, keys) in builtIns where keys == binding.keys && binding.action != builtIn.action {
+          issues.append(
+            .init(
+              severity: .warning, target: target, field: .keys,
+              message:
+                "Same keys as \(builtIn.title). This shortcut wins, so \(keys.display()) won't \(builtIn.effect)."
+            ))
+        }
+      }
+      if case .wait = binding.action {
+        issues.append(
+          .init(
+            severity: .warning, target: target, field: .action,
+            message: "A wait on its own does nothing. Use it as a step in a sequence, between other steps."))
       }
       for problem in actionProblems(binding.action, knownLayouts: knownLayouts) {
         issues.append(.init(severity: problem.severity, target: target, field: .action, message: problem.message))
@@ -60,7 +82,11 @@ enum ConfigValidator {
     }
     for group in byKeys.values where group.count > 1 {
       for binding in group {
-        let others = group.filter { $0.id != binding.id }.map { "“\(BindingTitle.title(for: $0))”" }
+        // Bindings limited to different apps never run at the same time.
+        let others = group.filter { $0.id != binding.id && $0.sharesApps(with: binding) }.map {
+          "“\(BindingTitle.title(for: $0))”"
+        }
+        guard !others.isEmpty else { continue }
         issues.append(
           .init(
             severity: .warning, target: .binding(binding.id), field: .keys,
@@ -81,6 +107,20 @@ enum ConfigValidator {
       !keys.modifiers.contains(.command), !ShortcutRules.isFunctionKey(keys.key)
     else { return nil }
     return "Without ⌃, ⌥ or ⌘ this shortcut takes over typing \(KeyNames.displayName(for: keys.key)) everywhere."
+  }
+
+  /// A warning when a bare mouse button becomes a shortcut everywhere: it stops doing its usual job
+  /// in every app.
+  static func mouseButtonWarning(_ keys: KeyCombo) -> String? {
+    guard keys.modifiers.isEmpty else { return nil }
+    let lost: String
+    switch keys.key {
+    case "mouse3": lost = "Middle-click stops working everywhere else"
+    case "mouse4": lost = "Mouse 4 stops working as Back in browsers and other apps"
+    case "mouse5": lost = "Mouse 5 stops working as Forward in browsers and other apps"
+    default: return nil
+    }
+    return "\(lost). Limit this shortcut to a game with Only In, or add a modifier."
   }
 
   // MARK: Actions
@@ -124,23 +164,41 @@ enum ConfigValidator {
       }
     case .sequence(let steps):
       if steps.isEmpty { return error("Add at least one step to the sequence.") }
-      return steps.enumerated().flatMap { i, step in
+      var problems = steps.enumerated().flatMap { i, step in
         actionProblems(step.action, knownLayouts: knownLayouts).map {
           Problem(severity: $0.severity, message: "Step \(i + 1): \($0.message)")
         }
       }
+      for input in unreleasedPresses(steps.map(\.action)) {
+        problems.append(
+          Problem(
+            severity: .warning,
+            message:
+              "\(AutomationDescriber.inputName(input)) stays down after the last step. Add a Release step, or press the stop shortcut to let go."
+          ))
+      }
+      return problems
     case .autoRepeat(let repeated, let interval, _, _, _):
       var problems = actionProblems(repeated, knownLayouts: knownLayouts).map {
         Problem(severity: $0.severity, message: "Repeated: \($0.message)")
       }
       if interval < 0.01 { problems += error("Repeat at most 100 times a second (an interval of 10 ms or more).") }
-      if case .autoRepeat = repeated { problems += error("An auto-repeat can't repeat another auto-repeat.") }
+      switch repeated {
+      case .autoRepeat: problems += error("An auto-repeat can't repeat another auto-repeat.")
+      case .wait:
+        problems.append(Problem(severity: .warning, message: "Repeating a wait does nothing. Repeat a click or a key."))
+      case .stopAutomations:
+        problems.append(Problem(severity: .warning, message: "This would stop itself the first time it runs."))
+      default: break
+      }
       return problems
     case .wait(let seconds):
       return seconds > 600 ? [Problem(severity: .warning, message: "That's a wait of over 10 minutes.")] : []
     case .byOrientation(let landscape, let portrait):
       let prefixed = { (label: String, action: Action) in
-        actionProblems(action, knownLayouts: knownLayouts).map { Problem(severity: $0.severity, message: "\(label): \($0.message)") }
+        actionProblems(action, knownLayouts: knownLayouts).map {
+          Problem(severity: $0.severity, message: "\(label): \($0.message)")
+        }
       }
       return prefixed("Landscape", landscape) + prefixed("Portrait", portrait)
     case .layout(let name):
@@ -179,6 +237,20 @@ enum ConfigValidator {
     case .focus, .hint, .undo, .relaunch, .click, .press, .hold, .stopAutomations, .clipboardHistory:
       return []
     }
+  }
+
+  /// Inputs a macro presses down (`press … down`) without a later step releasing them. `hold`
+  /// steps are left out: staying down until the next run is what they're for.
+  static func unreleasedPresses(_ steps: [Action]) -> [SyntheticInput] {
+    var down: [SyntheticInput] = []
+    for case .press(let input, let phase) in steps {
+      if phase == .down {
+        if !down.contains(input) { down.append(input) }
+      } else {
+        down.removeAll { $0 == input }
+      }
+    }
+    return down
   }
 
   // MARK: Hotstrings
@@ -277,6 +349,14 @@ enum ConfigValidator {
   }
 }
 
+extension HotkeyBinding {
+  /// Whether the two bindings can be live at the same time: either works everywhere, or they share
+  /// an app.
+  func sharesApps(with other: HotkeyBinding) -> Bool {
+    onlyInApps.isEmpty || other.onlyInApps.isEmpty || !Set(onlyInApps).isDisjoint(with: other.onlyInApps)
+  }
+}
+
 /// Keys of `RuntimeStatus.hotkeys`: the combo string, prefixed with the modal key and a space.
 enum BindingStatusKey {
   static func key(_ keys: KeyCombo, modal: ModalKey?) -> String {
@@ -308,8 +388,10 @@ enum ShortcutRules {
     key.hasPrefix("f") && Int(key.dropFirst()) != nil
   }
 
-  /// Global shortcuts need ⌃, ⌥ or ⌘ unless they're on a function key; otherwise they'd swallow typing.
+  /// Global shortcuts need ⌃, ⌥ or ⌘ unless they're on a function key or an extra mouse button;
+  /// otherwise they'd swallow typing.
   static func isAcceptableGlobalShortcut(_ combo: KeyCombo) -> Bool {
-    isFunctionKey(combo.key) || !combo.modifiers.intersection([.control, .option, .command]).isEmpty
+    isFunctionKey(combo.key) || KeyNames.isMouseButton(combo.key)
+      || !combo.modifiers.intersection([.control, .option, .command]).isEmpty
   }
 }

@@ -21,7 +21,9 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case focus = "Focus"
     case apps = "Apps"
     case snapshots = "Snapshots"
-    case automation = "Automation"
+    /// Text, keystrokes, URLs, commands. (Named apart from Settings → Automation, which is about
+    /// the Mouse & Keys actions.)
+    case automation = "Utilities"
     case input = "Mouse & Keys"
 
     var id: String { rawValue }
@@ -154,10 +156,11 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .clipboardHistory: return "Open the clipboard history to search and paste something you copied earlier."
     case .click: return "Click a mouse button where the pointer is."
     case .press: return "Press or release a mouse button or key on its own: a building block for macros with waits."
-    case .hold: return "Hold a mouse button or key down until this shortcut fires again — e.g. keep W pressed to auto-run."
-    case .autoRepeat: return "Repeat an action on a timer — an auto-clicker or key spammer — toggled by the shortcut or while it's held."
-    case .wait: return "Pause a sequence for a moment, to time macro steps."
-    case .stopAutomations: return "Stop every running auto-repeat and release anything held down."
+    case .hold: return "Hold a mouse button or key down until this shortcut fires again, e.g. keep W pressed to auto-run."
+    case .autoRepeat:
+      return "Repeat a click or a key on a timer: an auto-clicker or key spammer, toggled by the shortcut or while it's held."
+    case .wait: return "Pause a sequence for a moment, to time the steps of a macro."
+    case .stopAutomations: return "Stop every running auto-repeat and let go of anything held down."
     }
   }
 

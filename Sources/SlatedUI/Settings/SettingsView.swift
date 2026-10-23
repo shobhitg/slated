@@ -66,6 +66,8 @@ struct SettingsView: View {
     case .overview: OverviewPane()
     case .windows: WindowsPane()
     case .hotstrings: HotstringsPane()
+    case .clipboard: ClipboardPane()
+    case .automation: AutomationPane()
     case .keyboard: KeyboardPane()
     case .layouts: LayoutsPane()
     case .slate: SlateCompatibilityPane()

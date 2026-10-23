@@ -6,13 +6,15 @@ struct ActionEditor: View {
   @Binding var action: Action
   /// Nesting level (chain and sequence steps edit their operations with a nested editor).
   var depth = 0
+  /// Operations that can't be picked here (an auto-repeat can't repeat another auto-repeat).
+  var excluded: Set<ActionKind> = []
   @Environment(AppModel.self) private var model
 
   var body: some View {
     let kind = ActionKind(action)
     VStack(alignment: .leading, spacing: 14) {
       VStack(alignment: .leading, spacing: 8) {
-        ActionKindPicker(kind: kind, allowsComposition: depth < 2) { newKind in
+        ActionKindPicker(kind: kind, allowsComposition: depth < 2, excluded: excluded) { newKind in
           action = converted(to: newKind)
         }
         Text(kind.explanation)
@@ -42,6 +44,7 @@ struct ActionEditor: View {
 struct ActionKindPicker: View {
   let kind: ActionKind
   var allowsComposition = true
+  var excluded: Set<ActionKind> = []
   let onSelect: (ActionKind) -> Void
   @State private var isPresented = false
 
@@ -70,7 +73,7 @@ struct ActionKindPicker: View {
     .buttonStyle(.plain)
     .accessibilityLabel("Operation: \(kind.title)")
     .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-      ActionPalette(selected: kind, allowsComposition: allowsComposition) { picked in
+      ActionPalette(selected: kind, allowsComposition: allowsComposition, excluded: excluded) { picked in
         isPresented = false
         if picked != kind { onSelect(picked) }
       }
@@ -81,6 +84,7 @@ struct ActionKindPicker: View {
 private struct ActionPalette: View {
   let selected: ActionKind
   let allowsComposition: Bool
+  var excluded: Set<ActionKind> = []
   let onPick: (ActionKind) -> Void
 
   var body: some View {
@@ -97,7 +101,7 @@ private struct ActionPalette: View {
             .padding(.leading, 8)
             .padding(.bottom, 3)
           ForEach(category.kinds) { kind in
-            let disabled = !allowsComposition && (kind == .chain || kind == .sequence)
+            let disabled = (!allowsComposition && (kind == .chain || kind == .sequence)) || excluded.contains(kind)
             Button {
               onPick(kind)
             } label: {

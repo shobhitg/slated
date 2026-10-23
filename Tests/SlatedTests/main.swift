@@ -28,6 +28,12 @@ let suites: [Suite] = [
   uiActionTests,
   uiValidationTests,
   uiModelTests,
+  uiRecipeTests,
+  uiClipboardTests,
+  uiClipboardSwitcherTests,
+  uiAutomationTests,
+  uiAutomationValidationTests,
+  uiSymbolContractTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first
