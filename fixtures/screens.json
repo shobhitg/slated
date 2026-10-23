@@ -1,0 +1,848 @@
+{
+  "containing": [
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"Built-in","setup":"four"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"Right","setup":"four"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Above","setup":"four"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Portrait","setup":"four"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"Built-in","setup":"four"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"Built-in","setup":"four"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"Built-in","setup":"four"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"Built-in","setup":"four"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Right","setup":"four"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Right","setup":"four"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Built-in","setup":"four"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Built-in","setup":"single"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Studio Display","setup":"aboveMain"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Studio Display","setup":"aboveMain"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Studio Display","setup":"aboveMain"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"MacBook","setup":"aboveMain"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Portrait","setup":"portraitLeft"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Portrait","setup":"portraitLeft"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Desk","setup":"portraitLeft"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"External","setup":"rightExternal"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Built-in","setup":"rightExternal"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Corner","setup":"cornerOnly"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Built-in","setup":"cornerOnly"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"HDMI-1","setup":"gnome"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"DP-1","setup":"gnome"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":null,"setup":"empty"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":null,"setup":"empty"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":null,"setup":"empty"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":null,"setup":"empty"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":null,"setup":"empty"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":null,"setup":"empty"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":null,"setup":"empty"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":null,"setup":"empty"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":null,"setup":"empty"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":null,"setup":"empty"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":null,"setup":"empty"}
+  ],
+  "description": "ScreenRef(slate:) parsing (canonical text or null), ScreenResolver.screen for every kind of reference on each setup, window and settings variation (screen name or null), Slate's left-to-right ordering, and the screen holding most of a rectangle.",
+  "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
+  "orderedLeftToRight": [
+    {"names":["Portrait","Above","Built-in","Right"],"setup":"four"},
+    {"names":["Built-in"],"setup":"single"},
+    {"names":["Studio Display","MacBook"],"setup":"aboveMain"},
+    {"names":["Portrait","Desk"],"setup":"portraitLeft"},
+    {"names":["Built-in","External"],"setup":"rightExternal"},
+    {"names":["Built-in","Corner","Far"],"setup":"cornerOnly"},
+    {"names":["DP-1","eDP-1","HDMI-1"],"setup":"gnome"},
+    {"names":["Wide","Tall"],"setup":"starterTests"},
+    {"names":[],"setup":"empty"},
+    {"names":["Built-in","Top"],"screens":[{"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}},{"displayID":10,"frame":{"height":1080,"width":1440,"x":0,"y":-1080},"isMain":false,"name":"Top","scale":2,"visibleFrame":{"height":1055,"width":1440,"x":0,"y":-1055}}]},
+    {"names":["Built-in","Top"],"screens":[{"displayID":10,"frame":{"height":1080,"width":1440,"x":0,"y":-1080},"isMain":false,"name":"Top","scale":2,"visibleFrame":{"height":1055,"width":1440,"x":0,"y":-1055}},{"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}}]},
+    {"names":["Twin","Built-in","Top"],"screens":[{"displayID":10,"frame":{"height":1080,"width":1440,"x":0,"y":-1080},"isMain":false,"name":"Top","scale":2,"visibleFrame":{"height":1055,"width":1440,"x":0,"y":-1055}},{"displayID":11,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":false,"name":"Twin","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}},{"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}}]},
+    {"names":["Twin","Built-in","Top"],"screens":[{"displayID":11,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":false,"name":"Twin","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}},{"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}},{"displayID":10,"frame":{"height":1080,"width":1440,"x":0,"y":-1080},"isMain":false,"name":"Top","scale":2,"visibleFrame":{"height":1055,"width":1440,"x":0,"y":-1055}}]}
+  ],
+  "parse": [
+    {"input":"0","ref":"0"},
+    {"input":"1","ref":"1"},
+    {"input":"-1","ref":"-1"},
+    {"input":"+2","ref":"2"},
+    {"input":"01","ref":"1"},
+    {"input":" 3 ","ref":"3"},
+    {"input":"ordered:1","ref":"ordered:1"},
+    {"input":"ORDERED:2","ref":"ordered:2"},
+    {"input":"ordered:-1","ref":"ordered:-1"},
+    {"input":"ordered:","ref":null},
+    {"input":"ordered:x","ref":null},
+    {"input":"ordered: 1","ref":null},
+    {"input":"1920x1080","ref":"1920x1080"},
+    {"input":"1920X1080","ref":"1920x1080"},
+    {"input":"1920xx1080","ref":"1920x1080"},
+    {"input":"x1920x1080","ref":"1920x1080"},
+    {"input":"1920x1080x","ref":"1920x1080"},
+    {"input":"1x","ref":null},
+    {"input":"x1080","ref":null},
+    {"input":"1920x1080x1","ref":null},
+    {"input":"-1x-1","ref":"-1x-1"},
+    {"input":"+1x+1","ref":"1x1"},
+    {"input":"0x0","ref":"0x0"},
+    {"input":"left","ref":"left"},
+    {"input":"LEFT","ref":"left"},
+    {"input":"right","ref":"right"},
+    {"input":"up","ref":"up"},
+    {"input":"top","ref":"up"},
+    {"input":"above","ref":"up"},
+    {"input":"down","ref":"down"},
+    {"input":"bottom","ref":"down"},
+    {"input":"below","ref":"down"},
+    {"input":"next","ref":"next"},
+    {"input":"NEXT","ref":"next"},
+    {"input":"previous","ref":"previous"},
+    {"input":"prev","ref":"previous"},
+    {"input":"Prev","ref":"previous"},
+    {"input":"","ref":null},
+    {"input":" ","ref":null},
+    {"input":"bogus","ref":null},
+    {"input":"１","ref":null},
+    {"input":"99999999999999999999","ref":null},
+    {"input":"9223372036854775807","ref":"9223372036854775807"},
+    {"input":"-9223372036854775808","ref":"-9223372036854775808"},
+    {"input":"9223372036854775808","ref":null},
+    {"input":"1.5","ref":null},
+    {"input":"0x10","ref":"0x10"},
+    {"input":"\t2\t","ref":"2"},
+    {"input":"next ","ref":"next"},
+    {"input":"le ft","ref":null}
+  ],
+  "resolve": [
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":null,"800x600":null,"9":null,"down":null,"left":"Portrait","next":"Right","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Portrait","right":"Right","up":"Above"},
+      "settings": "default",
+      "setup": "four",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":null,"800x600":null,"9":null,"down":null,"left":"Portrait","next":"Right","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Portrait","right":"Right","up":"Above"},
+      "settings": "osOrder",
+      "setup": "four",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":"Portrait","next":"Right","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Built-in","previous":"Portrait","right":"Right","up":"Above"},
+      "settings": "defaultToCurrent",
+      "setup": "four",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":"Portrait","next":"Right","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Built-in","previous":"Portrait","right":"Right","up":"Above"},
+      "settings": "allFlipped",
+      "setup": "four",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":null,"800x600":null,"9":null,"down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Built-in","right":null,"up":"Above"},
+      "settings": "default",
+      "setup": "four",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":null,"800x600":null,"9":null,"down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Built-in","right":null,"up":"Above"},
+      "settings": "osOrder",
+      "setup": "four",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":"Right","1440x900":"Built-in","1512x982":"Right","1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":"Right","800x600":"Right","9":"Right","down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Right","previous":"Built-in","right":null,"up":"Above"},
+      "settings": "defaultToCurrent",
+      "setup": "four",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":"Right","1440x900":"Built-in","1512x982":"Right","1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":"Right","800x600":"Right","9":"Right","down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Right","previous":"Built-in","right":null,"up":"Above"},
+      "settings": "allFlipped",
+      "setup": "four",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Above","right":"Built-in","up":"Above"},
+      "settings": "default",
+      "setup": "four",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Above","right":"Built-in","up":"Above"},
+      "settings": "osOrder",
+      "setup": "four",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":"Portrait","1440x900":"Built-in","1512x982":"Portrait","1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":"Portrait","800x600":"Portrait","9":"Portrait","down":null,"left":null,"next":"Built-in","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Portrait","previous":"Above","right":"Built-in","up":"Above"},
+      "settings": "defaultToCurrent",
+      "setup": "four",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":"Portrait","1440x900":"Built-in","1512x982":"Portrait","1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":"Portrait","800x600":"Portrait","9":"Portrait","down":null,"left":null,"next":"Built-in","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Portrait","previous":"Above","right":"Built-in","up":"Above"},
+      "settings": "allFlipped",
+      "setup": "four",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Above","-1":"Above","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":null,"800x600":null,"9":null,"down":"Built-in","left":null,"next":"Portrait","ordered:-1":"Above","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Right","right":null,"up":null},
+      "settings": "default",
+      "setup": "four",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Above","-1":"Above","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":null,"800x600":null,"9":null,"down":"Built-in","left":null,"next":"Portrait","ordered:-1":"Above","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Right","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "four",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Above","-1":"Above","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":"Above","1440x900":"Built-in","1512x982":"Above","1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":"Above","800x600":"Above","9":"Above","down":"Built-in","left":null,"next":"Portrait","ordered:-1":"Above","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Above","previous":"Right","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "four",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Above","-1":"Above","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":"Above","1440x900":"Built-in","1512x982":"Above","1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":"Above","800x600":"Above","9":"Above","down":"Built-in","left":null,"next":"Portrait","ordered:-1":"Above","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Above","previous":"Right","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "four",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":null,"800x600":null,"9":null,"down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Built-in","right":null,"up":"Above"},
+      "settings": "default",
+      "setup": "four",
+      "window": "straddle"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":null,"800x600":null,"9":null,"down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":null,"previous":"Built-in","right":null,"up":"Above"},
+      "settings": "osOrder",
+      "setup": "four",
+      "window": "straddle"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Portrait","1":"Above","1080x1920":"Portrait","1440x815":"Right","1440x900":"Built-in","1512x982":"Right","1920x1080":"Above","2":"Built-in","2560x1440":"Right","3":"Right","4":"Right","800x600":"Right","9":"Right","down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Right","previous":"Built-in","right":null,"up":"Above"},
+      "settings": "defaultToCurrent",
+      "setup": "four",
+      "window": "straddle"
+    },
+    {
+      "results": {"(none)":"Right","-1":"Right","-2":null,"0":"Built-in","1":"Right","1080x1920":"Portrait","1440x815":"Right","1440x900":"Built-in","1512x982":"Right","1920x1080":"Above","2":"Above","2560x1440":"Right","3":"Portrait","4":"Right","800x600":"Right","9":"Right","down":null,"left":"Built-in","next":"Above","ordered:-1":"Right","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Above","ordered:2":"Built-in","ordered:3":"Right","ordered:4":"Right","previous":"Built-in","right":null,"up":"Above"},
+      "settings": "allFlipped",
+      "setup": "four",
+      "window": "straddle"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":null,"1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "default",
+      "setup": "single",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":null,"1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "single",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Built-in","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Built-in","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Built-in","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Built-in","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "single",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Built-in","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Built-in","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Built-in","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Built-in","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "single",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":null,"1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "default",
+      "setup": "single",
+      "window": "offscreen"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":null,"1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "single",
+      "window": "offscreen"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Built-in","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Built-in","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Built-in","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Built-in","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "single",
+      "window": "offscreen"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Built-in","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Built-in","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Built-in","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Built-in","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "single",
+      "window": "offscreen"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":null,"1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "default",
+      "setup": "single",
+      "window": "fractional"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":null,"1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "single",
+      "window": "fractional"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Built-in","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Built-in","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Built-in","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Built-in","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "single",
+      "window": "fractional"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Built-in","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Built-in","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"Built-in","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Built-in","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Built-in","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "single",
+      "window": "fractional"
+    },
+    {
+      "results": {"(none)":"MacBook","-1":"MacBook","-2":null,"0":"Studio Display","1":"MacBook","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":"MacBook","1920x1080":null,"2":null,"2560x1440":"Studio Display","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Studio Display","ordered:-1":"MacBook","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Studio Display","right":null,"up":"Studio Display"},
+      "settings": "default",
+      "setup": "aboveMain",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"MacBook","-1":"MacBook","-2":null,"0":"MacBook","1":"Studio Display","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":"MacBook","1920x1080":null,"2":null,"2560x1440":"Studio Display","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Studio Display","ordered:-1":"MacBook","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Studio Display","right":null,"up":"Studio Display"},
+      "settings": "osOrder",
+      "setup": "aboveMain",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"MacBook","-1":"MacBook","-2":null,"0":"Studio Display","1":"MacBook","1080x1920":"MacBook","1440x815":"MacBook","1440x900":"MacBook","1512x982":"MacBook","1920x1080":"MacBook","2":"MacBook","2560x1440":"Studio Display","3":"MacBook","4":"MacBook","800x600":"MacBook","9":"MacBook","down":null,"left":null,"next":"Studio Display","ordered:-1":"MacBook","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":"MacBook","ordered:3":"MacBook","ordered:4":"MacBook","previous":"Studio Display","right":null,"up":"Studio Display"},
+      "settings": "defaultToCurrent",
+      "setup": "aboveMain",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"MacBook","-1":"MacBook","-2":null,"0":"MacBook","1":"Studio Display","1080x1920":"MacBook","1440x815":"MacBook","1440x900":"MacBook","1512x982":"MacBook","1920x1080":"MacBook","2":"MacBook","2560x1440":"Studio Display","3":"MacBook","4":"MacBook","800x600":"MacBook","9":"MacBook","down":null,"left":null,"next":"Studio Display","ordered:-1":"MacBook","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":"MacBook","ordered:3":"MacBook","ordered:4":"MacBook","previous":"Studio Display","right":null,"up":"Studio Display"},
+      "settings": "allFlipped",
+      "setup": "aboveMain",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Studio Display","-1":"Studio Display","-2":null,"0":"Studio Display","1":"MacBook","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":"MacBook","1920x1080":null,"2":null,"2560x1440":"Studio Display","3":null,"4":null,"800x600":null,"9":null,"down":"MacBook","left":null,"next":"MacBook","ordered:-1":"Studio Display","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"MacBook","right":null,"up":null},
+      "settings": "default",
+      "setup": "aboveMain",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Studio Display","-1":"Studio Display","-2":null,"0":"MacBook","1":"Studio Display","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":"MacBook","1920x1080":null,"2":null,"2560x1440":"Studio Display","3":null,"4":null,"800x600":null,"9":null,"down":"MacBook","left":null,"next":"MacBook","ordered:-1":"Studio Display","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"MacBook","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "aboveMain",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Studio Display","-1":"Studio Display","-2":null,"0":"Studio Display","1":"MacBook","1080x1920":"Studio Display","1440x815":"Studio Display","1440x900":"Studio Display","1512x982":"MacBook","1920x1080":"Studio Display","2":"Studio Display","2560x1440":"Studio Display","3":"Studio Display","4":"Studio Display","800x600":"Studio Display","9":"Studio Display","down":"MacBook","left":null,"next":"MacBook","ordered:-1":"Studio Display","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":"Studio Display","ordered:3":"Studio Display","ordered:4":"Studio Display","previous":"MacBook","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "aboveMain",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Studio Display","-1":"Studio Display","-2":null,"0":"MacBook","1":"Studio Display","1080x1920":"Studio Display","1440x815":"Studio Display","1440x900":"Studio Display","1512x982":"MacBook","1920x1080":"Studio Display","2":"Studio Display","2560x1440":"Studio Display","3":"Studio Display","4":"Studio Display","800x600":"Studio Display","9":"Studio Display","down":"MacBook","left":null,"next":"MacBook","ordered:-1":"Studio Display","ordered:-2":null,"ordered:0":"Studio Display","ordered:1":"MacBook","ordered:2":"Studio Display","ordered:3":"Studio Display","ordered:4":"Studio Display","previous":"MacBook","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "aboveMain",
+      "window": "onAbove"
+    },
+    {
+      "results": {"(none)":"Desk","-1":"Desk","-2":null,"0":"Portrait","1":"Desk","1080x1920":"Portrait","1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"Desk","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Portrait","next":"Portrait","ordered:-1":"Desk","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Portrait","right":null,"up":null},
+      "settings": "default",
+      "setup": "portraitLeft",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Desk","-1":"Desk","-2":null,"0":"Desk","1":"Portrait","1080x1920":"Portrait","1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"Desk","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Portrait","next":"Portrait","ordered:-1":"Desk","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Portrait","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "portraitLeft",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Desk","-1":"Desk","-2":null,"0":"Portrait","1":"Desk","1080x1920":"Portrait","1440x815":"Desk","1440x900":"Desk","1512x982":"Desk","1920x1080":"Desk","2":"Desk","2560x1440":"Desk","3":"Desk","4":"Desk","800x600":"Desk","9":"Desk","down":null,"left":"Portrait","next":"Portrait","ordered:-1":"Desk","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":"Desk","ordered:3":"Desk","ordered:4":"Desk","previous":"Portrait","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "portraitLeft",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Desk","-1":"Desk","-2":null,"0":"Desk","1":"Portrait","1080x1920":"Portrait","1440x815":"Desk","1440x900":"Desk","1512x982":"Desk","1920x1080":"Desk","2":"Desk","2560x1440":"Desk","3":"Desk","4":"Desk","800x600":"Desk","9":"Desk","down":null,"left":"Portrait","next":"Portrait","ordered:-1":"Desk","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":"Desk","ordered:3":"Desk","ordered:4":"Desk","previous":"Portrait","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "portraitLeft",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Portrait","1":"Desk","1080x1920":"Portrait","1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"Desk","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Desk","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Desk","right":"Desk","up":null},
+      "settings": "default",
+      "setup": "portraitLeft",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Desk","1":"Portrait","1080x1920":"Portrait","1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"Desk","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Desk","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Desk","right":"Desk","up":null},
+      "settings": "osOrder",
+      "setup": "portraitLeft",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Portrait","1":"Desk","1080x1920":"Portrait","1440x815":"Portrait","1440x900":"Portrait","1512x982":"Portrait","1920x1080":"Desk","2":"Portrait","2560x1440":"Portrait","3":"Portrait","4":"Portrait","800x600":"Portrait","9":"Portrait","down":null,"left":null,"next":"Desk","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":"Portrait","ordered:3":"Portrait","ordered:4":"Portrait","previous":"Desk","right":"Desk","up":null},
+      "settings": "defaultToCurrent",
+      "setup": "portraitLeft",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Portrait","-1":"Portrait","-2":null,"0":"Desk","1":"Portrait","1080x1920":"Portrait","1440x815":"Portrait","1440x900":"Portrait","1512x982":"Portrait","1920x1080":"Desk","2":"Portrait","2560x1440":"Portrait","3":"Portrait","4":"Portrait","800x600":"Portrait","9":"Portrait","down":null,"left":null,"next":"Desk","ordered:-1":"Portrait","ordered:-2":null,"ordered:0":"Portrait","ordered:1":"Desk","ordered:2":"Portrait","ordered:3":"Portrait","ordered:4":"Portrait","previous":"Desk","right":"Desk","up":null},
+      "settings": "allFlipped",
+      "setup": "portraitLeft",
+      "window": "onPortrait"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"External","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"External","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"External","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"External","right":"External","up":null},
+      "settings": "default",
+      "setup": "rightExternal",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"External","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"External","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"External","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"External","right":"External","up":null},
+      "settings": "osOrder",
+      "setup": "rightExternal",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"External","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"External","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"External","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"External","right":"External","up":null},
+      "settings": "defaultToCurrent",
+      "setup": "rightExternal",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"External","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"External","2":"Built-in","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":null,"left":null,"next":"External","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":"Built-in","ordered:3":"Built-in","ordered:4":"Built-in","previous":"External","right":"External","up":null},
+      "settings": "allFlipped",
+      "setup": "rightExternal",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"External","-1":"External","-2":null,"0":"Built-in","1":"External","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"External","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Built-in","next":"Built-in","ordered:-1":"External","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "default",
+      "setup": "rightExternal",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"External","-1":"External","-2":null,"0":"Built-in","1":"External","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"External","2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Built-in","next":"Built-in","ordered:-1":"External","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Built-in","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "rightExternal",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"External","-1":"External","-2":null,"0":"Built-in","1":"External","1080x1920":"External","1440x815":"External","1440x900":"External","1512x982":"External","1920x1080":"External","2":"External","2560x1440":"External","3":"External","4":"External","800x600":"External","9":"External","down":null,"left":"Built-in","next":"Built-in","ordered:-1":"External","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":"External","ordered:3":"External","ordered:4":"External","previous":"Built-in","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "rightExternal",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"External","-1":"External","-2":null,"0":"Built-in","1":"External","1080x1920":"External","1440x815":"External","1440x900":"External","1512x982":"External","1920x1080":"External","2":"External","2560x1440":"External","3":"External","4":"External","800x600":"External","9":"External","down":null,"left":"Built-in","next":"Built-in","ordered:-1":"External","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"External","ordered:2":"External","ordered:3":"External","ordered:4":"External","previous":"Built-in","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "rightExternal",
+      "window": "onRight"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Corner","1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Corner","2":"Far","2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":"Corner","left":null,"next":"Corner","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":null,"ordered:4":null,"previous":"Far","right":"Corner","up":null},
+      "settings": "default",
+      "setup": "cornerOnly",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Corner","1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Corner","2":"Far","2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":"Corner","left":null,"next":"Corner","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":null,"ordered:4":null,"previous":"Far","right":"Corner","up":null},
+      "settings": "osOrder",
+      "setup": "cornerOnly",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Corner","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Corner","2":"Far","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":"Corner","left":null,"next":"Corner","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Far","right":"Corner","up":null},
+      "settings": "defaultToCurrent",
+      "setup": "cornerOnly",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Built-in","-1":"Built-in","-2":null,"0":"Built-in","1":"Corner","1080x1920":"Built-in","1440x815":"Built-in","1440x900":"Built-in","1512x982":"Built-in","1920x1080":"Corner","2":"Far","2560x1440":"Built-in","3":"Built-in","4":"Built-in","800x600":"Built-in","9":"Built-in","down":"Corner","left":null,"next":"Corner","ordered:-1":"Built-in","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":"Built-in","ordered:4":"Built-in","previous":"Far","right":"Corner","up":null},
+      "settings": "allFlipped",
+      "setup": "cornerOnly",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":"Corner","-1":"Corner","-2":null,"0":"Built-in","1":"Corner","1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Corner","2":"Far","2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":"Far","left":"Built-in","next":"Far","ordered:-1":"Corner","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":null,"ordered:4":null,"previous":"Built-in","right":"Far","up":"Built-in"},
+      "settings": "default",
+      "setup": "cornerOnly",
+      "window": "onCorner"
+    },
+    {
+      "results": {"(none)":"Corner","-1":"Corner","-2":null,"0":"Built-in","1":"Corner","1080x1920":null,"1440x815":null,"1440x900":"Built-in","1512x982":null,"1920x1080":"Corner","2":"Far","2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":"Far","left":"Built-in","next":"Far","ordered:-1":"Corner","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":null,"ordered:4":null,"previous":"Built-in","right":"Far","up":"Built-in"},
+      "settings": "osOrder",
+      "setup": "cornerOnly",
+      "window": "onCorner"
+    },
+    {
+      "results": {"(none)":"Corner","-1":"Corner","-2":null,"0":"Built-in","1":"Corner","1080x1920":"Corner","1440x815":"Corner","1440x900":"Built-in","1512x982":"Corner","1920x1080":"Corner","2":"Far","2560x1440":"Corner","3":"Corner","4":"Corner","800x600":"Corner","9":"Corner","down":"Far","left":"Built-in","next":"Far","ordered:-1":"Corner","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":"Corner","ordered:4":"Corner","previous":"Built-in","right":"Far","up":"Built-in"},
+      "settings": "defaultToCurrent",
+      "setup": "cornerOnly",
+      "window": "onCorner"
+    },
+    {
+      "results": {"(none)":"Corner","-1":"Corner","-2":null,"0":"Built-in","1":"Corner","1080x1920":"Corner","1440x815":"Corner","1440x900":"Built-in","1512x982":"Corner","1920x1080":"Corner","2":"Far","2560x1440":"Corner","3":"Corner","4":"Corner","800x600":"Corner","9":"Corner","down":"Far","left":"Built-in","next":"Far","ordered:-1":"Corner","ordered:-2":null,"ordered:0":"Built-in","ordered:1":"Corner","ordered:2":"Far","ordered:3":"Corner","ordered:4":"Corner","previous":"Built-in","right":"Far","up":"Built-in"},
+      "settings": "allFlipped",
+      "setup": "cornerOnly",
+      "window": "onCorner"
+    },
+    {
+      "results": {"(none)":"DP-1","-1":"DP-1","-2":null,"0":"DP-1","1":"eDP-1","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"DP-1","2":"HDMI-1","2560x1440":"HDMI-1","3":null,"4":null,"800x600":null,"9":null,"down":"eDP-1","left":null,"next":"HDMI-1","ordered:-1":"DP-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":null,"ordered:4":null,"previous":"eDP-1","right":"HDMI-1","up":null},
+      "settings": "default",
+      "setup": "gnome",
+      "window": "onPrimary"
+    },
+    {
+      "results": {"(none)":"DP-1","-1":"DP-1","-2":null,"0":"DP-1","1":"HDMI-1","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"DP-1","2":"eDP-1","2560x1440":"HDMI-1","3":null,"4":null,"800x600":null,"9":null,"down":"eDP-1","left":null,"next":"HDMI-1","ordered:-1":"DP-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":null,"ordered:4":null,"previous":"eDP-1","right":"HDMI-1","up":null},
+      "settings": "osOrder",
+      "setup": "gnome",
+      "window": "onPrimary"
+    },
+    {
+      "results": {"(none)":"DP-1","-1":"DP-1","-2":null,"0":"DP-1","1":"eDP-1","1080x1920":"DP-1","1440x815":"DP-1","1440x900":"DP-1","1512x982":"DP-1","1920x1080":"DP-1","2":"HDMI-1","2560x1440":"HDMI-1","3":"DP-1","4":"DP-1","800x600":"DP-1","9":"DP-1","down":"eDP-1","left":null,"next":"HDMI-1","ordered:-1":"DP-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":"DP-1","ordered:4":"DP-1","previous":"eDP-1","right":"HDMI-1","up":null},
+      "settings": "defaultToCurrent",
+      "setup": "gnome",
+      "window": "onPrimary"
+    },
+    {
+      "results": {"(none)":"DP-1","-1":"DP-1","-2":null,"0":"DP-1","1":"HDMI-1","1080x1920":"DP-1","1440x815":"DP-1","1440x900":"DP-1","1512x982":"DP-1","1920x1080":"DP-1","2":"eDP-1","2560x1440":"HDMI-1","3":"DP-1","4":"DP-1","800x600":"DP-1","9":"DP-1","down":"eDP-1","left":null,"next":"HDMI-1","ordered:-1":"DP-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":"DP-1","ordered:4":"DP-1","previous":"eDP-1","right":"HDMI-1","up":null},
+      "settings": "allFlipped",
+      "setup": "gnome",
+      "window": "onPrimary"
+    },
+    {
+      "results": {"(none)":"HDMI-1","-1":"HDMI-1","-2":null,"0":"DP-1","1":"eDP-1","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"DP-1","2":"HDMI-1","2560x1440":"HDMI-1","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"DP-1","next":"eDP-1","ordered:-1":"HDMI-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":null,"ordered:4":null,"previous":"DP-1","right":null,"up":null},
+      "settings": "default",
+      "setup": "gnome",
+      "window": "onSecondary"
+    },
+    {
+      "results": {"(none)":"HDMI-1","-1":"HDMI-1","-2":null,"0":"DP-1","1":"HDMI-1","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":"DP-1","2":"eDP-1","2560x1440":"HDMI-1","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"DP-1","next":"eDP-1","ordered:-1":"HDMI-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":null,"ordered:4":null,"previous":"DP-1","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "gnome",
+      "window": "onSecondary"
+    },
+    {
+      "results": {"(none)":"HDMI-1","-1":"HDMI-1","-2":null,"0":"DP-1","1":"eDP-1","1080x1920":"HDMI-1","1440x815":"HDMI-1","1440x900":"HDMI-1","1512x982":"HDMI-1","1920x1080":"DP-1","2":"HDMI-1","2560x1440":"HDMI-1","3":"HDMI-1","4":"HDMI-1","800x600":"HDMI-1","9":"HDMI-1","down":null,"left":"DP-1","next":"eDP-1","ordered:-1":"HDMI-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":"HDMI-1","ordered:4":"HDMI-1","previous":"DP-1","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "gnome",
+      "window": "onSecondary"
+    },
+    {
+      "results": {"(none)":"HDMI-1","-1":"HDMI-1","-2":null,"0":"DP-1","1":"HDMI-1","1080x1920":"HDMI-1","1440x815":"HDMI-1","1440x900":"HDMI-1","1512x982":"HDMI-1","1920x1080":"DP-1","2":"eDP-1","2560x1440":"HDMI-1","3":"HDMI-1","4":"HDMI-1","800x600":"HDMI-1","9":"HDMI-1","down":null,"left":"DP-1","next":"eDP-1","ordered:-1":"HDMI-1","ordered:-2":null,"ordered:0":"DP-1","ordered:1":"eDP-1","ordered:2":"HDMI-1","ordered:3":"HDMI-1","ordered:4":"HDMI-1","previous":"DP-1","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "gnome",
+      "window": "onSecondary"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Wide","1":"Tall","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Tall","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Tall","right":"Tall","up":null},
+      "settings": "default",
+      "setup": "starterTests",
+      "window": "wide"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Wide","1":"Tall","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Tall","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Tall","right":"Tall","up":null},
+      "settings": "osOrder",
+      "setup": "starterTests",
+      "window": "wide"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Wide","1":"Tall","1080x1920":"Wide","1440x815":"Wide","1440x900":"Wide","1512x982":"Wide","1920x1080":"Wide","2":"Wide","2560x1440":"Wide","3":"Wide","4":"Wide","800x600":"Wide","9":"Wide","down":null,"left":null,"next":"Tall","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":"Wide","ordered:3":"Wide","ordered:4":"Wide","previous":"Tall","right":"Tall","up":null},
+      "settings": "defaultToCurrent",
+      "setup": "starterTests",
+      "window": "wide"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Wide","1":"Tall","1080x1920":"Wide","1440x815":"Wide","1440x900":"Wide","1512x982":"Wide","1920x1080":"Wide","2":"Wide","2560x1440":"Wide","3":"Wide","4":"Wide","800x600":"Wide","9":"Wide","down":null,"left":null,"next":"Tall","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":"Wide","ordered:3":"Wide","ordered:4":"Wide","previous":"Tall","right":"Tall","up":null},
+      "settings": "allFlipped",
+      "setup": "starterTests",
+      "window": "wide"
+    },
+    {
+      "results": {"(none)":"Tall","-1":"Tall","-2":null,"0":"Wide","1":"Tall","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Wide","next":"Wide","ordered:-1":"Tall","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Wide","right":null,"up":null},
+      "settings": "default",
+      "setup": "starterTests",
+      "window": "tall"
+    },
+    {
+      "results": {"(none)":"Tall","-1":"Tall","-2":null,"0":"Wide","1":"Tall","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Wide","next":"Wide","ordered:-1":"Tall","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Wide","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "starterTests",
+      "window": "tall"
+    },
+    {
+      "results": {"(none)":"Tall","-1":"Tall","-2":null,"0":"Wide","1":"Tall","1080x1920":"Tall","1440x815":"Tall","1440x900":"Tall","1512x982":"Tall","1920x1080":"Tall","2":"Tall","2560x1440":"Tall","3":"Tall","4":"Tall","800x600":"Tall","9":"Tall","down":null,"left":"Wide","next":"Wide","ordered:-1":"Tall","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":"Tall","ordered:3":"Tall","ordered:4":"Tall","previous":"Wide","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "starterTests",
+      "window": "tall"
+    },
+    {
+      "results": {"(none)":"Tall","-1":"Tall","-2":null,"0":"Wide","1":"Tall","1080x1920":"Tall","1440x815":"Tall","1440x900":"Tall","1512x982":"Tall","1920x1080":"Tall","2":"Tall","2560x1440":"Tall","3":"Tall","4":"Tall","800x600":"Tall","9":"Tall","down":null,"left":"Wide","next":"Wide","ordered:-1":"Tall","ordered:-2":null,"ordered:0":"Wide","ordered:1":"Tall","ordered:2":"Tall","ordered:3":"Tall","ordered:4":"Tall","previous":"Wide","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "starterTests",
+      "window": "tall"
+    },
+    {
+      "results": {"(none)":null,"-1":null,"-2":null,"0":null,"1":null,"1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":null,"ordered:-1":null,"ordered:-2":null,"ordered:0":null,"ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":null,"right":null,"up":null},
+      "settings": "default",
+      "setup": "empty",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":null,"-1":null,"-2":null,"0":null,"1":null,"1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":null,"ordered:-1":null,"ordered:-2":null,"ordered:0":null,"ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":null,"right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "empty",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":null,"-1":null,"-2":null,"0":null,"1":null,"1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":null,"ordered:-1":null,"ordered:-2":null,"ordered:0":null,"ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":null,"right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "empty",
+      "window": "onMain"
+    },
+    {
+      "results": {"(none)":null,"-1":null,"-2":null,"0":null,"1":null,"1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":null,"ordered:-1":null,"ordered:-2":null,"ordered:0":null,"ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":null,"right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "empty",
+      "window": "onMain"
+    }
+  ],
+  "settings": {
+    "allFlipped": {
+      "defaultToCurrentScreen": true,
+      "nudgePercentOf": "windowSize",
+      "orderScreensLeftToRight": false,
+      "resizePercentOf": "windowSize"
+    },
+    "default": {},
+    "defaultToCurrent": {
+      "defaultToCurrentScreen": true
+    },
+    "nudgePercentOfWindow": {
+      "nudgePercentOf": "windowSize"
+    },
+    "osOrder": {
+      "orderScreensLeftToRight": false
+    },
+    "resizePercentOfWindow": {
+      "resizePercentOf": "windowSize"
+    },
+    "stringly": {
+      "defaultToCurrentScreen": "YES",
+      "nudgePercentOf": "WindowSize",
+      "orderScreensLeftToRight": 0,
+      "resizePercentOf": "bogus"
+    }
+  },
+  "setups": {
+    "aboveMain": {
+      "description": "A notched laptop (38-point menu bar) with a 2560×1440 display above it, at negative y.",
+      "screens": [
+        {"displayID":1,"frame":{"height":982,"width":1512,"x":0,"y":0},"isMain":true,"name":"MacBook","scale":2,"visibleFrame":{"height":944,"width":1512,"x":0,"y":38}},
+        {"displayID":5,"frame":{"height":1440,"width":2560,"x":-204,"y":-1440},"isMain":false,"name":"Studio Display","scale":2,"visibleFrame":{"height":1415,"width":2560,"x":-204,"y":-1415}}
+      ],
+      "windowOrder": [
+        "onMain",
+        "onAbove"
+      ],
+      "windows": {
+        "onAbove": {"height":800,"width":1200,"x":100,"y":-1200},
+        "onMain": {"height":600,"width":900,"x":200,"y":150}
+      }
+    },
+    "cornerOnly": {
+      "description": "Displays that only meet at corners (ScreenResolverTests), so directions fall back to the nearest screen.",
+      "screens": [
+        {"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}},
+        {"displayID":20,"frame":{"height":1080,"width":1920,"x":1440,"y":900},"isMain":false,"name":"Corner","scale":2,"visibleFrame":{"height":1055,"width":1920,"x":1440,"y":925}},
+        {"displayID":21,"frame":{"height":1080,"width":1920,"x":3360,"y":1980},"isMain":false,"name":"Far","scale":2,"visibleFrame":{"height":1055,"width":1920,"x":3360,"y":2005}}
+      ],
+      "windowOrder": [
+        "onMain",
+        "onCorner"
+      ],
+      "windows": {
+        "onCorner": {"height":300,"width":400,"x":2000,"y":1000},
+        "onMain": {"height":600,"width":800,"x":100,"y":100}
+      }
+    },
+    "empty": {
+      "description": "No displays at all (e.g. while displays reconfigure).",
+      "screens": [],
+      "windowOrder": [
+        "onMain"
+      ],
+      "windows": {
+        "onMain": {"height":600,"width":800,"x":100,"y":100}
+      }
+    },
+    "four": {
+      "description": "FrameCalculatorTests' layout: main 1440×900 with menu bar and Dock; a 2560×1440 on the right; a 1920×1080 above at negative y; a 1080×1920 portrait on the left. OS order main, right, above, portrait.",
+      "screens": [
+        {"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}},
+        {"displayID":2,"frame":{"height":1440,"width":2560,"x":1440,"y":0},"isMain":false,"name":"Right","scale":2,"visibleFrame":{"height":1415,"width":2560,"x":1440,"y":25}},
+        {"displayID":3,"frame":{"height":1080,"width":1920,"x":-240,"y":-1080},"isMain":false,"name":"Above","scale":2,"visibleFrame":{"height":1055,"width":1920,"x":-240,"y":-1055}},
+        {"displayID":4,"frame":{"height":1920,"width":1080,"x":-1080,"y":0},"isMain":false,"name":"Portrait","scale":2,"visibleFrame":{"height":1895,"width":1080,"x":-1080,"y":25}}
+      ],
+      "windowOrder": [
+        "onMain",
+        "onRight",
+        "onPortrait",
+        "onAbove",
+        "straddle"
+      ],
+      "windows": {
+        "onAbove": {"height":600,"width":800,"x":0,"y":-900},
+        "onMain": {"height":600,"width":800,"x":100,"y":100},
+        "onPortrait": {"height":800,"width":600,"x":-1000,"y":300},
+        "onRight": {"height":600,"width":800,"x":2000,"y":100},
+        "straddle": {"height":600,"width":800,"x":1300,"y":100}
+      }
+    },
+    "gnome": {
+      "description": "A GNOME-like arrangement: a primary display with a 32-pixel top bar, a scaled display on the right with no panel, and a laptop below; fractional window coordinates.",
+      "screens": [
+        {"displayID":1,"frame":{"height":1080,"width":1920,"x":0,"y":0},"isMain":true,"name":"DP-1","scale":1,"visibleFrame":{"height":1048,"width":1920,"x":0,"y":32}},
+        {"displayID":2,"frame":{"height":1440,"width":2560,"x":1920,"y":0},"isMain":false,"name":"HDMI-1","scale":1.5,"visibleFrame":{"height":1440,"width":2560,"x":1920,"y":0}},
+        {"displayID":3,"frame":{"height":800,"width":1280,"x":320,"y":1080},"isMain":false,"name":"eDP-1","scale":1.25,"visibleFrame":{"height":800,"width":1280,"x":320,"y":1080}}
+      ],
+      "windowOrder": [
+        "onPrimary",
+        "onSecondary"
+      ],
+      "windows": {
+        "onPrimary": {"height":600.5,"width":800.75,"x":100.5,"y":100.25},
+        "onSecondary": {"height":900,"width":1200,"x":2000,"y":300}
+      }
+    },
+    "portraitLeft": {
+      "description": "A 1920×1080 main display with the Dock on the left, and a portrait display on its left, shifted up.",
+      "screens": [
+        {"displayID":1,"frame":{"height":1080,"width":1920,"x":0,"y":0},"isMain":true,"name":"Desk","scale":2,"visibleFrame":{"height":1055,"width":1840,"x":80,"y":25}},
+        {"displayID":6,"frame":{"height":1920,"width":1080,"x":-1080,"y":-420},"isMain":false,"name":"Portrait","scale":1,"visibleFrame":{"height":1895,"width":1080,"x":-1080,"y":-395}}
+      ],
+      "windowOrder": [
+        "onMain",
+        "onPortrait"
+      ],
+      "windows": {
+        "onMain": {"height":700,"width":1000,"x":300,"y":200},
+        "onPortrait": {"height":1200,"width":700,"x":-900,"y":0}
+      }
+    },
+    "rightExternal": {
+      "description": "A 1728×1117 laptop and a 1920×1080 external display on its right, 100 points higher.",
+      "screens": [
+        {"displayID":1,"frame":{"height":1117,"width":1728,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":1085,"width":1728,"x":0,"y":32}},
+        {"displayID":7,"frame":{"height":1080,"width":1920,"x":1728,"y":-100},"isMain":false,"name":"External","scale":1,"visibleFrame":{"height":1055,"width":1920,"x":1728,"y":-75}}
+      ],
+      "windowOrder": [
+        "onMain",
+        "onRight"
+      ],
+      "windows": {
+        "onMain": {"height":600,"width":800,"x":100,"y":100},
+        "onRight": {"height":700,"width":900,"x":2000,"y":0}
+      }
+    },
+    "single": {
+      "description": "One 1440×900 display with menu bar and Dock.",
+      "screens": [
+        {"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}}
+      ],
+      "windowOrder": [
+        "onMain",
+        "offscreen",
+        "fractional"
+      ],
+      "windows": {
+        "fractional": {"height":200.4,"width":300.9,"x":10.7,"y":-20.5},
+        "offscreen": {"height":100,"width":100,"x":5000,"y":5000},
+        "onMain": {"height":600,"width":800,"x":100,"y":100}
+      }
+    },
+    "starterTests": {
+      "description": "StarterTests' screens: a wide 1800×1000 display and a tall 1000×1800 one on its right, no menu bar.",
+      "screens": [
+        {"displayID":1,"frame":{"height":1000,"width":1800,"x":0,"y":0},"isMain":true,"name":"Wide","scale":2,"visibleFrame":{"height":1000,"width":1800,"x":0,"y":0}},
+        {"displayID":2,"frame":{"height":1800,"width":1000,"x":1800,"y":0},"isMain":false,"name":"Tall","scale":2,"visibleFrame":{"height":1800,"width":1000,"x":1800,"y":0}}
+      ],
+      "windowOrder": [
+        "wide",
+        "tall"
+      ],
+      "windows": {
+        "tall": {"height":400,"width":400,"x":2000,"y":100},
+        "wide": {"height":400,"width":400,"x":100,"y":100}
+      }
+    }
+  }
+}

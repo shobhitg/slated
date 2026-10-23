@@ -10,7 +10,9 @@ DEV_CERT      := Slated Dev
 SIGN_IDENTITY ?= $(shell security find-identity -p codesigning 2>/dev/null | grep -q '"$(DEV_CERT)"' && echo "$(DEV_CERT)" || echo "-")
 APP           := build/$(APP_NAME).app
 
-.PHONY: all build app run stop install uninstall test smoke test-install snapshots check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean
+JSC           := /System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
+
+.PHONY: all build app run stop install uninstall test smoke test-install snapshots check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean fixtures check-fixtures linux-test linux-test-all
 
 all: app
 
@@ -53,8 +55,28 @@ test-install:
 snapshots:
 	swift run SlatedUISnapshots build/ui-snapshots
 
+# Golden test vectors for the Linux (GNOME) engine: SlatedCore's results on curated inputs, written to
+# fixtures/ by Sources/SlatedFixtures. Regenerate after changing SlatedCore, review the diff, commit it.
+fixtures:
+	swift run SlatedFixtures fixtures
+
+# Fails when fixtures/ is stale (or the generator isn't deterministic).
+check-fixtures:
+	scripts/check-fixtures.sh
+
+# The JavaScript engine (linux/gnome-extension/lib/core) against every golden vector, plus its own
+# tests: on Node when installed, else macOS's JavaScriptCore. `make linux-test FILTER=frames`.
+linux-test:
+	@if command -v node >/dev/null 2>&1; then node linux/tests/run.mjs $(FILTER); \
+	elif [ -x "$(JSC)" ]; then "$(JSC)" -m linux/tests/run.mjs -- $(FILTER); \
+	else echo "linux-test needs Node or JavaScriptCore (jsc)" >&2; exit 1; fi
+
+# The same on every runtime available here (Node, GJS, JavaScriptCore), checking that failures fail.
+linux-test-all:
+	linux/tests/run-all.sh $(FILTER)
+
 # Everything automated. Run before every commit.
-check: test smoke
+check: test smoke check-fixtures linux-test
 
 # Reports whether Swift Testing is usable yet (it needs Xcode).
 check-swift-testing:

@@ -1,0 +1,80 @@
+{
+  "description": "Golden vectors from SlatedCore (Swift) for the JavaScript port. Regenerate with `make fixtures`.",
+  "files": {
+    "config.json": {
+      "decode": 460
+    },
+    "expressions.json": {
+      "closestName": 20,
+      "editDistance": 11,
+      "evaluate": 776,
+      "validate": 26
+    },
+    "frames.json": {
+      "targetFrame": 67,
+      "targetOrigin": 48
+    },
+    "hotstrings.json": {
+      "isDelimiter": 75,
+      "matcher": 23,
+      "templates": 748
+    },
+    "keys.json": {
+      "comboParts": 20,
+      "keyCombos": 103,
+      "keyNames": 84,
+      "keystrokes": 81,
+      "modifierTokens": 27
+    },
+    "operations.json": {
+      "decode": 150,
+      "format": 122,
+      "parse": 444
+    },
+    "screens.json": {
+      "containing": 99,
+      "orderedLeftToRight": 13,
+      "parse": 50,
+      "resolve": 84
+    },
+    "settings.json": {
+      "accessors": 27,
+      "fromSlate": 44,
+      "typed": 4
+    },
+    "slate-config.json": {
+      "parse": 34,
+      "stableUUID": 6,
+      "stripComment": 16
+    },
+    "starter.json": {
+      "bindings": 21
+    },
+    "tokenizer.json": {
+      "escapeText": 15,
+      "firstIndexOutsideQuotes": 10,
+      "leadingTokens": 11,
+      "quote": 27,
+      "shellArguments": 11,
+      "split": 18,
+      "tokenize": 36,
+      "trimming": 42,
+      "unquote": 12
+    }
+  },
+  "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
+  "totalVectors": 15820,
+  "vectors": {
+    "config.json": 460,
+    "expressions.json": 833,
+    "frames.json": 9718,
+    "hotstrings.json": 846,
+    "keys.json": 315,
+    "operations.json": 716,
+    "screens.json": 2598,
+    "settings.json": 75,
+    "slate-config.json": 56,
+    "starter.json": 21,
+    "tokenizer.json": 182
+  }
+}
