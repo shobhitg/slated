@@ -144,6 +144,27 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       `scripts/logs.py --grep config.saved` shows the change.
 - [ ] The sidebar renders correctly (the Liquid Glass sidebar can't be captured by `make snapshots`).
 
+**Clipboard history**
+- [ ] Copying text in a few apps adds it to Settings → Clipboard, newest first. Copying a password
+      from 1Password, Bitwarden or Keychain Access doesn't.
+- [ ] ⇧⌘V opens the switcher over the app you're in. ↩ pastes the selected item into that app; ⌘1–9,
+      search, ⌘P pin and ⌘⌫ delete work.
+- [ ] Opening the switcher from the menu bar panel or Settings still pastes into the last app you used,
+      not into Slated.
+- [ ] After a restart the history is still there (with "Keep across restarts" on).
+      `~/Library/Application Support/Slated/clipboard.json` is readable only by you (`-rw-------`).
+
+**Game automation** (try in a game and in TextEdit)
+- [ ] An auto-click recipe clicks at the set speed; pressing its shortcut again stops it. The red
+      indicator shows while it runs.
+- [ ] Hold right click / Hold W keep the button or key down until pressed again; Hold Shift keeps
+      sprint on.
+- [ ] A while-held repeat stops when you let go. A "click N times" repeat stops by itself.
+- [ ] A binding limited to one game doesn't fire, or steal its key, in other apps.
+- [ ] Mouse 4/5 work as triggers (after granting Accessibility).
+- [ ] Hyper+Esc stops everything. Switching apps stops automations (if enabled). Pausing, sleeping,
+      locking the screen and quitting release anything held: no stuck button or key.
+
 **Slate compatibility**
 - [ ] `~/.slate.js` loads (the menu shows 21 hotkeys). Editing and saving it reloads within 2 seconds.
 - [ ] "Import Slate Config into Slated…" converts all bindings and stops loading the file.

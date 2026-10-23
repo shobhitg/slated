@@ -6,6 +6,8 @@ import SwiftUI
 final class ClipboardPanel: NSObject, NSWindowDelegate {
   private let model: ClipboardSwitcherModel
   private var panel: NSPanel?
+  /// Called whenever the panel closes (picked, escaped or clicked away).
+  var didClose: (() -> Void)?
 
   init(services: any AppServices) {
     model = ClipboardSwitcherModel(services: services)
@@ -31,7 +33,9 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
   }
 
   func close() {
+    guard panel?.isVisible == true else { return }
     panel?.orderOut(nil)
+    didClose?()
   }
 
   /// Clicking anywhere else closes the switcher, like Spotlight.

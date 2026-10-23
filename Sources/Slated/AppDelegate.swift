@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       self?.clipboardPanel.refresh()
     }
     engine.clipboard.presentSwitcher = { [weak self] in self?.clipboardPanel.show() }
+    clipboardPanel.didClose = { [weak self] in self?.engine.clipboard.switcherClosed() }
     engine.hotkeys.onModalChange = { [weak self] modal in
       self?.modalActive = modal != nil
       self?.refreshStatusIcon()
@@ -154,7 +155,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       actions: MenuBarActions(
         openSettings: { [weak self] in self?.showSettings() },
         quit: { [weak self] in self?.quit() },
-        showOnboarding: { [weak self] in self?.showOnboarding() }))
+        showOnboarding: { [weak self] in self?.showOnboarding() },
+        dismiss: { [weak self] in self?.popover.performClose(nil) }))
     refreshStatusIcon()
   }
 

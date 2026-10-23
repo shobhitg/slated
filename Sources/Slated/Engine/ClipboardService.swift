@@ -17,13 +17,27 @@ final class ClipboardService {
   private let watcher = PasteboardWatcher()
   private var ignoreNextCopy = false
   private var saveWork: DispatchWorkItem?
-  /// The app that was frontmost when the switcher opened; picked items are pasted there.
+  /// The app that was frontmost when the switcher opened; a picked item is pasted there. Cleared
+  /// shortly after the switcher closes, so Copy elsewhere (Settings) never jumps to a stale app.
   private var previousApp: NSRunningApplication?
+  /// The last app in front that wasn't Slated: the target when the switcher opens from Slated's own
+  /// windows (Settings, the menu bar panel).
+  private var lastExternalApp: NSRunningApplication?
+  private var activationObserver: NSObjectProtocol?
   private let fileURL = URL(fileURLWithPath: SlatedPaths.home)
     .appendingPathComponent("Library/Application Support/Slated/clipboard.json")
 
   init() {
     watcher.onCopy = { [weak self] copy in self?.record(copy) }
+    lastExternalApp = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 }
+    activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+    ) { [weak self] note in
+      guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+        app.bundleIdentifier != Bundle.main.bundleIdentifier
+      else { return }
+      MainActor.assumeIsolated { self?.lastExternalApp = app }
+    }
     if let data = try? Data(contentsOf: fileURL), let saved = try? JSONDecoder().decode(ClipboardHistory.self, from: data) {
       history = saved
     }
@@ -80,8 +94,10 @@ final class ClipboardService {
       Log.record("clipboard.switcher_unavailable", level: .notice, ["reason": "clipboard history is off"])
       return
     }
-    previousApp = NSWorkspace.shared.frontmostApplication
-    Log.record("clipboard.switcher_opened", ["items": history.items.count])
+    let front = NSWorkspace.shared.frontmostApplication
+    previousApp = front?.bundleIdentifier == Bundle.main.bundleIdentifier ? lastExternalApp : front
+    Log.record(
+      "clipboard.switcher_opened", ["items": history.items.count, "target": previousApp?.bundleIdentifier ?? "none"])
     presentSwitcher?()
   }
 
@@ -89,8 +105,12 @@ final class ClipboardService {
   func paste(id: UUID) {
     guard let item = history.items.first(where: { $0.id == id }) else { return }
     put(item)
-    guard settings.pasteAfterSelecting else { return }
     let target = previousApp
+    previousApp = nil
+    guard settings.pasteAfterSelecting else {
+      target?.activate()
+      return
+    }
     target?.activate()
     // Give the app a moment to become active before ⌘V.
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -102,8 +122,16 @@ final class ClipboardService {
   func copy(id: UUID) {
     guard let item = history.items.first(where: { $0.id == id }) else { return }
     put(item)
+    // Back to the app you were in when copying from the switcher; from Settings, stay put.
     previousApp?.activate()
+    previousApp = nil
     Log.record("clipboard.copied", ["chars": item.text.count])
+  }
+
+  /// The switcher closed. A paste or copy it triggered runs right after, so forget the target a
+  /// moment later rather than immediately.
+  func switcherClosed() {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.previousApp = nil }
   }
 
   func delete(id: UUID) {
