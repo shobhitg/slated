@@ -49,14 +49,69 @@ public enum SlateSyntax {
   /// Parses an operation string such as `push left bar-resize:screenSizeX/2`,
   /// `move screenOriginX;screenOriginY screenSizeX/2;screenSizeY 1`, `throw right resize`,
   /// `grid padding:4 0:6,6 1:6,6`, or `chain push up | push down`.
+  ///
+  /// Every Slate operation is supported, plus Slated's own:
+  /// - `insert-text [type|paste] 'text'`: `\n`, `\t`, `\r` and `\\` in the text are escapes.
+  /// - `open-url 'https://example.com'`
+  /// - `keystroke cmd+shift+4` (Slate's `4:cmd,shift` also works)
+  ///
+  /// Whitespace between parameters is free-form, `'…'` and `"…"` both quote, and expressions are
+  /// checked, so errors (thrown as `SlatedError`) say what is wrong and where.
   public static func parseOperation(_ string: String) throws -> Action {
-    throw SlatedError.notImplemented("SlateSyntax.parseOperation")
+    try SlateOperationParser(string).parse()
   }
 
-  /// Formats an operation back into Slate syntax. Round-trips with `parseOperation` for Slate's own
-  /// operations; Slated-only operations use the same `name key:value` style.
+  /// Formats an action as an operation string that `parseOperation` reads back as the same action.
+  ///
+  /// Two shapes can't be written exactly, so they come back equivalent rather than identical: a
+  /// `throw`/`corner` with only one of width and height (the other comes back as `windowSizeX`/
+  /// `windowSizeY`), and a `chain` or `sequence` nested inside another (Slate syntax has no grouping).
   public static func format(_ action: Action) -> String {
-    action.name
+    SlateOperationFormatter.format(action)
+  }
+
+  /// Splits a `shell` command into the program and its arguments the way Slate ran it: no shell is
+  /// involved, words are separated by whitespace, and `'…'`/`"…"` group words (Slate 1.0.25+).
+  /// For example `/usr/bin/say "hello world"` → `["/usr/bin/say", "hello world"]`.
+  public static func shellArguments(_ command: String) throws -> [String] {
+    try SlateTokenizer.tokenize(command).map(\.text)
+  }
+
+  /// Reverses `escapeText`: `\n`, `\t`, `\r` and `\\` become a newline, tab, carriage return and
+  /// backslash; any other backslash is kept as written.
+  static func unescapeText(_ text: String) -> String {
+    var result = ""
+    var iterator = text.makeIterator()
+    while let c = iterator.next() {
+      guard c == "\\" else {
+        result.append(c)
+        continue
+      }
+      switch iterator.next() {
+      case "n": result.append("\n")
+      case "t": result.append("\t")
+      case "r": result.append("\r")
+      case "\\": result.append("\\")
+      case let other?: result += "\\\(other)"
+      case nil: result.append("\\")
+      }
+    }
+    return result
+  }
+
+  /// Escapes text for `insert-text` so it fits on one line.
+  static func escapeText(_ text: String) -> String {
+    var result = ""
+    for c in text {
+      switch c {
+      case "\\": result += "\\\\"
+      case "\n": result += "\\n"
+      case "\t": result += "\\t"
+      case "\r": result += "\\r"
+      default: result.append(c)
+      }
+    }
+    return result
   }
 
   /// Parses a Slate keystroke: `a:ctrl,shift,alt,cmd`, `left:ctrl;cmd`, `1:f4,ctrl,alt` (modal key `f4`
@@ -99,49 +154,5 @@ public enum SlateSyntax {
     }
     if toggle { throw SlatedError.invalidSyntax(":toggle needs a modal key in \"\(string)\"") }
     return (KeyCombo(key: key, modifiers: modifiers), nil)
-  }
-}
-
-/// Result of parsing a classic `.slate` file (and everything it `source`s).
-public struct SlateConfigFile: Hashable, Sendable {
-  public var settings: SlateSettings
-  public var bindings: [HotkeyBinding]
-  public var layouts: [Layout]
-  public var defaults: [ScreenDefault]
-  public var diagnostics: [Diagnostic]
-
-  public init(
-    settings: SlateSettings = .init(), bindings: [HotkeyBinding] = [], layouts: [Layout] = [],
-    defaults: [ScreenDefault] = [], diagnostics: [Diagnostic] = []
-  ) {
-    self.settings = settings
-    self.bindings = bindings
-    self.layouts = layouts
-    self.defaults = defaults
-    self.diagnostics = diagnostics
-  }
-}
-
-/// Parser for classic `.slate` files: `config`, `alias`, `layout`, `default`, `bind`, `source`.
-public enum SlateConfigParser {
-  /// Parses `text`. `path` is used for diagnostics and to resolve relative `source` paths;
-  /// `readFile` loads sourced files (injected so tests don't touch the disk).
-  public static func parse(
-    _ text: String, path: String? = nil,
-    readFile: (String) -> String? = { try? String(contentsOfFile: $0, encoding: .utf8) }
-  ) -> SlateConfigFile {
-    SlateConfigFile(diagnostics: [Diagnostic(.error, "Classic .slate parsing is not implemented yet", file: path)])
-  }
-}
-
-/// Slate's expression language: numbers, the variables below, `+ - * / **`, parentheses, and the
-/// functions `sum count min max average median stddev sqrt log ln exp floor ceiling abs trunc random randomn`.
-///
-/// Variables: `screenOriginX screenOriginY screenSizeX screenSizeY windowTopLeftX windowTopLeftY
-/// windowSizeX windowSizeY newWindowSizeX newWindowSizeY windowHintsWidth windowHintsHeight`.
-/// Unlike Slate, spaces are allowed.
-public enum SlateExpression {
-  public static func evaluate(_ expression: String, variables: [String: Double]) throws -> Double {
-    throw SlatedError.notImplemented("SlateExpression.evaluate")
   }
 }
