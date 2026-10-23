@@ -9,6 +9,19 @@ Slated reads two kinds of configuration and uses both at once:
 
 If both define the same shortcut, Slated's own binding wins and the other is marked as a duplicate.
 
+**Defaults.** On first launch Slated creates `config.json`:
+- If you have a Slate config, Slated starts with no bindings of its own and your Slate file is the
+  default.
+- Otherwise it starts with the built-in bindings: the author's Slate setup on the Hyper key.
+  - Halves: Hyper+A/D (left/right), W/X (top/bottom).
+  - Quarters: Q/E/Z/C.
+  - Thirds and two-thirds: F/G/H and V/B. They sit side by side on wide screens and stack on vertical
+    ones.
+  - Center: ' (small) and Return (large).
+  - Maximize: S.
+  - Grid: Tab.
+  - Throw to the screen on the left/right/above: the arrow keys; ↓ throws to the second screen.
+
 ## Example
 
 ```jsonc
@@ -91,6 +104,7 @@ with `"op"` plus Slate's JavaScript parameter names. The object form is exactly 
 | `hide` / `show` / `toggle` | `app`: `"current"`, `"all"`, `"all-but:Name"`, or a list of names |
 | `shell` | `command`, `wait`, `path` |
 | `undo`, `relaunch` | — |
+| `by-orientation` | `landscape`, `portrait`: two actions; runs the one matching the window's screen shape |
 | `insert-text` | `text`, `method` (`auto` `type` `paste`) |
 | `open-url` | `url` |
 | `keystroke` | `keys` (e.g. `"cmd+shift+4"`) |

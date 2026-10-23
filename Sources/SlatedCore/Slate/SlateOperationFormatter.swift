@@ -77,6 +77,9 @@ enum SlateOperationFormatter {
     case .undo, .relaunch, .switchApp:
       return action.name
 
+    case .byOrientation(let landscape, let portrait):
+      return join("by-orientation", SlateTokenizer.quote(format(landscape)), SlateTokenizer.quote(format(portrait)))
+
     case .insertText(let text, let method):
       return join(
         "insert-text", method == .auto ? nil : method.rawValue, SlateTokenizer.quote(SlateSyntax.escapeText(text)))

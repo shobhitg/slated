@@ -11,6 +11,8 @@ let suites: [Suite] = [
   hotstringMatcherTests,
   hotstringTemplateTests,
   slateScriptTests,
+  starterTests,
+  starterSlateJSTests,
   expressionTests,
   slateSyntaxTests,
   slateConfigParserTests,

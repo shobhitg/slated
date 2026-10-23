@@ -50,6 +50,7 @@ struct SlateOperationParser {
       // Slate's switcher took key options (back:, quit:, …). Slated doesn't implement the switcher yet,
       // so options are accepted and dropped.
       return .switchApp
+    case "by-orientation": return try parseByOrientation()
     case "insert-text": return try parseInsertText()
     case "open-url": return try parseOpenURL()
     case "keystroke": return try parseKeystrokeAction()
@@ -339,6 +340,18 @@ struct SlateOperationParser {
     }
     guard !commandWord.text.trimmingCharacters(in: .whitespaces).isEmpty else { throw fail("The command is empty") }
     return .shell(command: commandWord.text, wait: wait, path: path)
+  }
+
+  /// `by-orientation '<landscape operation>' '<portrait operation>'`
+  private func parseByOrientation() throws -> Action {
+    let words = try tokens()
+    guard words.count == 2 else {
+      throw fail(
+        "by-orientation needs two quoted operations",
+        hint: "like by-orientation 'move screenOriginX;screenOriginY screenSizeX/3;screenSizeY' 'push up'")
+    }
+    return .byOrientation(
+      landscape: try SlateSyntax.parseOperation(words[0].text), portrait: try SlateSyntax.parseOperation(words[1].text))
   }
 
   private func parseInsertText() throws -> Action {

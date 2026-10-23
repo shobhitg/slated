@@ -29,6 +29,11 @@ final class ActionRunner {
     case .move, .resize, .push, .nudge, .throwWindow, .corner:
       return applyGeometry(action, to: window ?? Accessibility.focusedWindow(), label: label)
 
+    case .byOrientation(let landscape, let portrait):
+      let target = window ?? Accessibility.focusedWindow()
+      let portraitScreen = target?.frame.flatMap { Screens.current().screen(containing: $0)?.isPortrait } ?? false
+      return perform(portraitScreen ? portrait : landscape, on: target, label: label, chainKey: chainKey)
+
     case .chain(let actions):
       guard !actions.isEmpty else { return false }
       let key = chainKey ?? String(action.hashValue)
@@ -152,6 +157,13 @@ final class ActionRunner {
       let target = try FrameCalculator.targetFrame(for: action, in: context).integral
       if record { pushUndo(window, frame) }
       guard window.setFrame(target) else { return fail("\(window.app?.localizedName ?? "The app") didn't allow moving that window") }
+      // Apps with minimum or stepped sizes may not take the requested size; re-anchor using the size
+      // the window actually took (keeps bottom/right placements flush with the screen edge).
+      if let actual = window.frame?.size, abs(actual.width - target.width) > 1 || abs(actual.height - target.height) > 1,
+        let origin = try? FrameCalculator.targetOrigin(for: action, in: context, actualSize: actual)
+      {
+        window.setFrame(CGRect(origin: origin, size: actual).integral)
+      }
       report(label ?? SlateSyntax.format(action), window)
       return true
     } catch {

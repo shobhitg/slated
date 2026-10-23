@@ -55,6 +55,10 @@ public enum FrameCalculator {
 
   static func plan(for action: Action, in context: WindowContext) throws -> Plan {
     switch action {
+    case .byOrientation(let landscape, let portrait):
+      let portraitScreen = context.screens.screen(containing: context.frame)?.isPortrait ?? false
+      return try plan(for: portraitScreen ? portrait : landscape, in: context)
+
     case .move(let x, let y, let width, let height, let screen):
       return try movePlan(
         x: { try $0.evaluate(x) }, y: { try $0.evaluate(y) },

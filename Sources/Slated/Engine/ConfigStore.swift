@@ -38,7 +38,13 @@ final class ConfigStore {
   /// configuration stays active and `loadError` explains the problem.
   func load() {
     guard FileManager.default.fileExists(atPath: fileURL.path) else {
-      configuration = SlatedConfiguration()
+      // First run. If the user has a Slate config, it is their default and loads as-is; otherwise
+      // start from the built-in bindings (the same setup, in Slated's own format).
+      let defaults = GeneralSettings()
+      let hasSlateConfig = defaults.slateConfigPaths.contains {
+        FileManager.default.fileExists(atPath: NSString(string: $0).expandingTildeInPath)
+      }
+      configuration = hasSlateConfig ? SlatedConfiguration() : .starter
       loadError = nil
       try? save(configuration)
       return

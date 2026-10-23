@@ -267,6 +267,9 @@ public indirect enum Action: Hashable, Sendable {
   case switchApp
 
   // MARK: Slated extensions (Keyboard Maestro-style actions)
+  /// Runs `landscape` or `portrait` depending on the shape of the window's screen — e.g. thirds
+  /// side by side on a wide display, stacked on a vertical one.
+  case byOrientation(landscape: Action, portrait: Action)
   case insertText(String, method: InsertMethod)
   case openURL(String)
   case keystroke(KeyCombo)
@@ -296,6 +299,7 @@ public indirect enum Action: Hashable, Sendable {
     case .undo: return "undo"
     case .relaunch: return "relaunch"
     case .switchApp: return "switch"
+    case .byOrientation: return "by-orientation"
     case .insertText: return "insert-text"
     case .openURL: return "open-url"
     case .keystroke: return "keystroke"
@@ -306,6 +310,7 @@ public indirect enum Action: Hashable, Sendable {
   public var isWindowGeometry: Bool {
     switch self {
     case .move, .resize, .push, .nudge, .throwWindow, .corner: return true
+    case .byOrientation(let landscape, let portrait): return landscape.isWindowGeometry && portrait.isWindowGeometry
     default: return false
     }
   }
@@ -317,7 +322,7 @@ extension Action: Codable {
   private enum Key: String, CodingKey {
     case op, x, y, width, height, screen, anchor, direction, style, operations, steps, name
     case app, save, stack, all, delete, characters, padding, grids, command, wait, path
-    case text, method, url, keys
+    case text, method, url, keys, landscape, portrait
   }
 
   private struct GridSize: Codable {
@@ -434,6 +439,9 @@ extension Action: Codable {
     case "undo": self = .undo
     case "relaunch": self = .relaunch
     case "switch": self = .switchApp
+    case "by-orientation":
+      self = .byOrientation(
+        landscape: try c.decode(Action.self, forKey: .landscape), portrait: try c.decode(Action.self, forKey: .portrait))
     case "insert-text":
       self = .insertText(
         try required(.text), method: try c.decodeIfPresent(InsertMethod.self, forKey: .method) ?? .auto)
@@ -517,6 +525,9 @@ extension Action: Codable {
       try c.encodeIfPresent(path, forKey: .path)
     case .undo, .relaunch, .switchApp:
       break
+    case .byOrientation(let landscape, let portrait):
+      try c.encode(landscape, forKey: .landscape)
+      try c.encode(portrait, forKey: .portrait)
     case .insertText(let text, let method):
       try c.encode(text, forKey: .text)
       if method != .auto { try c.encode(method, forKey: .method) }
