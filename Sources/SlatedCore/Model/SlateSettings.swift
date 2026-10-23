@@ -96,8 +96,8 @@ public struct SlateSettings: Hashable, Sendable, Codable {
 
   // MARK: Typed accessors (Slate defaults)
 
-  /// When false (Slate's default), operations without an explicit screen still target the window's
-  /// screen; when true, they target the screen under focus as Slate defined it.
+  /// When an operation names a screen that doesn't exist (an index or resolution that matches no
+  /// display), use the window's own screen instead of doing nothing. Slate's default is false.
   public var defaultToCurrentScreen: Bool { bool("defaultToCurrentScreen", default: false) }
   /// `windowSize` or `screenSize`: what `nudge` percentages are relative to.
   public var nudgePercentOf: String { string("nudgePercentOf", default: "screenSize") }
