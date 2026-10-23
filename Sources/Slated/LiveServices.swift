@@ -48,7 +48,24 @@ final class LiveServices: AppServices {
     NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL])
   }
 
+  func revealFile(atPath path: String) {
+    Log.record("ui.reveal_file", ["path": path])
+    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: SlatedPaths.expand(path))])
+  }
+
   func setHotkeysSuspended(_ suspended: Bool) { engine.setSuspended(suspended) }
+
+  func setPaused(_ paused: Bool) {
+    Log.record("ui.pause", ["paused": paused])
+    engine.setPaused(paused)
+  }
+
+  func setHotstringsEnabled(_ enabled: Bool) {
+    Log.record("ui.hotstrings_enabled", ["enabled": enabled])
+    do { try engine.setHotstringsEnabled(enabled) } catch {
+      Log.error("config.save_failed", error.localizedDescription)
+    }
+  }
 
   func setLaunchAtLogin(_ enabled: Bool) throws { try engine.setLaunchAtLogin(enabled) }
 

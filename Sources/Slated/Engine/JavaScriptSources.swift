@@ -65,6 +65,7 @@ final class JavaScriptSources {
       bindings: result.bindings.map {
         SourceBinding(keys: $0.keys, modal: $0.modal, summary: $0.summary, action: $0.target.action)
       },
+      layouts: result.layouts.compactMap(\.staticLayout),
       diagnostics: result.diagnostics)
   }
 

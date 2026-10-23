@@ -102,7 +102,7 @@ final class SlateSourceLoader {
     let loaded = !file.diagnostics.contains { $0.severity == .error } || !file.bindings.isEmpty
     sources.append(
       SlateSource(
-        path: displayPath, kind: .classic, exists: true, loaded: loaded, bindings: summaries,
+        path: displayPath, kind: .classic, exists: true, loaded: loaded, bindings: summaries, layouts: file.layouts,
         diagnostics: file.diagnostics))
   }
 

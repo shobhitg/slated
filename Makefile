@@ -10,7 +10,7 @@ DEV_CERT      := Slated Dev
 SIGN_IDENTITY ?= $(shell security find-identity -p codesigning 2>/dev/null | grep -q '"$(DEV_CERT)"' && echo "$(DEV_CERT)" || echo "-")
 APP           := build/$(APP_NAME).app
 
-.PHONY: all build app run stop install uninstall test smoke test-install check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean
+.PHONY: all build app run stop install uninstall test smoke test-install snapshots check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean
 
 all: app
 
@@ -47,6 +47,11 @@ smoke:
 # app briefly, so it isn't part of `check`.
 test-install:
 	Tests/Installer/run.sh
+
+# Renders every settings pane, onboarding step and the menu bar panel (light and dark) to
+# build/ui-snapshots, with contact sheets. Takes about two minutes.
+snapshots:
+	swift run SlatedUISnapshots build/ui-snapshots
 
 # Everything automated. Run before every commit.
 check: test smoke

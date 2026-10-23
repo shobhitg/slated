@@ -93,22 +93,26 @@ public struct GeneralSettings: Hashable, Sendable {
   public var slateConfigPaths: [String]
   /// Show a small HUD when an operation runs.
   public var showActionHUD: Bool
+  /// Master switch for text expansion; each hotstring's own `enabled` flag is kept as is.
+  public var hotstringsEnabled: Bool
 
   public init(
     launchAtLogin: Bool = false,
     loadSlateConfigs: Bool = true,
     slateConfigPaths: [String] = ["~/.slate.js", "~/.slate"],
-    showActionHUD: Bool = false
+    showActionHUD: Bool = false,
+    hotstringsEnabled: Bool = true
   ) {
     self.launchAtLogin = launchAtLogin
     self.loadSlateConfigs = loadSlateConfigs
     self.slateConfigPaths = slateConfigPaths
     self.showActionHUD = showActionHUD
+    self.hotstringsEnabled = hotstringsEnabled
   }
 }
 
 extension GeneralSettings: Codable {
-  private enum Key: String, CodingKey { case launchAtLogin, loadSlateConfigs, slateConfigPaths, showActionHUD }
+  private enum Key: String, CodingKey { case launchAtLogin, loadSlateConfigs, slateConfigPaths, showActionHUD, hotstringsEnabled }
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: Key.self)
@@ -117,7 +121,8 @@ extension GeneralSettings: Codable {
       launchAtLogin: try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin,
       loadSlateConfigs: try c.decodeIfPresent(Bool.self, forKey: .loadSlateConfigs) ?? d.loadSlateConfigs,
       slateConfigPaths: try c.decodeIfPresent([String].self, forKey: .slateConfigPaths) ?? d.slateConfigPaths,
-      showActionHUD: try c.decodeIfPresent(Bool.self, forKey: .showActionHUD) ?? d.showActionHUD)
+      showActionHUD: try c.decodeIfPresent(Bool.self, forKey: .showActionHUD) ?? d.showActionHUD,
+      hotstringsEnabled: try c.decodeIfPresent(Bool.self, forKey: .hotstringsEnabled) ?? d.hotstringsEnabled)
   }
 }
 

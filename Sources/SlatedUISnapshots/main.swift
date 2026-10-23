@@ -1,0 +1,174 @@
+// Renders Slated's UI with sample data (`PreviewServices`) to PNGs, in light and dark appearance:
+// every settings pane plus empty, first-run and error states, every onboarding step, the menu bar
+// popover and a component gallery. Also writes contact sheets of each run.
+//
+//   swift run SlatedUISnapshots <output-dir> [name-filter] [--scale 1|2]
+//   swift run SlatedUISnapshots --probe [output-dir]     # what can cacheDisplay capture here?
+//
+// Views are hosted in offscreen windows and captured with `cacheDisplay` (see `Renderer` for the
+// setup that makes that faithful on macOS 26). The run fails if any snapshot comes out blank.
+// SNAPSHOT_HEIGHT=1600 renders settings shots taller, to review content below the fold.
+
+import AppKit
+import SlatedCore
+@_spi(Snapshots) import SlatedUI
+import SwiftUI
+
+struct Shot {
+  var name: String
+  /// Height 0 means "as tall as the content wants at this width".
+  var size: CGSize
+  var make: @MainActor () -> AnyView
+}
+
+// MARK: - Arguments
+
+var arguments = Array(CommandLine.arguments.dropFirst())
+var scale: CGFloat = 2
+if let index = arguments.firstIndex(of: "--scale"), index + 1 < arguments.count {
+  scale = CGFloat(Double(arguments[index + 1]) ?? 2)
+  arguments.removeSubrange(index...(index + 1))
+}
+
+let app = NSApplication.shared
+app.setActivationPolicy(.accessory)
+
+if let index = arguments.firstIndex(of: "--probe") {
+  arguments.remove(at: index)
+  let url = arguments.first.map { URL(fileURLWithPath: $0, isDirectory: true) }
+  if let url { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
+  try Probe.run(outputURL: url)
+  exit(0)
+}
+
+guard let outputPath = arguments.first else {
+  FileHandle.standardError.write(
+    Data(
+      "usage: SlatedUISnapshots <output-dir> [name-filter] [--scale 1|2]\n       SlatedUISnapshots --probe [output-dir]\n"
+        .utf8))
+  exit(2)
+}
+let filter = arguments.dropFirst().first
+let outputURL = URL(fileURLWithPath: outputPath, isDirectory: true)
+try FileManager.default.createDirectory(at: outputURL, withIntermediateDirectories: true)
+
+// MARK: - Shots
+
+func settings(
+  _ name: String, scenario: PreviewServices.Scenario = .configured, pane: SettingsPane,
+  configure: @escaping @MainActor (AppModel) -> Void = { _ in }
+) -> Shot {
+  Shot(name: name, size: SlatedUI.settingsWindowSize) {
+    let model = AppModel(services: PreviewServices(scenario: scenario))
+    model.selectedPane = pane
+    configure(model)
+    return AnyView(SlatedUI.makeSettingsView(model: model, layout: .flat))
+  }
+}
+
+func selectBinding(named name: String) -> @MainActor (AppModel) -> Void {
+  { model in
+    if let binding = model.configuration.bindings.first(where: { $0.name == name }) {
+      model.selectedBinding = .slated(binding.id)
+    }
+  }
+}
+
+func selectSourceBinding(summary: String) -> @MainActor (AppModel) -> Void {
+  { model in
+    for source in model.sources {
+      if let binding = source.bindings.first(where: { $0.summary == summary }) {
+        model.selectedBinding = .source(path: source.path, id: binding.id)
+        return
+      }
+    }
+  }
+}
+
+var shots: [Shot] = [
+  settings("settings-overview", pane: .overview),
+  settings("settings-windows", pane: .windows, configure: selectBinding(named: "Left Half")),
+  settings("settings-windows-chain", pane: .windows, configure: selectBinding(named: "Cycle Left")),
+  settings("settings-windows-failed", pane: .windows, configure: selectBinding(named: "Window Hints")),
+  settings("settings-windows-duplicate", pane: .windows, configure: selectBinding(named: "Almost Maximize")),
+  settings("settings-windows-source", pane: .windows, configure: selectSourceBinding(summary: "throw 1 resize")),
+  settings(
+    "settings-windows-javascript", pane: .windows, configure: selectSourceBinding(summary: "JavaScript function")),
+  settings("settings-windows-new", pane: .windows) { model in model.newBinding() },
+  settings("settings-hotstrings", pane: .hotstrings) { model in
+    model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
+  },
+  settings("settings-keyboard", pane: .keyboard),
+  settings("settings-layouts", pane: .layouts) { model in model.selectedLayout = .slated(name: "Coding") },
+  settings("settings-layouts-source", pane: .layouts) { model in
+    if let source = model.sources.first { model.selectedLayout = .source(path: source.path, name: "Meeting") }
+  },
+  settings("settings-slate", pane: .slate),
+  settings("settings-general", pane: .general),
+  settings("settings-about", pane: .about),
+  // Empty, first-run and error states.
+  settings("state-firstrun-overview", scenario: .firstRun, pane: .overview),
+  settings("state-empty-windows", scenario: .empty, pane: .windows),
+  settings("state-empty-hotstrings", scenario: .empty, pane: .hotstrings),
+  settings("state-empty-layouts", scenario: .empty, pane: .layouts),
+  settings("state-empty-slate", scenario: .empty, pane: .slate),
+  settings("state-broken-config", scenario: .brokenConfig, pane: .overview),
+]
+
+for step in OnboardingStep.allCases {
+  shots.append(
+    Shot(name: "onboarding-\(step.rawValue + 1)-\(step)", size: SlatedUI.onboardingWindowSize) {
+      let model = AppModel(services: PreviewServices(scenario: .firstRun))
+      return AnyView(SlatedUI.makeOnboardingView(model: model, step: step))
+    })
+}
+
+for (name, scenario, paused) in [
+  ("menubar", PreviewServices.Scenario.configured, false), ("menubar-firstrun", .firstRun, false),
+  ("menubar-paused", .configured, true),
+] {
+  shots.append(
+    Shot(name: name, size: CGSize(width: SlatedUI.menuBarWidth, height: 0)) {
+      let services = PreviewServices(scenario: scenario)
+      if paused { services.setPaused(true) }
+      let model = AppModel(services: services)
+      return AnyView(SlatedUI.makeMenuBarView(model: model, actions: MenuBarActions(openSettings: {}, quit: {})))
+    })
+}
+
+shots.append(Shot(name: "components", size: CGSize(width: 900, height: 0)) { AnyView(ComponentGallery()) })
+
+// MARK: - Run
+
+let tallHeight = ProcessInfo.processInfo.environment["SNAPSHOT_HEIGHT"].flatMap(Double.init)
+var rendered: [Bool: [(name: String, image: NSBitmapImageRep)]] = [false: [], true: []]
+var blank: [String] = []
+for shot in shots where filter.map({ shot.name.contains($0) }) ?? true {
+  var size = shot.size
+  if size == SlatedUI.settingsWindowSize, let tallHeight { size.height = tallHeight }
+  for dark in [false, true] {
+    let name = "\(shot.name)-\(dark ? "dark" : "light")"
+    let image = Renderer.render(shot.make(), size: size, dark: dark, options: Renderer.Options(scale: scale))
+    let url = outputURL.appendingPathComponent("\(name).png")
+    try Renderer.writePNG(image, to: url)
+    rendered[dark]!.append((name, image))
+    if Renderer.contentFraction(image) < 0.02 {
+      blank.append(name)
+      print("✘ \(url.path) looks blank")
+    } else {
+      print(url.path)
+    }
+  }
+}
+
+for dark in [false, true] {
+  let url = outputURL.appendingPathComponent("contact-sheet-\(dark ? "dark" : "light").png")
+  try ContactSheet.write(rendered[dark]!, columns: 4, cellWidth: 540, to: url)
+}
+
+let count = rendered.values.reduce(0) { $0 + $1.count }
+print("Rendered \(count) snapshots and 2 contact sheets into \(outputURL.path)")
+if !blank.isEmpty {
+  print("\(blank.count) snapshot(s) came out blank. Run with --probe to see what this macOS can capture.")
+  exit(1)
+}

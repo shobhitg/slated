@@ -1,0 +1,130 @@
+import AppKit
+import SwiftUI
+
+/// Entry points for the app target.
+///
+/// Create one `AppModel` with your `AppServices` implementation and share it between all windows:
+///
+/// ```swift
+/// let model = AppModel(services: liveServices)
+///
+/// // Settings (menu bar "Open Settings…"): keep the window around and re-show it.
+/// let settings = SlatedUI.makeSettingsWindow(model: model)
+/// model.selectedPane = .windows           // optional: open a specific pane
+/// settings.makeKeyAndOrderFront(nil); NSApp.activate()
+///
+/// // First run.
+/// let onboarding = SlatedUI.makeOnboardingWindow(model: model) { onboarding.close() }
+///
+/// // Menu bar popover.
+/// popover.contentViewController = SlatedUI.makeMenuBarViewController(
+///   model: model, actions: MenuBarActions(openSettings: showSettings, quit: { NSApp.terminate(nil) }))
+/// popover.behavior = .transient
+/// ```
+///
+/// The `make…View` functions return the bare SwiftUI views for hosting yourself; the window and
+/// view-controller helpers apply the window chrome these views are designed for. Call
+/// `model.saveNow()` before quitting so a pending edit isn't lost.
+@MainActor
+public enum SlatedUI {
+  public static let settingsWindowSize = CGSize(width: 1080, height: 720)
+  public static let onboardingWindowSize = CGSize(width: 680, height: 600)
+  public static let menuBarWidth: CGFloat = 340
+
+  // MARK: Views
+
+  /// The settings window's content: a `NavigationSplitView` of panes. Size it at least 940 × 620.
+  public static func makeSettingsView(model: AppModel) -> some View {
+    SettingsView(model: model)
+  }
+
+  /// The first-run flow. `onFinish` runs when the user completes or skips it; close the window
+  /// there. `openSettings`, if given, adds an "Open Settings" button to the last step.
+  public static func makeOnboardingView(
+    model: AppModel, openSettings: (() -> Void)? = nil, onFinish: @escaping () -> Void
+  ) -> some View {
+    OnboardingView(model: model, openSettings: openSettings, onFinish: onFinish)
+  }
+
+  /// The menu bar popover's content: status, switches, last action and errors, app commands.
+  public static func makeMenuBarView(model: AppModel, actions: MenuBarActions) -> some View {
+    MenuBarView(model: model, actions: actions)
+  }
+
+  // MARK: AppKit hosting
+
+  /// A ready-to-show settings window: transparent title bar with the sidebar running to the top
+  /// (as in System Settings), resizable, frame remembered between launches. Not released on close,
+  /// so keep a reference and show it again.
+  public static func makeSettingsWindow(model: AppModel) -> NSWindow {
+    let controller = NSHostingController(rootView: makeSettingsView(model: model))
+    controller.sizingOptions = [.minSize]
+    let window = NSWindow(contentViewController: controller)
+    window.title = "Slated Settings"
+    window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+    window.titlebarAppearsTransparent = true
+    window.titleVisibility = .hidden
+    window.toolbarStyle = .unified
+    window.isReleasedWhenClosed = false
+    window.setContentSize(settingsWindowSize)
+    window.center()
+    window.setFrameAutosaveName("SlatedSettingsWindow")
+    return window
+  }
+
+  /// A fixed-size, centered onboarding window with no visible title bar.
+  public static func makeOnboardingWindow(
+    model: AppModel, openSettings: (() -> Void)? = nil, onFinish: @escaping () -> Void
+  ) -> NSWindow {
+    let window = NSWindow(
+      contentRect: CGRect(origin: .zero, size: onboardingWindowSize),
+      styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
+    window.contentViewController = NSHostingController(
+      rootView: makeOnboardingView(model: model, openSettings: openSettings, onFinish: onFinish))
+    window.setContentSize(onboardingWindowSize)
+    window.title = "Welcome to Slated"
+    window.titlebarAppearsTransparent = true
+    window.titleVisibility = .hidden
+    window.isMovableByWindowBackground = true
+    window.isReleasedWhenClosed = false
+    window.center()
+    return window
+  }
+
+  /// The menu bar popover's content view controller. Its preferred content size follows the
+  /// SwiftUI content, so the popover resizes as rows appear and disappear.
+  public static func makeMenuBarViewController(model: AppModel, actions: MenuBarActions) -> NSViewController {
+    let controller = NSHostingController(rootView: makeMenuBarView(model: model, actions: actions))
+    controller.sizingOptions = [.preferredContentSize]
+    return controller
+  }
+
+  // MARK: Snapshots
+
+  @_spi(Snapshots) public static func makeSettingsView(model: AppModel, layout: SettingsLayout) -> some View {
+    SettingsView(model: model, layout: layout)
+  }
+
+  @_spi(Snapshots) public static func makeOnboardingView(model: AppModel, step: OnboardingStep) -> some View {
+    OnboardingView(model: model, initialStep: step, openSettings: {}, onFinish: {})
+  }
+}
+
+/// What the menu bar popover asks the app to do.
+public struct MenuBarActions {
+  /// Show (and activate) the settings window.
+  public var openSettings: @MainActor () -> Void
+  /// Quit Slated. Call `model.saveNow()` first.
+  public var quit: @MainActor () -> Void
+  /// Show the onboarding flow again (offered when Accessibility permission is missing). Optional.
+  public var showOnboarding: (@MainActor () -> Void)?
+
+  public init(
+    openSettings: @escaping @MainActor () -> Void, quit: @escaping @MainActor () -> Void,
+    showOnboarding: (@MainActor () -> Void)? = nil
+  ) {
+    self.openSettings = openSettings
+    self.quit = quit
+    self.showOnboarding = showOnboarding
+  }
+}

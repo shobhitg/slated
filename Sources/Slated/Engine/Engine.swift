@@ -21,7 +21,11 @@ final class Engine {
   private(set) var warnings: [String] = []
   private var changeHandlers: [() -> Void] = []
   private var permissionTimer: Timer?
-  private var suspended = false
+  /// "Pause Slated" from the menu bar.
+  private var pausedByUser = false
+  /// While the settings window records a shortcut or the hotstring "try it" field has focus.
+  private var suspendedForRecording = false
+  private var suspended: Bool { pausedByUser || suspendedForRecording }
   private var capsLockRemapped = false
   private var observers: [NSObjectProtocol] = []
   /// Last logged keyboard state ("tap on, hyper on …"), so only changes are logged.
@@ -113,13 +117,29 @@ final class Engine {
 
   /// Pauses every trigger (used while the UI records a shortcut, and by "Pause Slated").
   func setSuspended(_ value: Bool) {
-    guard value != suspended else { return }
-    suspended = value
-    Log.record("hotkeys.suspended", ["suspended": value])
+    guard value != suspendedForRecording else { return }
+    suspendedForRecording = value
+    Log.record("hotkeys.suspended", level: .debug, ["suspended": value, "reason": "recording"])
+    apply()
+  }
+
+  /// "Pause Slated": no hotkeys, Hyper key or hotstrings until resumed. Not persisted.
+  func setPaused(_ value: Bool) {
+    guard value != pausedByUser else { return }
+    pausedByUser = value
+    Log.record(value ? "app.paused" : "app.resumed", level: .notice)
     apply()
   }
 
   var isSuspended: Bool { suspended }
+  var isPaused: Bool { pausedByUser }
+
+  func setHotstringsEnabled(_ enabled: Bool) throws {
+    var config = store.configuration
+    guard config.general.hotstringsEnabled != enabled else { return }
+    config.general.hotstringsEnabled = enabled
+    try save(config)
+  }
 
   // MARK: Applying configuration
 
@@ -194,7 +214,7 @@ final class Engine {
     let trusted = Permissions.isAccessibilityTrusted
     status.accessibilityGranted = trusted
     let wantsHyper = config.keyboard.capsLock == .hyper && !suspended
-    let wantsHotstrings = config.hotstrings.contains(where: \.enabled) && !suspended
+    let wantsHotstrings = config.general.hotstringsEnabled && config.hotstrings.contains(where: \.enabled) && !suspended
 
     var tapFailed = false
     if trusted && allowsKeyboardChanges && (wantsHyper || wantsHotstrings) {
@@ -236,6 +256,8 @@ final class Engine {
 
     status.hyperKeyActive = remap
     status.hotstringsActive = wantsHotstrings && tapRunning
+    status.hotstringsEnabled = config.general.hotstringsEnabled
+    status.paused = pausedByUser
   }
 
   private func checkPermission() {

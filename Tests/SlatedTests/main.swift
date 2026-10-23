@@ -20,6 +20,9 @@ let suites: [Suite] = [
   slateConfigParserTests,
   frameCalculatorTests,
   screenResolverTests,
+  uiActionTests,
+  uiValidationTests,
+  uiModelTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first
