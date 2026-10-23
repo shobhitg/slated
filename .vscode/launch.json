@@ -1,0 +1,44 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:slated}",
+      "name": "Debug Slated",
+      "target": "Slated",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug Slated"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:slated}",
+      "name": "Release Slated",
+      "target": "Slated",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release Slated"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:slated}",
+      "name": "Debug SlatedTests",
+      "target": "SlatedTests",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug SlatedTests"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:slated}",
+      "name": "Release SlatedTests",
+      "target": "SlatedTests",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release SlatedTests"
+    }
+  ]
+}

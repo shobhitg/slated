@@ -8,7 +8,8 @@
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift` | `make test` | JavaScriptCore behavior the script engine depends on: error lines, stacks, exceptions inside callbacks. Fails first if a macOS update changes it. |
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape and portrait screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
-| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited JSON, broken files, unknown operations, duplicate shortcuts. |
+| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited JSON, broken files, unknown operations, duplicate shortcuts. It also checks what lands in the event log, including crash detection. |
+| Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch, confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), uninstall, `--purge`. Launches the app for a few seconds. |
 | UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every settings pane, onboarding step and the menu bar panel to PNGs (light and dark) for review. |
 | Toolchain | `scripts/check-swift-testing.sh` | `make check-swift-testing` | Whether Swift Testing works yet (needs Xcode). |
 | Manual | below | by hand | Things only a real Mac with a keyboard can tell. |
@@ -53,6 +54,13 @@ the knowledge isn't lost.
 
 Run before a release, and after changes to `SlatedSystem` or the app target. Quit Slate.app first;
 for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
+
+**Install**
+- [ ] `./install.sh` on a fresh checkout creates the "Slated Dev" certificate. It installs and
+      launches, and prints "Running: session …".
+- [ ] Running `./install.sh` again quits and replaces the running copy. Accessibility permission is
+      kept, and Caps Lock works between the two runs.
+- [ ] `scripts/logs.py --session last` shows the new build's commit in `app.start`.
 
 **Permission**
 - [ ] First launch asks for Accessibility. After it's enabled in System Settings, the menu says

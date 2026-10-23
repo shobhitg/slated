@@ -21,7 +21,10 @@ if CommandLine.arguments.contains("--smoke") {
     for key in engine.hotkeys.duplicates { print("   duplicate:", key) }
     for warning in engine.warnings { print("warning:", warning) }
     print("accessibility:", status.accessibilityGranted, "hyper:", status.hyperKeyActive, "hotstrings:", status.hotstringsActive)
+    print("log:", Log.fileURL.path)
     engine.shutdown()
+    Diagnostics.markCleanExit()
+    Log.flush()
     exit(0)
   }
   app.run()

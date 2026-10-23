@@ -45,7 +45,26 @@ final class SlateSourceLoader {
     settings = settings.merging(javascript.settings)
     layouts += javascript.layouts
     defaults += javascript.defaults
+    logIfChanged()
     startPolling()
+  }
+
+  private var loggedSignature = ""
+
+  /// One event per source when what was loaded changes (not on every settings save).
+  private func logIfChanged() {
+    let signature = sources.map { "\($0.path)|\($0.loaded)|\($0.bindings.count)|\($0.diagnostics)|\(modificationDates[SlatedPaths.expand($0.path)].map { "\($0)" } ?? "")" }
+      .joined(separator: ";")
+    guard signature != loggedSignature else { return }
+    loggedSignature = signature
+    for source in sources where source.exists {
+      let errors = source.diagnostics.filter { $0.severity == .error }
+      var data: [String: Any] = [
+        "path": source.path, "kind": source.kind.rawValue, "loaded": source.loaded, "bindings": source.bindings.count,
+      ]
+      if !source.diagnostics.isEmpty { data["diagnostics"] = source.diagnostics.map(\.description) }
+      Log.record("slate.loaded", level: errors.isEmpty ? .info : .error, data)
+    }
   }
 
   /// Hotkey entries for every binding the sources define.
@@ -53,8 +72,12 @@ final class SlateSourceLoader {
     let classic = bindings.map { item in
       let binding = item.binding
       let repeats = binding.repeats ?? settings.repeatOnHoldOps.contains(binding.action.name)
-      return HotkeyManager.Entry(keys: binding.keys, modal: binding.modal, repeats: repeats) { [weak self] in
-        self?.runner?.perform(binding.action, chainKey: "\(item.source)#\(binding.id)")
+      let source = (item.source as NSString).abbreviatingWithTildeInPath
+      return HotkeyManager.Entry(keys: binding.keys, modal: binding.modal, repeats: repeats, source: source) {
+        [weak self] in
+        self?.runner?.run(
+          binding.action, chainKey: "\(item.source)#\(binding.id)",
+          trigger: "hotkey \((binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string)", source: source)
       }
     }
     return classic + javascript.entries(settings: settings)

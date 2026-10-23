@@ -10,7 +10,7 @@ DEV_CERT      := Slated Dev
 SIGN_IDENTITY ?= $(shell security find-identity -p codesigning 2>/dev/null | grep -q '"$(DEV_CERT)"' && echo "$(DEV_CERT)" || echo "-")
 APP           := build/$(APP_NAME).app
 
-.PHONY: all build app run stop install test smoke check check-swift-testing fmt lint icon dev-cert reset-permissions logs clean
+.PHONY: all build app run stop install uninstall test smoke test-install check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean
 
 all: app
 
@@ -20,16 +20,20 @@ build:
 app: build
 	scripts/bundle.sh "$(CONFIG)" "$(APP)" "$(BUNDLE_ID)" "$(VERSION)" "$(BUILD_NUMBER)" "$(SIGN_IDENTITY)"
 
-run: app stop
-	open "$(APP)"
+# Debug build installed to ~/Applications and relaunched (same place as `make install`, so there is
+# only ever one Slated.app and the Accessibility permission carries over).
+run:
+	./install.sh --debug
 
 stop:
 	-@pkill -x $(APP_NAME) 2>/dev/null; true
 
-# Release build installed to ~/Applications (a stable place for daily use and launch at login).
+# Release build installed to ~/Applications and relaunched. Run it as often as you like.
 install:
-	$(MAKE) app CONFIG=release APP="$(HOME)/Applications/$(APP_NAME).app"
-	@echo "Installed ~/Applications/$(APP_NAME).app — open it from there."
+	./install.sh
+
+uninstall:
+	./install.sh --uninstall
 
 # Unit, contract and integration tests (Tests/SlatedTests).
 test:
@@ -38,6 +42,11 @@ test:
 # End-to-end: the real app binary against temporary homes and fixture configs (Tests/Smoke).
 smoke:
 	Tests/Smoke/run.sh
+
+# Installs into a throwaway folder, launches, reinstalls, uninstalls (Tests/Installer). Launches the
+# app briefly, so it isn't part of `check`.
+test-install:
+	Tests/Installer/run.sh
 
 # Everything automated. Run before every commit.
 check: test smoke
@@ -64,7 +73,15 @@ dev-cert:
 reset-permissions:
 	tccutil reset Accessibility $(BUNDLE_ID)
 
+# Slated's event log (~/Library/Logs/Slated/slated.log), live. See scripts/logs.py --help for filters.
 logs:
+	scripts/logs.py --follow
+
+log-summary:
+	scripts/logs.py --summary
+
+# The same events in the unified log (as Console.app shows them).
+syslog:
 	log stream --level debug --style compact --predicate 'subsystem == "$(BUNDLE_ID)"'
 
 clean:

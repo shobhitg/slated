@@ -1,15 +1,6 @@
 import Foundation
 import SlatedCore
-import os
 
-/// Loggers; view with `make logs`. Never log keystrokes.
-enum SlatedLog {
-  static let subsystem = Bundle.main.bundleIdentifier ?? "slated"
-  static let app = Logger(subsystem: subsystem, category: "app")
-  static let script = Logger(subsystem: subsystem, category: "script")
-}
-
-let log = SlatedLog.app
 
 /// Loads, saves and watches `~/.config/slated/config.json`.
 final class ConfigStore {
@@ -41,6 +32,9 @@ final class ConfigStore {
       configuration = hasSlateConfig ? SlatedConfiguration() : .starter
       loadError = nil
       try? save(configuration)
+      Log.record(
+        "config.created",
+        ["path": fileURL.path, "from": hasSlateConfig ? "empty (Slate config is the default)" : "starter bindings"])
       return
     }
     do {
@@ -48,9 +42,10 @@ final class ConfigStore {
       configuration = try SlatedConfiguration.decode(from: data)
       lastWritten = data
       loadError = nil
+      Log.record("config.loaded", Self.summary(configuration, path: fileURL.path))
     } catch {
       loadError = "Couldn't read \(fileURL.path): \(Self.describe(error))"
-      log.error("\(self.loadError ?? "", privacy: .public)")
+      Log.error("config.error", loadError ?? "", ["path": fileURL.path])
     }
   }
 
@@ -80,8 +75,17 @@ final class ConfigStore {
 
   private func fileMayHaveChanged() {
     guard let data = try? Data(contentsOf: fileURL), data != lastWritten else { return }
+    Log.record("config.changed_on_disk", ["path": fileURL.path])
     load()
     onExternalChange?()
+  }
+
+  static func summary(_ config: SlatedConfiguration, path: String) -> [String: Any] {
+    [
+      "path": path, "bindings": config.bindings.count, "hotstrings": config.hotstrings.count,
+      "layouts": config.layouts.count, "capsLock": config.keyboard.capsLock.rawValue,
+      "loadSlateConfigs": config.general.loadSlateConfigs,
+    ]
   }
 
   /// Turns decoding errors into something a person can act on.

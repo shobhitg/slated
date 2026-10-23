@@ -25,6 +25,9 @@ expect_output() {  # name, output, expected substring
   fi
 }
 
+# The event log the smoke run wrote under its temporary home.
+log_of() { cat "$1/Library/Logs/Slated/slated.log" 2>/dev/null; }
+
 expect_true() {  # name, command...
   local name="$1"; shift
   if "$@"; then echo "✔ $name"; passed=$((passed + 1)); else echo "✘ $name"; failed=$((failed + 1)); fi
@@ -36,6 +39,11 @@ out=$(smoke "$home")
 expect_output "first run without a Slate config starts from the built-in bindings" "$out" "native: 21 bindings, 0 hotstrings, capsLock: hyper"
 expect_true "first run writes a valid config.json" \
   /usr/bin/python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$home/.config/slated/config.json"
+expect_output "the event log records the start" "$(log_of "$home")" '"event":"app.start"'
+expect_output "the event log records the new config" "$(log_of "$home")" '"event":"config.created"'
+expect_output "the event log records hotkey registration" "$(log_of "$home")" '"event":"hotkeys.registered"'
+expect_output "the event log records a clean quit" "$(log_of "$home")" '"event":"app.quit"'
+expect_true "every log line is valid JSON" /usr/bin/python3 -I -c 'import json,sys; [json.loads(l) for l in open(sys.argv[1])]' "$home/Library/Logs/Slated/slated.log"
 before=$(shasum "$home/.config/slated/config.json")
 out=$(smoke "$home")
 expect_output "second run reuses the existing config" "$out" "native: 21 bindings"
@@ -48,6 +56,7 @@ out=$(smoke "$home")
 expect_output "an existing ~/.slate.js stays the default" "$out" "native: 0 bindings"
 expect_output "~/.slate.js loads all its bindings" "$out" "source: ~/.slate.js loaded 4 bindings"
 expect_output "~/.slate.js bindings are registered as hotkeys" "$out" "hotkeys: 4 registered"
+expect_output "the event log records the Slate file" "$(log_of "$home")" '"bindings":4,"kind":"javascript"'
 
 # 3. A classic ~/.slate file.
 home=$(new_home)
@@ -69,6 +78,7 @@ cp "$FIXTURES/config-broken.json" "$home/.config/slated/config.json"
 out=$(smoke "$home"); status=$?
 expect_output "a broken config.json is reported" "$out" "Couldn't read"
 expect_true "a broken config.json doesn't crash Slated" test "$status" -eq 0
+expect_output "the event log records the config error" "$(log_of "$home")" '"event":"config.error","level":"error"'
 
 # 6. An unknown operation names the operation and where it is.
 home=$(new_home)
@@ -84,6 +94,15 @@ mkdir -p "$home/.config/slated"
 cp "$FIXTURES/config-duplicates.json" "$home/.config/slated/config.json"
 out=$(smoke "$home")
 expect_output "duplicate shortcuts are flagged" "$out" "duplicate"
+expect_output "the event log lists duplicate shortcuts" "$(log_of "$home")" '"duplicates":["ctrl+alt+cmd+f13"]'
+
+# 8. A run that didn't quit cleanly is reported on the next start.
+home=$(new_home)
+smoke "$home" >/dev/null
+mkdir -p "$home/Library/Application Support/Slated"
+echo "deadbeef 0.1.0" > "$home/Library/Application Support/Slated/running"  # as if the last run crashed
+smoke "$home" >/dev/null
+expect_output "a crashed previous run is recorded" "$(log_of "$home")" '"event":"app.previous_run_crashed"'
 
 echo
 echo "$passed passed, $failed failed"

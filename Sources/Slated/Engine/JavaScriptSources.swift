@@ -71,13 +71,22 @@ final class JavaScriptSources {
   func entries(settings: SlateSettings) -> [HotkeyManager.Entry] {
     bindings.map { item in
       let binding = item.binding
-      return HotkeyManager.Entry(keys: binding.keys, modal: binding.modal, repeats: binding.repeats) {
+      let source = binding.file.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? "JavaScript"
+      return HotkeyManager.Entry(keys: binding.keys, modal: binding.modal, repeats: binding.repeats, source: source) {
         [weak self] in
         switch binding.target {
         case .action(let action):
-          self?.runner?.perform(action, chainKey: "js:\(binding.keystroke)")
+          self?.runner?.run(
+            action, chainKey: "js:\(binding.keystroke)", trigger: "hotkey \(binding.keys.string)", source: source)
         case .callback:
+          let start = CFAbsoluteTimeGetCurrent()
           let result = item.engine.invoke(binding)
+          var data: [String: Any] = [
+            "trigger": "hotkey \(binding.keys.string)", "source": source, "function": binding.summary,
+            "ms": (CFAbsoluteTimeGetCurrent() - start) * 1000,
+          ]
+          if !result.diagnostics.isEmpty { data["errors"] = result.diagnostics.map(\.description) }
+          Log.record(result.success ? "script.binding" : "script.binding_failed", level: result.success ? .info : .error, data)
           if !result.diagnostics.isEmpty { self?.onDiagnostics?(result.diagnostics) }
         }
       }
@@ -177,8 +186,7 @@ final class JavaScriptSources {
     }
     let unsupported = events.subtracting(Set(workspace.map(\.0)) + [.screenConfigurationChanged])
     if !unsupported.isEmpty {
-      SlatedLog.script.notice(
-        "Window events aren't delivered yet: \(unsupported.map(\.rawValue).sorted().joined(separator: ", "), privacy: .public)")
+      Log.record("script.unsupported_events", level: .notice, ["events": unsupported.map(\.rawValue).sorted()])
     }
   }
 

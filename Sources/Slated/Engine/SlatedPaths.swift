@@ -2,7 +2,7 @@ import Foundation
 
 /// Where Slated looks for files. `SLATED_HOME` stands in for the home directory, so the smoke tests
 /// can run the real app against temporary homes without touching the user's files.
-enum SlatedPaths {
+nonisolated enum SlatedPaths {
   static var home: String { ProcessInfo.processInfo.environment["SLATED_HOME"] ?? NSHomeDirectory() }
 
   /// Expands a leading `~` to `home`.

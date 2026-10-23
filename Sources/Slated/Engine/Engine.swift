@@ -24,12 +24,20 @@ final class Engine {
   private var suspended = false
   private var capsLockRemapped = false
   private var observers: [NSObjectProtocol] = []
+  /// Last logged keyboard state ("tap on, hyper on …"), so only changes are logged.
+  private var loggedKeyboardState = ""
+  private var loggedWarnings: [String] = []
 
   var configuration: SlatedConfiguration { store.configuration }
   /// False in `--smoke` runs: never install the keyboard tap or remap Caps Lock on the real system.
   var allowsKeyboardChanges = true
 
   func start() {
+    Diagnostics.checkPreviousRun()
+    var startInfo = Diagnostics.build.merging(Diagnostics.system) { a, _ in a }
+    startInfo["accessibility"] = Permissions.isAccessibilityTrusted
+    startInfo["mode"] = allowsKeyboardChanges ? "app" : "smoke"
+    Log.record("app.start", level: .notice, startInfo)
     Accessibility.configure()
     store.load()
     store.onExternalChange = { [weak self] in self?.apply() }
@@ -56,8 +64,11 @@ final class Engine {
     tap.onHotstring = { [weak self] match in self?.expand(match) }
     tap.onHyperHotkey = { [weak self] code, down in
       guard let self, let key = KeyCodes.key(for: code) else { return }
-      hotkeys.trigger(KeyCombo(key: key, modifiers: store.configuration.keyboard.hyperModifiers), phase: down ? .pressed : .released)
+      let combo = KeyCombo(key: key, modifiers: store.configuration.keyboard.hyperModifiers)
+      let bound = hotkeys.trigger(combo, phase: down ? .pressed : .released)
+      if down { Log.record("hyper.combo", level: bound ? .debug : .notice, ["keys": combo.string, "bound": bound]) }
     }
+    tap.onEvent = { event in Log.record("tap.\(event)", level: .notice) }
 
     observeSystem()
     // A mapping left over from a crash would leave Caps Lock dead; adopt it so `applyKeyboard`
@@ -72,6 +83,7 @@ final class Engine {
 
   /// Puts the keyboard back the way it was. Called on quit.
   func shutdown() {
+    Log.record("app.quit", level: .notice, ["capsLockRestored": capsLockRemapped])
     tap.stop()
     if capsLockRemapped { HIDRemapper.setCapsLockRemapped(false) }
     capsLockRemapped = false
@@ -79,12 +91,21 @@ final class Engine {
   }
 
   func reload() {
+    Log.record("config.reload")
     store.load()
     apply()
   }
 
   func save(_ configuration: SlatedConfiguration) throws {
-    try store.save(configuration)
+    let before = store.configuration
+    do {
+      try store.save(configuration)
+    } catch {
+      Log.error("config.save_failed", error.localizedDescription, ["path": store.fileURL.path])
+      throw error
+    }
+    let changes = ConfigDiff.changes(from: before, to: configuration)
+    if !changes.isEmpty { Log.record("config.saved", ["changes": changes]) }
     apply()
   }
 
@@ -92,7 +113,9 @@ final class Engine {
 
   /// Pauses every trigger (used while the UI records a shortcut, and by "Pause Slated").
   func setSuspended(_ value: Bool) {
+    guard value != suspended else { return }
     suspended = value
+    Log.record("hotkeys.suspended", ["suspended": value])
     apply()
   }
 
@@ -117,8 +140,11 @@ final class Engine {
       // Slated's own bindings come first so they win over Slate-file duplicates.
       var entries: [HotkeyManager.Entry] = config.bindings.filter(\.enabled).map { binding in
         let repeats = binding.repeats ?? settings.repeatOnHoldOps.contains(binding.action.name)
-        return HotkeyManager.Entry(keys: binding.keys, modal: binding.modal, repeats: repeats) { [weak self] in
-          self?.runner.perform(binding.action, label: binding.name, chainKey: binding.id.uuidString)
+        return HotkeyManager.Entry(keys: binding.keys, modal: binding.modal, repeats: repeats, source: "Slated") {
+          [weak self] in
+          self?.runner.run(
+            binding.action, label: binding.name, chainKey: binding.id.uuidString,
+            trigger: "hotkey \((binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string)", source: "Slated")
         }
       }
       entries += sources.entries(settings: settings)
@@ -129,6 +155,10 @@ final class Engine {
     }
     applyKeyboard()
     warnings = Self.detectConflicts(hyperWanted: config.keyboard.capsLock == .hyper)
+    if warnings != loggedWarnings {
+      loggedWarnings = warnings
+      if !warnings.isEmpty { Log.record("conflict.detected", level: .notice, ["warnings": warnings]) }
+    }
     status.hotkeys = hotkeys.statuses
     status.lastError = store.loadError
     notify()
@@ -166,8 +196,9 @@ final class Engine {
     let wantsHyper = config.keyboard.capsLock == .hyper && !suspended
     let wantsHotstrings = config.hotstrings.contains(where: \.enabled) && !suspended
 
+    var tapFailed = false
     if trusted && allowsKeyboardChanges && (wantsHyper || wantsHotstrings) {
-      if !tap.isRunning && !tap.start() { log.error("Couldn't start the keyboard event tap") }
+      if !tap.isRunning && !tap.start() { tapFailed = true }
     } else if tap.isRunning {
       tap.stop()
     }
@@ -176,8 +207,21 @@ final class Engine {
     // Only remap Caps Lock while the tap is there to turn F18 into Hyper; otherwise the key
     // would go dead.
     let remap = wantsHyper && tapRunning
+    var remapFailed = false
     if remap != capsLockRemapped {
-      if HIDRemapper.setCapsLockRemapped(remap) { capsLockRemapped = remap }
+      if HIDRemapper.setCapsLockRemapped(remap) { capsLockRemapped = remap } else { remapFailed = true }
+    }
+    let state =
+      "tap \(tapRunning ? "on" : "off"), hyper \(remap ? "on" : "off"), hotstrings \(wantsHotstrings && tapRunning ? "on" : "off")"
+    if state != loggedKeyboardState || tapFailed || remapFailed {
+      loggedKeyboardState = state
+      var data: [String: Any] = [
+        "tap": tapRunning, "hyper": remap, "hotstrings": wantsHotstrings && tapRunning, "wantsHyper": wantsHyper,
+        "wantsHotstrings": wantsHotstrings, "accessibility": trusted,
+      ]
+      if tapFailed { data["error"] = "Couldn't create the keyboard event tap" }
+      if remapFailed { data["error"] = "hidutil couldn't change the Caps Lock mapping" }
+      Log.record("keyboard.state", level: tapFailed || remapFailed ? .error : .info, data)
     }
 
     var options = KeyboardTap.Options()
@@ -197,7 +241,7 @@ final class Engine {
   private func checkPermission() {
     let trusted = Permissions.isAccessibilityTrusted
     guard trusted != status.accessibilityGranted else { return }
-    log.info("Accessibility permission \(trusted ? "granted" : "revoked", privacy: .public)")
+    Log.record("permission.accessibility", level: .notice, ["granted": trusted])
     applyKeyboard()
     notify()
   }
@@ -208,8 +252,17 @@ final class Engine {
     let hotstring = match.hotstring
     let text = HotstringTemplate.expand(hotstring.replacement, clipboard: NSPasteboard.general.string(forType: .string))
     TextInjector.shared.replace(deleting: match.deleteCount, with: text, method: hotstring.method, suffix: match.delimiter)
+    Log.record(
+      "hotstring.expanded",
+      [
+        "trigger": hotstring.trigger, "app": NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown",
+        "method": hotstring.method.rawValue, "fire": hotstring.fire.rawValue, "chars": text.count,
+        "deleted": match.deleteCount,
+      ])
     if let action = hotstring.action {
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.runner.perform(action) }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+        self?.runner.run(action, trigger: "hotstring \(hotstring.trigger)", source: "Slated")
+      }
     }
     status.lastAction = "Expanded \(hotstring.trigger)"
     notify()
@@ -230,6 +283,7 @@ final class Engine {
       center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
         // hidutil mappings and event taps can be reset across sleep; re-assert both.
         MainActor.assumeIsolated {
+          Log.record("system.wake")
           self?.capsLockRemapped = false
           self?.applyKeyboard()
         }
@@ -247,6 +301,7 @@ final class Engine {
       ) { [weak self] _ in
         // Letter keys may now be on different physical keys; re-register hotkeys.
         MainActor.assumeIsolated {
+          Log.record("input_source.changed")
           KeyCodes.invalidateLayout()
           self?.apply()
         }
@@ -257,6 +312,7 @@ final class Engine {
   private func screensChanged() {
     let screens = Screens.current()
     let resolutions = screens.map(\.resolution).sorted()
+    Log.record("display.changed", ["screens": screens.count, "resolutions": resolutions])
     for entry in sources.defaults + store.configuration.defaults {
       let matches: Bool
       switch entry.condition {
@@ -264,11 +320,13 @@ final class Engine {
       case .resolutions(let list): matches = list.sorted() == resolutions
       }
       guard matches else { continue }
-      if runner.layouts[entry.target] != nil || runner.externalLayout?(entry.target) == true {
-        if runner.layouts[entry.target] == nil { break }
-        runner.perform(.layout(name: entry.target))
+      let trigger = "display change (\(screens.count) screens)"
+      if runner.layouts[entry.target] != nil {
+        runner.run(.layout(name: entry.target), trigger: trigger)
+      } else if runner.externalLayout?(entry.target) == true {
+        Log.record("action.done", ["trigger": trigger, "action": "layout \(entry.target)", "source": "JavaScript"])
       } else {
-        runner.perform(.activateSnapshot(name: entry.target, delete: false))
+        runner.run(.activateSnapshot(name: entry.target, delete: false), trigger: trigger)
       }
       break
     }
@@ -322,12 +380,19 @@ final class Engine {
     }
     if skipped.isEmpty { config.general.loadSlateConfigs = false }
     try save(config)
+    Log.record("slate.imported", ["imported": imported, "skipped": skipped])
     return ImportSummary(imported: imported, skipped: skipped)
   }
 
   // MARK: Launch at login
 
   func setLaunchAtLogin(_ enabled: Bool) throws {
-    if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+    do {
+      if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+      Log.record("settings.launch_at_login", ["enabled": enabled])
+    } catch {
+      Log.error("settings.launch_at_login_failed", error.localizedDescription, ["enabled": enabled])
+      throw error
+    }
   }
 }

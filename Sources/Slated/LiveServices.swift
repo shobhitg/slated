@@ -28,13 +28,25 @@ final class LiveServices: AppServices {
       .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
   }
 
-  func requestAccessibilityPermission() { Permissions.requestAccessibility() }
+  func requestAccessibilityPermission() {
+    Log.record("ui.request_accessibility")
+    Permissions.requestAccessibility()
+  }
 
-  func openAccessibilitySettings() { Permissions.openAccessibilitySettings() }
+  func openAccessibilitySettings() {
+    Log.record("ui.open_accessibility_settings")
+    Permissions.openAccessibilitySettings()
+  }
 
-  func reload() { engine.reload() }
+  func reload() {
+    Log.record("ui.reload")
+    engine.reload()
+  }
 
-  func revealConfigurationFile() { NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL]) }
+  func revealConfigurationFile() {
+    Log.record("ui.reveal_config")
+    NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL])
+  }
 
   func setHotkeysSuspended(_ suspended: Bool) { engine.setSuspended(suspended) }
 

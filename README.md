@@ -22,24 +22,51 @@ usually install other tools for:
 > **Status:** early development. Built for macOS 14+ on Apple Silicon. No releases yet: build from
 > source.
 
-## Getting started
+## Install
 
 Requires the Xcode Command Line Tools (`xcode-select --install`). Xcode itself is optional.
 
 ```sh
 git clone https://github.com/shobhit-aida/slated && cd slated
-make dev-cert   # once: a local signing identity so macOS remembers Slated's permissions
-make run        # build, bundle, sign and launch build/Slated.app
+./install.sh
 ```
 
-On first launch macOS asks you to allow Slated under **System Settings → Privacy & Security →
-Accessibility**. Slated needs that permission to move other apps' windows and to run the Hyper key
-and hotstrings.
+`./install.sh` is safe to run as often as you like; rerun it after every `git pull` or code change.
+Each run:
+1. Builds the code.
+2. Installs `~/Applications/Slated.app`, quitting the running copy cleanly first so Caps Lock is
+   restored.
+3. Relaunches it and checks its log to confirm the new build is the one running.
+
+It signs every build with the same local certificate, created on the first run. That means you
+grant Slated's Accessibility permission once (**System Settings → Privacy & Security →
+Accessibility**), not after every reinstall.
+
+| | |
+|---|---|
+| `./install.sh --check` | Run the test suite first; install only if it passes |
+| `./install.sh --debug` | Debug build, which compiles faster (`make run`) |
+| `./install.sh --uninstall` | Remove the app, keeping config and logs (`--purge` removes those too) |
 
 **Coming from Slate or Karabiner-Elements?**
 - Quit Slate first: both apps want the same shortcuts.
 - If Karabiner-Elements turns Caps Lock into Hyper, either keep using it (Slated's bindings work
   with any Hyper key) or turn that rule off and enable Slated's own Hyper key.
+
+## Logs
+
+Slated records every interaction and its outcome in `~/Library/Logs/Slated/slated.log`, one JSON
+event per line: hotkeys, Hyper combos, hotstring expansions, menu and settings changes, errors,
+permission changes and crashes.
+
+```sh
+make logs                              # follow live
+scripts/logs.py --session last         # everything since the last launch
+scripts/logs.py --errors --since 1h    # problems in the last hour
+make log-summary                       # counts, app starts, recent errors
+```
+
+The same events also appear in Console.app under the subsystem `io.github.shobhit-aida.slated`.
 
 ## Configuration
 
@@ -63,6 +90,8 @@ See [docs/CONFIG.md](docs/CONFIG.md) for the format, every action, and hotstring
 ## Privacy
 
 Hotstrings and the Hyper key work by watching keystrokes system-wide.
+- The log contains shortcut names, hotstring triggers, app names and error messages.
+- It never contains typed text, hotstring replacements or window titles, and it stays on your Mac.
 - Slated keeps only the last few characters in memory to match triggers.
 - It never logs, stores or sends what you type.
 - Like every such tool, it can't see keystrokes while macOS Secure Input is on (password fields).
@@ -71,11 +100,12 @@ Hotstrings and the Hyper key work by watching keystrokes system-wide.
 
 | Command | What it does |
 |---|---|
-| `make run` | Build, bundle into `build/Slated.app`, sign, launch |
+| `make run` | Debug build, installed and relaunched (`./install.sh --debug`) |
 | `make check` | Run every automated test: unit, contract and end-to-end smoke tests (see [docs/TESTING.md](docs/TESTING.md)) |
 | `make test` | Unit and contract tests only (`FILTER=name` to narrow) |
-| `make logs` | Stream Slated's logs |
-| `make install` | Release build into `~/Applications` |
+| `make logs` | Follow Slated's event log |
+| `make install` | Same as `./install.sh` |
+| `make test-install` | Installer test in a throwaway folder (launches the app briefly) |
 | `make fmt` / `make lint` | Format / check with `swift format` |
 | `make reset-permissions` | Make macOS forget Slated's Accessibility permission |
 

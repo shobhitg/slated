@@ -20,15 +20,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       self?.statusItem?.button?.image?.isTemplate = true
     }
     handleTerminationSignals()
-    if !Permissions.isAccessibilityTrusted {
-      // First run (or permission revoked): explain and ask.
+    // First run (or permission revoked): ask. Not in test runs (SLATED_HOME set), which mustn't put
+    // system dialogs on screen.
+    if !Permissions.isAccessibilityTrusted && ProcessInfo.processInfo.environment["SLATED_HOME"] == nil {
+      Log.record("permission.prompt_shown")
       Permissions.requestAccessibility()
     }
-    log.info("Slated started")
   }
 
   func applicationWillTerminate(_ notification: Notification) {
     engine.shutdown()
+    Diagnostics.markCleanExit()
+    Log.flush()
   }
 
   /// `make run` and logout send SIGTERM; route it through normal termination so Caps Lock is
@@ -36,7 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func handleTerminationSignals() {
     signal(SIGTERM, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-    source.setEventHandler { NSApp.terminate(nil) }
+    source.setEventHandler {
+      Log.record("app.sigterm")
+      NSApp.terminate(nil)
+    }
     source.resume()
     signalSource = source
   }
@@ -98,21 +104,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc private func grantAccess() {
+    Log.record("menu.grant_access")
     Permissions.requestAccessibility()
     Permissions.openAccessibilitySettings()
   }
 
   @objc private func toggleHyper() {
+    Log.record("menu.toggle_hyper", ["enable": engine.configuration.keyboard.capsLock != .hyper])
     var config = engine.configuration
     config.keyboard.capsLock = config.keyboard.capsLock == .hyper ? .off : .hyper
     try? engine.save(config)
   }
 
-  @objc private func togglePause() { engine.setSuspended(!engine.isSuspended) }
+  @objc private func togglePause() {
+    Log.record("menu.toggle_pause", ["pause": !engine.isSuspended])
+    engine.setSuspended(!engine.isSuspended)
+  }
 
-  @objc private func reload() { engine.reload() }
+  @objc private func reload() {
+    Log.record("menu.reload")
+    engine.reload()
+  }
 
   @objc private func importSlate() {
+    Log.record("menu.import_slate")
     let alert = NSAlert()
     do {
       let summary = try engine.importSlateConfigs()
@@ -122,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
         : "These need JavaScript and still run from your Slate file:\n" + summary.skipped.joined(separator: "\n")
     } catch {
+      Log.error("slate.import_failed", error.localizedDescription)
       alert.messageText = "Couldn't import"
       alert.informativeText = error.localizedDescription
     }
@@ -129,5 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     alert.runModal()
   }
 
-  @objc private func openConfig() { NSWorkspace.shared.open(engine.store.fileURL) }
+  @objc private func openConfig() {
+    Log.record("menu.open_config")
+    NSWorkspace.shared.open(engine.store.fileURL)
+  }
 }

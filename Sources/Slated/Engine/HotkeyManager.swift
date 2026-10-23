@@ -12,6 +12,8 @@ final class HotkeyManager {
     var keys: KeyCombo
     var modal: ModalKey?
     var repeats: Bool
+    /// Where the binding is defined ("Slated", "~/.slate.js", …), for logs.
+    var source: String = "Slated"
     var run: () -> Void
   }
 
@@ -52,6 +54,7 @@ final class HotkeyManager {
       self.direct[entry.keys] = entry
       register(entry.keys, id: entry.id) { [weak self] phase in self?.handle(entry, phase: phase) }
     }
+    defer { logRegistration() }
     for modalKeys in modalEntries.keys {
       register(modalKeys, id: nil) { [weak self] phase in
         guard phase == .pressed else { return }
@@ -74,6 +77,25 @@ final class HotkeyManager {
     return true
   }
 
+  private var lastLoggedRegistration = ""
+
+  /// Logs a summary when the set of registered hotkeys or their problems change (applying the config
+  /// happens on every settings save, so unchanged registrations aren't repeated).
+  private func logRegistration() {
+    let failed = statuses.compactMap { key, status -> String? in
+      if case .failed(let reason) = status { return "\(key): \(reason)" }
+      return nil
+    }.sorted()
+    let active = statuses.values.filter { $0 == .active }.count
+    let signature = "\(active)|\(failed)|\(duplicates)"
+    guard signature != lastLoggedRegistration else { return }
+    lastLoggedRegistration = signature
+    var data: [String: Any] = ["active": active, "total": statuses.count]
+    if !failed.isEmpty { data["failed"] = failed }
+    if !duplicates.isEmpty { data["duplicates"] = duplicates }
+    Log.record("hotkeys.registered", level: failed.isEmpty ? .info : .error, data)
+  }
+
   func unregisterAll() {
     exitModal()
     for token in tokens { HotKeyCenter.shared.unregister(token) }
@@ -89,7 +111,6 @@ final class HotkeyManager {
       if let id { statuses[id] = .active }
     } catch {
       if let id { statuses[id] = .failed(error.description) }
-      log.error("Hotkey \(keys.string, privacy: .public): \(error.description, privacy: .public)")
     }
   }
 
@@ -98,6 +119,8 @@ final class HotkeyManager {
     case .pressed:
       entry.run()
       if entry.repeats { startRepeating(entry.run) }
+    case .released where repeatAction != nil:
+      stopRepeating()
     case .released:
       stopRepeating()
     }
@@ -149,6 +172,7 @@ final class HotkeyManager {
     }) {
       modalTokens.append(token)
     }
+    Log.record("modal.entered", ["keys": modalKeys.string])
     onModalChange?(modalKeys)
   }
 
@@ -157,6 +181,7 @@ final class HotkeyManager {
     for token in modalTokens { HotKeyCenter.shared.unregister(token) }
     modalTokens.removeAll()
     activeModal = nil
+    Log.record("modal.exited")
     onModalChange?(nil)
   }
 }

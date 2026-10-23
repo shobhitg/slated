@@ -18,11 +18,38 @@ final class ActionRunner {
   var externalLayout: ((String) -> Bool)?
 
   private var undoStack: [(window: AXWindow, frame: CGRect)] = []
+  /// The app the current action touched and why it failed, for the event log.
+  private var lastApp: String?
+  private var lastFailure: String?
   private var chains: [String: (next: Int, window: AXWindow?)] = [:]
   private let snapshots = SnapshotStore()
 
-  /// Runs `action`. Window actions target `window`, or the focused window when nil.
-  /// `chainKey` identifies a binding so each `chain` cycles independently.
+  /// Runs `action` for `trigger` (e.g. "hotkey hyper+a") and logs one event with the outcome: what
+  /// ran, on which app, how long it took, and the error if it failed.
+  @discardableResult
+  func run(
+    _ action: Action, on window: AXWindow? = nil, label: String? = nil, chainKey: String? = nil, trigger: String,
+    source: String? = nil
+  ) -> Bool {
+    let start = CFAbsoluteTimeGetCurrent()
+    lastApp = nil
+    lastFailure = nil
+    let ok = perform(action, on: window, label: label, chainKey: chainKey)
+    var data: [String: Any] = [
+      "trigger": trigger, "action": String(SlateSyntax.format(action).prefix(200)),
+      "ms": (CFAbsoluteTimeGetCurrent() - start) * 1000,
+    ]
+    data["label"] = label
+    data["source"] = source
+    data["app"] = lastApp ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    data["error"] = lastFailure
+    Log.record(ok ? "action.done" : "action.failed", level: ok ? .info : .error, data)
+    return ok
+  }
+
+  /// Runs `action` without logging (nested steps of chains, sequences and layouts; use `run` at the
+  /// top level). Window actions target `window`, or the focused window when nil. `chainKey`
+  /// identifies a binding so each `chain` cycles independently.
   @discardableResult
   func perform(_ action: Action, on window: AXWindow? = nil, label: String? = nil, chainKey: String? = nil) -> Bool {
     switch action {
@@ -323,12 +350,13 @@ final class ActionRunner {
 
   private func report(_ what: String, _ window: AXWindow? = nil) {
     let app = window?.app?.localizedName
+    if let bundleID = window?.app?.bundleIdentifier { lastApp = bundleID }
     onPerformed?(app.map { "\(what) · \($0)" } ?? what)
   }
 
   @discardableResult
   private func fail(_ message: String) -> Bool {
-    log.error("\(message, privacy: .public)")
+    lastFailure = lastFailure.map { "\($0); \(message)" } ?? message
     onError?(message)
     return false
   }

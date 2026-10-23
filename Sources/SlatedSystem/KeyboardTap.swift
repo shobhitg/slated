@@ -35,6 +35,9 @@ public final class KeyboardTap: @unchecked Sendable {
   /// These are handled here rather than by Carbon so they work even if the window server matched
   /// hotkeys before our injected modifiers.
   public var onHyperHotkey: (@MainActor @Sendable (UInt16, Bool) -> Void)?
+  /// Runs on the main actor for tap lifecycle events worth logging: "reenabled_after_timeout",
+  /// "reenabled_after_user_input" (macOS disables slow taps), "started", "stopped".
+  public var onEvent: (@MainActor @Sendable (String) -> Void)?
 
   private let lock = NSLock()
   private var options = Options()
@@ -81,7 +84,13 @@ public final class KeyboardTap: @unchecked Sendable {
     lock.withLock { machPort = port }
     thread.start()
     ready.wait()
+    notify("started")
     return true
+  }
+
+  private func notify(_ event: String) {
+    guard let handler = onEvent else { return }
+    DispatchQueue.main.async { MainActor.assumeIsolated { handler(event) } }
   }
 
   public func stop() {
@@ -99,6 +108,7 @@ public final class KeyboardTap: @unchecked Sendable {
       CFMachPortInvalidate(port)
     }
     if let loop { CFRunLoopStop(loop) }
+    if port != nil { notify("stopped") }
   }
 
   /// `hyperHotkeys`: key codes bound with exactly the Hyper modifiers.
@@ -125,6 +135,7 @@ public final class KeyboardTap: @unchecked Sendable {
     let pass = Unmanaged.passUnretained(event)
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
       if let port = lock.withLock({ machPort }) { CGEvent.tapEnable(tap: port, enable: true) }
+      notify(type == .tapDisabledByTimeout ? "reenabled_after_timeout" : "reenabled_after_user_input")
       return pass
     }
     if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker { return pass }

@@ -14,6 +14,13 @@ cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$APP/Contents/Info.plist"
+# Identify the exact iteration in logs and the About pane: commit (+ "-dirty" for uncommitted
+# changes) and build time.
+COMMIT="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if [ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ]; then COMMIT="$COMMIT-dirty"; fi
+plutil -replace SlatedGitCommit -string "$COMMIT" "$APP/Contents/Info.plist"
+plutil -replace SlatedBuildDate -string "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$APP/Contents/Info.plist"
+plutil -replace SlatedBuildConfiguration -string "$CONFIG" "$APP/Contents/Info.plist"
 if [ -f "$ROOT/Resources/AppIcon.icns" ]; then cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/"; fi
 for bundle in "$BIN_DIR"/*.bundle; do
   if [ -e "$bundle" ]; then cp -R "$bundle" "$APP/Contents/Resources/"; fi
@@ -24,4 +31,4 @@ if [ "$IDENTITY" = "-" ]; then
   echo "         Run 'make dev-cert' once to create a stable local signing identity." >&2
 fi
 codesign --force --sign "$IDENTITY" "$APP"
-echo "Built $APP ($BUNDLE_ID $VERSION ($BUILD_NUMBER), signed: $IDENTITY)"
+echo "Built $APP ($BUNDLE_ID $VERSION ($BUILD_NUMBER) $COMMIT, $CONFIG, signed: $IDENTITY)"

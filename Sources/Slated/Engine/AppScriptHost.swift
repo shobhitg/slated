@@ -69,7 +69,7 @@ final class AppScriptHost: ScriptHost {
   }
 
   func perform(_ action: Action, on handle: WindowHandle?) -> Bool {
-    runner?.perform(action, on: handle.flatMap(window), chainKey: "js:\(action.hashValue)") ?? false
+    runner?.run(action, on: handle.flatMap(window), chainKey: "js:\(action.hashValue)", trigger: "script") ?? false
   }
 
   func runShell(_ command: String, wait: Bool, path: String?) -> String? {
@@ -87,7 +87,7 @@ final class AppScriptHost: ScriptHost {
   }
 
   func log(_ message: String) {
-    SlatedLog.script.info("\(message, privacy: .public)")
+    Log.record("script.log", ["message": String(message.prefix(500))])
   }
 
   private static func info(_ app: NSRunningApplication) -> ScriptAppInfo {

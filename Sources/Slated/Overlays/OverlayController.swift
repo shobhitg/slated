@@ -35,14 +35,20 @@ final class OverlayController: OverlayPresenting {
       panel.contentView = NSHostingView(rootView: HintBubble(letter: letter, icon: icon))
       panels.append(panel)
     }
-    guard !panels.isEmpty else { return }
+    guard !panels.isEmpty else {
+      Log.record("hints.none", level: .notice)
+      return
+    }
+    Log.record("hints.shown", ["windows": panels.count])
     present { [weak self] event in
       guard let self else { return }
       let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
       if let window = self.hintTargets[key] {
+        Log.record("hints.picked", ["app": window.app?.bundleIdentifier ?? "unknown"])
         self.dismiss(restoreFocus: false)
         window.focus()
       } else {
+        Log.record("hints.dismissed")
         self.dismiss()
       }
     }
@@ -71,6 +77,7 @@ final class OverlayController: OverlayPresenting {
         screen: screen, columns: columns, rows: rows, padding: CGFloat(padding), windowFrame: windowFrame,
         title: "\(window.app?.localizedName ?? "Window") — \(columns)×\(rows)")
       view.onSelect = { [weak self] target in
+        Log.record("grid.placed", ["app": window.app?.bundleIdentifier ?? "unknown", "frame": "\(target)"])
         self?.dismiss(restoreFocus: false)
         self?.place?(window, target)
         window.focus()
@@ -78,7 +85,11 @@ final class OverlayController: OverlayPresenting {
       panel.contentView = Self.wrapInMaterial(view)
       panels.append(panel)
     }
-    present { [weak self] _ in self?.dismiss() }
+    Log.record("grid.shown", ["screens": panels.count, "app": window.app?.bundleIdentifier ?? "unknown"])
+    present { [weak self] _ in
+      Log.record("grid.dismissed")
+      self?.dismiss()
+    }
   }
 
   // MARK: Plumbing

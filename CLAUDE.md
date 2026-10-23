@@ -73,12 +73,25 @@ Dependency rules: `SlatedCore` imports nothing above it. `SlatedUI` and `SlatedS
   - behaviors only a real Mac can show go on the manual checklist.
 - Concurrency: UI and app code is `@MainActor` (default isolation in `Slated` and `SlatedUI`). The
   event tap runs on its own thread; hand work to the main actor explicitly.
-- Logging: `os.Logger(subsystem: <bundle id>, category: ...)`; view with `make logs`. Never log keys.
+- **Logging:** use `Log.record("area.event", [...])` (`Sources/Slated/Logging/EventLog.swift`). It
+  writes JSON Lines to `~/Library/Logs/Slated/slated.log` and mirrors to the unified log.
+  - Every user interaction and its outcome gets an event: hotkey → `action.done`/`action.failed` via
+    `ActionRunner.run`, hotstrings, menu (`menu.*`), settings (`ui.*`, `config.saved` with a diff),
+    and errors at `.error` level.
+  - Log state changes, not repeats.
+  - Never log typed text, hotstring replacements or window titles.
+- **Debugging a report from the user: read the log first.** Start with
+  `scripts/logs.py --session last`, `--errors --since 1h`, or `--summary`.
+  - Each `app.start` records the version, commit (`-dirty` = uncommitted changes), signing and
+    Accessibility state.
+  - `app.previous_run_crashed` lists macOS crash reports.
 - User-facing text: plain, friendly, specific. Errors say what happened and what to do.
 
 ## Commands
 
-- `make app` / `make run` — build, bundle into `build/Slated.app`, sign, (and launch)
+- `./install.sh` (`make install`) — build, sign with "Slated Dev", replace `~/Applications/Slated.app`,
+  relaunch, verify via the log. Run it after every change; `--debug` (`make run`) builds faster.
+- `make logs` / `scripts/logs.py` — read the event log; `make test-install` — installer test
 - `make check` — all automated tests (`make test [FILTER=name]` for unit/contract, `make smoke` end-to-end)
 - `make dev-cert` — one-time self-signed signing identity so permissions survive rebuilds
 - `make reset-permissions`, `make logs`, `make fmt`, `make lint`, `make clean`
