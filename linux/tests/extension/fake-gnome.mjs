@@ -124,6 +124,9 @@ export class FakeMetaWindow {
   get_maximized() {
     return this.maximized;
   }
+  get_monitor() {
+    return this.monitor ?? 0;
+  }
   unmaximize(flags) {
     if (flags === undefined) throw new Error('Too few arguments to method Meta.Window.unmaximize');
     this.maximized = 0;
@@ -539,6 +542,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       get_default_seat: () => ({
         create_virtual_device: () => ({
           notify_keyval: (time, keysym, keyState) => state.typed.push({keysym, pressed: keyState === 1}),
+          notify_key: (time, code, keyState) => state.typed.push({code, pressed: keyState === 1}),
           run_dispose() {},
         }),
       }),
@@ -547,6 +551,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   state.chrome = new Set();
   state.modal = [];
   state.typed = [];
+  state.inputSource = {type: 'xkb', id: 'us', xkbId: 'us'};
   const uiGroup = new FakeActor();
 
   const global = {
@@ -621,6 +626,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'gi://Clutter': Clutter,
       'resource:///org/gnome/shell/ui/main.js': Main,
       'resource:///org/gnome/shell/misc/config.js': {PACKAGE_VERSION: '47.1'},
+      'resource:///org/gnome/shell/ui/status/keyboard.js': {getInputSourceManager: () => ({currentSource: state.inputSource})},
     },
 
     /** Adds a window (on top of the stack) and focuses it. */

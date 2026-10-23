@@ -5,11 +5,13 @@ import GLib from 'gi://GLib';
 import Shell from 'gi://Shell';
 
 import {currentScreens} from './screens.js';
-import {openURL, runShellCommand} from './system.js';
+import {openURL, startShellCommand} from './system.js';
 import * as Windows from './windows.js';
 
 /** How long to wait before checking where a moved window ended up (Wayland apps resize asynchronously). */
 const SETTLE_MS = 150;
+/** The longest a `shell` action with `wait` holds up the steps after it (the command keeps running). */
+const SHELL_WAIT_LIMIT_MS = 10_000;
 
 export class GnomePlatform {
   constructor({timers, input, home}) {
@@ -43,6 +45,14 @@ export class GnomePlatform {
   setFrame(window, rect) {
     try {
       return Windows.moveResize(window, rect);
+    } catch {
+      return false;
+    }
+  }
+
+  isMaximizedOrFullscreen(window) {
+    try {
+      return Windows.isMaximized(window) || window.is_fullscreen();
     } catch {
       return false;
     }
@@ -126,8 +136,15 @@ export class GnomePlatform {
 
   // --- Everything else ---------------------------------------------------------------------------
 
+  /**
+   * Starts a command. With `wait`, also returns `wait`: a promise that settles when it exits or after
+   * SHELL_WAIT_LIMIT_MS, whichever comes first (never on its own after disable: timers are cleared).
+   */
   runShell(command, {wait = false, path = null} = {}) {
-    return runShellCommand(command, {wait, path, home: this._home});
+    const result = startShellCommand(command, {path, home: this._home});
+    if (!result.ok || !wait) return {ok: result.ok, error: result.error};
+    const limit = new Promise((resolve) => this._timers.timeout(SHELL_WAIT_LIMIT_MS, resolve));
+    return {ok: true, wait: Promise.race([result.exited, limit])};
   }
 
   openURL(url) {

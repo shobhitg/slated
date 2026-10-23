@@ -166,31 +166,42 @@ test('the HUD shows what just happened near the bottom of the primary screen', (
   assert.equal(hud.visible, false, 'faded out (instantly in the fake)');
 });
 
+/** "+k48" = keysym 0x48 pressed, "-c29" = evdev code 29 released. */
+const presses = () => gnome.state.typed.map((k) => `${k.pressed ? '+' : '-'}${k.code !== undefined ? `c${k.code}` : `k${k.keysym.toString(16)}`}`);
+
 test('insert-text types ASCII through the virtual keyboard and pastes the rest', () => {
   twoWindows();
   assert.deepEqual(dbus.RunAction('{"op":"insert-text","text":"Hi","method":"type"}'), [true, '']);
   gnome.loop.advance(50);
-  assert.deepEqual(
-    gnome.state.typed.map((k) => `${k.pressed ? '+' : '-'}${k.keysym.toString(16)}`),
-    ['+48', '-48', '+69', '-69'],
-  );
+  assert.deepEqual(presses(), ['+k48', '-k48', '+k69', '-k69']);
   gnome.state.typed = [];
   assert.deepEqual(dbus.RunAction('{"op":"insert-text","text":"¯\\\\_(ツ)_/¯"}'), [true, '']);
   assert.equal(gnome.state.clipboard, '¯\\_(ツ)_/¯');
-  assert.deepEqual(
-    gnome.state.typed.map((k) => `${k.pressed ? '+' : '-'}${k.keysym.toString(16)}`),
-    ['+ffe3', '+76', '-76', '-ffe3'],
-    'Ctrl+V',
-  );
+  assert.deepEqual(presses(), ['+c29', '+k76', '-k76', '-c29'], 'Ctrl+V');
   gnome.loop.advance(500);
   assert.equal(gnome.state.clipboard, 'previous clipboard', 'clipboard restored');
+});
+
+test('on a non-Latin layout text is pasted and Ctrl+V goes by key position', () => {
+  twoWindows();
+  gnome.state.inputSource = {type: 'xkb', id: 'ru', xkbId: 'ru'};
+  try {
+    assert.deepEqual(dbus.RunAction('{"op":"insert-text","text":"Hi","method":"type"}'), [true, '']);
+    assert.equal(gnome.state.clipboard, 'Hi');
+    assert.deepEqual(presses(), ['+c29', '+c47', '-c47', '-c29']);
+    const [fallback] = logEvents('text.paste_fallback');
+    assert.match(fallback.data.reason, /no Latin letters/);
+    assert.equal(fallback.data.chars, 2);
+  } finally {
+    gnome.state.inputSource = {type: 'xkb', id: 'us', xkbId: 'us'};
+  }
 });
 
 test('keystroke presses the combo with its modifiers', () => {
   twoWindows();
   assert.deepEqual(dbus.RunAction('{"op":"keystroke","keys":"cmd+shift+4"}'), [true, '']);
-  assert.deepEqual(
-    gnome.state.typed.map((k) => `${k.pressed ? '+' : '-'}${k.keysym.toString(16)}`),
-    ['+ffe1', '+ffeb', '+34', '-34', '-ffeb', '-ffe1'],
-  );
+  assert.deepEqual(presses(), ['+c42', '+c125', '+k34', '-k34', '-c125', '-c42']);
+  gnome.state.typed = [];
+  assert.deepEqual(dbus.RunAction('{"op":"keystroke","keys":"ctrl+left"}'), [true, '']);
+  assert.deepEqual(presses(), ['+c29', '+c105', '-c105', '-c29']);
 });

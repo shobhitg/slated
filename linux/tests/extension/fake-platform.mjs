@@ -4,13 +4,16 @@
 import {screens as defaultScreens} from './fixtures.mjs';
 
 export class FakeWindow {
-  constructor({id, app, title = '', frame, minimized = false, minSize = null}) {
+  constructor({id, app, title = '', frame, minimized = false, minSize = null, maximized = false, restoreSize = null}) {
     this.id = id;
     this.app = app;
     this.title = title;
     this.frame = {...frame};
     this.minimized = minimized;
     this.minSize = minSize;
+    /** A maximized window first settles at `restoreSize` when moved (like a Wayland app leaving maximized). */
+    this.maximized = maximized;
+    this.restoreSize = restoreSize;
     this.closed = false;
   }
 }
@@ -25,6 +28,7 @@ export class FakePlatform {
     this.settles = [];
     this.calls = [];
     this.refuseMoves = new Set();
+    this.pendingShells = [];
   }
 
   now() {
@@ -46,11 +50,21 @@ export class FakePlatform {
 
   setFrame(window, rect) {
     if (this.refuseMoves.has(window.id)) return false;
+    this.calls.push(['setFrame', window.id, {...rect}]);
+    if (window.maximized && window.restoreSize) {
+      window.maximized = false;
+      window.frame = {x: rect.x, y: rect.y, ...window.restoreSize};
+      return true;
+    }
+    window.maximized = false;
     const width = window.minSize ? Math.max(rect.width, window.minSize.width) : rect.width;
     const height = window.minSize ? Math.max(rect.height, window.minSize.height) : rect.height;
     window.frame = {x: rect.x, y: rect.y, width, height};
-    this.calls.push(['setFrame', window.id, {...rect}]);
     return true;
+  }
+
+  isMaximizedOrFullscreen(window) {
+    return !!window.maximized;
   }
 
   afterSettle(window, callback) {
@@ -136,9 +150,20 @@ export class FakePlatform {
     this.calls.push(['activate', app.id]);
   }
 
+  /** Waiting commands stay pending until the test calls `finishShells()`. */
   runShell(command, options) {
     this.calls.push(['shell', command, options]);
-    return command === 'false' ? {ok: false, error: 'exit status 1'} : {ok: true};
+    if (command === 'false') return {ok: false, error: 'exit status 1'};
+    if (!options.wait) return {ok: true};
+    return {ok: true, wait: new Promise((resolve) => this.pendingShells.push(resolve))};
+  }
+
+  /** Lets waiting shell commands "exit"; resolves once the continuations ran. */
+  async finishShells() {
+    const pending = this.pendingShells;
+    this.pendingShells = [];
+    for (const resolve of pending) resolve();
+    await new Promise((resolve) => setImmediate(resolve));
   }
 
   openURL(url) {

@@ -8,6 +8,8 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {intersectionArea} from './util.js';
+
 const MANAGED_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowType.MODAL_DIALOG, Meta.WindowType.UTILITY];
 
 /** Windows Slated arranges: regular windows and dialogs, not panels, menus or the desktop. */
@@ -71,12 +73,28 @@ export function moveResize(window, rect) {
   if (!allowsMove(window)) return false;
   if (window.is_fullscreen()) window.unmake_fullscreen();
   unmaximize(window);
-  const x = Math.round(rect.x);
-  const y = Math.round(rect.y);
-  // Moving first helps windows that change monitors (scale changes); then the full frame.
-  window.move_frame(true, x, y);
-  window.move_resize_frame(true, x, y, Math.round(rect.width), Math.round(rect.height));
+  const target = {x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height)};
+  // Moving first helps windows that change monitors (scales can differ). Otherwise skip it: on Wayland
+  // it would send an extra configure with the window's old (e.g. maximized) size.
+  const monitor = monitorIndexFor(target);
+  if (monitor >= 0 && monitor !== window.get_monitor()) window.move_frame(true, target.x, target.y);
+  window.move_resize_frame(true, target.x, target.y, target.width, target.height);
   return true;
+}
+
+/** The monitor holding most of `rect`, or -1. */
+function monitorIndexFor(rect) {
+  const display = global.display;
+  let best = -1;
+  let bestArea = 0;
+  for (let i = 0; i < display.get_n_monitors(); i++) {
+    const area = intersectionArea(display.get_monitor_geometry(i), rect);
+    if (area > bestArea) {
+      best = i;
+      bestArea = area;
+    }
+  }
+  return best;
 }
 
 export function activate(window) {

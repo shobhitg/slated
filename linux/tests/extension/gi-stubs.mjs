@@ -17,6 +17,7 @@ const NAMED_EXPORTS = {
     'export const Extension = fake?.Extension ?? class Extension { constructor(metadata) { this.metadata = metadata; } };',
   'resource:///org/gnome/shell/misc/config.js':
     "export const PACKAGE_VERSION = fake?.PACKAGE_VERSION ?? '47.0';\nexport const PACKAGE_NAME = 'gnome-shell';",
+  'resource:///org/gnome/shell/ui/status/keyboard.js': 'export const getInputSourceManager = fake?.getInputSourceManager ?? stub;',
   'resource:///org/gnome/shell/ui/main.js': [
     'wm',
     'layoutManager',

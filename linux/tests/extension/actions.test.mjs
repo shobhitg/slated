@@ -373,6 +373,61 @@ test('the undo stack honours undoMaxStackSize', () => {
   assert.deepEqual(platform.windows[0].frame, {x: 0, y: 32, width: 960, height: 1048});
 });
 
+test('a waiting shell step holds the rest of a sequence until the command exits, without blocking', async () => {
+  const {platform, log, runner} = setup();
+  const sequence = {
+    op: 'sequence',
+    steps: [
+      {action: {op: 'shell', command: 'make', wait: true}, keepWindow: false},
+      {action: leftHalf, keepWindow: true},
+    ],
+  };
+  assert.equal(runner.run(sequence, {trigger: 'hotkey hyper+m', source: 'Slated'}), true);
+  assert.deepEqual(platform.windows[0].frame, {x: 100, y: 100, width: 800, height: 600}, 'nothing moved yet');
+  assert.equal(log.named('action.done').length, 1);
+  platform.focused = platform.windows[1]; // focus moves while the command runs; keepWindow keeps the first
+  await platform.finishShells();
+  assert.deepEqual(platform.windows[0].frame, {x: 0, y: 32, width: 960, height: 1048});
+  const [, after] = log.named('action.done');
+  assert.equal(after.data.trigger, 'hotkey hyper+m (after shell)');
+  assert.equal(after.data.source, 'Slated');
+});
+
+test('a waiting shell at the end, or with nothing after it, holds nothing', async () => {
+  const {platform, runner, log} = setup();
+  runner.run({op: 'shell', command: 'sleep 1', wait: true}, {trigger: 't'});
+  runner.run(leftHalf, {trigger: 't'});
+  assert.deepEqual(platform.windows[0].frame, {x: 0, y: 32, width: 960, height: 1048});
+  await platform.finishShells();
+  assert.equal(log.named('action.done').length, 2, 'no continuation event');
+});
+
+test('a layout waits for its BEFORE shell command, and nothing runs after destroy', async () => {
+  const {platform, runner} = setup();
+  runner.setLayouts([{name: 'work', before: [{op: 'shell', command: 'gnome-terminal', wait: true}], apps: [{app: 'Terminal', operations: [leftHalf]}]}]);
+  runner.run({op: 'layout', name: 'work'}, {trigger: 't'});
+  assert.equal(platform.windows[1].frame.x, 1000);
+  await platform.finishShells();
+  assert.equal(platform.windows[1].frame.x, 0);
+
+  runner.run({op: 'layout', name: 'work'}, {trigger: 't'});
+  platform.windows[1].frame.x = 500;
+  runner.destroy();
+  await platform.finishShells();
+  assert.equal(platform.windows[1].frame.x, 500);
+});
+
+test('a maximized window that first settles at its old size gets the size asked again', () => {
+  const window = new FakeWindow({id: 1, app: 'firefox', frame: {x: 0, y: 32, width: 1920, height: 1048}, maximized: true, restoreSize: {width: 800, height: 600}});
+  const {platform, runner} = setup({windows: [window]});
+  runner.run(leftHalf, {trigger: 't'});
+  assert.deepEqual(window.frame, {x: 0, y: 32, width: 800, height: 600}, 'the restored size first');
+  platform.settle();
+  assert.deepEqual(window.frame, {x: 0, y: 32, width: 960, height: 1048});
+  platform.settle();
+  assert.equal(platform.calls.filter((c) => c[0] === 'setFrame').length, 2, 'asked once more, then left alone');
+});
+
 test('the grid places windows with undo', () => {
   const {platform, runner, performed} = setup();
   runner.place(platform.windows[0], {x: 0, y: 32, width: 640.4, height: 524}, 'Grid');

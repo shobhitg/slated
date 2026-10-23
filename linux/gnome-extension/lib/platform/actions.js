@@ -89,6 +89,11 @@ export class ActionRunner {
     this._chains = new Map();
     this._lastApp = null;
     this._lastFailure = null;
+    /** The trigger and source of the action being run, for steps that continue later. */
+    this._context = null;
+    /** Set by a `shell` step with `wait`: the steps after it continue once this settles. */
+    this._waiting = null;
+    this._destroyed = false;
   }
 
   /** Why the last `run` failed (null if it didn't). */
@@ -107,15 +112,28 @@ export class ActionRunner {
    * on which app, how long it took, and the error if it failed.
    */
   run(action, {window = null, label = null, chainKey = null, trigger = 'unknown', source = null} = {}) {
+    return this._logged(
+      {trigger, source, label},
+      () => this.describe(redactForLog(action)),
+      () => this.perform(action, {window, label, chainKey}),
+    );
+  }
+
+  /** Runs `body` and logs one `action.done`/`action.failed` event for it. */
+  _logged(context, describe, body) {
     const start = this.platform.now();
+    const outer = {context: this._context, app: this._lastApp, failure: this._lastFailure};
+    this._context = context;
     this._lastApp = null;
     this._lastFailure = null;
     let ok;
     try {
-      ok = this.perform(action, {window, label, chainKey});
+      ok = body();
     } catch (e) {
       ok = this._fail(errorMessage(e));
     }
+    // A waiting shell step with nothing after it holds nothing up.
+    this._waiting = null;
     let app = this._lastApp;
     if (!app) {
       try {
@@ -127,17 +145,38 @@ export class ActionRunner {
     this.log?.record(
       ok ? 'action.done' : 'action.failed',
       {
-        trigger,
-        action: truncate(this.describe(redactForLog(action)), 200),
+        trigger: context.trigger,
+        action: truncate(describe(), 200),
         ms: this.platform.now() - start,
-        label,
-        source,
+        label: context.label,
+        source: context.source,
         app,
         error: this._lastFailure,
       },
       ok ? 'info' : 'error',
     );
+    // An action run from inside another (a JavaScript layout step) doesn't change the outer one's outcome.
+    this._context = outer.context;
+    if (outer.context) {
+      this._lastApp = outer.app;
+      this._lastFailure = outer.failure;
+    }
     return ok;
+  }
+
+  _takeWaiting() {
+    const waiting = this._waiting;
+    this._waiting = null;
+    return waiting;
+  }
+
+  /** Runs `body` once `waiting` (a `shell` step with `wait`) settles, logged as its own event. */
+  _after(waiting, description, body) {
+    const context = this._context ?? {trigger: 'unknown', source: null, label: null};
+    waiting.then(() => {
+      if (this._destroyed) return;
+      this._logged({...context, trigger: `${context.trigger} (after shell)`}, () => description, body);
+    });
   }
 
   /** Slate syntax for an action, for logs and the HUD. */
@@ -188,17 +227,8 @@ export class ActionRunner {
         return this.perform(operations[index], {window: target, label, chainKey: `${key}/${index}`});
       }
 
-      case 'sequence': {
-        // Plain steps act on whatever is focused when they run; `keepWindow` steps (Slate's `>`) act on
-        // the window that was focused when their run began.
-        let anchor = window ?? this.platform.focusedWindow();
-        let ok = true;
-        sequenceSteps(action).forEach((step, i) => {
-          if (i > 0 && !step.keepWindow) anchor = this.platform.focusedWindow();
-          ok = this.perform(step.action, {window: anchor, chainKey: chainKey ? `${chainKey}/${i}` : null}) && ok;
-        });
-        return ok;
-      }
+      case 'sequence':
+        return this._runSequence(sequenceSteps(action), 0, window ?? this.platform.focusedWindow(), chainKey);
 
       case 'layout': {
         const layout = this.layouts.get(action.name);
@@ -253,7 +283,10 @@ export class ActionRunner {
           wait: action.wait === true,
           path: action.path ?? null,
         });
-        return result.ok ? true : this._fail(`Couldn't run ${action.command}: ${result.error}`);
+        if (!result.ok) return this._fail(`Couldn't run ${action.command}: ${result.error}`);
+        // GNOME Shell can't block while the command runs; the sequence or layout continues after it.
+        if (result.wait) this._waiting = result.wait;
+        return true;
       }
 
       case 'undo':
@@ -327,6 +360,27 @@ export class ActionRunner {
     }
   }
 
+  /**
+   * Plain steps act on whatever is focused when they run; `keepWindow` steps (Slate's `>`) act on the
+   * window that was focused when their run began. After a `shell` step with `wait`, the rest of the
+   * sequence runs once the command exits.
+   */
+  _runSequence(steps, start, anchor, chainKey) {
+    let ok = true;
+    for (let i = start; i < steps.length; i++) {
+      if (i > 0 && !steps[i].keepWindow) anchor = this.platform.focusedWindow();
+      ok = this.perform(steps[i].action, {window: anchor, chainKey: chainKey ? `${chainKey}/${i}` : null}) && ok;
+      const waiting = this._takeWaiting();
+      if (waiting && i + 1 < steps.length) {
+        const resumeAnchor = anchor;
+        const rest = this.describe(redactForLog({op: 'sequence', steps: steps.slice(i + 1)}));
+        this._after(waiting, rest, () => this._runSequence(steps, i + 1, resumeAnchor, chainKey));
+        return ok;
+      }
+    }
+    return ok;
+  }
+
   // --- Geometry ----------------------------------------------------------------------------------
 
   _applyGeometry(action, window, label, record = true) {
@@ -341,22 +395,30 @@ export class ActionRunner {
       return this._fail(errorMessage(e));
     }
     if (record) this._pushUndo(window, frame);
+    const restoring = this.platform.isMaximizedOrFullscreen?.(window) ?? false;
     if (!this.platform.setFrame(window, target)) {
       return this._fail(`${this.platform.appInfo(this.platform.appOfWindow(window))?.name || 'The app'} didn't allow moving that window`);
     }
     // Apps with minimum or stepped sizes may not take the requested size, and Wayland apps take a
     // moment to resize. Once settled, re-anchor using the size the window really took (keeps
     // bottom/right placements flush with the screen edge), or retry a move that didn't stick.
-    this.platform.afterSettle(window, () => this._settle(action, context, window, target));
+    this.platform.afterSettle(window, () => this._settle(action, context, window, target, restoring));
     this._report(label ?? this.describe(action), window);
     return true;
   }
 
-  _settle(action, context, window, target) {
+  _settle(action, context, window, target, retrySize = false) {
     if (!this.platform.isAlive(window)) return;
     const actual = this.platform.frame(window);
     if (!actual) return;
     const sizeDiffers = Math.abs(actual.width - target.width) > 1 || Math.abs(actual.height - target.height) > 1;
+    if (sizeDiffers && retrySize) {
+      // Leaving the maximized or fullscreen state, an app may first settle at its old size: ask again
+      // once before treating the size as the app's limit.
+      this.platform.setFrame(window, target);
+      this.platform.afterSettle(window, () => this._settle(action, context, window, target, false));
+      return;
+    }
     if (sizeDiffers) {
       let origin;
       try {
@@ -387,8 +449,20 @@ export class ActionRunner {
 
   // --- Layouts (Slate's `layout`) ----------------------------------------------------------------
 
-  _applyLayout(layout) {
-    for (const action of layout.before ?? []) this.perform(action);
+  _applyLayout(layout, fromBefore = 0) {
+    const before = layout.before ?? [];
+    for (let i = fromBefore; i < before.length; i++) {
+      this.perform(before[i]);
+      // `layout x BEFORE shell wait 'start an app'`: arrange once the command finishes.
+      const waiting = this._takeWaiting();
+      if (waiting) {
+        this._after(waiting, `layout ${layout.name}`, () => {
+          this._applyLayout(layout, i + 1);
+          return true;
+        });
+        return;
+      }
+    }
     for (const entry of layout.apps ?? []) {
       const operations = entry.operations ?? [];
       const app = this.platform.findApp(entry.app);
@@ -576,6 +650,8 @@ export class ActionRunner {
   }
 
   destroy() {
+    // Steps waiting for a shell command never run after this.
+    this._destroyed = true;
     this._undo = [];
     this._chains.clear();
     this.onPerformed = this.onError = this.onRelaunch = this.externalLayout = null;

@@ -4,8 +4,8 @@
 // Escape, any other key, or clicking outside dismisses either. A port of the macOS OverlayController.
 //
 // St/Clutter notes for GNOME 46–49: children are added with add_child (Clutter.Container is gone since
-// 46); the actor under an event comes from global.stage.get_event_actor() (Clutter.Event.get_source()
-// was removed); Main.pushModal returns a Clutter.Grab whose seat state says whether input was grabbed.
+// 46); the actor under an event comes from global.stage.get_event_actor(); Main.pushModal returns a
+// Clutter.Grab whose seat state says whether input was grabbed.
 
 import Clutter from 'gi://Clutter';
 import Shell from 'gi://Shell';

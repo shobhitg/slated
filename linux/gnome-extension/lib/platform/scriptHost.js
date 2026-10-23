@@ -3,13 +3,14 @@
 //
 // Scripts refer to windows by handle: Mutter's window id (`Meta.Window.get_id()`), stable while the
 // window exists. Apps get small integer handles that scripts see as `app.pid()` / `win.pid()`: GNOME
-// apps can span several processes, so these are Slated's own ids, consistent within a session.
+// apps can span several processes, so these are Slated's own ids, keyed by the app id (desktop id or
+// WM class) so they stay consistent within a session even when GNOME re-matches a window to its app.
 
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {currentScreens} from './screens.js';
-import {runShellCommand} from './system.js';
+import {runShellCommandSync, startShellCommand} from './system.js';
 import {stableStringify, truncate} from './util.js';
 import * as Windows from './windows.js';
 
@@ -19,7 +20,7 @@ export class GnomeScriptHost {
     this._log = log;
     this._home = home;
     this._appHandles = new Map();
-    this._appsByHandle = new Map();
+    this._keysByHandle = new Map();
     this._nextApp = 1;
     /** Where the script being run comes from, for action logs ("~/.slate.js"). */
     this.source = 'JavaScript';
@@ -37,11 +38,11 @@ export class GnomeScriptHost {
   }
 
   appHandle(app) {
-    const key = app.get_id();
+    const key = Windows.appId(app);
     if (!this._appHandles.has(key)) {
       const handle = this._nextApp++;
       this._appHandles.set(key, handle);
-      this._appsByHandle.set(handle, app);
+      this._keysByHandle.set(handle, key);
     }
     return this._appHandles.get(key);
   }
@@ -50,8 +51,11 @@ export class GnomeScriptHost {
     return {pid: this.appHandle(app), name: app.get_name(), bundleID: Windows.appId(app)};
   }
 
+  /** The running Shell.App behind a script's app handle (looked up fresh: apps come and go). */
   shellApp(pid) {
-    return this._appsByHandle.get(pid) ?? null;
+    const key = this._keysByHandle.get(pid);
+    if (key === undefined) return null;
+    return Windows.runningApps().find((app) => Windows.appId(app) === key) ?? null;
   }
 
   // --- ScriptHost --------------------------------------------------------------------------------
@@ -128,8 +132,9 @@ export class GnomeScriptHost {
     return this._runner.run(action, {window, chainKey: `js:${stableStringify(action)}`, trigger: 'script', source: this.source});
   }
 
+  /** `slate.shell`: with `wait` the script gets the output, so this blocks (briefly; see system.js). */
   runShell(command, wait, path) {
-    const result = runShellCommand(command, {wait, path, home: this._home});
+    const result = wait ? runShellCommandSync(command, {path, home: this._home}) : startShellCommand(command, {path, home: this._home});
     if (!result.ok) this._log?.error('script.shell_failed', result.error);
     return wait && result.ok ? result.output : null;
   }
@@ -156,8 +161,10 @@ export const SUPPORTED_EVENTS = new Set([
   'screenConfigurationChanged',
 ]);
 
+// windowClosed listens to `unmanaging`: by `unmanaged`, Shell.WindowTracker has already forgotten the
+// window's app. (At `window-created` the app may not be known yet on Wayland: the app id arrives later.)
 const PER_WINDOW = {
-  windowClosed: 'unmanaged',
+  windowClosed: 'unmanaging',
   windowMoved: 'position-changed',
   windowResized: 'size-changed',
   windowTitleChanged: 'notify::title',
@@ -247,16 +254,15 @@ export class ScriptEvents {
   _watchWindow(window) {
     if (this._windowSignals.has(window)) return;
     const ids = [];
-    const app = Windows.appOf(window);
-    // Captured now: once a window is gone, GNOME no longer knows its app.
-    const appInfo = app ? this._host.appInfo(app) : null;
     for (const [name, signal] of Object.entries(PER_WINDOW)) {
+      // Always connected: it also drops this window's handlers.
       if (!this._names.has(name) && name !== 'windowClosed') continue;
       ids.push(
         window.connect(signal, () => {
           if (name === 'windowClosed') {
+            const app = Windows.appOf(window);
             this._forget(window);
-            if (this._names.has('windowClosed') && appInfo) this._emit({name, app: appInfo});
+            if (this._names.has('windowClosed') && app) this._emit({name, app: this._host.appInfo(app)});
             return;
           }
           if (name === 'windowTitleChanged') {
