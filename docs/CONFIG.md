@@ -119,6 +119,90 @@ with `"op"` plus Slate's JavaScript parameter names. The object form is exactly 
 - Functions: `min({a,b})`, `max`, `floor`, `ceiling`, `abs`, `sqrt`, and the rest of Slate's list.
 - Unlike Slate, spaces are fine.
 
+## Game automation
+
+Bind these like any other action. They're deliberately simple: no scripting language.
+
+| op | parameters | what it does |
+|---|---|---|
+| `click` | `button` (`left` `right` `middle`), `count` (2 = double-click) | Click where the pointer is |
+| `hold` | `input` (`mouse:left`, `mouse:right`, `key:w`, `key:shift`…) | First press holds it down, next press releases |
+| `press` | `input`, `phase` (`down` / `up`) | One half of a press, for macros |
+| `repeat` | `action`, `interval` (seconds), `mode` (`toggle` / `while-held`), `times`, `jitter` (0–0.5) | Auto-repeat: an auto-clicker or key spammer |
+| `wait` | `seconds` | Pause inside a `sequence` (macro) |
+| `stop-automations` | — | Stop everything and release anything held |
+
+Modifier keys can be held (`key:shift`, `key:ctrl`, `key:alt`, `key:cmd`, `key:rightShift`…) but
+aren't shortcuts on their own. Mouse buttons 3–5 (`mouse3` middle, `mouse4`, `mouse5` side buttons)
+can be shortcuts, with or without modifiers (macOS).
+
+Add `"onlyInApps"` to a binding to make it work only in a game. Then plain keys are fine as triggers.
+Find a game's bundle identifier with `osascript -e 'id of app "Minecraft"'`.
+
+```jsonc
+"bindings": [
+  // Auto-click left every 100 ms; press F again to stop. Only in the game.
+  { "name": "Auto-click", "keys": "f", "onlyInApps": ["com.mojang.minecraft"],
+    "action": { "op": "repeat", "action": { "op": "click", "button": "left" }, "interval": 0.1 } },
+
+  // Hold right click (e.g. to mine/block); press again to release.
+  { "name": "Hold right click", "keys": "mouse4", "action": "hold mouse:right" },
+
+  // Auto-run: hold W until pressed again.
+  { "name": "Auto-run", "keys": "hyper+w", "action": "hold key:w" },
+
+  // Toggle sprint by holding Shift.
+  { "name": "Sprint", "keys": "hyper+r", "action": "hold key:shift" },
+
+  // Spam E while the shortcut is held, with ±10% human-like timing.
+  { "name": "Spam E", "keys": "mouse5", "action": "repeat 0.05 while-held jitter:0.1 'keystroke e'" },
+
+  // Click 50 times, then stop by itself.
+  { "name": "50 clicks", "keys": "hyper+5", "action": "repeat 0.1 times:50 'click left'" },
+
+  // Macro: W down for 2 seconds, then click.
+  { "name": "Dash and hit", "keys": "hyper+d",
+    "action": "sequence press key:w down | wait 2 | press key:w up | click left" }
+],
+"automation": {
+  "stopShortcut": "hyper+esc",   // always stops everything (null turns it off)
+  "stopOnAppSwitch": true,       // stop when you leave the app it started in
+  "maxRunMinutes": 0,            // 0 = no limit
+  "showIndicator": true          // the "running" pill at the top of the screen
+}
+```
+
+Safety rails:
+- Slated never leaves a button or key held down. Pausing Slated, sleep, locking the screen and
+  quitting all release everything.
+- Many games accept synthesized input, but online games with anti-cheat may block it or forbid it in
+  their terms.
+
+**On Linux (GNOME):** the same actions and settings work, with two limits:
+- GNOME can't use mouse buttons as shortcuts. Map side buttons to keys with keyd (e.g.
+  `mouse1 = f13`) and bind those keys.
+- `while-held` works through key repeat, so it stops a moment after you let go.
+
+## Clipboard history
+
+```jsonc
+"clipboard": {
+  "enabled": true,
+  "shortcut": "cmd+shift+v",      // opens the switcher; null turns it off
+  "maxItems": 200,
+  "persist": true,                // kept across restarts, readable only by you
+  "retentionDays": 30,            // pinned items are kept regardless
+  "ignoreConcealed": true,        // skip what password managers mark as secret
+  "excludedApps": ["com.1password.1password", "com.bitwarden.desktop"],
+  "pasteAfterSelecting": true
+}
+```
+
+In the switcher:
+- ↑↓ select an item and ↩ pastes it into the app you were using.
+- ⌘1–9 picks an item directly.
+- ⌘C copies without pasting, ⌘P pins, ⌘⌫ deletes, and esc closes.
+
 ## Hotstrings
 
 | field | meaning |
