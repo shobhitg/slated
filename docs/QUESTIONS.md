@@ -49,3 +49,39 @@ assumption I'm currently running with, so nothing is blocked.
   rewriting your JS file.
 - **Slate's beta app switcher (`switch`)** is parsed but not implemented yet. It replaced Cmd-Tab
   via an event tap, which is fragile; I'd rather build a proper switcher later if you want one.
+
+## Slate engine: expressions, operation syntax, frame math
+
+Where Slate's code and its README disagreed, or Slate had an obvious bug, here is what Slated does.
+None of this affects your `~/.slate.js` except the first item, by at most a point or two.
+
+### Please answer
+
+1. **Division in expressions.** Slate evaluated expressions with `NSExpression`, which truncates
+   when both sides are whole numbers (checked on this Mac: `10/4` is 2, `1366*2/3` is 910). Slated
+   divides exactly (2.5, 910.67). On your screens `screenSizeX/3` and friends differ by under a point,
+   and a mistake like `1/2*screenSizeX` works instead of giving 0. *Assumption:* exact division.
+2. **`throw next` / `throw previous`.** Slate's README says "screen ID + 1", but its code steps
+   through screens in macOS's internal order, not left to right. *Assumption:* Slate's code (macOS
+   order). Left-to-right would feel more natural with three screens; say if you want that.
+
+### Decisions I made (tell me if you disagree)
+
+- **`throw down` / `throw bottom`** go to the screen below. In Slate they silently threw to screen 0
+  (a bug: "down" was never matched).
+- **A direction with no screen sharing that edge** (displays meeting only at a corner) picks the
+  nearest screen lying entirely in that direction; Slate did nothing.
+- **`push … bar-resize:expr` and `corner … resize:w;h`** treat the expression as one unit, as
+  Slate's JavaScript API did. Slate's string form forgot the parentheses, so
+  `push down bar-resize:screenSizeY-100` used to land 100 points too high.
+- **Screens with the same left edge** are numbered lower one first, matching Slate (this changed
+  `orderedLeftToRight()`).
+- **Stricter, clearer parsing:** unknown options, extra parameters and bad expressions are errors
+  with a message and line number, instead of being silently ignored. Expressions may contain spaces.
+- **Small extensions:** `resize screenSizeX/2 50%` (no sign) sets an absolute size, `nudge 50 0`
+  counts as `+50`, `push up 1` and `corner top-left 1` accept a screen without a style, and app names
+  in `hide`/`focus` may contain commas or `|` when quoted.
+- **Slated's own operations** in the same syntax: `insert-text [type|paste] 'text'` (with `\n`,
+  `\t`, `\\` escapes), `open-url 'https://…'`, `keystroke cmd+shift+4`.
+- **Not supported yet:** per-app settings (`config snapshotTitleMatch:'App' …`) and sourcing a
+  `.js` file from a `.slate` file; both load with a warning.

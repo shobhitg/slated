@@ -39,11 +39,11 @@ public struct ScreenInfo: Hashable, Sendable, Codable {
 
 extension Array where Element == ScreenInfo {
   /// Screens sorted the way Slate numbers them by default (`orderScreensLeftToRight`): by the x of
-  /// their top-left corner, then by y.
+  /// their top-left corner, then, for screens with the same x, the lower one first (Slate's order).
   public func orderedLeftToRight() -> [ScreenInfo] {
     sorted { (a: ScreenInfo, b: ScreenInfo) -> Bool in
       if a.frame.minX != b.frame.minX { return a.frame.minX < b.frame.minX }
-      return a.frame.minY < b.frame.minY
+      return a.frame.minY > b.frame.minY
     }
   }
 

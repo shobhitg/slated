@@ -1,9 +1,17 @@
 import Foundation
 
+// Line-buffer output so results printed before a crash aren't lost.
+setvbuf(stdout, nil, _IOLBF, 0)
+
 // Add new suites here.
 let suites: [Suite] = [
   configurationTests,
   slateKeystrokeTests,
+  expressionTests,
+  slateSyntaxTests,
+  slateConfigParserTests,
+  frameCalculatorTests,
+  screenResolverTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first
