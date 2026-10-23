@@ -33,6 +33,12 @@ let package = Package(
       dependencies: ["SlatedUI", "SlatedCore"],
       swiftSettings: [.defaultIsolation(MainActor.self)]
     ),
+    // Golden test vectors for the Linux (GNOME) engine port: runs SlatedCore on curated inputs and
+    // writes the results as JSON (`swift run SlatedFixtures [dir]`, default `fixtures/`).
+    .executableTarget(
+      name: "SlatedFixtures",
+      dependencies: ["SlatedCore"]
+    ),
     // Tests run as an executable (`make test`): Swift Testing and XCTest need Xcode, and this
     // machine only has the Command Line Tools. The harness mirrors Swift Testing's #expect/#require.
     .executableTarget(

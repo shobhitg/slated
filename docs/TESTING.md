@@ -10,6 +10,8 @@
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape and portrait screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
 | Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited JSON, broken files, unknown operations, duplicate shortcuts. It also checks what lands in the event log, including crash detection. |
 | Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch, confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), uninstall, `--purge`. Launches the app for a few seconds. |
+| Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~3,900 curated inputs, ~15,800 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
+| Linux engine | `linux/tests/run.mjs` (+ `harness.mjs`, `fixtures.mjs`, `unit.mjs`) | `make linux-test` | The JavaScript port of SlatedCore (`linux/gnome-extension/lib/core`) against every golden vector, plus tests for its JavaScript-only API (GNOME accelerators). Runs on Node if installed, else macOS's JavaScriptCore; `make linux-test-all` runs every runtime available (Node, GJS, JavaScriptCore). |
 | UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every settings pane, onboarding step and the menu bar panel to PNGs (light and dark) for review. |
 | Toolchain | `scripts/check-swift-testing.sh` | `make check-swift-testing` | Whether Swift Testing works yet (needs Xcode). |
 | Manual | below | by hand | Things only a real Mac with a keyboard can tell. |
@@ -43,6 +45,39 @@ To add tests:
 - Mechanically, `expect(…)` becomes `#expect(…)`, `require` becomes `#require`, and each `Suite`
   becomes a `@Suite` struct with `@Test` functions.
 - Move `SlatedTests` to a `.testTarget`.
+
+## Golden vectors: one engine, two languages
+
+The Linux (GNOME) version runs a JavaScript port of `SlatedCore`. Instead of maintaining two test
+suites, Swift writes its answers down and JavaScript must give the same ones:
+
+1. `Sources/SlatedFixtures` runs the real Swift functions on curated inputs and writes the results to
+   `fixtures/*.json` (`make fixtures`). One file per area, with a `manifest.json` listing the case counts:
+
+   | File | Covers |
+   |---|---|
+   | `expressions.json` | Expression values and errors, every function, precedence, spaces, Unicode. |
+   | `tokenizer.json` | Slate words and quoting, shell arguments, text escapes, Foundation's whitespace sets. |
+   | `operations.json` | Every operation form and error; canonical Action JSON; `format`; Action decoding. |
+   | `keys.json` | Key combos (parse, canonical string, display), key names, Slate keystrokes. |
+   | `screens.json` | Screen setups, screen references and their resolution, ordering. |
+   | `frames.json` | `targetFrame` for every geometry operation × setup × window × settings, and `targetOrigin`. |
+   | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
+   | `config.json` | `config.json` decoding (JSON5 included) and the exact text Swift writes. |
+   | `starter.json`, `settings.json`, `hotstrings.json` | The starter config; Slate settings; hotstring typing sessions and templates. |
+
+2. `linux/tests/run.mjs` loads every fixture and checks the JavaScript engine against each case, plus
+   handwritten tests for what fixtures can't express. Error messages must match word for word, and the
+   encoded config.json byte for byte.
+
+Fixtures are byte-stable: sorted keys, fixed UUIDs and dates in the inputs, UUIDs that Swift generates
+shown as `RANDOM-UUID`, and only Slated's own error messages recorded (Foundation's can depend on
+dictionary order). `make check-fixtures` regenerates twice into a temporary folder and diffs.
+
+**When you change SlatedCore:** run `make fixtures`, read the diff in `fixtures/` (it shows exactly what
+changed in behavior), update the JavaScript port until `make linux-test` passes, and commit all three.
+To cover a new behavior, add inputs to `Sources/SlatedFixtures/*.swift`; the JavaScript runner refuses
+fixture files or sections it has no checks for.
 
 ## Rule: probes become tests
 

@@ -1,0 +1,451 @@
+import Foundation
+
+@testable import SlatedCore
+
+private let fullConfig = #"""
+  {
+    "version": 1,
+    "general": {"launchAtLogin": true, "loadSlateConfigs": false, "slateConfigPaths": ["~/a.slate", "/b.js"],
+                "showActionHUD": true, "hotstringsEnabled": false},
+    "settings": {"defaultToCurrentScreen": true, "nudgePercentOf": "windowSize", "secondsBeforeRepeat": 0.25, "undoMaxStackSize": 20},
+    "keyboard": {"capsLock": "hyper", "capsLockAlone": "escape", "hyperModifiers": ["ctrl", "alt", "cmd"]},
+    "bindings": [
+      {"id": "11111111-1111-4111-8111-111111111111", "name": "Left half", "keys": "hyper+a",
+       "action": {"op": "move", "x": "screenOriginX", "y": "screenOriginY", "width": "screenSizeX/2", "height": "screenSizeY"}},
+      {"id": "22222222-2222-4222-8222-222222222222", "keys": "ctrl+alt+f4", "modal": {"keys": "ctrl+f4", "toggle": true},
+       "action": "push left bar", "repeats": true, "enabled": false},
+      {"id": "33333333-3333-4333-8333-333333333333", "keys": "cmd+shift+'", "action": "chain push up | push down", "repeats": false},
+      {"id": "44444444-4444-4444-8444-444444444444", "keys": "Hyper+Return",
+       "action": {"op": "by-orientation", "landscape": "push left", "portrait": {"op": "push", "direction": "top"}}}
+    ],
+    "layouts": [
+      {"name": "coding", "apps": [{"app": "Terminal", "operations": ["push left bar-resize:screenSizeX/2"],
+                                   "options": {"ignoreFail": true, "titleOrder": ["a", "b"]}},
+                                  {"app": "Safari"}],
+       "before": ["undo"], "after": [{"op": "focus", "app": "Terminal"}]},
+      {"name": "empty"}
+    ],
+    "defaults": [{"target": "coding", "condition": {"count": {"_0": 2}}},
+                 {"target": "big", "condition": {"resolutions": {"_0": ["2560x1440", "1920x1080"]}}}],
+    "hotstrings": [
+      {"id": "55555555-5555-4555-8555-555555555555", "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯"},
+      {"id": "66666666-6666-4666-8666-666666666666", "trigger": "brb", "replacement": "be right back", "fire": "afterDelimiter",
+       "wordBoundary": true, "caseSensitive": false, "method": "paste", "onlyInApps": ["com.apple.mail"],
+       "exceptInApps": ["com.apple.Terminal"], "notes": "office", "enabled": false, "action": "undo"}
+    ]
+  }
+  """#
+
+private let configMarkdownExample = #"""
+  {
+    "general": {
+      "launchAtLogin": true,
+      "loadSlateConfigs": true,          // also load ~/.slate.js and ~/.slate
+      "showActionHUD": false             // flash a small confirmation after each action
+    },
+
+    // Caps Lock becomes ⌃⌥⇧⌘ (Hyper) while held.
+    "keyboard": {
+      "capsLock": "hyper",               // "off" | "hyper"
+      "capsLockAlone": "nothing",        // "nothing" | "escape"
+      "hyperModifiers": ["ctrl", "alt", "shift", "cmd"]
+    },
+
+    "bindings": [
+      {
+        "id": "A0000000-0000-4000-8000-000000000001",
+        "name": "Left half",
+        "keys": "hyper+a",
+        "action": { "op": "move", "x": "screenOriginX", "y": "screenOriginY",
+                    "width": "screenSizeX/2", "height": "screenSizeY" }
+      },
+      { "id": "A0000000-0000-4000-8000-000000000002", "keys": "hyper+w", "action": "push top bar-resize:screenSizeY/2" },   // Slate syntax works too
+      { "id": "A0000000-0000-4000-8000-000000000003", "keys": "hyper+right", "action": { "op": "throw", "screen": "right",
+                                           "width": "screenSizeX", "height": "screenSizeY" } },
+      { "id": "A0000000-0000-4000-8000-000000000004", "keys": "hyper+tab", "action": "grid padding:4 0:6,6 1:6,6" }
+    ],
+
+    "hotstrings": [
+      { "id": "B0000000-0000-4000-8000-000000000001", "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯" },
+      { "id": "B0000000-0000-4000-8000-000000000002", "trigger": "brb", "replacement": "be right back", "fire": "afterDelimiter", "wordBoundary": true },
+      { "id": "B0000000-0000-4000-8000-000000000003", "trigger": ";today", "replacement": "{date:yyyy-MM-dd}" }
+    ],
+
+    // Slate's global settings (`config name value` in .slate files).
+    "settings": { "defaultToCurrentScreen": true, "nudgePercentOf": "screenSize" }
+  }
+  """#
+
+private let decodeCases: [(String, String)] = [
+  ("empty object", "{}"),
+  ("full configuration", fullConfig),
+  ("docs/CONFIG.md example (JSON with comments)", configMarkdownExample),
+  (
+    "ConfigurationTests: missing keys and comments",
+    "{\n  // JSON5 comments are allowed in hand-edited files\n  \"keyboard\": { \"capsLock\": \"hyper\" },\n"
+      + "  \"hotstrings\": [ { \"id\": \"C0000000-0000-4000-8000-000000000001\", \"trigger\": \";shrug\", \"replacement\": \"¯\\\\_(ツ)_/¯\" } ],\n}"
+  ),
+  (
+    "smoke fixture: hand-edited",
+    #"""
+    {
+      // Hand-edited: comments and trailing commas are allowed.
+      "general": { "loadSlateConfigs": false },
+      "keyboard": { "capsLock": "off" },
+      "bindings": [
+        { "keys": "hyper+w", "action": "push top bar-resize:screenSizeY/2" },
+      ],
+      "hotstrings": [
+        { "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯" },
+        { "trigger": ";today", "replacement": "{date:yyyy-MM-dd}", "fire": "afterDelimiter" },
+      ],
+    }
+    """#
+  ),
+  (
+    "smoke fixture: duplicates",
+    #"{ "general": { "loadSlateConfigs": false }, "bindings": [ { "keys": "ctrl+alt+cmd+f13", "action": "push left" }, { "keys": "ctrl+alt+cmd+f13", "action": "push right" } ] }"#
+  ),
+  (
+    "smoke fixture: unknown operation",
+    #"{ "general": { "loadSlateConfigs": false }, "bindings": [ { "keys": "hyper+a", "action": { "op": "teleport" } } ] }"#
+  ),
+  ("smoke fixture: broken JSON", #"{ "bindings": [ { "keys": "hyper+a", "action":"#),
+  // JSON5
+  ("JSON5: block comments", "/* header */ {\"version\": /* inline */ 1 /* after */}"),
+  ("JSON5: trailing commas", #"{"general": {"launchAtLogin": true,}, "bindings": [],}"#),
+  ("JSON5: unquoted keys", #"{general: {launchAtLogin: true, $odd_key: 1}, settings: {_x1: 2}}"#),
+  ("JSON5: single-quoted strings", #"{'settings': {'a': 'it\'s', "b": 'say "hi"'}}"#),
+  ("JSON5: numbers", #"{"settings": {"hex": 0x1F, "plus": +1, "lead": .5, "trail": 5., "neg": -0x10, "exp": 1e2}}"#),
+  ("JSON5: infinity", #"{"settings": {"inf": Infinity, "ninf": -Infinity}}"#),
+  ("JSON5: NaN", #"{"settings": {"nan": NaN}}"#),
+  ("JSON5: \\x escape", #"{"settings": {"x": "\x41"}}"#),
+  ("JSON5: \\u escape", #"{"settings": {"x": "éÉ"}}"#),
+  ("JSON5: line continuation", "{\"settings\": {\"x\": \"a\\\nb\"}}"),
+  ("JSON5: line continuation CRLF", "{\"settings\": {\"x\": \"a\\\r\nb\"}}"),
+  ("JSON5: \\0 escape", #"{"settings": {"x": "a\0b"}}"#),
+  ("JSON5: escaped single quote in double quotes", #"{"settings": {"x": "it\'s"}}"#),
+  ("JSON5: unknown escape", #"{"settings": {"x": "\a\c"}}"#),
+  ("JSON5: escaped slash", #"{"settings": {"x": "a\/b"}}"#),
+  ("JSON5: surrogate pair escape", #"{"settings": {"x": "😀"}}"#),
+  ("JSON5: lone surrogate escape", #"{"settings": {"x": "\ud800"}}"#),
+  ("JSON5: escaped U+2028", #"{"settings": {"x": "a b c"}}"#),
+  ("JSON5: raw tab in a string", "{\"settings\": {\"x\": \"a\tb\"}}"),
+  ("JSON5: raw newline in a string", "{\"settings\": {\"x\": \"a\nb\"}}"),
+  ("JSON5: raw control character in a string", "{\"settings\": {\"x\": \"a\u{01}b\"}}"),
+  ("JSON5: raw DEL in a string", "{\"settings\": {\"x\": \"a\u{7F}b\"}}"),
+  ("JSON5: byte order mark", "\u{FEFF}{\"version\": 1}"),
+  ("JSON5: no-break space", "{\u{00A0}\"version\": 1}"),
+  ("JSON5: line separator", "{\"version\"\u{2028}: 1}"),
+  ("JSON5: paragraph separator", "{\"version\":\u{2029}1}"),
+  ("JSON5: vertical tab", "{\"version\": 1\u{000B}}"),
+  ("JSON5: form feed", "{\u{000C}\"version\": 1}"),
+  ("JSON5: ideographic space", "{\"version\":\u{3000}1}"),
+  ("JSON5: carriage returns", "{\r\"version\":\r\n1\r}"),
+  ("JSON5: unicode identifier key", #"{settings: {ключ: 1, $a_b: 2, café: 3}}"#),
+  ("JSON5: identifier with a dash", #"{settings: {a-b: 1}}"#),
+  ("JSON5: reserved words as keys", #"{settings: {true: 1, null: 2, Infinity: 3}}"#),
+  ("JSON5: key starting with a digit", #"{settings: {1a: 1}}"#),
+  ("JSON5: numeric key", #"{settings: {1: 2}}"#),
+  ("JSON5: single-quoted key", #"{'version': 1}"#),
+  ("JSON5: identifier key with escape", #"{settings: {ab: 1}}"#),
+  ("JSON5: uppercase hex", #"{"settings": {"x": 0X1F}}"#),
+  ("JSON5: hex with a fraction", #"{"settings": {"x": 0x1.8}}"#),
+  ("JSON5: plus hex", #"{"settings": {"x": +0x10}}"#),
+  ("JSON5: leading zeros", #"{"settings": {"x": 01}}"#),
+  ("JSON5: negative leading dot", #"{"settings": {"x": -.5}}"#),
+  ("JSON5: trailing dot with exponent", #"{"settings": {"x": 5.e2}}"#),
+  ("JSON5: exponent with plus", #"{"settings": {"x": 1e+2, "y": 1E-2}}"#),
+  ("JSON5: plus infinity", #"{"settings": {"x": +Infinity}}"#),
+  ("JSON5: minus NaN", #"{"settings": {"x": -NaN}}"#),
+  ("JSON5: Infinity as version", #"{"version": Infinity}"#),
+  ("JSON5: huge number", #"{"settings": {"x": 1e400}}"#),
+  ("JSON5: tiny number", #"{"settings": {"x": 1e-400}}"#),
+  ("JSON5: comment between key and colon", #"{"version" /* c */ : 1}"#),
+  ("JSON5: nested block comments", "{/* a /* b */ */ \"version\": 1}"),
+  ("JSON5: line comment with CRLF", "{\"version\": 1 // one\r\n}"),
+  ("JSON5: line comment with CR", "{\"version\": 1 // one\r}"),
+  ("JSON5: comment inside a string", #"{"settings": {"x": "a // b /* c */"}}"#),
+  ("JSON5: slash without comment", #"{"version": 1 / 2}"#),
+  ("JSON5: trailing comma after comment", "{\"version\": 1, // last\n}"),
+  ("JSON5: True with a capital", #"{"general": {"launchAtLogin": True}}"#),
+  ("JSON5: undefined", #"{"version": undefined}"#),
+  ("JSON5: byte order mark inside", "{\u{FEFF}\"version\": 1}"),
+  ("JSON5: \\v and \\f escapes", #"{"settings": {"x": "a\vb\fc"}}"#),
+  ("JSON5: escaped double quote in single quotes", #"{"settings": {"x": 'a\"b'}}"#),
+  ("JSON5: hex version", #"{"version": 0x2}"#), ("JSON5: plus version", #"{"version": +1}"#),
+  ("JSON5: leading-dot version", #"{"version": .5}"#), ("JSON5: huge version", #"{"version": 99999999999999999999}"#),
+  ("JSON5: negative zero version", #"{"version": -0}"#), ("JSON5: hex fraction version", #"{"version": 0x1p4}"#),
+  ("JSON5: empty key", #"{"settings": {"": 1}}"#), ("JSON5: identifier key escape at start", #"{settings: {$x: 1}}"#),
+  ("JSON5: comment glued to a value", #"{"version": 1/*c*/}"#), ("JSON5: comment first", "// first\n{}"),
+  ("JSON5: hash comment", "# no\n{}"), ("JSON5: unicode digit in identifier", #"{settings: {a١: 1}}"#),
+  ("JSON5: dotted key", #"{settings: {a.b: 1}}"#), ("JSON5: unquoted string value", #"{"settings": {"a": hello}}"#),
+  ("JSON5: number then identifier", #"{"version": 1x}"#),
+  ("JSON5: hex digits in a decimal", #"{"settings": {"x": 1f}}"#),
+  ("JSON5: lone minus", #"{"settings": {"x": -}}"#), ("JSON5: lone dot", #"{"settings": {"x": .}}"#),
+  ("JSON5: exponent without digits", #"{"settings": {"x": 1e}}"#), ("JSON5: double sign", #"{"settings": {"x": --1}}"#),
+  ("JSON5: Infinity spelled out in lowercase", #"{"settings": {"x": infinity}}"#),
+  ("JSON5: 0x without digits", #"{"settings": {"x": 0x}}"#),
+  ("JSON5: negative hex fraction", #"{"settings": {"x": -0x1.8p1}}"#),
+  ("JSON5: max double", #"{"settings": {"x": 1.7976931348623157e308, "y": 5e-324, "z": 2.2250738585072014e-308}}"#),
+  ("JSON5: exact zero forms", #"{"settings": {"a": 0e10, "b": 0.0e-500, "c": -0.0, "d": 0x0}}"#),
+  ("JSON5: 1e309 in a string field", #"{"hotstrings": [{"trigger": 1e309}]}"#),
+  ("duplicate keys nested", #"{"settings": {"a": 1, "a": 2}}"#),
+  ("duplicate top-level objects", #"{"general": {"launchAtLogin": true}, "general": {"showActionHUD": true}}"#),
+  (
+    "duplicate keys in a binding",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000003", "keys": "a", "keys": "b", "action": "undo", "action": "relaunch"}]}"#
+  ),
+  ("duplicate keys with null first", #"{"version": null, "version": 3}"#),
+  ("JSON5: line comment at end", "{\"version\": 1} // done"),
+  ("JSON5: unterminated block comment", "{\"version\": 1} /* oops"),
+  ("JSON5: lone trailing comma", "{,}"),
+  ("JSON5: double trailing comma", #"{"bindings": [,,]}"#),
+  // Strings and escaping on output
+  (
+    "string escaping",
+    #"{"hotstrings": [{"id": "D0000000-0000-4000-8000-000000000001", "trigger": "x", "replacement": "a\u0001b\u001fc\u007fd e\"f\\g/h\ti\nj\rk\bl\fm😀n o​p"}]}"#
+  ),
+  ("non-ASCII keys and values", #"{"settings": {"ключ": "значение", "😀": "🎉", "é": "é"}}"#),
+  // Numbers in settings
+  (
+    "setting numbers",
+    #"{"settings": {"a": 0.1, "b": 20, "c": 1e20, "d": -0.0, "e": 1.5, "f": 100.0, "g": 12345678901234567890, "h": 1e-7, "i": 2.5e-5, "j": 1e15, "k": 1e16, "l": 123456.789, "m": 0, "n": -3, "o": 4.35, "p": 9007199254740993, "q": 1e300, "r": 0.000123}}"#
+  ),
+  ("setting types", #"{"settings": {"t": true, "f": false, "s": "x", "n": 1, "z": "", "zero": 0}}"#),
+  // How .sortedKeys orders keys that differ in case, digits, punctuation and accents.
+  (
+    "sorted key order",
+    #"{"settings": {"b": 1, "B": 2, "a": 3, "A10": 4, "A9": 5, "a2": 6, "_x": 7, "Z": 8, "z": 9, "10": 10, "9": 11, "é": 12, "f": 13, "-": 14, "": 15, "ä": 16, "e": 17, "E": 18, "x1y": 19, "x01y": 20, "x1.5": 21, "a b": 22, "ab": 23, "a_b": 24, "a-b": 25, "Ä": 26, "ß": 27, "ss": 28, "İ": 29, "i": 30, "I": 31, "😀": 32, "~": 33, "0": 34, "aB": 35, "Ab": 36, "AB": 37, "a10b": 38, "a9b": 39, "a010": 40, "a10": 41, "1.5": 42, "1,5": 43, "é": 44, "Straße": 45, "strasse": 46, "ǅ": 47, "ﬀ": 48, "ff": 49, "１": 50, "٣": 51, "3": 52}, "bindings": [{"id": "E0000000-0000-4000-8000-000000000004", "keys": "a", "action": "grid 10:1,1 2:1,1 1920x1080:1,1 0:1,1 -1:1,1 9:1,1 1920X1080:2,2 100x100:1,1 99x99:1,1"}]}"#
+  ),
+  ("setting null", #"{"settings": {"a": null}}"#),
+  ("setting array", #"{"settings": {"a": [1]}}"#),
+  ("settings not an object", #"{"settings": []}"#),
+  // Top-level shapes
+  ("top level array", "[]"), ("top level null", "null"), ("empty text", ""), ("whitespace only", "   \n"),
+  ("trailing garbage", "{} x"), ("unknown keys are ignored", #"{"foo": 1, "bar": {"baz": [true]}}"#),
+  ("duplicate keys", #"{"version": 1, "version": 2}"#), ("version as text", #"{"version": "1"}"#),
+  ("version 2", #"{"version": 2}"#), ("version as float", #"{"version": 1.0}"#), ("version 1e3", #"{"version": 1e3}"#),
+  ("version 1.5", #"{"version": 1.5}"#), ("version null", #"{"version": null}"#),
+  // general
+  ("general partial", #"{"general": {"slateConfigPaths": []}}"#),
+  ("general wrong type", #"{"general": {"launchAtLogin": "yes"}}"#),
+  ("general null", #"{"general": null}"#),
+  // keyboard
+  ("keyboard invalid capsLock", #"{"keyboard": {"capsLock": "on"}}"#),
+  ("keyboard unknown modifier tokens are skipped", #"{"keyboard": {"hyperModifiers": ["ctrl", "bogus"]}}"#),
+  ("keyboard empty modifiers", #"{"keyboard": {"hyperModifiers": []}}"#),
+  ("keyboard hyper token", #"{"keyboard": {"hyperModifiers": ["hyper"]}}"#),
+  ("keyboard fn is dropped on output", #"{"keyboard": {"hyperModifiers": ["fn", "ctrl"]}}"#),
+  ("keyboard aliases", #"{"keyboard": {"hyperModifiers": ["Control", "opt", "⌘", "meh"], "capsLockAlone": "escape"}}"#),
+  ("keyboard modifiers not a list", #"{"keyboard": {"hyperModifiers": "hyper"}}"#),
+  // bindings
+  ("binding without keys", #"{"bindings": [{"action": "undo"}]}"#),
+  ("binding with invalid keys", #"{"bindings": [{"keys": "bogus+a", "action": "undo"}]}"#),
+  ("binding with empty keys", #"{"bindings": [{"keys": "", "action": "undo"}]}"#),
+  ("binding with an invalid action", #"{"bindings": [{"keys": "hyper+a", "action": "push sideways"}]}"#),
+  ("binding without action", #"{"bindings": [{"keys": "hyper+a"}]}"#),
+  (
+    "binding id lowercase",
+    #"{"bindings": [{"id": "abcdef01-2345-4678-9abc-def012345678", "keys": "hyper+a", "action": "undo"}]}"#
+  ),
+  ("binding id invalid", #"{"bindings": [{"id": "not-a-uuid", "keys": "hyper+a", "action": "undo"}]}"#),
+  (
+    "binding id braces",
+    #"{"bindings": [{"id": "{12345678-1234-1234-1234-123456789012}", "keys": "hyper+a", "action": "undo"}]}"#
+  ),
+  (
+    "binding repeats null",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000001", "keys": "a", "action": "undo", "repeats": null, "name": null}]}"#
+  ),
+  ("binding modal without toggle", #"{"bindings": [{"keys": "a", "modal": {"keys": "ctrl+f4"}, "action": "undo"}]}"#),
+  (
+    "binding modal invalid keys",
+    #"{"bindings": [{"keys": "a", "modal": {"keys": "x+y", "toggle": true}, "action": "undo"}]}"#
+  ),
+  ("binding name number", #"{"bindings": [{"keys": "a", "name": 5, "action": "undo"}]}"#),
+  ("bindings not a list", #"{"bindings": {}}"#),
+  (
+    "binding keys canonicalized",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000002", "keys": "shift+cmd+ctrl+alt+PageUp", "action": {"op": "keystroke", "keys": "4:cmd,shift"}}]}"#
+  ),
+  // hotstrings
+  ("hotstring minimal", #"{"hotstrings": [{"id": "F0000000-0000-4000-8000-000000000001", "trigger": "x"}]}"#),
+  ("hotstring without trigger", #"{"hotstrings": [{"replacement": "x"}]}"#),
+  ("hotstring invalid fire", #"{"hotstrings": [{"trigger": "x", "fire": "later"}]}"#),
+  ("hotstring invalid method", #"{"hotstrings": [{"trigger": "x", "method": "telepathy"}]}"#),
+  (
+    "hotstring with action object",
+    #"{"hotstrings": [{"id": "F0000000-0000-4000-8000-000000000002", "trigger": ";x", "action": {"op": "open-url", "url": "https://example.com"}}]}"#
+  ),
+  ("hotstring without id", #"{"hotstrings": [{"trigger": "a"}, {"trigger": "b"}]}"#),
+  ("hotstring empty trigger", #"{"hotstrings": [{"id": "F0000000-0000-4000-8000-000000000003", "trigger": ""}]}"#),
+  // layouts and defaults
+  ("layout minimal", #"{"layouts": [{"name": "x"}]}"#), ("layout without name", #"{"layouts": [{"apps": []}]}"#),
+  (
+    "layout app options partial",
+    #"{"layouts": [{"name": "x", "apps": [{"app": "A", "options": {"repeat": true, "titleOrderRegex": ["^a"]}}]}]}"#
+  ),
+  ("layout app without app", #"{"layouts": [{"name": "x", "apps": [{"operations": []}]}]}"#),
+  ("layout app options wrong type", #"{"layouts": [{"name": "x", "apps": [{"app": "A", "options": {"repeat": 1}}]}]}"#),
+  ("default count", #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}}}]}"#),
+  ("default resolutions", #"{"defaults": [{"target": "x", "condition": {"resolutions": {"_0": ["1x1"]}}}]}"#),
+  ("default bad condition", #"{"defaults": [{"target": "x", "condition": {"count": 3}}]}"#),
+  ("default unknown condition", #"{"defaults": [{"target": "x", "condition": {"screens": {"_0": 3}}}]}"#),
+  (
+    "default two conditions",
+    #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}, "resolutions": {"_0": []}}}]}"#
+  ),
+  ("default without target", #"{"defaults": [{"condition": {"count": {"_0": 3}}}]}"#),
+]
+
+/// JSON5 number spellings, including malformed ones Swift's scanner still reads as numbers. Each is
+/// tried where Action decoding ignores a bad value (resize width), as an Int (version) and as a
+/// Double (a setting).
+private let numberTokens: [String] = [
+  "1f", "-", ".", "1e", "0x", "1.2.3", "1e5e5", "1-2", "+-1", "0xg", "1a", "1g", ".e1", "0x1p4", "0X1P4", "0x1.8",
+  "0x1.8p1", "1p4", "1_0", "0b1", "NaN", "Infinity", "-Infinity", "1e400", "1e-400", "01", "-01", "00", "0.0e0",
+  "10e-1", "1.5e1", "1.25e1", "0x7FFFFFFFFFFFFFFF", "0x8000000000000000", "9223372036854775807",
+  "9223372036854775808", "-9223372036854775808", "1e18", "1e19", "-0x0", "0xFFFFFFFFFFFFFFFFFF", "+.5", "5.", "-5.",
+  "1E+2", "0x1F", "0xabc", "123456789012345678901234567890", "1x", "1z", "1Z", "-a", "+x", ".Z", "1.x", "Infinityx",
+  "NaN1", "-NaN", "+NaN", "+Infinity", "Infinity1", "-Inf", "In", "N", "0x_1", "1+", "1.", "+", "+.", "-.", "e5", "x1",
+  "9007199254740993", "-0", "0e5", "0x0p0", "0e0", "0e1", "0e9", "0e10", "0e15", "0e99", "0E5", "0e+5", "0e-5", "0.0e5",
+  "0.e5", "1e5", "2e5", "0e05", "-0e5", "0e100", "0.5e1", "00e5", "0x0", "0.0", "0.00", "-0.0e1",
+]
+
+private let numberTokenCases: [(String, String)] = numberTokens.flatMap { token in
+  [
+    (
+      "JSON5 number \(token) as an action parameter",
+      #"{"bindings": [{"id": "E0000000-0000-4000-8000-0000000000AA", "keys": "a", "action": {"op": "resize", "width": \#(token), "height": "+1"}}]}"#
+    ),
+    ("JSON5 number \(token) as an Int", #"{"version": \#(token)}"#),
+    ("JSON5 number \(token) as a Double", #"{"settings": {"x": \#(token)}}"#),
+  ]
+}
+
+/// Matches a UUID in Swift's uppercase form.
+private let uuidPattern = try! NSRegularExpression(
+  pattern: "[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
+
+/// Replaces UUIDs that Swift generated (they don't appear in `input`) with "RANDOM-UUID".
+func maskRandomUUIDs(_ text: String, input: String) -> String {
+  let known = input.uppercased()
+  var result = text
+  for match in uuidPattern.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
+    let range = Range(match.range, in: text)!
+    if !known.contains(text[range]) { result.replaceSubrange(Range(match.range, in: result)!, with: "RANDOM-UUID") }
+  }
+  return result
+}
+
+func configurationFixtures() -> FixtureFile {
+  let decodeCases = decodeCases + numberTokenCases
+  let decode: [J] = decodeCases.map { name, input in
+    var item: [String: J] = ["name": .string(name), "input": .string(input)]
+    do {
+      let config = try SlatedConfiguration.decode(from: Data(input.utf8))
+      do {
+        let encoded = String(decoding: try config.encoded(), as: UTF8.self)
+        let masked = maskRandomUUIDs(encoded, input: input)
+        item["encoded"] = .string(masked)
+        // Whether decoding what Swift wrote gives the same configuration back (fn in hyperModifiers
+        // isn't written, so it doesn't).
+        let again = try SlatedConfiguration.decode(from: config.encoded())
+        item["roundTrips"] = .bool(again == config)
+      } catch {
+        // Decoded, but JSON can't hold the value (infinity or NaN).
+        item["encodeError"] = errorJ(error)
+      }
+    } catch {
+      item["error"] = errorJ(error)
+    }
+    return .object(item)
+  }
+  return FixtureFile(
+    name: "config.json",
+    description:
+      "SlatedConfiguration.decode (JSON5 allowed) → encoded(): `encoded` is the exact text Swift writes (pretty, sorted "
+      + "keys); `encodeError` when the value decodes but JSON can't hold it. UUIDs Swift generated for entries without "
+      + "an id read \"RANDOM-UUID\".",
+    sections: ["decode": decode],
+    depth: ["decode": 2])
+}
+
+func starterFixtures() -> FixtureFile {
+  let starter = SlatedConfiguration.starter
+  let encoded = maskRandomUUIDs(String(decoding: try! starter.encoded(), as: UTF8.self), input: "")
+  let bindings: [J] = starter.bindings.map { binding in
+    [
+      "name": .optional(binding.name), "keys": .string(binding.keys.string), "action": actionJ(binding.action),
+      "format": .string(SlateSyntax.format(binding.action)),
+    ]
+  }
+  return FixtureFile(
+    name: "starter.json",
+    description:
+      "SlatedConfiguration.starter: the configuration a new install starts with (the author's Slate setup on the Hyper "
+      + "key). Binding ids are random in Swift, so they read \"RANDOM-UUID\".",
+    sections: ["bindings": bindings],
+    extra: ["encoded": .string(encoded), "config": parseJ(encoded)],
+    depth: ["config": 1])
+}
+
+private let slateValueInputs: [String] = [
+  "true", "TRUE", "yes", "Yes", "false", "no", "NO", "1", "0", "1.5", "-2", "+3", ".5", "5.", "1e3", "0x10", "0x1p4",
+  "inf", "-inf", "infinity", "Infinity", "nan", "NaN", "  42  ", "", "  ", "value with spaces", "1_000", "1,5",
+  "screenSize", "1e400", "-0", "0.1", "１", "\t7\t", "nan(0x1)", "0X1F", "1.e2", ".e2", "e2", "1e", "--1", "0x", "0b101",
+]
+
+private let settingValues: [SettingValue] = [
+  .bool(true), .bool(false), .number(1), .number(0), .number(0.5), .number(-0.0), .number(1e20), .number(1e15),
+  .number(999999999999999), .number(1.5e-7), .number(42), .number(-3.25), .number(100), .string("true"), .string("YES"),
+  .string("no"), .string("0"), .string("1"), .string("2"), .string("1.5"), .string("abc"), .string(""),
+  .string("False"),
+  .string(" 1"), .string("1e3"), .string("inf"), .string("0x10"),
+]
+
+private let typedInputs: [[String: SettingValue]] = [
+  [:],
+  [
+    "defaultToCurrentScreen": .bool(true), "nudgePercentOf": .string("windowSize"),
+    "resizePercentOf": .string("windowSize"),
+    "orderScreensLeftToRight": .bool(false), "repeatOnHoldOps": .string("resize, nudge ,push,"),
+    "secondsBeforeRepeat": .number(0.25), "secondsBetweenRepeat": .string("0.05"), "undoMaxStackSize": .number(20.9),
+    "focusCheckWidth": .bool(true), "focusCheckWidthMax": .string("x"), "focusPreferSameApp": .string("no"),
+    "checkDefaultsOnLoad": .number(2), "windowHintsCharacters": .number(123),
+  ],
+  ["undoMaxStackSize": .number(-3.7), "repeatOnHoldOps": .string(""), "nudgePercentOf": .number(1e20)],
+  [
+    "defaultToCurrentScreen": .string("maybe"), "orderScreensLeftToRight": .string("0"), "repeatOnHoldOps": .bool(true),
+  ],
+]
+
+func settingsFixtures() -> FixtureFile {
+  let fromSlate: [J] = slateValueInputs.map { ["input": .string($0), "value": settingJ(SettingValue(slate: $0))] }
+  let accessors: [J] = settingValues.map { value in
+    [
+      "value": settingJ(value), "bool": value.boolValue.map(J.bool) ?? .null,
+      "double": value.doubleValue.map(J.number) ?? .null, "string": .string(value.stringValue),
+    ]
+  }
+  let typed: [J] = typedInputs.map { values in
+    let s = SlateSettings(values)
+    return [
+      "settings": settingsJ(s), "defaultToCurrentScreen": .bool(s.defaultToCurrentScreen),
+      "nudgePercentOf": .string(s.nudgePercentOf), "resizePercentOf": .string(s.resizePercentOf),
+      "orderScreensLeftToRight": .bool(s.orderScreensLeftToRight),
+      "repeatOnHoldOps": .array(s.repeatOnHoldOps.map(J.string)), "secondsBeforeRepeat": .number(s.secondsBeforeRepeat),
+      "secondsBetweenRepeat": .number(s.secondsBetweenRepeat), "undoMaxStackSize": .int(s.undoMaxStackSize),
+      "focusCheckWidth": .number(s.focusCheckWidth), "focusCheckWidthMax": .number(s.focusCheckWidthMax),
+      "focusPreferSameApp": .bool(s.focusPreferSameApp), "checkDefaultsOnLoad": .bool(s.checkDefaultsOnLoad),
+      "windowHintsCharacters": .string(s.windowHintsCharacters),
+    ]
+  }
+  return FixtureFile(
+    name: "settings.json",
+    description:
+      "Slate `config` values: SettingValue(slate:) for .slate text, the bool/double/string readings of each value, "
+      + "and SlateSettings' typed accessors with Slate's defaults.",
+    sections: ["fromSlate": fromSlate, "accessors": accessors, "typed": typed])
+}
