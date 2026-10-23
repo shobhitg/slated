@@ -4,6 +4,7 @@ import Foundation
 let suites: [Suite] = [
   configurationTests,
   slateKeystrokeTests,
+  slateScriptTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first

@@ -49,3 +49,10 @@ assumption I'm currently running with, so nothing is blocked.
   rewriting your JS file.
 - **Slate's beta app switcher (`switch`)** is parsed but not implemented yet. It replaced Cmd-Tab
   via an event tap, which is fragile; I'd rather build a proper switcher later if you want one.
+- **`~/.slate.js` gets Slate's whole JavaScript API**, plus a small built-in subset of underscore.js
+  (`_`), which Slate preloaded for configs. Where Slated differs: a mistake is reported with its line
+  and the rest of the file still loads (Slate showed a Quit/Skip alert); `slate.bind` only works
+  while the config loads; and `repeatOnHoldOps` applies to every binding wherever it's set in the file.
+- **A runaway loop in `~/.slate.js` would freeze Slated**, as it froze Slate: JavaScriptCore can only
+  interrupt a script through private API. Tell me if that matters; the fix would be running scripts
+  in a helper process.
