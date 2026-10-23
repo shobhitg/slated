@@ -72,7 +72,8 @@ Hotstrings and the Hyper key work by watching keystrokes system-wide.
 | Command | What it does |
 |---|---|
 | `make run` | Build, bundle into `build/Slated.app`, sign, launch |
-| `make test` | Run the test suite (`FILTER=name` to narrow) |
+| `make check` | Run every automated test: unit, contract and end-to-end smoke tests (see [docs/TESTING.md](docs/TESTING.md)) |
+| `make test` | Unit and contract tests only (`FILTER=name` to narrow) |
 | `make logs` | Stream Slated's logs |
 | `make install` | Release build into `~/Applications` |
 | `make fmt` / `make lint` | Format / check with `swift format` |
