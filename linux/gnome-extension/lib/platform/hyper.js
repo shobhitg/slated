@@ -105,15 +105,17 @@ export class HyperManager {
   }
 
   /**
-   * Makes the keyboard match the configuration. Returns `{wanted, mode, active, hyperIsSuper}`, where
-   * `mode` is "xkb", "keyd", "off", or "pending" while the keyd check runs.
+   * Makes the keyboard match the configuration. Returns `{wanted, mode, active, hyperIsSuper, pending}`,
+   * where `mode` is "xkb", "keyd" or "off" (status.json's values); `pending` is true (with mode "off")
+   * for the moment it takes to ask systemd whether keyd runs.
    */
   apply({wanted, capsLockAlone = 'nothing'}) {
     let mode;
     let active = false;
     let reason;
-    if (wanted && this._keyd === null) {
-      mode = 'pending';
+    const pending = !!wanted && this._keyd === null;
+    if (pending) {
+      mode = 'off';
       reason = 'checking whether keyd runs';
     } else {
       mode = chooseHyperMode({wanted, keyd: this._keyd});
@@ -129,16 +131,16 @@ export class HyperManager {
           'notice',
         );
       }
-    } else {
+    } else if (!pending) {
       this._removeOption();
       if (mode === 'keyd') {
         active = true;
         reason = 'keyd maps Caps Lock to Ctrl+Alt+Shift+Super';
-      } else if (mode === 'off') {
+      } else {
         reason = 'Hyper is off';
       }
     }
-    const result = {wanted: !!wanted, mode, active, hyperIsSuper: mode === 'xkb'};
+    const result = {wanted: !!wanted, mode, active, hyperIsSuper: mode === 'xkb', pending};
     const signature = JSON.stringify(result);
     if (signature !== this._logged) {
       this._logged = signature;

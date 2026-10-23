@@ -239,6 +239,10 @@ def main():
     check('Hyper mode is xkb', bool(hyper) and hyper.get('active'), status().get('hyper'))
     check('caps:hyper is added to xkb-options, keeping the others', "'caps:hyper'" in xkb_options() and "'compose:ralt'" in xkb_options(), xkb_options())
     check('keyboard.state logs the chosen mode', any(e['data'].get('mode') == 'xkb' for e in log_events('keyboard.state')))
+    # Information, not a check: in the stock keymap Hyper may share Mod4 with Super, which makes <Hyper>
+    # shortcuts collide with GNOME's Super shortcuts. Print what this GNOME/xkeyboard-config does.
+    wait_until(lambda: 'hyper+a' in status()['hotkeys'], 5)
+    print(f"    xkb-mode shortcut statuses: {json.dumps(status()['hotkeys'], sort_keys=True)}")
 
     # 9. Disabling undoes everything.
     call('DisableExtension', 's', UUID, interface='org.gnome.Shell.Extensions', path='/org/gnome/Shell/Extensions', dest='org.gnome.Shell.Extensions')

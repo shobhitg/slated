@@ -66,6 +66,11 @@ test('missing parts get safe defaults', () => {
   assert.match(status.updatedAt, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
 });
 
+test('hyper.mode only ever takes the schema’s values', () => {
+  assert.equal(buildStatus({hyper: {wanted: true, mode: 'pending'}}).hyper.mode, 'off');
+  assert.equal(buildStatus({hyper: {wanted: true, mode: 'keyd', active: true}}).hyper.mode, 'keyd');
+});
+
 test('hotkey statuses are plain strings', () => {
   assert.equal(hotkeyStatusText('active'), 'active');
   assert.equal(hotkeyStatusText({failed: 'Super+A is GNOME’s'}), 'failed: Super+A is GNOME’s');

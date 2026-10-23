@@ -49,7 +49,7 @@ export function buildStatus(state) {
     updatedAt: now.toISOString(),
     hyper: {
       wanted: !!state.hyper?.wanted,
-      mode: state.hyper?.mode ?? 'off',
+      mode: ['xkb', 'keyd'].includes(state.hyper?.mode) ? state.hyper.mode : 'off',
       active: !!state.hyper?.active,
     },
     hotstrings: {
