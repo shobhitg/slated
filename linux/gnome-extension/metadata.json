@@ -1,0 +1,8 @@
+{
+  "uuid": "slated@shobhit-aida.github.io",
+  "name": "Slated",
+  "description": "Keyboard-first window management: Slate-compatible shortcuts, layouts, window hints and a placement grid, Caps Lock as a Hyper key, and text expansion through espanso. Reads ~/.config/slated/config.json, ~/.slate.js and ~/.slate.\n\nClipboard: the insert-text action pastes text it can't type through the clipboard, then puts the previous clipboard text back. Nothing is pasted unless you bind an insert-text action yourself.",
+  "shell-version": ["46", "47", "48", "49"],
+  "url": "https://github.com/shobhit-aida/slated",
+  "version-name": "0.1.0"
+}
