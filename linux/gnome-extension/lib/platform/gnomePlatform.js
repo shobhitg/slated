@@ -14,14 +14,20 @@ const SETTLE_MS = 150;
 const SHELL_WAIT_LIMIT_MS = 10_000;
 
 export class GnomePlatform {
-  constructor({timers, input, home}) {
+  constructor({timers, input, synth = null, home}) {
     this._timers = timers;
     this._input = input;
+    this._synth = synth;
     this._home = home;
   }
 
   now() {
     return GLib.get_monotonic_time() / 1000;
+  }
+
+  /** Runs `callback` once, `ms` from now, on the main loop (a macro's `wait`). Cleared on disable. */
+  after(ms, callback) {
+    return this._timers.timeout(ms, callback);
   }
 
   // --- Windows -----------------------------------------------------------------------------------
@@ -164,6 +170,16 @@ export class GnomePlatform {
       return this._input.pressKeys(combo);
     } catch (e) {
       return {ok: false, error: `Couldn't press keys: ${e.message}`};
+    }
+  }
+
+  /** Clicks a mouse button where the pointer is, `count` times (2 is a double-click). */
+  click(button, count) {
+    if (!this._synth) return {ok: false, error: "Automation isn't available"};
+    try {
+      return this._synth.click(button, count);
+    } catch (e) {
+      return {ok: false, error: `Couldn't click: ${e.message}`};
     }
   }
 

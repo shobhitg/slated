@@ -266,3 +266,66 @@ export function gridCellAt(x, y, width, height, columns, rows) {
 export function truthyText(text) {
   return !['', 'false', 'no', '0', 'off'].includes(String(text).trim().toLowerCase());
 }
+
+// --- App identities (onlyInApps, excludedApps, stopping on an app switch) -------------------------
+
+/** An app id as compared: trimmed, lowercase, without ".desktop". */
+export function normalizeAppId(id) {
+  return String(id ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\.desktop$/, '');
+}
+
+/**
+ * Who an app is, for matching against ids users write: `id` is the one Slated reports (the desktop
+ * file id without ".desktop", or a window-backed app's window id such as its WM_CLASS); `ids` holds
+ * every name it answers to, normalized (desktop id, WM_CLASS and its instance, GTK and sandbox ids).
+ */
+export function appIdentity(id, others = []) {
+  const ids = [...new Set([id, ...others].filter((v) => typeof v === 'string' && v.trim()).map(normalizeAppId))];
+  return {id: id ?? null, ids};
+}
+
+/** Whether an app (an `appIdentity`) is one of `entries` (ids with or without ".desktop", or WM_CLASS). */
+export function appMatchesAny(identity, entries) {
+  if (!identity || !Array.isArray(entries) || entries.length === 0) return false;
+  const ids = new Set(identity.ids ?? []);
+  return entries.some((entry) => ids.has(normalizeAppId(entry)));
+}
+
+// --- Labels on Linux (status, the automation indicator) --------------------------------------------
+
+const KEY_LABELS = {
+  left: '←', right: '→', up: '↑', down: '↓', return: 'Return', tab: 'Tab', space: 'Space', delete: 'Backspace',
+  forwardDelete: 'Delete', esc: 'Esc', home: 'Home', end: 'End', pageUp: 'Page Up', pageDown: 'Page Down',
+  padEnter: 'Enter', backslash: '\\', caps: 'Caps Lock', help: 'Help', mute: 'Mute', volumeUp: 'Volume Up',
+  volumeDown: 'Volume Down', padClear: 'Num Lock', shift: 'Shift', ctrl: 'Ctrl', alt: 'Alt', cmd: 'Super',
+  rightShift: 'Right Shift', rightCtrl: 'Right Ctrl', rightAlt: 'Right Alt', rightCmd: 'Right Super',
+  mouse3: 'Middle Click', mouse4: 'Mouse 4', mouse5: 'Mouse 5',
+};
+
+/** A key as the settings window labels it: "A", "←", "Esc", "F5", "Num 1", "Right Shift". */
+export function keyLabel(key) {
+  if (Object.prototype.hasOwnProperty.call(KEY_LABELS, key)) return KEY_LABELS[key];
+  if (/^pad/.test(key)) return `Num ${key.slice(3)}`;
+  return String(key).toUpperCase();
+}
+
+/** A shortcut as keycaps in one line: "✦ Esc" (all of Ctrl, Alt, Shift and Super), "Super Shift V". */
+export function shortcutLabel(combo) {
+  if (!combo || !combo.key) return '';
+  const mods = new Set(combo.modifiers ?? []);
+  const caps = [];
+  if (mods.has('fn')) caps.push('Fn');
+  if (['ctrl', 'alt', 'shift', 'cmd'].every((m) => mods.has(m))) caps.push('✦');
+  else for (const [m, label] of [['ctrl', 'Ctrl'], ['alt', 'Alt'], ['shift', 'Shift'], ['cmd', 'Super']]) if (mods.has(m)) caps.push(label);
+  caps.push(keyLabel(combo.key));
+  return caps.join(' ');
+}
+
+/** "100 ms", "2 s", "1.5 s": the macOS AutomationEngine's wording for intervals. */
+export function secondsLabel(seconds) {
+  if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
+  return seconds === Math.round(seconds) ? `${seconds} s` : `${seconds.toFixed(1)} s`;
+}

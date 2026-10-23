@@ -1,5 +1,6 @@
 // Slated for GNOME: keyboard-first window management (Slate-compatible shortcuts, layouts and
-// overlays), a Caps Lock Hyper key, and hotstrings through espanso. GNOME Shell 46–49.
+// overlays), a Caps Lock Hyper key, hotstrings through espanso, game automation and clipboard
+// history. GNOME Shell 46–51.
 //
 // Everything is created in enable() and torn down in disable(), per the extensions.gnome.org review
 // guidelines; the work happens in lib/platform/runtime.js.

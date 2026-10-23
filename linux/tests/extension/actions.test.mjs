@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {ActionRunner, redactForLog} from '../../gnome-extension/lib/platform/actions.js';
+import {AutomationEngine} from '../../gnome-extension/lib/platform/automation.js';
+import * as realCore from '../../gnome-extension/lib/core/index.js';
 import {fakeCore} from './fake-core.mjs';
 import {FakePlatform, FakeWindow} from './fake-platform.mjs';
-import {MemoryLog, leftHalf, rightHalf, topHalf} from './fixtures.mjs';
+import {FakeTimers, MemoryLog, leftHalf, rightHalf, topHalf} from './fixtures.mjs';
 
 const apps = [
   {id: 'firefox', name: 'Firefox'},
@@ -435,4 +437,121 @@ test('the grid places windows with undo', () => {
   assert.deepEqual(performed, ['Grid · Firefox']);
   runner.run({op: 'undo'}, {trigger: 't'});
   assert.deepEqual(platform.windows[0].frame, {x: 100, y: 100, width: 800, height: 600});
+});
+
+// --- Game automation and clipboard history ---------------------------------------------------------
+
+/** The runner with the real core and automation engine, recording what the synthesizer sends. */
+function automationSetup() {
+  const ctx = setup();
+  const runner = new ActionRunner({platform: ctx.platform, core: realCore, log: ctx.log});
+  runner.onError = (message) => ctx.errors.push(message);
+  const timers = new FakeTimers();
+  const sent = [];
+  const synth = {
+    mouse: (button, down) => sent.push(`${button} ${down ? 'down' : 'up'}`) && {ok: true},
+    key: (combo, down) => sent.push(`${[...combo.modifiers, combo.key].join('+')} ${down ? 'down' : 'up'}`) && {ok: true},
+  };
+  const engine = new AutomationEngine({timers, synth, log: ctx.log, now: () => timers.now, random: () => 0.5});
+  engine.perform = (action) => runner.performStep(action);
+  runner.automation = engine;
+  return {...ctx, runner, timers, sent, engine};
+}
+
+test('click goes to the platform; press and hold go through the automation engine', () => {
+  const {platform, runner, sent, engine, log} = automationSetup();
+  assert.equal(runner.run('click right 2', {trigger: 'hotkey hyper+1'}), true);
+  assert.deepEqual(platform.calls.at(-1), ['click', 'right', 2]);
+  runner.run({op: 'click'}, {trigger: 't'});
+  assert.deepEqual(platform.calls.at(-1), ['click', 'left', 1]);
+  runner.run('hold mouse:right', {trigger: 'hotkey mouse4'});
+  runner.run('press key:w down', {trigger: 't'});
+  assert.deepEqual(sent, ['right down', 'w down']);
+  assert.equal(engine.active[0].trigger, 'hotkey mouse4');
+  runner.run('hold mouse:right', {trigger: 'hotkey mouse4'});
+  runner.run('press key:w up', {trigger: 't'});
+  assert.deepEqual(sent, ['right down', 'w down', 'right up', 'w up']);
+  assert.equal(log.named('action.done').length, 6);
+});
+
+test('a repeat is identified by its trigger: the same shortcut toggles it', () => {
+  const {platform, runner, timers, engine} = automationSetup();
+  runner.run({op: 'repeat', action: {op: 'click', button: 'left'}, interval: 0.1}, {trigger: 'hotkey f'});
+  timers.advance(250);
+  assert.equal(platform.calls.filter((c) => c[0] === 'click').length, 3);
+  assert.equal(engine.isRepeating('hotkey f'), true);
+  runner.run({op: 'repeat', action: {op: 'click', button: 'left'}, interval: 0.1}, {trigger: 'hotkey f'});
+  assert.equal(engine.isRunning, false);
+  timers.advance(1000);
+  assert.equal(platform.calls.filter((c) => c[0] === 'click').length, 3);
+});
+
+test('a repeat can’t repeat a repeat, and repetitions aren’t logged one by one', () => {
+  const {runner, errors, log, timers, engine} = automationSetup();
+  assert.equal(runner.run("repeat 1 \"repeat 0.1 'click'\"", {trigger: 't'}), false);
+  assert.deepEqual(errors, ["An auto-repeat can't repeat another auto-repeat"]);
+  runner.run('repeat 0.1 times:5 "click"', {trigger: 'hotkey x'});
+  timers.advance(1000);
+  assert.equal(engine.isRunning, false);
+  assert.equal(log.named('action.done').length, 1, 'one event for the shortcut, none per click');
+});
+
+test('wait schedules the rest of a macro without blocking; stop-automations drops it', () => {
+  const {platform, runner, sent, engine, log} = automationSetup();
+  assert.equal(runner.run('sequence press key:w down | wait 2 | press key:w up | click left', {trigger: 'hotkey hyper+d'}), true);
+  assert.deepEqual(sent, ['w down'], 'the steps before the wait run now');
+  assert.equal(engine.isHeld('key:w'), true);
+  platform.advance(1999);
+  assert.deepEqual(sent, ['w down']);
+  platform.advance(1);
+  assert.deepEqual(sent, ['w down', 'w up']);
+  assert.deepEqual(platform.calls.at(-1), ['click', 'left', 1], 'then the rest');
+  assert.equal(log.named('action.done').length, 1, 'continuations that work aren’t logged');
+
+  runner.run('sequence press key:w down | wait 2 | click left', {trigger: 'hotkey hyper+d'});
+  runner.run('stop-automations', {trigger: 'hotkey hyper+esc'});
+  assert.deepEqual(sent.slice(-2), ['w down', 'w up'], 'stop releases W at once');
+  const clicks = platform.calls.filter((c) => c[0] === 'click').length;
+  platform.advance(5000);
+  assert.equal(platform.calls.filter((c) => c[0] === 'click').length, clicks, 'and the rest of the macro never runs');
+});
+
+test('a macro step that fails after a wait is logged; reloads and destroy drop waiting steps', () => {
+  const {platform, runner, log} = automationSetup();
+  platform.focused = null;
+  runner.run('sequence wait 0.5 | push left', {trigger: 'hotkey hyper+p'});
+  platform.advance(500);
+  const [failed] = log.named('action.failed');
+  assert.equal(failed.data.trigger, 'hotkey hyper+p (after wait)');
+  assert.equal(failed.data.error, 'No focused window to move');
+  runner.run('sequence wait 1 | click', {trigger: 't'});
+  runner.cancelPendingSteps();
+  platform.advance(1000);
+  runner.run('sequence wait 1 | click', {trigger: 't'});
+  runner.destroy();
+  platform.advance(1000);
+  assert.equal(platform.calls.filter((c) => c[0] === 'click').length, 0);
+  assert.equal(runner.run('wait 1', {trigger: 't'}), true, 'a wait on its own does nothing');
+});
+
+test('clipboard-history opens the switcher, or fails with the reason', () => {
+  const {runner, errors} = automationSetup();
+  let result = {ok: true};
+  let opened = 0;
+  runner.clipboard = {
+    showSwitcher: () => {
+      opened++;
+      return result;
+    },
+  };
+  assert.equal(runner.run({op: 'clipboard-history'}, {trigger: 'hotkey shift+cmd+v'}), true);
+  result = {ok: false, error: 'Clipboard history is turned off (clipboard.enabled)'};
+  assert.equal(runner.run('clipboard-history', {trigger: 't'}), false);
+  assert.equal(opened, 2);
+  assert.deepEqual(errors, ['Clipboard history is turned off (clipboard.enabled)']);
+  runner.clipboard = null;
+  runner.automation = null;
+  assert.equal(runner.run('clipboard-history', {trigger: 't'}), false);
+  assert.equal(runner.run('hold key:w', {trigger: 't'}), false);
+  assert.equal(runner.run('stop-automations', {trigger: 't'}), true, 'stopping with nothing to stop is fine');
 });

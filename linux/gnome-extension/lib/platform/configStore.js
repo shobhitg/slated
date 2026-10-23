@@ -32,6 +32,11 @@ export function emptyConfiguration() {
     layouts: [],
     defaults: [],
     hotstrings: [],
+    clipboard: {
+      enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
+      excludedApps: [], pasteAfterSelecting: true,
+    },
+    automation: {stopShortcut: 'hyper+esc', stopOnAppSwitch: true, maxRunMinutes: 0, showIndicator: true},
   };
 }
 

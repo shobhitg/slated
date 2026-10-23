@@ -19,9 +19,9 @@
 `make test FILTER=Expression` runs only matching suites or tests.
 
 **Linux** (the GNOME Shell extension) has its own tests, with Node and GJS instead of Swift:
-`make linux-test`, `make linux-test-prefs`, `make linux-test-prefs-gjs`, `make linux-test-gtk` and
-`make linux-test-installer`. [LINUX.md](LINUX.md#development) explains what each one covers. CI runs
-them in the `linux` job on Ubuntu 24.04.
+`make linux-test`, `make linux-test-extension`, `make linux-test-prefs`, `make linux-test-prefs-gjs`,
+`make linux-test-gtk` and `make linux-test-installer`. [LINUX.md](LINUX.md#development) explains what
+each one covers. CI runs them in the `linux` job on Ubuntu 24.04.
 
 ## Why a custom harness
 

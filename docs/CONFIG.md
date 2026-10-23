@@ -178,11 +178,22 @@ Safety rails:
 - Many games accept synthesized input, but online games with anti-cheat may block it or forbid it in
   their terms.
 
-**On Linux (GNOME): in progress.** The GNOME extension doesn't run these actions yet; they're
-being added with the same config. Two limits are expected:
-- GNOME can't use mouse buttons as shortcuts. You'll map side buttons to keys with keyd (e.g.
-  `mouse1 = f13`) and bind those keys.
-- `while-held` will work through key repeat, so it may stop a moment after you let go.
+**On Linux (GNOME)** the same config works, with a few differences:
+- GNOME can't use mouse buttons as shortcuts, so `mouse3`–`mouse5` show as "Couldn't register". Map
+  the side button to a key with keyd (e.g. `mouse1 = f13`) and bind that key (`f13`…`f20`).
+- `while-held` notices you let go through GNOME's key repeat, so it stops about 0.1 s after you let
+  go, and right away if you press another key. With key repeat off (Settings → Keyboard), or when
+  the repeated action types keys (`keystroke`, `insert-text`, `key:` inputs), it works like `toggle`:
+  press the shortcut again to stop.
+- In `onlyInApps`, write the app's desktop file id, with or without `.desktop`
+  (`org.prismlauncher.PrismLauncher`). Games without one, such as Steam/Proton games, go by their
+  window's WM_CLASS (`steam_app_1086940`). `recentApps` in `~/.local/state/slated/status.json`
+  lists the ids of the apps you used lately.
+- The overview counts as leaving the app: automations stop, and a game's plain-key bindings let go
+  of their keys while it's open.
+- `cmd` is the Super key, so the stop shortcut `hyper+esc` is Ctrl+Alt+Shift+Super+Esc. With Caps
+  Lock as Hyper through GNOME's own option, Hyper often shares Super's modifier, and Super+Esc is
+  GNOME's; pick another stop shortcut if it shows "Couldn't register".
 
 ## Clipboard history
 
@@ -203,6 +214,17 @@ In the switcher:
 - ↑↓ select an item and ↩ pastes it into the app you were using.
 - ⌘1–9 picks an item directly.
 - ⌘C copies without pasting, ⌘P pins, ⌘⌫ deletes, and esc closes.
+
+**On Linux (GNOME)** the switcher uses Ctrl where the Mac uses ⌘ (Ctrl+1–9, Ctrl+C, Ctrl+P,
+Ctrl+Backspace), and Ctrl+Shift+Backspace clears everything but pinned items. Picking an item pastes
+with Ctrl+V, or Ctrl+Shift+V in terminals.
+- The default shortcut `cmd+shift+v` is Super+Shift+V.
+- History is kept in `~/.local/state/slated/clipboard.json`, readable only by you, in the same format
+  as on the Mac.
+- `ignoreConcealed` skips copies that password managers mark as secret (KeePassXC and others add
+  `x-kde-passwordManagerHint`).
+- `excludedApps` takes GNOME app ids, such as `org.keepassxc.KeePassXC` or `com.bitwarden.desktop`.
+- Only text is kept, not images or files.
 
 ## Hotstrings
 

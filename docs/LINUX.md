@@ -15,7 +15,7 @@ under [Limitations](#limitations): it works only on GNOME, and updates load when
 
 | Part | What it does | Where |
 |---|---|---|
-| Extension | Window management, shortcuts, overlays, Slate configs, the Hyper key, espanso's match file, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
+| Extension | Window management, shortcuts, overlays, Slate configs, the Hyper key, espanso's match file, game automation, clipboard history, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
 | Engine | Expressions, Slate syntax, window math and config: the JavaScript port of `SlatedCore` | `linux/gnome-extension/lib/core/` |
 | Settings | The libadwaita preferences window: GNOME's version of the Mac settings app | `linux/gnome-extension/prefs.js`, `lib/prefs/` |
 
@@ -128,6 +128,7 @@ turn that back on in Slate Compatibility. Otherwise the Slate files keep loading
 | `~/.local/state/slated/status.json` | Extension | What's running, read by the settings window (format below) |
 | `~/.local/state/slated/slated.log` | Extension and settings | The event log: JSON Lines with the same events as on the Mac (`app.start`, `action.done`, `config.saved`, `ui.*`…) |
 | `~/.local/state/slated/snapshots.json` | Extension | Saved window snapshots |
+| `~/.local/state/slated/clipboard.json` | Extension | Clipboard history, readable only by you (mode 0600), in the Mac app's format. Not written when `clipboard.persist` is off |
 | `~/.config/espanso/match/slated.yml` | Extension | Your hotstrings, for espanso |
 | `~/.local/share/gnome-shell/extensions/<uuid>/build-info.json` | `linux/install.sh` | `{"version", "commit", "builtAt", "build"}` of the installed build |
 
@@ -146,6 +147,9 @@ these to point everything at a throwaway home.
  "screens": [{"displayID": 1, "name": "Built-in display", "isMain": true, "scale": 1,
               "frame": {"x": 0, "y": 0, "width": 1920, "height": 1080},
               "visibleFrame": {"x": 0, "y": 32, "width": 1920, "height": 1048}}],
+ "automation": {"running": ["Repeat click left every 100 ms"], "stopShortcut": "hyper+esc", "whileHeld": "key-repeat"},
+ "clipboard": {"enabled": true, "items": 12},
+ "recentApps": [{"id": "steam_app_1086940", "name": "steam_app_1086940"}, {"id": "firefox", "name": "Firefox"}],
  "lastAction": "Left half · firefox", "lastError": null}
 ```
 
@@ -155,6 +159,10 @@ these to point everything at a throwaway home.
   displays. Otherwise they use two sample displays.
 - While the extension is running, the settings window logs under its `session`, so
   `scripts/logs.py --session last` shows events from both.
+- `automation.running` lists what runs now, as the indicator shows it. `whileHeld` is `key-repeat`
+  when `while-held` repeats stop as you let go, or `toggle` when keyboard repeat is off in GNOME
+  Settings and they need a second press.
+- `recentApps` are the apps you used lately, newest first: the ids `onlyInApps` takes.
 
 ## Feature parity with macOS
 
@@ -175,7 +183,12 @@ these to point everything at a throwaway home.
 | Permissions | Accessibility, granted once | None needed |
 | Installing an update | `./install.sh` relaunches the app | Log out and back in (Wayland) or Alt+F2 `r` (Xorg). A nested shell lets you try it first |
 | Logs | `~/Library/Logs/Slated`, Console.app | `~/.local/state/slated`, `journalctl` |
-| Automation (click, press, hold, repeat, wait) and clipboard history | ✓ | Not yet. Settings keeps their `config.json` sections as they are |
+| Game automation: `click`, `press`, `hold`, `repeat` (`times`, `jitter`), `wait` in macros, `stop-automations` | Synthesized events | ✓ Through a virtual pointer and keyboard, like GNOME's on-screen keyboard |
+| `repeat … while-held` | Stops on key-up | Stops about 0.1 s after you let go, noticed through key repeat. Works like `toggle` with key repeat off or for repeats that type keys |
+| Mouse buttons 3–5 as shortcuts | ✓ | Not possible in GNOME. Map them to F13–F20 with keyd |
+| Shortcuts only in some apps (`onlyInApps`) | Bundle ids | Desktop ids or WM_CLASS. Grabbed only while the app has focus |
+| Automation safety: stop shortcut, stop on app switch, time limit, the "running" indicator | ✓ | ✓ The overview counts as leaving the app. Disabling, locking the screen and config reloads release everything |
+| Clipboard history and its switcher | ✓ | ✓ Text only. Ctrl instead of ⌘ in the switcher |
 
 ## Limitations
 
@@ -195,6 +208,27 @@ these to point everything at a throwaway home.
   failed. Pick other keys, or change GNOME's in GNOME Settings → Keyboard → Keyboard Shortcuts.
 - **`~/.slate.js` runs inside GNOME Shell.** An endless loop in it freezes the whole desktop, not
   just Slated. Errors show up in Settings → Slate Compatibility.
+- **GNOME reports only key presses, not releases.** `repeat … while-held` notices that you let go
+  when the key's auto-repeat stops: about 0.1 s later, or as soon as you press or release another
+  key, since GNOME repeats only the last key pressed. With key repeat turned off in GNOME Settings, or
+  for repeats that type keys themselves, a second press stops it instead.
+- **Mouse buttons can't be shortcuts in GNOME.** Bindings on `mouse3`–`mouse5` show as failed. Map
+  the side buttons to keys with keyd, then bind those keys (`f13`…`f20`). In keyd the side buttons
+  are usually `mouse1` and `mouse2`, and keyd only reads a mouse that its `[ids]` section lists.
+  Check `man keyd` for your version's syntax; for example:
+
+  ```ini
+  [ids]
+  m:046d:c52b        # your mouse's vendor:product (`keyd monitor` shows it)
+
+  [main]
+  mouse1 = f13       # back
+  mouse2 = f14       # forward
+  ```
+- **Synthesized input in games.** Most games take it, like input from an on-screen keyboard, but
+  online games with anti-cheat may ignore it or forbid it in their terms.
+- **Clipboard history keeps text only**, from any app. Only copies made while Slated runs are
+  recorded.
 
 ## Development
 
@@ -222,6 +256,7 @@ Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
 | `make linux-test-prefs` | The settings logic (model, validation, presets, import, status), plus the whole settings UI driven on mock GTK and libadwaita |
 | `make linux-test-prefs-gjs` | The settings logic tests under GJS |
 | `make linux-test-gtk` | The settings window on real GTK 4 and libadwaita (needs `gjs gir1.2-adw-1 xvfb dbus`) |
+| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: shortcuts, per-app grabs, automation timing and safety stops, clipboard history, status and log (Node 22.15+) |
 | `make linux-test-installer` | `linux/install.sh` against stand-ins for GNOME's tools, plus `scripts/logs.py`'s log locations |
 | `linux/tests/gnome/run.sh` | The extension in a real GNOME Shell |
 | `node linux/tests/prefs/coverage.mjs` | Which settings code no test runs |
@@ -257,4 +292,9 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | Hotstrings don't expand | Settings → Hotstrings shows espanso's status. Check `espanso status` and `espanso log`. |
 | Editing `config.json` by hand changes nothing | The file must be valid JSON (comments and trailing commas are fine). Settings → Overview shows what's wrong, and `scripts/logs.py --errors` shows what the extension saw. |
 | Settings says it can't read `config.json` | The message names the spot, such as `bindings[2].id`. Ids must be UUIDs: delete a bad `"id"` line and Slated makes a new one. Settings won't save until the file reads, so nothing in it is lost. Operations from a newer Slated for Mac than the engine knows also stop it here. |
+| A `while-held` repeat keeps going after I let go | Check that Repeat Keys is on in GNOME Settings → Keyboard (`status.json` says `"whileHeld": "toggle"` otherwise). A repeat that types keys always needs a second press. `scripts/logs.py --grep automation.while_held` says which bindings work like toggles and why. |
+| An automation stops by itself | `scripts/logs.py --grep automation.stopped` gives the reason: switching apps or opening the overview (`automation.stopOnAppSwitch`), the time limit (`automation.maxRunMinutes`), the stop shortcut, or a config change. |
+| The stop or clipboard shortcut says "Couldn't register" | GNOME or another extension uses those keys (`cmd` is Super, so the clipboard's `cmd+shift+v` is Super+Shift+V). With Caps Lock as Hyper through GNOME's own option, `hyper+esc` can collide with GNOME's Super+Esc. Set `automation.stopShortcut` or `clipboard.shortcut` to other keys, such as `ctrl+alt+esc` or `ctrl+alt+v`. |
+| An `onlyInApps` shortcut never works | It's grabbed only while that app has focus. Use the id from `recentApps` in `status.json` (desktop id, or WM_CLASS for games without a desktop file). |
+| Clipboard history stays empty | `clipboard.enabled` must be on. Copies from `excludedApps` and secrets marked by password managers are skipped by design, and only text is kept. `scripts/logs.py --grep clipboard` shows what was skipped and why. |
 | User extensions are turned off | Run `gsettings set org.gnome.shell disable-user-extensions false`, or turn them on in the Extensions app. |

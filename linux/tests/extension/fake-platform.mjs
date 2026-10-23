@@ -181,6 +181,29 @@ export class FakePlatform {
     return {ok: true};
   }
 
+  click(button, count) {
+    this.calls.push(['click', button, count]);
+    return {ok: true};
+  }
+
+  /** Main-loop timeouts (a macro's `wait`), run by `advance(ms)`. */
+  after(ms, callback) {
+    this.timeouts ??= [];
+    this.clock ??= 0;
+    this.timeouts.push({due: this.clock + ms, callback});
+    return this.timeouts.length;
+  }
+
+  advance(ms) {
+    this.clock = (this.clock ?? 0) + ms;
+    for (;;) {
+      const due = (this.timeouts ?? []).filter((t) => t.due <= this.clock).sort((a, b) => a.due - b.due)[0];
+      if (!due) return;
+      this.timeouts.splice(this.timeouts.indexOf(due), 1);
+      due.callback();
+    }
+  }
+
   snapshotWindows() {
     return this.windows.map((w) => ({window: w, app: w.app, title: w.title, frame: {...w.frame}}));
   }

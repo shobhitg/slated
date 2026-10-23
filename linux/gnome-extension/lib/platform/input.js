@@ -309,6 +309,10 @@ export class InputInjector {
     this._device = null;
     this._clock = 0;
     this._destroyed = false;
+    /** Called with text Slated puts on the clipboard for a moment, so clipboard history skips it. */
+    this.onClipboardWrite = null;
+    this._waiting = [];
+    this._poller = 0;
   }
 
   insertText(text, method = 'auto') {
@@ -331,8 +335,16 @@ export class InputInjector {
     return {ok: true};
   }
 
+  /** Presses the focused app's paste shortcut: Ctrl+V, or Ctrl+Shift+V in terminals. */
+  pasteShortcut() {
+    this._whenModifiersReleased(() => this._chord(this._pastePlan()));
+    return {ok: true};
+  }
+
   destroy() {
     this._destroyed = true;
+    this._waiting = [];
+    this._poller = this._timers.clear(this._poller);
     // Releases anything the virtual device still holds right away (as GNOME's keyboard does).
     this._device?.run_dispose();
     this._device = null;
@@ -397,22 +409,57 @@ export class InputInjector {
     if (step()) this._timers.interval(10, step);
   }
 
+  _pastePlan() {
+    const modifiers = isTerminal(this._focusedAppId()) ? ['ctrl', 'shift'] : ['ctrl'];
+    return keyPlan({key: 'v', modifiers}, {latin: keymapIsLatin(this._currentSource())});
+  }
+
   _paste(text) {
     const clipboard = St.Clipboard.get_default();
     clipboard.get_text(St.ClipboardType.CLIPBOARD, (_clipboard, previous) => {
       if (this._destroyed) return;
+      this.onClipboardWrite?.(text);
       clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
-      const modifiers = isTerminal(this._focusedAppId()) ? ['ctrl', 'shift'] : ['ctrl'];
-      this._chord(keyPlan({key: 'v', modifiers}, {latin: keymapIsLatin(this._currentSource())}));
+      this._chord(this._pastePlan());
       // Give the app time to read the clipboard before restoring it.
       this._timers.timeout(400, () => {
-        if (previous !== null && previous !== undefined) clipboard.set_text(St.ClipboardType.CLIPBOARD, previous);
+        if (previous === null || previous === undefined || this._destroyed) return;
+        this.onClipboardWrite?.(previous);
+        clipboard.set_text(St.ClipboardType.CLIPBOARD, previous);
       });
     });
   }
 
-  /** Runs `callback` once no modifier is held (at most 1.5 s later). */
+  /**
+   * Runs `callback` once no modifier is held (at most 1.5 s after it was asked for). Callbacks that
+   * wait share one poller and run in order, so a fast auto-repeat can't pile up timers.
+   */
   _whenModifiersReleased(callback) {
+    const deadline = GLib.get_monotonic_time() + 1_500_000;
+    if (this._waiting.length === 0 && this._modifiersUp()) {
+      callback();
+      return;
+    }
+    this._waiting.push({callback, deadline});
+    if (this._poller) return;
+    this._poller = this._timers.interval(25, () => {
+      const up = this._modifiersUp();
+      const now = GLib.get_monotonic_time();
+      while (this._waiting.length > 0 && (up || now > this._waiting[0].deadline)) {
+        const {callback: next} = this._waiting.shift();
+        try {
+          next();
+        } catch (e) {
+          this._log?.error('text.keys_failed', e?.message ?? String(e));
+        }
+      }
+      if (this._waiting.length > 0) return true;
+      this._poller = 0;
+      return false;
+    });
+  }
+
+  _modifiersUp() {
     const mask =
       Clutter.ModifierType.SHIFT_MASK |
       Clutter.ModifierType.CONTROL_MASK |
@@ -421,19 +468,7 @@ export class InputInjector {
       Clutter.ModifierType.SUPER_MASK |
       Clutter.ModifierType.HYPER_MASK |
       Clutter.ModifierType.META_MASK;
-    const deadline = GLib.get_monotonic_time() + 1_500_000;
-    const ready = () => {
-      const [, , mods] = global.get_pointer();
-      return (mods & mask) === 0 || GLib.get_monotonic_time() > deadline;
-    };
-    if (ready()) {
-      callback();
-      return;
-    }
-    this._timers.interval(25, () => {
-      if (!ready()) return true;
-      callback();
-      return false;
-    });
+    const [, , mods] = global.get_pointer();
+    return (mods & mask) === 0;
   }
 }

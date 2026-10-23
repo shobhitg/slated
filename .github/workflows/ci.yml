@@ -53,6 +53,8 @@ jobs:
           fi
       - name: Syntax check (every extension file)
         run: find linux/gnome-extension -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Extension runtime tests (Node, simulated GNOME Shell)
+        run: make linux-test-extension
       - name: Preferences tests (Node, mock GTK)
         run: make linux-test-prefs
       - name: Preferences tests (GJS)

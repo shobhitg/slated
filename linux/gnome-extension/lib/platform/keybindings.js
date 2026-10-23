@@ -16,11 +16,25 @@
 // Repeat while held: Mutter re-sends a held shortcut at the keyboard's repeat rate unless the grab
 // has IGNORE_AUTOREPEAT, so repeating bindings simply leave it off. (Slate's secondsBeforeRepeat /
 // secondsBetweenRepeat don't apply; GNOME's keyboard repeat settings do.)
+//
+// Knowing when a key is let go (while-held auto-repeats): Mutter reports only presses. A held key
+// keeps re-sending its shortcut at the keyboard's repeat rate, so for `holdable` entries the repeats
+// are heartbeats, and none arriving for about twice the repeat interval (after the first, the
+// repeat delay plus that) means the key was let go. GNOME's key repeat also stops when any other key
+// is pressed or released, so the release is then reported early. With key repeat off, nothing
+// arrives: holdable entries aren't made then, and while-held repeats work like toggles.
+//
+// App-specific bindings (`apps`, a binding's onlyInApps) are grabbed only while one of their apps
+// has focus (`setFocusedApp`), so a plain key like F can drive a game without taking F anywhere else.
 
 import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
+import * as Core from '../core/index.js';
+
+import {appMatchesAny} from './util.js';
 
 export const ACTIVE = 'active';
 export const DISABLED = 'disabled';
@@ -30,16 +44,36 @@ export function failed(reason) {
   return `failed: ${reason}`;
 }
 
+/** Why mouse3–mouse5 can't be shortcuts on GNOME, and what to do instead. */
+export const MOUSE_BUTTON_REASON =
+  "GNOME can't use mouse buttons as shortcuts. Map the button to a key with keyd (for example mouse1 = f13), then bind that key (F13–F20)";
+export const MODIFIER_KEY_REASON = "A modifier key can't be a shortcut on its own";
+
+/** No repeat for at least this long counts as a release, however fast the keyboard repeats. */
+export const MIN_RELEASE_MS = 100;
+
+/**
+ * Release timing from GNOME's keyboard repeat settings (org.gnome.desktop.peripherals.keyboard):
+ * `firstMs` after the press (the repeat delay plus a margin), then `nextMs` after each repeat.
+ */
+export function releaseTiming({delayMs = 500, intervalMs = 30} = {}) {
+  const nextMs = Math.max(2 * intervalMs, MIN_RELEASE_MS);
+  return {firstMs: delayMs + nextMs, nextMs};
+}
+
 /**
  * Registers hotkey entries:
- *   {id, keys: KeyCombo, modal: {keys, toggle} | null, repeats, source, run()}
- * `id` is the status key ("hyper+a", or "ctrl+alt+f4 1" for modal bindings).
+ *   {id, keys: KeyCombo, modal: {keys, toggle} | null, repeats, source, run(), apps?, holdable?}
+ * `id` is the status key ("hyper+a", or "ctrl+alt+f4 1" for modal bindings). `apps` limits an entry
+ * to some apps (onlyInApps); `holdable` asks for `onRelease(entry)` when its key is let go.
  */
 export class KeybindingManager {
-  constructor({grabber, log = null, onModalChange = null}) {
+  constructor({grabber, log = null, onModalChange = null, onRelease = null}) {
     this._grabber = grabber;
     this._log = log;
     this.onModalChange = onModalChange;
+    /** A holdable entry's key was let go (while-held auto-repeats stop then). */
+    this.onRelease = onRelease;
     this.statuses = {};
     this.duplicates = [];
     this._handlers = new Map();
@@ -51,6 +85,15 @@ export class KeybindingManager {
     this._acceleratorFor = () => null;
     this._escapeKeys = null;
     this._lastLogged = '';
+    this._lastEntries = [];
+    this._lastOptions = {};
+    /** The focused app (util.appIdentity), for app-specific entries. */
+    this._focusedApp = null;
+    /** Release detection from key repeat ({firstMs, nextMs}), or null when keyboard repeat is off. */
+    this._holdTiming = null;
+    /** Holdable entries whose key is down: id → {entry, timer}. */
+    this._held = new Map();
+    this._liveSignature = '';
     this._grabber.connect((action) => this._activated(action));
   }
 
@@ -61,18 +104,33 @@ export class KeybindingManager {
    * @param {string[]} [options.disabled]  Keys of disabled bindings (status "disabled").
    * @param {(combo: object) => string|null} options.acceleratorFor  KeyCombo → GNOME accelerator.
    * @param {object|null} [options.escapeKeys]  KeyCombo that leaves modal mode (Slate's modalEscapeKey).
+   * @param {object|null} [options.holdTiming]  `releaseTiming(…)` from GNOME's keyboard repeat
+   *   settings, or null when keyboard repeat is off (then nothing is holdable).
    */
-  apply(entries, {disabled = [], acceleratorFor, escapeKeys = null} = {}) {
+  apply(entries, {disabled = [], acceleratorFor, escapeKeys = null, holdTiming = null} = {}) {
     this.unregisterAll();
+    this._lastEntries = entries;
+    this._lastOptions = {disabled, acceleratorFor, escapeKeys, holdTiming};
     this._acceleratorFor = acceleratorFor ?? (() => null);
     this._escapeKeys = escapeKeys;
+    this._holdTiming = holdTiming;
     this.statuses = {};
     for (const id of disabled) this.statuses[id] = DISABLED;
     this.duplicates = [];
 
+    // App-specific entries are live only while one of their apps has focus. The others count as
+    // ready, unless GNOME can't take their keys at all.
+    const live = entries.filter((entry) => this._isLive(entry));
+    this._liveSignature = this._signature(live);
+    for (const entry of entries) {
+      if (live.includes(entry) || this.statuses[entry.id] !== undefined) continue;
+      const unusable = this._unusableReason(entry.keys) ?? (entry.modal ? this._unusableReason(entry.modal.keys) : null);
+      this.statuses[entry.id] = unusable ? failed(unusable) : ACTIVE;
+    }
+
     const seen = new Set();
     const direct = [];
-    for (const entry of entries) {
+    for (const entry of live) {
       if (seen.has(entry.id)) {
         this.duplicates.push(entry.id);
         continue;
@@ -88,7 +146,8 @@ export class KeybindingManager {
     }
 
     for (const entry of direct) {
-      const result = this._grab(entry.keys, {repeats: !!entry.repeats}, () => this._run(entry));
+      const holdable = this._isHoldable(entry);
+      const result = this._grab(entry.keys, {repeats: !!entry.repeats || holdable}, () => this._activate(entry));
       this.statuses[entry.id] = result.ok ? ACTIVE : failed(result.reason);
       if (result.ok) this._direct.set(entry.id, entry);
     }
@@ -123,8 +182,33 @@ export class KeybindingManager {
     return this._activeModal;
   }
 
+  /** Holdable entries whose key is down right now (ids). */
+  get heldKeys() {
+    return [...this._held.keys()];
+  }
+
+  /**
+   * The focused app changed (an `appIdentity`, or null): grabs the app-specific bindings for the new
+   * app and lets go of the previous app's. Returns true when the registrations change.
+   */
+  setFocusedApp(app) {
+    this._focusedApp = app;
+    if (!this._lastEntries.some((entry) => entry.apps?.length)) return false;
+    const signature = this._signature(this._lastEntries.filter((entry) => this._isLive(entry)));
+    if (signature === this._liveSignature) return false;
+    this._liveSignature = signature;
+    // Grabbing from inside Mutter's key handling (an Alt+Tab ends in one) is avoided.
+    this._grabber.defer(() => {
+      this.apply(this._lastEntries, this._lastOptions);
+      this._log?.record('hotkeys.app_bindings', {app: app?.id ?? null, live: this._lastEntries.filter((e) => e.apps?.length && this._isLive(e)).length}, 'debug');
+    });
+    return true;
+  }
+
   unregisterAll() {
     this._exitModal({log: false});
+    // Whatever was held is let go as far as Slated knows, so while-held repeats don't run on.
+    for (const id of [...this._held.keys()]) this._released(id);
     for (const action of this._grabs) this._grabber.ungrab(action);
     this._grabs = [];
     this._handlers.clear();
@@ -135,7 +219,7 @@ export class KeybindingManager {
   destroy() {
     this.unregisterAll();
     this._grabber.destroy();
-    this.onModalChange = null;
+    this.onModalChange = this.onRelease = null;
   }
 
   // --- Internals ---------------------------------------------------------------------------------
@@ -144,8 +228,59 @@ export class KeybindingManager {
     return `${[...(combo.modifiers ?? [])].sort().join('+')}+${combo.key}`;
   }
 
+  _isLive(entry) {
+    return !entry.apps?.length || appMatchesAny(this._focusedApp, entry.apps);
+  }
+
+  _signature(entries) {
+    return entries
+      .filter((entry) => entry.apps?.length)
+      .map((entry) => entry.id)
+      .join('\n');
+  }
+
+  _isHoldable(entry) {
+    return !!entry.holdable && this._holdTiming !== null;
+  }
+
+  /** Why GNOME can't take a key at all (mouse buttons, modifiers alone), or null. */
+  _unusableReason(combo) {
+    if (!combo) return null;
+    if (Core.isMouseButton(combo.key)) return MOUSE_BUTTON_REASON;
+    if (Core.isModifierKey(combo.key)) return MODIFIER_KEY_REASON;
+    return null;
+  }
+
+  /** A press (or, for holdable entries, maybe a key-repeat heartbeat while the key is held). */
+  _activate(entry) {
+    if (this._isHoldable(entry)) {
+      const held = this._held.get(entry.id);
+      if (held) {
+        this._grabber.clearTimeout(held.timer);
+        held.timer = this._grabber.timeout(this._holdTiming.nextMs, () => this._released(entry.id));
+        return;
+      }
+      this._held.set(entry.id, {entry, timer: this._grabber.timeout(this._holdTiming.firstMs, () => this._released(entry.id))});
+    }
+    this._run(entry);
+  }
+
+  _released(id) {
+    const held = this._held.get(id);
+    if (!held) return;
+    this._held.delete(id);
+    this._grabber.clearTimeout(held.timer);
+    try {
+      this.onRelease?.(held.entry);
+    } catch (e) {
+      this._log?.error('hotkeys.release_failed', e?.message ?? String(e), {keys: id});
+    }
+  }
+
   /** Grabs `combo`; on success the grab is added to `list` (released by `unregisterAll`/`_exitModal`). */
   _grab(combo, {repeats}, handler, list = this._grabs) {
+    const unusable = this._unusableReason(combo);
+    if (unusable) return {ok: false, reason: unusable};
     let accelerator = null;
     try {
       accelerator = this._acceleratorFor(combo);
@@ -242,6 +377,16 @@ export class KeybindingManager {
 
 // --- GNOME ---------------------------------------------------------------------------------------
 
+/** GNOME's keyboard repeat settings (Settings → Keyboard → Repeat Keys): {enabled, delayMs, intervalMs}. */
+export function readKeyboardRepeat() {
+  try {
+    const settings = new Gio.Settings({schema_id: 'org.gnome.desktop.peripherals.keyboard'});
+    return {enabled: settings.get_boolean('repeat'), delayMs: settings.get_uint('delay'), intervalMs: settings.get_uint('repeat-interval')};
+  } catch {
+    return {enabled: true, delayMs: 500, intervalMs: 30};
+  }
+}
+
 /** Grabs accelerators from Mutter and reports activations. */
 export class MutterGrabber {
   constructor({timers, hyperIsSuper = () => false}) {
@@ -291,6 +436,14 @@ export class MutterGrabber {
 
   defer(callback) {
     this._timers.idle(callback);
+  }
+
+  timeout(ms, callback) {
+    return this._timers.timeout(ms, callback);
+  }
+
+  clearTimeout(id) {
+    this._timers.clear(id);
   }
 
   destroy() {

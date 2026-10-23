@@ -84,6 +84,10 @@ export class ActionRunner {
     this.onRelaunch = null;
     /** Runs a layout defined in JavaScript. Returns false if there's no such layout. */
     this.externalLayout = null;
+    /** Auto-repeats and held inputs (automation.js `AutomationEngine`). */
+    this.automation = null;
+    /** Clipboard history (clipboard.js `ClipboardService`). */
+    this.clipboard = null;
 
     this._undo = [];
     this._chains = new Map();
@@ -93,6 +97,8 @@ export class ActionRunner {
     this._context = null;
     /** Set by a `shell` step with `wait`: the steps after it continue once this settles. */
     this._waiting = null;
+    /** Bumped to drop macro steps still waiting (`wait`): stop-automations, reloads, disable. */
+    this._generation = 0;
     this._destroyed = false;
   }
 
@@ -177,6 +183,60 @@ export class ActionRunner {
       if (this._destroyed) return;
       this._logged({...context, trigger: `${context.trigger} (after shell)`}, () => description, body);
     });
+  }
+
+  /**
+   * Runs the rest of a macro `ms` from now (a `wait` step), without blocking GNOME Shell. Unlike a
+   * shell wait it isn't logged when it works (an auto-repeated macro would flood the log), only when
+   * it fails; it's dropped if automations are stopped, Slated reloads or it's turned off meanwhile.
+   */
+  _resumeAfter(ms, body) {
+    const generation = this._generation;
+    const context = this._context;
+    this.platform.after(ms, () => {
+      if (this._destroyed || generation !== this._generation) return;
+      const outer = {context: this._context, failure: this._lastFailure, app: this._lastApp};
+      this._context = context;
+      this._lastFailure = null;
+      let ok;
+      try {
+        ok = body();
+      } catch (e) {
+        ok = this._fail(errorMessage(e));
+      }
+      this._waiting = null;
+      if (!ok && !context?.quiet) {
+        this.log?.record('action.failed', {trigger: `${context?.trigger ?? 'unknown'} (after wait)`, source: context?.source, error: this._lastFailure}, 'error');
+      }
+      this._context = outer.context;
+      this._lastFailure = outer.failure;
+      this._lastApp = outer.app;
+    });
+  }
+
+  /** Drops macro steps that are waiting to run (stop-automations, reloads). */
+  cancelPendingSteps() {
+    this._generation += 1;
+  }
+
+  /**
+   * Runs one repetition of an auto-repeat (the automation engine calls this). Like macOS, no log event
+   * per repetition; a failure still reaches `onError` (status.json's lastError) and the engine counts it.
+   */
+  performStep(action) {
+    const outer = {context: this._context, failure: this._lastFailure, app: this._lastApp};
+    this._context = {trigger: 'automation', source: null, label: null, quiet: true};
+    this._lastFailure = null;
+    try {
+      return this.perform(action);
+    } catch (e) {
+      return this._fail(errorMessage(e));
+    } finally {
+      this._waiting = null;
+      this._context = outer.context;
+      this._lastFailure = outer.failure;
+      this._lastApp = outer.app;
+    }
   }
 
   /** Slate syntax for an action, for logs and the HUD. */
@@ -355,6 +415,50 @@ export class ActionRunner {
         return result.ok ? true : this._fail(result.error);
       }
 
+      // --- Automation (AutoHotkey-style) and clipboard history ---
+      case 'click': {
+        const result = this.platform.click(action.button ?? 'left', Number(action.count ?? 1));
+        return result.ok ? true : this._fail(result.error);
+      }
+      case 'press':
+        if (!this.automation) return this._fail("Automation isn't available");
+        if (!this.automation.press(action.input, action.phase, this._context?.trigger ?? null)) {
+          return this._fail(`Couldn't press ${action.input}`);
+        }
+        return true;
+      case 'hold':
+        if (!this.automation) return this._fail("Automation isn't available");
+        this.automation.toggleHold(action.input, this._context?.trigger ?? null);
+        return true;
+      case 'repeat': {
+        if (!this.automation) return this._fail("Automation isn't available");
+        const repeated = typeof action.action === 'string' ? this.core.parseOperation(action.action) : action.action;
+        if (repeated?.op === 'repeat') return this._fail("An auto-repeat can't repeat another auto-repeat");
+        // The trigger identifies it: the same shortcut toggles it, and its key-up ends a while-held one.
+        const trigger = this._context?.quiet ? null : this._context?.trigger ?? null;
+        const id = trigger ?? chainKey ?? `repeat ${this.describe(redactForLog(repeated))}`;
+        this.automation.toggleRepeat(repeated, {
+          interval: action.interval,
+          mode: action.mode ?? 'toggle',
+          times: action.times ?? null,
+          jitter: action.jitter ?? 0,
+          id,
+          trigger,
+        });
+        return true;
+      }
+      case 'wait':
+        return true; // a wait only means something inside a sequence
+      case 'stop-automations':
+        this.automation?.stopAll('stop shortcut');
+        this.cancelPendingSteps();
+        return true;
+      case 'clipboard-history': {
+        if (!this.clipboard) return this._fail("Clipboard history isn't available");
+        const result = this.clipboard.showSwitcher();
+        return result.ok ? true : this._fail(result.error);
+      }
+
       default:
         return this._fail(`Unknown operation "${action.op}"`);
     }
@@ -362,14 +466,23 @@ export class ActionRunner {
 
   /**
    * Plain steps act on whatever is focused when they run; `keepWindow` steps (Slate's `>`) act on the
-   * window that was focused when their run began. After a `shell` step with `wait`, the rest of the
-   * sequence runs once the command exits.
+   * window that was focused when their run began. A `wait` step schedules the rest instead of
+   * blocking, so macros like "press W, wait 2 s, release W" never freeze GNOME Shell. After a `shell`
+   * step with `wait`, the rest of the sequence runs once the command exits.
    */
   _runSequence(steps, start, anchor, chainKey) {
     let ok = true;
     for (let i = start; i < steps.length; i++) {
+      const action = typeof steps[i].action === 'string' ? this.core.parseOperation(steps[i].action) : steps[i].action;
+      if (action?.op === 'wait') {
+        const seconds = Number(action.seconds);
+        if (!(seconds >= 0)) return this._fail(`wait needs a number of seconds, not ${JSON.stringify(action.seconds)}`);
+        const resumeAnchor = anchor;
+        if (i + 1 < steps.length) this._resumeAfter(seconds * 1000, () => this._runSequence(steps, i + 1, resumeAnchor, chainKey));
+        return ok;
+      }
       if (i > 0 && !steps[i].keepWindow) anchor = this.platform.focusedWindow();
-      ok = this.perform(steps[i].action, {window: anchor, chainKey: chainKey ? `${chainKey}/${i}` : null}) && ok;
+      ok = this.perform(action, {window: anchor, chainKey: chainKey ? `${chainKey}/${i}` : null}) && ok;
       const waiting = this._takeWaiting();
       if (waiting && i + 1 < steps.length) {
         const resumeAnchor = anchor;
@@ -650,10 +763,11 @@ export class ActionRunner {
   }
 
   destroy() {
-    // Steps waiting for a shell command never run after this.
+    // Steps waiting for a shell command or a `wait` never run after this.
     this._destroyed = true;
     this._undo = [];
     this._chains.clear();
     this.onPerformed = this.onError = this.onRelaunch = this.externalLayout = null;
+    this.automation = this.clipboard = null;
   }
 }

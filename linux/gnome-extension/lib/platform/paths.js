@@ -5,6 +5,7 @@
 //   ~/.local/state/slated/status.json     live status for the preferences app
 //   ~/.local/state/slated/snapshots.json  saved window snapshots
 //   ~/.local/state/slated/hyper.json      what Slated changed in the keyboard options, to undo it
+//   ~/.local/state/slated/clipboard.json  clipboard history (mode 0600), when clipboard.persist is on
 //
 // `SLATED_HOME` stands in for the home directory and `SLATED_CONFIG` for the config file, like on
 // macOS, so tests can point a running shell at a throwaway home.
@@ -50,6 +51,11 @@ export function snapshotsPath() {
 
 export function hyperStatePath() {
   return `${stateDir()}/hyper.json`;
+}
+
+/** Clipboard history, readable only by you (0600), in the Mac app's clipboard.json format. */
+export function clipboardPath() {
+  return `${stateDir()}/clipboard.json`;
 }
 
 export function espansoConfigDir() {

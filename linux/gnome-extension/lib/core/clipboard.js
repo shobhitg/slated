@@ -103,11 +103,18 @@ export class ClipboardHistory {
    * Items matching every word of `query` (case- and diacritic-insensitive, like Foundation's
    * `range(of:options: [.caseInsensitive, .diacriticInsensitive])`), pinned items first, newest first.
    * An empty query returns everything.
+   *
+   * `maxCharacters` limits how much of each item is searched (the whole text by default, as on the
+   * Mac). A switcher that searches as you type inside GNOME Shell passes a limit, so a huge copy
+   * can't stall the desktop. Folded items are cached, so typing doesn't refold them.
    */
-  search(query) {
+  search(query, {maxCharacters = Infinity} = {}) {
     const words = splitCharacters(String(query), isWhitespace);
+    const patterns = words.map(foldPattern);
     const matches =
-      words.length === 0 ? this._items : this._items.filter((item) => words.every((word) => foldedContains(item.text, word)));
+      words.length === 0
+        ? this._items
+        : this._items.filter((item) => patterns.every((pattern) => containsFolded(foldedItem(item, maxCharacters), pattern)));
     return [...matches.filter((item) => item.pinned), ...matches.filter((item) => !item.pinned)];
   }
 
@@ -206,11 +213,28 @@ function caseFold(s) {
 
 const foldCharacter = (c) => stripMarks(caseFold(stripMarks(c)));
 
+/** A query word as folded characters, without those that fold to nothing (lone marks). */
+const foldPattern = (word) => graphemes(word).map(foldCharacter).filter((f) => f !== '');
+
+/** Item → {text, limit, characters}: its folded characters, kept while its text is the same. */
+const foldedItems = new WeakMap();
+
+function foldedItem(item, limit) {
+  const cached = foldedItems.get(item);
+  if (cached && cached.text === item.text && cached.limit === limit) return cached.characters;
+  const text = item.text.length > limit ? item.text.slice(0, limit) : item.text;
+  const characters = graphemes(text).map(foldCharacter);
+  foldedItems.set(item, {text: item.text, limit, characters});
+  return characters;
+}
+
 /** Whether `word` occurs in `text` the way Foundation's folding search finds it. */
 export function foldedContains(text, word) {
-  const pattern = graphemes(word).map(foldCharacter).filter((f) => f !== '');
+  return containsFolded(graphemes(text).map(foldCharacter), foldPattern(word));
+}
+
+function containsFolded(characters, pattern) {
   if (pattern.length === 0) return false;
-  const characters = graphemes(text).map(foldCharacter);
   for (let start = 0; start < characters.length; start++) {
     if (characters[start] !== '' && matchesAt(characters, start, pattern)) return true;
   }

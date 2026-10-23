@@ -87,3 +87,119 @@
   font-weight: 500;
   color: #ffffff;
 }
+
+/* --- Automation indicator (while an auto-repeat runs or Slated holds a button or key) -------- */
+
+.slated-automation-pill {
+  spacing: 9px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  background-color: rgba(26, 24, 38, 0.88);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.slated-automation-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #ef4444;
+}
+
+.slated-automation-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.slated-automation-hint {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* --- Clipboard history switcher ------------------------------------------------------------- */
+
+.slated-clipboard-panel {
+  border-radius: 18px;
+  background-color: rgba(26, 24, 38, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.slated-clipboard-header {
+  spacing: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.slated-clipboard-icon {
+  icon-size: 16px;
+  color: #a78bfa;
+}
+
+.slated-clipboard-search {
+  font-size: 15px;
+  color: #ffffff;
+  border: none;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.slated-clipboard-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 2px 7px;
+  border-radius: 9px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.slated-clipboard-list {
+  padding: 8px;
+  spacing: 2px;
+}
+
+.slated-clipboard-row {
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.slated-clipboard-row:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.slated-clipboard-row:selected {
+  background-gradient-direction: horizontal;
+  background-gradient-start: #5856d6;
+  background-gradient-end: #e0479e;
+}
+
+.slated-clipboard-text {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.slated-clipboard-meta {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.slated-clipboard-number {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  padding-left: 8px;
+}
+
+.slated-clipboard-empty {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.slated-clipboard-hints {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 9px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

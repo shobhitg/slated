@@ -24,6 +24,42 @@ export const leftHalf = {op: 'move', x: 'screenOriginX', y: 'screenOriginY', wid
 export const rightHalf = {op: 'move', x: 'screenOriginX+screenSizeX/2', y: 'screenOriginY', width: 'screenSizeX/2', height: 'screenSizeY'};
 export const topHalf = {op: 'push', direction: 'up', style: 'bar-resize:screenSizeY/2'};
 
+/** GLib timeouts with virtual time, like timers.js `Timers` (timeout, clear, advance). */
+export class FakeTimers {
+  constructor() {
+    this.now = 0;
+    this.sources = new Map();
+    this.next = 1;
+  }
+  timeout(ms, callback) {
+    const id = this.next++;
+    this.sources.set(id, {due: this.now + Math.max(0, Math.round(ms)), callback});
+    return id;
+  }
+  idle(callback) {
+    return this.timeout(0, callback);
+  }
+  clear(id) {
+    if (id) this.sources.delete(id);
+    return 0;
+  }
+  get pending() {
+    return this.sources.size;
+  }
+  /** Moves time forward `ms`, running timeouts as they come due (in order). */
+  advance(ms) {
+    const end = this.now + ms;
+    for (;;) {
+      const due = [...this.sources.entries()].filter(([, s]) => s.due <= end).sort((a, b) => a[1].due - b[1].due)[0];
+      if (!due) break;
+      this.now = due[1].due;
+      this.sources.delete(due[0]);
+      due[1].callback();
+    }
+    this.now = end;
+  }
+}
+
 /** A recording EventLog stand-in. */
 export class MemoryLog {
   constructor() {
