@@ -1,0 +1,19 @@
+#!/bin/bash
+# Stand-in for gnome-shell, for linux/tests/installer/run.sh. `--version` reports $STUB_SHELL_VERSION;
+# started as a nested shell, it plays Slated starting: it logs app.start with the installed build.
+set -euo pipefail
+echo "gnome-shell $*" >>"$STUB_LOG"
+if [ "${1:-}" = "--version" ]; then
+  echo "GNOME Shell ${STUB_SHELL_VERSION:-47.1}"
+  exit 0
+fi
+info="$HOME/.local/share/gnome-shell/extensions/$STUB_UUID/build-info.json"
+commit="$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["commit"])' "$info")"
+mkdir -p "$HOME/.local/state/slated"
+python3 -I - "$HOME/.local/state/slated/slated.log" "$commit" <<'PY'
+import datetime, json, sys
+ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+with open(sys.argv[1], "a") as f:
+    f.write(json.dumps({"data": {"commit": sys.argv[2]}, "event": "app.start", "level": "notice", "session": "nested01", "ts": ts}) + "\n")
+PY
+sleep 1

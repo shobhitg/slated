@@ -14,3 +14,5 @@ uses GNOME's own window and shortcut APIs from inside the desktop.
 
 The configuration is the same file as on macOS: `~/.config/slated/config.json`. `~/.slate.js` and
 `~/.slate` work too.
+
+Installing, development, how it compares with macOS, and troubleshooting: [docs/LINUX.md](../docs/LINUX.md).

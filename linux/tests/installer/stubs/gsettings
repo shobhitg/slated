@@ -1,0 +1,21 @@
+#!/bin/bash
+# Stand-in for gsettings, for linux/tests/installer/run.sh: keys live in $HOME/gsettings.json.
+set -euo pipefail
+echo "gsettings $*" >>"$STUB_LOG"
+python3 -I - "$HOME/gsettings.json" "$@" <<'PY'
+import json, sys
+path, command, schema, key = sys.argv[1:5]
+try:
+    store = json.load(open(path))
+except (OSError, ValueError):
+    store = {}
+defaults = {"enabled-extensions": "@as []", "disabled-extensions": "@as []", "disable-user-extensions": "false"}
+name = f"{schema} {key}"
+if command == "get":
+    print(store.get(name, defaults.get(key, "''")))
+elif command == "set":
+    store[name] = sys.argv[5]
+    json.dump(store, open(path, "w"))
+else:
+    sys.exit(f"unexpected gsettings command {command}")
+PY

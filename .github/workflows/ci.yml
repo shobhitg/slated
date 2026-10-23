@@ -22,3 +22,56 @@ jobs:
         run: Tests/Smoke/run.sh
       - name: Bundle app
         run: make app
+
+  # The GNOME Shell extension (linux/): engine, preferences, installer. Ubuntu 24.04 has GNOME 46,
+  # the oldest GNOME Slated supports, so its GTK 4.14 and libadwaita 1.5 are the ones to test against.
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install GJS, GTK 4 and libadwaita
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gjs gir1.2-gtk-4.0 gir1.2-adw-1 xvfb dbus zip unzip
+          gjs --version
+      - name: Engine tests (Node)
+        run: |
+          if make -n linux-test >/dev/null 2>&1; then
+            make linux-test
+          else
+            echo "::notice::make linux-test doesn't exist yet; skipping the engine tests"
+          fi
+      - name: Engine tests (GJS)
+        run: |
+          if [ -f linux/tests/run.mjs ]; then
+            gjs -m linux/tests/run.mjs
+          else
+            echo "::notice::linux/tests/run.mjs doesn't exist yet; skipping the engine tests under GJS"
+          fi
+      - name: Syntax check (every extension file)
+        run: find linux/gnome-extension -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Preferences tests (Node, mock GTK)
+        run: make linux-test-prefs
+      - name: Preferences tests (GJS)
+        run: make linux-test-prefs-gjs
+      - name: Installer and log tests
+        run: make linux-test-installer
+      - name: Pack the extension
+        run: |
+          if [ -f linux/gnome-extension/metadata.json ]; then
+            make linux-pack
+          else
+            echo "::notice::linux/gnome-extension/metadata.json doesn't exist yet; skipping the zip"
+          fi
+      # New: the real GTK hasn't run this code before. Make it required once it's been green.
+      - name: Preferences on the real GTK and libadwaita
+        continue-on-error: true
+        run: make linux-test-gtk
+      # Being written alongside the extension; informational until it settles.
+      - name: GNOME Shell tests
+        if: hashFiles('linux/tests/gnome/run.sh') != ''
+        continue-on-error: true
+        run: linux/tests/gnome/run.sh

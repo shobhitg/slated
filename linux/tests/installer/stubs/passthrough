@@ -1,0 +1,6 @@
+#!/bin/bash
+# Stand-in for sudo, setsid and dbus-run-session, for linux/tests/installer/run.sh: records the call
+# in $STUB_LOG and runs the command itself (no privileges, no new session or bus).
+echo "$(basename "$0") $*" >>"$STUB_LOG"
+[ "${1:-}" = "--" ] && shift
+exec "$@"

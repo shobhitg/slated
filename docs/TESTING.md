@@ -18,6 +18,11 @@
 
 `make test FILTER=Expression` runs only matching suites or tests.
 
+**Linux** (the GNOME Shell extension) has its own tests, with Node and GJS instead of Swift:
+`make linux-test`, `make linux-test-prefs`, `make linux-test-prefs-gjs`, `make linux-test-gtk` and
+`make linux-test-installer`. [LINUX.md](LINUX.md#development) explains what each one covers. CI runs
+them in the `linux` job on Ubuntu 24.04.
+
 ## Why a custom harness
 
 Swift Testing and XCTest ship with Xcode, and this project builds with only the Command Line Tools
@@ -146,3 +151,21 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 **Displays**
 - [ ] Plugging in or removing a display applies a matching `default` layout.
 - [ ] Changing the keyboard layout (e.g. to AZERTY) keeps letter shortcuts on the labeled keys.
+
+## Manual checklist: GNOME settings window
+
+Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extension/prefs.js` or
+`lib/prefs/`, after `linux/install.sh` and a new login.
+- [ ] `gnome-extensions prefs slated@shobhit-aida.github.io` opens the window on the Overview, which
+      says "Everything's running". `linux/install.sh --verify` agrees.
+- [ ] Narrowing the window collapses the sidebar into a back button. Light, dark and (on GNOME 47+)
+      the accent color all look right.
+- [ ] Recording a shortcut: the first time, GNOME asks whether to let the window take shortcuts.
+      Caps Lock+A records ✦A, both with GNOME's option and with keyd. Super+A records Super+A, not ✦A.
+- [ ] Editing a binding reaches the extension within a second (`scripts/logs.py --grep config`),
+      and its status badge turns Active, or Couldn't register for a key GNOME owns (Super+A).
+- [ ] The preview shows your real displays once the extension writes `screens` to `status.json`.
+- [ ] Import into Slated on your real `~/.slate.js` converts every binding and stops loading the file.
+- [ ] Turning "Slated is on" off and on in General disables and enables the extension.
+- [ ] Hotstrings: with espanso running, a new hotstring appears in `~/.config/espanso/match/slated.yml`
+      and expands in another app.

@@ -113,3 +113,35 @@ syslog:
 
 clean:
 	rm -rf .build build
+
+# --- Linux: the GNOME Shell extension (see docs/LINUX.md) ---------------------------------------------
+.PHONY: linux-pack linux-install linux-uninstall linux-test-prefs linux-test-prefs-gjs linux-test-gtk linux-test-installer
+
+# The extension zip in build/linux, stamped with build-info.json (works without GNOME too).
+linux-pack:
+	linux/install.sh --pack-only
+
+# Pack, install and enable for the current user; then log out and back in (or linux/install.sh --nested).
+linux-install:
+	linux/install.sh
+
+linux-uninstall:
+	linux/install.sh --uninstall
+
+# The preferences: unit tests, and the UI on mock GTK/libadwaita built from GNOME 46's introspection data.
+linux-test-prefs:
+	node linux/tests/prefs/run.mjs
+	node linux/tests/prefs/ui.mjs
+
+# The same unit tests under GJS, GNOME's JavaScript engine.
+linux-test-prefs-gjs:
+	gjs -m linux/tests/prefs/run.mjs
+
+# The preferences window on the real GTK and libadwaita (needs gjs, gir1.2-adw-1, xvfb, dbus).
+linux-test-gtk:
+	linux/tests/prefs/run-gtk.sh
+
+# linux/install.sh against stand-ins, and scripts/logs.py's log locations.
+linux-test-installer:
+	linux/tests/installer/run.sh
+	linux/tests/logs/run.sh

@@ -1,0 +1,3 @@
+#!/bin/bash
+# Stand-in for keyd and systemctl, for linux/tests/installer/run.sh: only records the call.
+echo "$(basename "$0") $*" >>"$STUB_LOG"
