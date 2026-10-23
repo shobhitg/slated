@@ -5,14 +5,17 @@
 // GNOME or Slated itself already use reach the recorder instead of running. (The first time, GNOME
 // asks whether to allow that.) Holding Caps Lock records ✦ (Hyper) in both Hyper modes: GNOME's
 // caps:hyper option reports the Hyper modifier, keyd sends all four of Ctrl, Alt, Shift and Super.
-// Esc cancels; Backspace clears when the row allows an empty shortcut.
+// The recorder also tracks which modifier keys are down: where Hyper shares Super's modifier, the
+// key held (Hyper_L or Super_L/R) tells ✦ from Super. Esc cancels; Backspace clears when the row
+// allows an empty shortcut.
 
 import Adw from 'gi://Adw';
 import Gdk from 'gi://Gdk';
 import Gtk from 'gi://Gtk';
 
 import {
-  keyNameFromGdk, isModifierKeyName, modifiersFromState, isAcceptableGlobalShortcut, formatKeyCombo, keyLabel, keysCombo,
+  keyNameFromGdk, isModifierKeyName, modifiersFromState, modifiersFromHeldKeys, isAcceptableGlobalShortcut, formatKeyCombo,
+  keyLabel, keysCombo,
 } from '../keys.js';
 import {keycaps, box, label, icon} from './widgets.js';
 
@@ -41,8 +44,9 @@ export class ShortcutRecorder {
     this.recording = false;
     this.controller = null;
     this.window = null;
+    this.held = new Set();
 
-    this.row = new Adw.ActionRow({title, subtitle});
+    this.row = new Adw.ActionRow({use_markup: false, title, subtitle});
     this.button = new Gtk.Button({valign: Gtk.Align.CENTER, css_classes: ['slated-recorder']});
     this.button.connect('clicked', () => (this.recording ? this.stop() : this.start()));
     this.row.add_suffix(this.button);
@@ -88,10 +92,15 @@ export class ShortcutRecorder {
     this.window = root;
     this.button.add_css_class('recording');
     this._hint(null);
+    this.held = new Set();
     this.controller = new Gtk.EventControllerKey({propagation_phase: Gtk.PropagationPhase.CAPTURE});
     this.controller.connect('key-pressed', (controller, keyval, keycode, state) => this._keyPressed(controller, keyval, keycode, state));
+    this.controller.connect('key-released', (controller, keyval) => {
+      this.held.delete(Gdk.keyval_name(keyval) ?? '');
+      if (this.recording) this._render(modifiersFromHeldKeys(this.held));
+    });
     this.controller.connect('modifiers', (controller, state) => {
-      this._render(modifiersFromState(state, MASKS));
+      this._render(this._live(state));
       return false;
     });
     root.add_controller(this.controller);
@@ -106,6 +115,7 @@ export class ShortcutRecorder {
     this.button.remove_css_class('recording');
     if (this.controller && this.window) this.window.remove_controller(this.controller);
     this.controller = null;
+    this.held.clear();
     this._inhibit(false);
     this.window = null;
     this._render();
@@ -123,7 +133,19 @@ export class ShortcutRecorder {
     }
   }
 
+  /** The modifiers to show while recording: the keys held, else the state (keys held before recording began). */
+  _live(state) {
+    const fromKeys = modifiersFromHeldKeys(this.held);
+    return fromKeys.length ? fromKeys : modifiersFromState(state, MASKS, this.held);
+  }
+
   _keyPressed(controller, keyval, keycode, state) {
+    const rawName = Gdk.keyval_name(keyval) ?? '';
+    if (isModifierKeyName(rawName)) {
+      this.held.add(rawName);
+      this._render(this._live(state));
+      return true;
+    }
     // The key's name without Shift (so Shift+1 records as 1), in the active layout group.
     let base = keyval;
     try {
@@ -133,8 +155,8 @@ export class ShortcutRecorder {
       base = Gdk.keyval_to_lower(keyval);
     }
     const name = Gdk.keyval_name(base) ?? '';
-    if (isModifierKeyName(name) || isModifierKeyName(Gdk.keyval_name(keyval) ?? '')) return true;
-    const modifiers = modifiersFromState(state, MASKS);
+    if (isModifierKeyName(name)) return true;
+    const modifiers = modifiersFromState(state, MASKS, this.held);
     if (name === 'Escape' && !modifiers.length) {
       this.stop();
       return true;

@@ -53,6 +53,12 @@ Accessibility**), not after every reinstall.
 - If Karabiner-Elements turns Caps Lock into Hyper, either keep using it (Slated's bindings work
   with any Hyper key) or turn that rule off and enable Slated's own Hyper key.
 
+## Linux (GNOME)
+
+Slated also runs on GNOME 46–49 as a GNOME Shell extension, with the same `config.json` and Slate
+files. Run `linux/install.sh`, then log out and back in. [docs/LINUX.md](docs/LINUX.md) covers
+installing, the Hyper key and hotstrings on GNOME, and how it differs from the Mac.
+
 ## Logs
 
 Slated records every interaction and its outcome in `~/Library/Logs/Slated/slated.log`, one JSON

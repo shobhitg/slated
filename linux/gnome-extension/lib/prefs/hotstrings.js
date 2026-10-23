@@ -45,6 +45,31 @@ export function expandTyping(previous, current, hotstring) {
   return [...body].slice(0, start).join('') + (hotstring.replacement ?? '') + typed;
 }
 
+/**
+ * What a hotstring's app filter means on GNOME. The filters hold Mac bundle identifiers, and espanso
+ * can't tell apps apart on GNOME Wayland, so the extension leaves out hotstrings limited to some
+ * apps and expands the ones with exceptions everywhere (lib/platform/espanso.js). Null without a
+ * filter; else {caption} for the list and {detail} for the editor.
+ */
+export function gnomeScopeNote(hotstring) {
+  const only = hotstring?.onlyInApps ?? [];
+  const except = hotstring?.exceptInApps ?? [];
+  const mac = 'On the Mac, apps are bundle identifiers like com.apple.mail.';
+  if (only.length) {
+    return {
+      caption: `Mac only: in ${only.join(', ')}`,
+      detail: `Mac only. espanso can't tell apps apart on GNOME, so a hotstring limited to some apps doesn't expand here. ${mac}`,
+    };
+  }
+  if (except.length) {
+    return {
+      caption: `Everywhere here; not in ${except.join(', ')} on the Mac`,
+      detail: `On GNOME this expands in every app: espanso can't tell apps apart here. ${mac}`,
+    };
+  }
+  return null;
+}
+
 /** What the Hotstrings page says about espanso, from status.json's "hotstrings" entry. */
 export function espansoGuidance(hotstringsStatus, running) {
   const s = hotstringsStatus ?? {};

@@ -84,7 +84,7 @@ const VARIABLE_GROUPS = [
 /** A row with a monospaced expression entry, checked as you type, and a menu of variables. */
 function expressionRow(model, {title, value, relative = false, onChange}) {
   let quiet = false;
-  const row = new Adw.ActionRow({title});
+  const row = new Adw.ActionRow({use_markup: false, title});
   const entry = new Gtk.Entry({
     text: value ?? '', hexpand: true, valign: Gtk.Align.CENTER, width_chars: 22, css_classes: ['slated-mono'],
     placeholder_text: relative ? '+10%' : 'screenSizeX/2',
@@ -185,7 +185,7 @@ function isInStack(nav, page) {
 
 /** The kind picker: a row whose menu opens a palette of every operation, by category. */
 function kindPicker(onPick) {
-  const row = new Adw.ActionRow({title: '', subtitle: ''});
+  const row = new Adw.ActionRow({use_markup: false, title: '', subtitle: ''});
   const kindIcon = icon('view-fullscreen-symbolic', {size: 20});
   row.add_prefix(kindIcon);
   const popover = new Gtk.Popover();
@@ -458,7 +458,7 @@ export class ActionEditor {
     case 'layout': {
       const names = model.knownLayoutNames().sort();
       if (!names.length) {
-        const row = new Adw.ActionRow({title: 'No layouts yet', subtitle: 'Create one in Layouts, then pick it here.'});
+        const row = new Adw.ActionRow({use_markup: false, title: 'No layouts yet', subtitle: 'Create one in Layouts, then pick it here.'});
         row.add_suffix(button('Layouts', () => this.ctx.navigate('layouts'), {classes: ['flat']}));
         this._add({row});
       } else {
@@ -576,7 +576,7 @@ export class ActionEditor {
 function orientationRows(ctx, {depth, get, setBranch}) {
   const rows = ['landscape', 'portrait'].map(branch => {
     const title = branch === 'landscape' ? 'Landscape displays' : 'Portrait displays';
-    const row = new Adw.ActionRow({title, subtitle: '', activatable: true});
+    const row = new Adw.ActionRow({use_markup: false, title, subtitle: '', activatable: true});
     row.add_prefix(icon(branch === 'landscape' ? 'orientation-landscape-symbolic' : 'orientation-portrait-right-symbolic'));
     const g = glyph(get()[branch]);
     row.add_suffix(g);
@@ -642,11 +642,11 @@ export class OperationList {
   _build() {
     const items = this.getItems() ?? [];
     this.rows = [];
-    if (!items.length) this.rows.push(new Adw.ActionRow({title: this.emptyText, activatable: false}));
+    if (!items.length) this.rows.push(new Adw.ActionRow({use_markup: false, title: this.emptyText, activatable: false}));
     items.forEach((item, index) => {
       const action = this._action(item);
       const prefix = this.mode === 'chain' ? `Press ${index + 1}` : `Step ${index + 1}`;
-      const row = new Adw.ActionRow({title: `${prefix} · ${actionTitle(action)}`, subtitle: actionDetail(action), activatable: true});
+      const row = new Adw.ActionRow({use_markup: false, title: `${prefix} · ${actionTitle(action)}`, subtitle: actionDetail(action), activatable: true});
       row.set_subtitle_lines(1);
       row.add_prefix(glyph(action));
       if (this.mode === 'sequence' && index > 0) {
@@ -699,7 +699,7 @@ export class OperationList {
   }
 
   _addRow() {
-    const row = new Adw.ActionRow({title: this.mode === 'chain' ? 'Add Operation' : 'Add Step', activatable: true});
+    const row = new Adw.ActionRow({use_markup: false, title: this.mode === 'chain' ? 'Add Operation' : 'Add Step', activatable: true});
     const content = box('vertical', 2);
     const popover = new Gtk.Popover({child: new Gtk.ScrolledWindow({child: content, max_content_height: 420,
       propagate_natural_height: true, hscrollbar_policy: Gtk.PolicyType.NEVER})});
@@ -732,7 +732,7 @@ function gridRows(model, {get, update}) {
   syncs.push(f => padding.set(f.gridPadding));
   const screenCount = Math.max(previewScreens(model).length, 1);
   form.grids.forEach((grid, index) => {
-    const row = new Adw.ActionRow({title: `Display ${(parseInt(grid.screen, 10) || 0) + 1}`, subtitle: `Grid for screen “${grid.screen}”`});
+    const row = new Adw.ActionRow({use_markup: false, title: `Display ${(parseInt(grid.screen, 10) || 0) + 1}`, subtitle: `Grid for screen “${grid.screen}”`});
     const spin = (value, dimension) => {
       const s = Gtk.SpinButton.new_with_range(1, 24, 1);
       s.set_value(value);
@@ -760,6 +760,7 @@ function gridRows(model, {get, update}) {
   });
   if (form.grids.length < screenCount) {
     const add = new Adw.ActionRow({
+      use_markup: false,
       title: 'Set a Grid Size for a Display', activatable: true,
       subtitle: form.grids.length ? '' : "Without sizes, every display uses Slate's default grid.",
     });
@@ -792,11 +793,11 @@ function appSelectorRows({get, set}) {
     syncs.push(s => typeof s === 'string' && s.startsWith('all-but:') && e.set(s.slice(8)));
   } else if (selectorKind(selector) === 'apps') {
     for (const name of selector) {
-      const row = new Adw.ActionRow({title: name});
+      const row = new Adw.ActionRow({use_markup: false, title: name});
       row.add_suffix(button('', () => set(get().filter(n => n !== name)), {icon: 'list-remove-symbolic', classes: ['flat'], tooltip: 'Remove'}));
       rows.push(row);
     }
-    const add = new Adw.EntryRow({title: 'Add an app by name', show_apply_button: true});
+    const add = new Adw.EntryRow({use_markup: false, title: 'Add an app by name', show_apply_button: true});
     add.connect('apply', () => {
       const name = add.get_text().trim();
       if (name && !get().includes(name)) set([...get(), name]);

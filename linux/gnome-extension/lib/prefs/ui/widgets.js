@@ -9,6 +9,7 @@ import Pango from 'gi://Pango';
 import {keycaps as keycapLabels, keysCombo, spokenCombo} from '../keys.js';
 import {matchingPreset} from '../presets.js';
 import {kindById, kindOf} from '../actions.js';
+import {escapeMarkup} from '../util.js';
 
 // --- Text and layout --------------------------------------------------------------------------------
 
@@ -145,9 +146,10 @@ export function notice({level = 'info', title, detail = null, iconName = null, a
   };
 }
 
-/** An Adw.StatusPage with buttons ({label, onClick, suggested}). */
+/** An Adw.StatusPage with buttons ({label, onClick, suggested}). The description is plain text. */
 export function emptyState({iconName, title, description, actions = []}) {
-  const page = new Adw.StatusPage({icon_name: iconName, title, description, vexpand: true});
+  // StatusPage's description is always Pango markup (its title never is).
+  const page = new Adw.StatusPage({icon_name: iconName, title, description: escapeMarkup(description), vexpand: true});
   if (actions.length) {
     const buttons = box('horizontal', 12);
     buttons.set_halign(Gtk.Align.CENTER);
@@ -249,7 +251,7 @@ export function comboRow({title, subtitle = null, items, selected, onChange}) {
   let current = items;
   let quiet = false;
   const model = Gtk.StringList.new(current.map(i => i.label));
-  const row = new Adw.ComboRow({title, subtitle: subtitle ?? '', model});
+  const row = new Adw.ComboRow({use_markup: false, title, subtitle: subtitle ?? '', model});
   const indexOf = id => Math.max(0, current.findIndex(i => i.id === id));
   row.set_selected(indexOf(selected));
   row.connect('notify::selected', () => {
@@ -285,7 +287,7 @@ export function comboRow({title, subtitle = null, items, selected, onChange}) {
 /** An Adw.SwitchRow. Returns {row, set(active)}. */
 export function switchRow({title, subtitle = null, active, onChange}) {
   let quiet = false;
-  const row = new Adw.SwitchRow({title, subtitle: subtitle ?? '', active: Boolean(active)});
+  const row = new Adw.SwitchRow({use_markup: false, title, subtitle: subtitle ?? '', active: Boolean(active)});
   row.connect('notify::active', () => {
     if (!quiet) onChange(row.get_active());
   });
@@ -303,7 +305,7 @@ export function switchRow({title, subtitle = null, active, onChange}) {
 /** An Adw.EntryRow. Returns {row, set(text)}; `onChange` runs as the user types. */
 export function entryRow({title, text, onChange, monospace = false}) {
   let quiet = false;
-  const row = new Adw.EntryRow({title, text: text ?? ''});
+  const row = new Adw.EntryRow({use_markup: false, title, text: text ?? ''});
   if (monospace) row.add_css_class('slated-mono');
   row.connect('changed', () => {
     if (!quiet) onChange(row.get_text());
@@ -373,7 +375,7 @@ export function textArea({text, onChange, monospace = false, minHeight = 80, pla
 
 /** A row showing a shell command in monospace, with a Copy button. */
 export function commandRow(title, command, toast = null) {
-  const row = new Adw.ActionRow({title, subtitle: command, subtitle_selectable: true});
+  const row = new Adw.ActionRow({use_markup: false, title, subtitle: command, subtitle_selectable: true});
   row.add_css_class('slated-mono-subtitle');
   const copy = button('', () => {
     // GJS exposes gdk_clipboard_set_value() as set(); set_text() isn't introspectable.

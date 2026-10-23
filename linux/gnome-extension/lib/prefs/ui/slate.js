@@ -110,7 +110,7 @@ export function createSlatePane(ctx) {
 
   const importGroup = group({title: 'Import into Slated',
     description: 'Copy your Slate bindings into Slated so you can edit them here. Functions that do one thing per screen shape become plain shortcuts (or a by-orientation pair); anything that needs JavaScript stays in the file.'});
-  const importRow = new Adw.ActionRow({title: '', subtitle: ''});
+  const importRow = new Adw.ActionRow({use_markup: false, title: '', subtitle: ''});
   const importButton = button('Import…', () => importDialog(ctx), {classes: ['suggested-action']});
   importRow.add_suffix(importButton);
   importGroup.add(importRow);
@@ -127,12 +127,12 @@ export function createSlatePane(ctx) {
     for (const r of fileRows) filesGroup.remove(r);
     fileRows = [];
     for (const source of model.sources) {
-      const row = new Adw.ExpanderRow({title: source.displayPath, subtitle: sourceSummary(model, source)});
+      const row = new Adw.ExpanderRow({use_markup: false, title: source.displayPath, subtitle: sourceSummary(model, source)});
       row.add_css_class('slated-mono-title');
       row.add_suffix(pill(sourcePresentation(model, source)));
       const diagnostics = diagnosticRows(model, source);
       for (const d of diagnostics) {
-        const r = new Adw.ActionRow({title: d.text, activatable: false});
+        const r = new Adw.ActionRow({use_markup: false, title: d.text, activatable: false});
         r.set_title_lines(0);
         r.set_title_selectable(true);
         r.add_prefix(icon(d.severity === 'error' ? 'dialog-error-symbolic' : 'dialog-warning-symbolic',
@@ -140,7 +140,7 @@ export function createSlatePane(ctx) {
         row.add_row(r);
       }
       if (source.exists) {
-        const actions = new Adw.ActionRow({title: source.file, activatable: false});
+        const actions = new Adw.ActionRow({use_markup: false, title: source.file, activatable: false});
         actions.set_title_lines(1);
         actions.add_suffix(button('Open', () => launchFile(source.file, prefs, {onError: e => ctx.toast(e.message)}), {classes: ['flat']}));
         actions.add_suffix(button('Show in Files', () => {
@@ -156,7 +156,7 @@ export function createSlatePane(ctx) {
       fileRows.push(row);
     }
     if (!model.sources.length) {
-      const none = new Adw.ActionRow({title: 'No Slate files configured', subtitle: 'Add a path below to load a Slate config.'});
+      const none = new Adw.ActionRow({use_markup: false, title: 'No Slate files configured', subtitle: 'Add a path below to load a Slate config.'});
       filesGroup.add(none);
       fileRows.push(none);
     }
@@ -178,7 +178,7 @@ export function createSlatePane(ctx) {
       pathRows.push(field.row);
       pathFields.push(field);
     });
-    const actions = new Adw.ActionRow({title: 'Load another file', activatable: false});
+    const actions = new Adw.ActionRow({use_markup: false, title: 'Load another file', activatable: false});
     actions.add_suffix(button('Add Path', () => model.update(config => {
       config.general.slateConfigPaths.push('');
     }), {icon: 'list-add-symbolic', classes: ['flat']}));

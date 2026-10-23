@@ -107,7 +107,8 @@ async function run(mode) {
   const world = createWorld({
     api, home: files.home, mode,
     env: {apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'}],
-      keyNames: {97: {name: 'a', char: 'a'}, 65307: {name: 'Escape'}, 65288: {name: 'BackSpace'}, 65505: {name: 'Shift_L'}, 49: {name: '1', char: '1'}}},
+      keyNames: {97: {name: 'a', char: 'a'}, 65307: {name: 'Escape'}, 65288: {name: 'BackSpace'}, 65505: {name: 'Shift_L'}, 49: {name: '1', char: '1'},
+        65515: {name: 'Super_L'}, 65517: {name: 'Hyper_L'}}},
     dbus: method => {
       shell.calls.push(method);
       if (method === 'GetExtensionInfo') return [{state: shell.state, error: ''}];
@@ -219,6 +220,20 @@ async function run(mode) {
     check(model.binding('B-HALF').keys === 'hyper+a', 'a bare key is refused');
     world.emit(again, 'key-pressed', 65307, 65307, 0);
     check(findAll(world, window, 'Gtk.EventControllerKey').length === 0, 'Escape cancels');
+    // Where caps:hyper shares Super's modifier, GTK may report both masks, or only Super: the key held decides.
+    const shared = Gdk.ModifierType.SUPER_MASK | Gdk.ModifierType.HYPER_MASK;
+    click(recorderButton);
+    let keysController = findAll(world, window, 'Gtk.EventControllerKey')[0];
+    world.emit(keysController, 'key-pressed', 65515, 65515, 0);
+    world.emit(keysController, 'key-pressed', 97, 97, shared);
+    check(model.binding('B-HALF').keys === 'cmd+a', `Super+A records as Super, not ✦: ${model.binding('B-HALF').keys}`);
+    click(recorderButton);
+    keysController = findAll(world, window, 'Gtk.EventControllerKey')[0];
+    world.emit(keysController, 'key-pressed', 65515, 65515, 0);
+    world.emit(keysController, 'key-released', 65515, 65515, shared);
+    world.emit(keysController, 'key-pressed', 65517, 65517, 0);
+    world.emit(keysController, 'key-pressed', 97, 97, Gdk.ModifierType.SUPER_MASK);
+    check(model.binding('B-HALF').keys === 'hyper+a', `Caps Lock+A records as ✦: ${model.binding('B-HALF').keys}`);
     const modal = titled(page, 'Adw.SwitchRow', 'Press a modal key first')[0];
     modal.set_active(true);
     check(model.binding('B-HALF').modal?.keys === 'ctrl+f4', 'modal key added');
@@ -345,10 +360,12 @@ async function run(mode) {
     check(tryEntry.get_text() === '¯\\_(ツ)_/¯', `the try-it field expanded: ${tryEntry.get_text()}`);
     const scope = titled(page, 'Adw.ComboRow', 'Expands')[0];
     scope.set_selected(1);
-    const add = titled(page, 'Adw.EntryRow', 'Add an app id')[0];
-    add.set_text('org.gnome.TextEditor');
+    const add = titled(page, 'Adw.EntryRow', 'Add a Mac app (bundle identifier)')[0];
+    add.set_text('com.apple.mail');
     world.emit(add, 'apply');
-    check(model.hotstring('H-SHRUG').onlyInApps.includes('org.gnome.TextEditor'), 'app filter added');
+    check(model.hotstring('H-SHRUG').onlyInApps.includes('com.apple.mail'), 'app filter added');
+    const where = findAll(world, page, 'Adw.PreferencesGroup', (w, s) => s.props.get('title') === 'Where It Works')[0];
+    check(/Mac only/.test(prop(world, where, 'description') ?? ''), 'says app filters are Mac only on GNOME');
     const trigger = titled(page, 'Adw.EntryRow', 'Trigger')[0];
     trigger.set_text('');
     check(model.issues.some(i => i.target === 'hotstring:H-SHRUG' && i.severity === 'error'), 'an empty trigger is an error');
@@ -386,6 +403,17 @@ async function run(mode) {
 
   await step('Keyboard and General edit config.json', async () => {
     settings.showPane('keyboard');
+    // keyd's config is root's: in keyd mode the page says to rerun the installer; GNOME's option can't do a tap.
+    const statusText = fs.readFileSync(files.statusFile, 'utf8');
+    const withHyperMode = mode => model.setStatusText(JSON.stringify({...JSON.parse(statusText), hyper: {wanted: true, mode, active: true}}));
+    const escapeRow = () => titled(visible('keyboard'), 'Adw.SwitchRow', 'Tap Caps Lock alone for Escape')[0];
+    withHyperMode('keyd');
+    check(/linux\/install\.sh --hyper-keyd again/.test(prop(world, escapeRow(), 'subtitle')), `keyd: ${prop(world, escapeRow(), 'subtitle')}`);
+    withHyperMode('xkb');
+    check(/Needs keyd/.test(prop(world, escapeRow(), 'subtitle')), `xkb: ${prop(world, escapeRow(), 'subtitle')}`);
+    const sends = titled(visible('keyboard'), 'Adw.ComboRow', 'Hyper key sends')[0];
+    check(/always sends the Hyper modifier/.test(prop(world, sends, 'subtitle')), `xkb: ${prop(world, sends, 'subtitle')}`);
+    model.setStatusText(statusText);
     titled(visible('keyboard'), 'Adw.SwitchRow', 'Use Caps Lock as Hyper')[0].set_active(false);
     check(model.configuration.keyboard.capsLock === 'off', 'Caps Lock as Hyper off');
     settings.showPane('general');
@@ -567,6 +595,12 @@ async function run(mode) {
     check(/^[0-9a-f]{8}$/.test(closed.session) && closed.session !== 'abcd1234', 'without a running extension, under their own session');
   });
 
+  await step('rows show text as typed: none parses markup', async () => {
+    // libadwaita rows parse Pango markup by default, so a name like "Left & Right" or a Slate error
+    // mentioning '<' would come out blank. Every row is built with use_markup: false.
+    check(world.report.markupRows.length === 0, `rows with markup on: ${[...new Set(world.report.markupRows)].join(', ')}`);
+  });
+
   await step('only unavoidable deprecated API is used', async () => {
     const unexpected = [...world.report.deprecated].filter(d => !ALLOWED_DEPRECATIONS.has(d));
     check(!unexpected.length, `deprecated API: ${unexpected.join(', ')}`);
@@ -619,6 +653,9 @@ function selfTest() {
       const area = new Gtk.DrawingArea();
       area.set_draw_func((_a, cr) => cr.drawRoundedRectangle(0, 0, 1, 1));
     }, /Cairo.Context has no method/);
+    new Adw.ActionRow({title: 'markup on'});
+    new Adw.SwitchRow({use_markup: false, title: 'markup off'});
+    check(world.report.markupRows.join() === 'Adw.ActionRow', `rows with markup on are reported ${tag}: ${world.report.markupRows}`);
     const manager = Adw.StyleManager.get_default();
     if (mode === 'min') {
       check(!('get_accent_color_rgba' in manager), 'GNOME 46 has no accent color API');

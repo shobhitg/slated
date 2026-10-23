@@ -1,7 +1,7 @@
 import {suite, expect, expectEqual} from './harness.mjs';
 import {formatEvent, parseEvents, lastStart, sanitize} from '../../gnome-extension/lib/prefs/eventlog.js';
-import {expandTyping, espansoGuidance, isDelimiter} from '../../gnome-extension/lib/prefs/hotstrings.js';
-import {formatList, plural, truncate, tildify, expandHome, uuid, sessionId, Emitter, editDistance} from '../../gnome-extension/lib/prefs/util.js';
+import {expandTyping, espansoGuidance, isDelimiter, gnomeScopeNote} from '../../gnome-extension/lib/prefs/hotstrings.js';
+import {formatList, plural, truncate, tildify, expandHome, uuid, sessionId, Emitter, editDistance, escapeMarkup} from '../../gnome-extension/lib/prefs/util.js';
 
 const hotstring = fields => ({trigger: ';s', replacement: '¯\\_(ツ)_/¯', caseSensitive: true, fire: 'immediately', wordBoundary: false, ...fields});
 
@@ -45,7 +45,19 @@ export default suite('Event log, hotstrings and helpers', [
     expectEqual(espansoGuidance({engine: 'espanso', espansoInstalled: true, count: 1, matchFile: '/m.yml'}, true).detail,
       'Slated keeps 1 hotstring in sync with espanso (/m.yml).');
   }],
+  ['app filters are Mac-only: espanso can\'t tell apps apart on GNOME', () => {
+    expectEqual(gnomeScopeNote({trigger: ';a', onlyInApps: [], exceptInApps: []}), null);
+    expectEqual(gnomeScopeNote(null), null);
+    const only = gnomeScopeNote({onlyInApps: ['com.apple.mail', 'com.apple.Notes']});
+    expectEqual(only.caption, 'Mac only: in com.apple.mail, com.apple.Notes');
+    expect(/doesn't expand here/.test(only.detail), only.detail);
+    const except = gnomeScopeNote({exceptInApps: ['com.apple.Terminal']});
+    expectEqual(except.caption, 'Everywhere here; not in com.apple.Terminal on the Mac');
+    expect(/expands in every app/.test(except.detail), except.detail);
+  }],
   ['helpers', () => {
+    expectEqual(escapeMarkup(`Unexpected token '<' in "a & b"`), 'Unexpected token &#39;&lt;&#39; in &quot;a &amp; b&quot;');
+    expectEqual(escapeMarkup(null), '');
     expectEqual(formatList(['a', 'b', 'c']), 'a, b and c');
     expectEqual(formatList(['a']), 'a');
     expectEqual(plural(1, 'binding'), '1 binding');

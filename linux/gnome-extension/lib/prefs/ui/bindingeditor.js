@@ -124,11 +124,11 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
     }),
   });
   shortcut.add(recorder.row);
-  const uses = new Adw.ActionRow({title: 'Also used by', subtitle: '', activatable: false});
+  const uses = new Adw.ActionRow({use_markup: false, title: 'Also used by', subtitle: '', activatable: false});
   uses.add_css_class('slated-warning-text');
   shortcut.add(uses);
 
-  const advanced = new Adw.ExpanderRow({title: 'Advanced', subtitle: 'Repeat and modal keys'});
+  const advanced = new Adw.ExpanderRow({use_markup: false, title: 'Advanced', subtitle: 'Repeat and modal keys'});
   const repeat = comboRow({
     title: 'Repeat while held', items: REPEAT_ITEMS, selected: repeatId(model.binding(id)?.repeats),
     onChange: value => model.setBinding(id, b => {
@@ -272,18 +272,18 @@ export function pushSourceBinding(ctx, source, binding) {
   }
 
   const defined = group({title: 'Defined In'});
-  const fileRow = new Adw.ActionRow({title: 'File', subtitle: source.displayPath, subtitle_selectable: true});
+  const fileRow = new Adw.ActionRow({use_markup: false, title: 'File', subtitle: source.displayPath, subtitle_selectable: true});
   fileRow.add_suffix(button('Open', () => launchFile(source.file, page, {onError: e => ctx.toast(e.message)}), {classes: ['flat']}));
   defined.add(fileRow);
-  if (binding.line) defined.add(new Adw.ActionRow({title: 'Line', subtitle: String(binding.line)}));
-  const keysRow = new Adw.ActionRow({title: 'Keys'});
+  if (binding.line) defined.add(new Adw.ActionRow({use_markup: false, title: 'Line', subtitle: String(binding.line)}));
+  const keysRow = new Adw.ActionRow({use_markup: false, title: 'Keys'});
   keysRow.add_suffix(keycaps(binding.keys, {modal: binding.modal}));
   defined.add(keysRow);
   if (binding.modal) {
-    defined.add(new Adw.ActionRow({title: 'Modal key',
+    defined.add(new Adw.ActionRow({use_markup: false, title: 'Modal key',
       subtitle: `Press ${binding.modal.keys} first${binding.modal.toggle ? '; stays on until pressed again' : ''}`}));
   }
-  const opRow = new Adw.ActionRow({title: 'Operation', subtitle: binding.summary ?? actionDetail(action), subtitle_selectable: true});
+  const opRow = new Adw.ActionRow({use_markup: false, title: 'Operation', subtitle: binding.summary ?? actionDetail(action), subtitle_selectable: true});
   opRow.add_css_class('slated-mono-subtitle');
   defined.add(opRow);
   prefs.add(defined);
@@ -291,10 +291,10 @@ export function pushSourceBinding(ctx, source, binding) {
   if (binding.isFunction) {
     const what = group({title: 'What It Does'});
     if (probed.action?.op === 'by-orientation') {
-      what.add(new Adw.ActionRow({title: 'On landscape displays', subtitle: actionTitle(probed.action.landscape)}));
-      what.add(new Adw.ActionRow({title: 'On portrait displays', subtitle: actionTitle(probed.action.portrait)}));
+      what.add(new Adw.ActionRow({use_markup: false, title: 'On landscape displays', subtitle: actionTitle(probed.action.landscape)}));
+      what.add(new Adw.ActionRow({use_markup: false, title: 'On portrait displays', subtitle: actionTitle(probed.action.portrait)}));
     } else if (probed.action) {
-      what.add(new Adw.ActionRow({title: 'On every display', subtitle: actionTitle(probed.action)}));
+      what.add(new Adw.ActionRow({use_markup: false, title: 'On every display', subtitle: actionTitle(probed.action)}));
     } else {
       what.add(notice({level: 'info', title: 'This shortcut runs JavaScript',
         detail: `Slated can't turn it into a plain shortcut: it ${probed.reason}. Edit it in ${source.displayPath}; the extension reloads the file when it changes.`}).widget);
@@ -303,7 +303,7 @@ export function pushSourceBinding(ctx, source, binding) {
   }
 
   const copy = group();
-  const copyRow = new Adw.ActionRow({title: '', subtitle: ''});
+  const copyRow = new Adw.ActionRow({use_markup: false, title: '', subtitle: ''});
   const copyButton = button('Copy into Slated', () => {
     const id = model.copyIntoSlated(binding);
     if (id) ctx.toast('Copied into Slated. Remove it from your Slate file to avoid a duplicate.');

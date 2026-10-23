@@ -86,7 +86,7 @@ export function createWindowsPane(ctx) {
   function bindingRow(binding) {
     const state = model.bindingState(binding);
     const presentation = statePresentation(state);
-    const row = new Adw.ActionRow({title: bindingTitle(binding), subtitle: rowSubtitle(presentation, bindingSubtitle(binding)), activatable: true});
+    const row = new Adw.ActionRow({use_markup: false, title: bindingTitle(binding), subtitle: rowSubtitle(presentation, bindingSubtitle(binding)), activatable: true});
     row.set_title_lines(1);
     row.set_subtitle_lines(1);
     row.add_prefix(glyph(binding.action));
@@ -105,7 +105,7 @@ export function createWindowsPane(ctx) {
     const presentation = statePresentation(state);
     const title = binding.action ? actionTitle(binding.action) : 'JavaScript Function';
     const fallback = binding.action ? binding.summary : 'Runs code in your Slate file';
-    const row = new Adw.ActionRow({title, subtitle: rowSubtitle(presentation, fallback), activatable: true});
+    const row = new Adw.ActionRow({use_markup: false, title, subtitle: rowSubtitle(presentation, fallback), activatable: true});
     row.set_title_lines(1);
     row.set_subtitle_lines(1);
     if (binding.action) row.add_prefix(glyph(binding.action));
@@ -128,11 +128,11 @@ export function createWindowsPane(ctx) {
     slatedCount.set_label(String(bindings.length));
     for (const b of visible) slatedRows.push(bindingRow(b));
     if (!bindings.length) {
-      const row = new Adw.ActionRow({title: 'No shortcuts of your own yet', subtitle: 'Start with a set of Hyper shortcuts for halves, maximize and more.'});
+      const row = new Adw.ActionRow({use_markup: false, title: 'No shortcuts of your own yet', subtitle: 'Start with a set of Hyper shortcuts for halves, maximize and more.'});
       row.add_suffix(button('Add Starter Shortcuts', () => addStarter(), {classes: ['flat']}));
       slatedRows.push(row);
     } else if (!visible.length) {
-      slatedRows.push(new Adw.ActionRow({title: `No matches for “${search.get_text()}”`, activatable: false}));
+      slatedRows.push(new Adw.ActionRow({use_markup: false, title: `No matches for “${search.get_text()}”`, activatable: false}));
     }
     for (const row of slatedRows) slatedGroup.add(row);
 
@@ -146,7 +146,7 @@ export function createWindowsPane(ctx) {
         const rows = source.bindings
           .filter(b => matches([b.summary, b.action ? actionTitle(b.action) : 'JavaScript function', keysString(b.keys), comboLabel(b.keys, b.modal)]))
           .map(b => sourceRow(source, b));
-        if (!rows.length) rows.push(new Adw.ActionRow({title: 'No matches', activatable: false}));
+        if (!rows.length) rows.push(new Adw.ActionRow({use_markup: false, title: 'No matches', activatable: false}));
         for (const row of rows) g.add(row);
         prefs.add(g);
         sourceGroups.push(g);

@@ -94,7 +94,7 @@ export function createGeneralPane(ctx) {
 
   // Configuration file
   const configGroup = group({title: 'Configuration File'});
-  const configRow = new Adw.ActionRow({title: tildify(paths.configFile, home), subtitle: '', subtitle_selectable: false});
+  const configRow = new Adw.ActionRow({use_markup: false, title: tildify(paths.configFile, home), subtitle: '', subtitle_selectable: false});
   configRow.set_title_selectable(true);
   configRow.add_css_class('slated-mono-title');
   configRow.add_suffix(button('Open', () => {
@@ -113,7 +113,7 @@ export function createGeneralPane(ctx) {
   // Log
   const logGroup = group({title: 'Event Log',
     description: 'Every shortcut, hotstring, settings change and error, one JSON event per line. It never contains typed text, hotstring replacements or window titles.'});
-  const logRow = new Adw.ActionRow({title: tildify(paths.logFile, home), subtitle: ''});
+  const logRow = new Adw.ActionRow({use_markup: false, title: tildify(paths.logFile, home), subtitle: ''});
   logRow.set_title_selectable(true);
   logRow.add_css_class('slated-mono-title');
   logRow.add_suffix(button('Open Log', () => {
@@ -128,12 +128,12 @@ export function createGeneralPane(ctx) {
 
   // Version
   const versionGroup = group({title: 'This Build'});
-  const versionRow = new Adw.ActionRow({title: 'Version', subtitle: ''});
-  const commitRow = new Adw.ActionRow({title: 'Commit', subtitle: '', subtitle_selectable: true});
+  const versionRow = new Adw.ActionRow({use_markup: false, title: 'Version', subtitle: ''});
+  const commitRow = new Adw.ActionRow({use_markup: false, title: 'Commit', subtitle: '', subtitle_selectable: true});
   commitRow.add_css_class('slated-mono-subtitle');
-  const builtRow = new Adw.ActionRow({title: 'Built', subtitle: ''});
-  const runningRow = new Adw.ActionRow({title: 'Running', subtitle: ''});
-  const engineRow = new Adw.ActionRow({title: 'Engine', subtitle: ''});
+  const builtRow = new Adw.ActionRow({use_markup: false, title: 'Built', subtitle: ''});
+  const runningRow = new Adw.ActionRow({use_markup: false, title: 'Running', subtitle: ''});
+  const engineRow = new Adw.ActionRow({use_markup: false, title: 'Engine', subtitle: ''});
   for (const row of [versionRow, commitRow, builtRow, runningRow, engineRow]) versionGroup.add(row);
   prefs.add(versionGroup);
 

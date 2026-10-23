@@ -92,15 +92,15 @@ export async function readText(relative, base) {
   return new TextDecoder().decode(bytes);
 }
 
-export function commandLineArgs() {
-  if (globalThis.process?.argv) return globalThis.process.argv.slice(2);
-  return globalThis.ARGV ?? globalThis.imports?.system?.programArgs ?? [];
+const isNode = Boolean(globalThis.process?.versions?.node);
+
+/** Command-line arguments after the script (GJS has them in its built-in "system" module). */
+export async function commandLineArgs() {
+  if (isNode) return process.argv.slice(2);
+  return [...(await import('system')).default.programArgs];
 }
 
-export function exit(code) {
-  if (globalThis.process?.versions?.node) {
-    process.exitCode = code;
-  } else if (code) {
-    globalThis.imports?.system?.exit(code);
-  }
+export async function exit(code) {
+  if (isNode) process.exitCode = code;
+  else if (code) (await import('system')).default.exit(code);
 }

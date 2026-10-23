@@ -268,15 +268,41 @@ export function keyNameFromGdk(gdkName, character = '') {
  *
  * Caps Lock as Hyper reports HYPER (GNOME's caps:hyper option) or all four of Ctrl, Alt, Shift and
  * Super (keyd); both record as ✦.
+ *
+ * `held` (optional) is the set of modifier keys being held, by GDK key name. In many layouts
+ * caps:hyper puts Hyper on the same modifier as Super (Mod4), and GTK may then report both masks,
+ * or only SUPER, whichever of the two keys is down. The key actually held tells them apart:
+ * Hyper_L is Caps Lock, Super_L/R the Super keys.
  */
-export function modifiersFromState(state, masks) {
+export function modifiersFromState(state, masks, held = null) {
   const mods = new Set();
   if (state & masks.CONTROL) mods.add('ctrl');
   if (state & masks.ALT) mods.add('alt');
   if (state & masks.SHIFT) mods.add('shift');
-  if (state & masks.SUPER) mods.add('cmd');
-  if (masks.HYPER && (state & masks.HYPER)) for (const m of HYPER) mods.add(m);
+  const superMask = Boolean(state & masks.SUPER);
+  let hyper = Boolean(masks.HYPER && (state & masks.HYPER));
+  if (held && (superMask || hyper)) {
+    if (held.has('Hyper_L') || held.has('Hyper_R')) hyper = true;
+    else if (held.has('Super_L') || held.has('Super_R')) hyper = false;
+  }
+  if (superMask) mods.add('cmd');
+  if (hyper) for (const m of HYPER) mods.add(m);
   if (masks.META && (state & masks.META) && !mods.has('alt') && !mods.has('cmd')) mods.add('alt');
+  return orderModifiers([...mods]);
+}
+
+const HELD_KEY_MODIFIERS = {
+  Control_L: ['ctrl'], Control_R: ['ctrl'], Shift_L: ['shift'], Shift_R: ['shift'], Alt_L: ['alt'], Alt_R: ['alt'],
+  Meta_L: ['alt'], Meta_R: ['alt'], Super_L: ['cmd'], Super_R: ['cmd'], Hyper_L: HYPER, Hyper_R: HYPER,
+};
+
+/**
+ * The modifiers that the held modifier keys stand for, for showing them live while recording (a
+ * key event's state lags behind the modifier keys: it's the state from before the event).
+ */
+export function modifiersFromHeldKeys(held) {
+  const mods = new Set();
+  for (const name of held ?? []) for (const m of HELD_KEY_MODIFIERS[name] ?? []) mods.add(m);
   return orderModifiers([...mods]);
 }
 

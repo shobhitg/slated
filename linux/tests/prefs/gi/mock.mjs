@@ -76,7 +76,8 @@ const CAIRO_METHODS = new Set([
 export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
   throw new Error('GNOME Shell is not running');
 }}) {
-  const report = {deprecated: new Set(), toasts: [], dialogs: [], launches: [], clipboard: [], guards: new Set(), drawn: 0};
+  // markupRows: rows created with Pango markup on (libadwaita's default), where user text like "a & b" breaks.
+  const report = {deprecated: new Set(), toasts: [], dialogs: [], launches: [], clipboard: [], guards: new Set(), drawn: 0, markupRows: []};
   const deprecated = new Set(Object.entries(api.deprecated).flatMap(([ns, list]) => list.map(item => `${ns}.${item}`)));
   const NAMESPACES = api.namespaces;
   let objectIds = 0;
@@ -680,7 +681,9 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
     const ctor = function MockClass(props) {
       if (entry.abstract) throw new MockError(`${qualified} is abstract`);
       if (deprecated.has(qualified)) report.deprecated.add(qualified);
-      return instantiate(qualified, props ?? {});
+      const object = instantiate(qualified, props ?? {});
+      if (isA(qualified, 'Adw.PreferencesRow') && stateOf(object).props.get('use-markup') !== false) report.markupRows.push(qualified);
+      return object;
     };
     const statics = {...(entry.ctors ?? {}), ...(entry.functions ?? {})};
     return new Proxy(ctor, {

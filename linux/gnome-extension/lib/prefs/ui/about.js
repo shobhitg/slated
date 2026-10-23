@@ -74,15 +74,16 @@ export function createAboutPane(ctx) {
 
   const credits = group();
   const slate = new Adw.ActionRow({
+    use_markup: false,
     title: 'Inspired by Slate by Jigish Patel',
     subtitle: "Slate pioneered configurable, keyboard-driven window management. Slated is an independent reimplementation and contains none of Slate's code.",
   });
   slate.set_subtitle_lines(0);
   slate.add_suffix(button('Slate on GitHub', () => launchUri('https://github.com/jigish/slate', prefs), {classes: ['flat']}));
   credits.add(slate);
-  const license = new Adw.ActionRow({title: 'MIT License', subtitle: 'Slated is free and open source. Use it, change it and share it.'});
+  const license = new Adw.ActionRow({use_markup: false, title: 'MIT License', subtitle: 'Slated is free and open source. Use it, change it and share it.'});
   credits.add(license);
-  const more = new Adw.ActionRow({title: 'Credits, links and debug information', activatable: true});
+  const more = new Adw.ActionRow({use_markup: false, title: 'Credits, links and debug information', activatable: true});
   more.add_suffix(new Gtk.Image({icon_name: 'go-next-symbolic'}));
   more.connect('activated', () => {
     const build = model.build ?? {};

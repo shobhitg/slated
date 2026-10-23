@@ -23,7 +23,7 @@ function greeting() {
 
 /** A status row: icon, title, value as subtitle, a pill and an optional button. */
 function statusRow(title, iconName) {
-  const row = new Adw.ActionRow({title, subtitle: ''});
+  const row = new Adw.ActionRow({use_markup: false, title, subtitle: ''});
   row.add_prefix(icon(iconName, {size: 20}));
   const pillHolder = box('horizontal', 0);
   row.add_suffix(pillHolder);
@@ -86,9 +86,9 @@ export function createOverviewPane(ctx) {
 
   // Activity
   const activityGroup = group({title: 'Activity'});
-  const lastAction = new Adw.ActionRow({title: '', subtitle: ''});
+  const lastAction = new Adw.ActionRow({use_markup: false, title: '', subtitle: ''});
   lastAction.add_prefix(icon('media-playback-start-symbolic', {size: 20}));
-  const lastError = new Adw.ActionRow({title: '', subtitle: 'Last problem'});
+  const lastError = new Adw.ActionRow({use_markup: false, title: '', subtitle: 'Last problem'});
   lastError.set_title_lines(0);
   lastError.add_prefix(icon('dialog-warning-symbolic', {size: 20, classes: ['slated-warning-text']}));
   activityGroup.add(lastAction);
@@ -118,7 +118,7 @@ export function createOverviewPane(ctx) {
   function rebuildList(groupWidget, rows, items) {
     for (const r of rows) groupWidget.remove(r);
     const next = items.map(item => {
-      const row = new Adw.ActionRow({title: item.title, subtitle: item.detail ?? '', activatable: Boolean(item.run)});
+      const row = new Adw.ActionRow({use_markup: false, title: item.title, subtitle: item.detail ?? '', activatable: Boolean(item.run)});
       row.set_subtitle_lines(2);
       if (item.prefix) row.add_prefix(item.prefix);
       if (item.done !== undefined) {
@@ -238,7 +238,7 @@ export function createOverviewPane(ctx) {
     // Next steps (as on macOS: up to three)
     const next = [];
     const copyable = model.sources.flatMap(s => s.bindings).filter(b => !model.isCopied(b));
-    if (!hyperOn) next.push({title: 'Turn on the Hyper key', detail: 'Caps Lock becomes Ctrl+Alt+Shift+Super — room for dozens of shortcuts.', run: () => ctx.navigate('keyboard')});
+    if (!hyperOn) next.push({title: 'Turn on the Hyper key', detail: 'Caps Lock becomes a Hyper key (✦), with room for dozens of shortcuts.', run: () => ctx.navigate('keyboard')});
     if (copyable.length && model.slateLoading) next.push({title: 'Bring over your Slate bindings', detail: `${plural(copyable.length, 'binding')} can be imported into Slated and edited here.`, run: () => ctx.navigate('slate')});
     if (config.hotstrings.length < 3) next.push({title: 'Add a hotstring', detail: 'Type a short trigger, get a whole sentence.', run: () => ctx.navigate('hotstrings', {newHotstring: true})});
     if (!config.layouts.length) next.push({title: 'Create a layout', detail: 'Arrange all your apps for a task with one shortcut.', run: () => ctx.navigate('layouts')});
@@ -255,9 +255,10 @@ export function createOverviewPane(ctx) {
       tips.push({title: 'Cycle sizes', detail: `Press it again and again: ${(chain.action.operations ?? []).slice(0, 3).map(actionTitle).join(' → ')}.`,
         suffix: keycaps(chain.keys, {modal: chain.modal})});
     }
-    const hs = config.hotstrings.find(h => h.enabled !== false && h.trigger);
+    // Not one limited to some apps: those are Mac only (espanso can't tell apps apart on GNOME).
+    const hs = config.hotstrings.find(h => h.enabled !== false && h.trigger && !h.onlyInApps?.length);
     if (hs) tips.push({title: 'Expand text', detail: `Type ${hs.trigger} anywhere to get “${truncate(singleLine(hs.replacement), 24)}”.`, suffix: triggerChip(hs.trigger)});
-    if (!tips.length && hyperOn) tips.push({title: 'Hold Caps Lock', detail: "It's Ctrl+Alt+Shift+Super now — a modifier no app uses, so ✦ shortcuts never clash.", suffix: keycaps('hyper+a')});
+    if (!tips.length && hyperOn) tips.push({title: 'Hold Caps Lock', detail: "It's your Hyper key now: hold it and press a letter for a ✦ shortcut.", suffix: keycaps('hyper+a')});
     tipRows = rebuildList(tipsGroup, tipRows, running ? tips.slice(0, 3) : []);
   };
   for (const signal of ['config', 'status', 'sources']) model.on(signal, sync);

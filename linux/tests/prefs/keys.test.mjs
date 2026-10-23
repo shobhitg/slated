@@ -1,7 +1,8 @@
 import {suite, expect, expectEqual} from './harness.mjs';
 import {
   parseKeyComboLocal, formatKeyComboLocal, parseKeyCombo, formatKeyCombo, keysString, keysCombo, keycaps, comboLabel,
-  keyLabel, keyNameFromGdk, modifiersFromState, isAcceptableGlobalShortcut, statusKey, isModifierKeyName, spokenCombo,
+  keyLabel, keyNameFromGdk, modifiersFromState, modifiersFromHeldKeys, isAcceptableGlobalShortcut, statusKey, isModifierKeyName,
+  spokenCombo,
 } from '../../gnome-extension/lib/prefs/keys.js';
 
 // Gdk.ModifierType values (GTK 4): passed in so keys.js stays free of gi:// imports.
@@ -68,6 +69,26 @@ export default suite('Keys', [
     // keyd mode: all four real modifiers.
     expectEqual(modifiersFromState(MASKS.CONTROL | MASKS.ALT | MASKS.SHIFT | MASKS.SUPER, MASKS), ['ctrl', 'alt', 'shift', 'cmd']);
     expectEqual(modifiersFromState(MASKS.META, MASKS), ['alt'], 'Meta alone counts as Alt');
+  }],
+  ['tells Caps Lock from Super by the key held when Hyper shares Super\'s modifier', () => {
+    const shared = MASKS.SUPER | MASKS.HYPER;
+    // GTK reports both masks for either key: the held key decides.
+    expectEqual(modifiersFromState(shared, MASKS, new Set(['Super_L'])), ['cmd'], 'Super, not ✦');
+    expectEqual(modifiersFromState(shared | MASKS.SHIFT, MASKS, new Set(['Super_R', 'Shift_L'])), ['shift', 'cmd']);
+    expectEqual(modifiersFromState(shared, MASKS, new Set(['Hyper_L'])), ['ctrl', 'alt', 'shift', 'cmd'], 'Caps Lock');
+    // GTK reports only SUPER for Caps Lock: still ✦.
+    expectEqual(modifiersFromState(MASKS.SUPER, MASKS, new Set(['Hyper_L'])), ['ctrl', 'alt', 'shift', 'cmd']);
+    // Both keys down: ✦ (which includes Super).
+    expectEqual(modifiersFromState(shared, MASKS, new Set(['Hyper_L', 'Super_L'])), ['ctrl', 'alt', 'shift', 'cmd']);
+    // A stale held key doesn't add modifiers the state doesn't have.
+    expectEqual(modifiersFromState(MASKS.CONTROL, MASKS, new Set(['Hyper_L'])), ['ctrl']);
+    // No key seen (held before recording started): the masks as reported.
+    expectEqual(modifiersFromState(shared, MASKS, new Set()), ['ctrl', 'alt', 'shift', 'cmd']);
+    // keyd sends four real modifier keys.
+    expectEqual(modifiersFromHeldKeys(new Set(['Control_L', 'Alt_L', 'Shift_L', 'Super_L'])), ['ctrl', 'alt', 'shift', 'cmd']);
+    expectEqual(modifiersFromHeldKeys(new Set(['Hyper_L'])), ['ctrl', 'alt', 'shift', 'cmd']);
+    expectEqual(modifiersFromHeldKeys(new Set(['Meta_L', 'Caps_Lock'])), ['alt']);
+    expectEqual(modifiersFromHeldKeys(null), []);
   }],
   ['global shortcuts need Ctrl, Alt or Super unless they are function keys', () => {
     expect(isAcceptableGlobalShortcut({key: 'a', modifiers: ['ctrl']}));

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Readable view of Slated's event log (~/Library/Logs/Slated/slated.log, one JSON event per line).
+"""Readable view of Slated's event log (one JSON event per line).
+
+The log is found by platform:
+  macOS  ~/Library/Logs/Slated/slated.log
+  Linux  $XDG_STATE_HOME/slated/slated.log (default ~/.local/state/slated/slated.log), written by the
+         GNOME Shell extension and its preferences window
 
 Examples:
   scripts/logs.py                    last 50 events
@@ -11,6 +16,7 @@ Examples:
   scripts/logs.py --follow           keep printing new events as they happen
   scripts/logs.py --summary          counts per event, errors, sessions
   scripts/logs.py --json             raw JSON lines (for tools)
+  scripts/logs.py --file slated.log  read a log file from anywhere (a copy from someone else's machine)
 """
 import argparse
 import datetime as dt
@@ -25,8 +31,16 @@ COLORS = {"error": "\033[31m", "fault": "\033[31;1m", "notice": "\033[33m", "deb
 RESET = "\033[0m"
 
 
-def log_path(home):
-    return os.path.join(home, "Library/Logs/Slated/slated.log")
+def detect_platform():
+    return "macos" if sys.platform == "darwin" else "linux"
+
+
+def log_path(home, platform=None, state_home=None):
+    """Where Slated writes its log: ~/Library/Logs on macOS, the XDG state folder on Linux."""
+    platform = platform or detect_platform()
+    if platform == "macos":
+        return os.path.join(home, "Library/Logs/Slated/slated.log")
+    return os.path.join(state_home or os.path.join(home, ".local/state"), "slated/slated.log")
 
 
 def parse_since(text):
@@ -106,7 +120,10 @@ def summary(events):
         print("\nApp starts:")
         for s, e in list(sessions.items())[-10:]:
             d = e.get("data", {})
-            print(f"  {e.get('ts', '')[:19]}  session {s}  {d.get('version')} ({d.get('build')}) {d.get('commit')}  signed: {d.get('signing')}")
+            build = f" ({d['build']})" if d.get("build") else ""
+            # macOS logs how the app is signed; the GNOME extension, GNOME's version and the session type.
+            extras = "  ".join(f"{k}: {d[k]}" for k in ("signing", "gnome", "sessionType") if d.get(k))
+            print(f"  {e.get('ts', '')[:19]}  session {s}  {d.get('version')}{build} {d.get('commit')}  {extras}".rstrip())
     if errors:
         print("\nLast errors:")
         for e in errors[-10:]:
@@ -123,12 +140,23 @@ def main():
     parser.add_argument("--follow", "-f", action="store_true", help="keep printing new events")
     parser.add_argument("--summary", action="store_true", help="counts, app starts and recent errors")
     parser.add_argument("--json", action="store_true", help="print raw JSON lines")
-    parser.add_argument("--home", default=os.environ.get("SLATED_HOME", os.path.expanduser("~")))
+    parser.add_argument("--file", help="read this log file instead of the platform's default")
+    parser.add_argument("--platform", choices=["auto", "macos", "linux"], default="auto",
+                        help="whose log location to use (default: this machine's)")
+    parser.add_argument("--home", default=None, help="home folder to find the log in (default: $SLATED_HOME or ~)")
     args = parser.parse_args()
 
-    path = log_path(args.home)
+    platform = detect_platform() if args.platform == "auto" else args.platform
+    if args.file:
+        path = os.path.expanduser(args.file)
+    else:
+        home = args.home or os.environ.get("SLATED_HOME") or os.path.expanduser("~")
+        # $XDG_STATE_HOME belongs to the real home folder, not one passed with --home or SLATED_HOME.
+        state_home = os.environ.get("XDG_STATE_HOME") if home == os.path.expanduser("~") else None
+        path = log_path(home, platform, state_home)
     if not os.path.exists(path):
-        raise SystemExit(f"No log yet at {path}. Launch Slated first.")
+        hint = "Launch Slated first." if platform == "macos" else "Enable the Slated GNOME Shell extension first (see docs/LINUX.md)."
+        raise SystemExit(f"No log yet at {path}. {hint}")
     events = list(read_events(path))
     if args.summary:
         summary(events)

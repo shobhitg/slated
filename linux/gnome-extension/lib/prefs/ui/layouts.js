@@ -71,10 +71,10 @@ function pushLayoutEditor(ctx, name, source = null) {
     l.name = v;
   })}) : null;
   if (nameRow) top.add(nameRow.row);
-  const nameIssue = new Adw.ActionRow({title: 'Not saved', subtitle: '', activatable: false});
+  const nameIssue = new Adw.ActionRow({use_markup: false, title: 'Not saved', subtitle: '', activatable: false});
   nameIssue.add_css_class('slated-invalid');
   top.add(nameIssue);
-  const triggersRow = new Adw.ActionRow({title: 'Shortcut'});
+  const triggersRow = new Adw.ActionRow({use_markup: false, title: 'Shortcut'});
   const triggersBox = box('horizontal', 6);
   triggersRow.add_suffix(triggersBox);
   top.add(triggersRow);
@@ -105,7 +105,7 @@ function pushLayoutEditor(ctx, name, source = null) {
     for (const w of appWidgets) appsGroup.remove(w.row);
     appWidgets = [];
     (layout.apps ?? []).forEach((app, index) => {
-      const row = new Adw.ExpanderRow({title: app.app || 'App', subtitle: appSummary(app)});
+      const row = new Adw.ExpanderRow({use_markup: false, title: app.app || 'App', subtitle: appSummary(app)});
       row.set_subtitle_lines(1);
       row.set_expanded(expanded.has(index));
       row.connect('notify::expanded', () => (row.get_expanded() ? expanded.add(index) : expanded.delete(index)));
@@ -133,7 +133,7 @@ function pushLayoutEditor(ctx, name, source = null) {
           row.add_row(s.row);
           return [key, s];
         });
-        const remove = new Adw.ActionRow({title: 'Remove this app from the layout', activatable: false});
+        const remove = new Adw.ActionRow({use_markup: false, title: 'Remove this app from the layout', activatable: false});
         remove.add_suffix(button('Remove', () => mutate(l => {
           l.apps.splice(index, 1);
         }), {classes: ['destructive-action']}));
@@ -146,7 +146,7 @@ function pushLayoutEditor(ctx, name, source = null) {
         };
       } else {
         for (const op of app.operations ?? []) {
-          const r = new Adw.ActionRow({title: actionTitle(op), subtitle: actionDetail(op), activatable: false});
+          const r = new Adw.ActionRow({use_markup: false, title: actionTitle(op), subtitle: actionDetail(op), activatable: false});
           r.add_css_class('slated-mono-subtitle');
           row.add_row(r);
         }
@@ -155,7 +155,7 @@ function pushLayoutEditor(ctx, name, source = null) {
       appWidgets.push(widget);
     });
     if (editable) {
-      const add = new Adw.EntryRow({title: 'Add an app by name', show_apply_button: true});
+      const add = new Adw.EntryRow({use_markup: false, title: 'Add an app by name', show_apply_button: true});
       const addApp = appName => {
         if (!appName.trim()) return;
         mutate(l => {
@@ -171,7 +171,7 @@ function pushLayoutEditor(ctx, name, source = null) {
       appsGroup.add(add);
       appWidgets.push({row: add, sync: null});
     } else if (!(layout.apps ?? []).length) {
-      const none = new Adw.ActionRow({title: 'No apps', activatable: false});
+      const none = new Adw.ActionRow({use_markup: false, title: 'No apps', activatable: false});
       appsGroup.add(none);
       appWidgets.push({row: none, sync: null});
     }
@@ -181,7 +181,7 @@ function pushLayoutEditor(ctx, name, source = null) {
     for (const r of beforeAfterRows) beforeAfter.remove(r);
     beforeAfterRows = [];
     for (const [key, title] of [['before', 'Before arranging'], ['after', 'After arranging']]) {
-      const heading = new Adw.ActionRow({title, activatable: false});
+      const heading = new Adw.ActionRow({use_markup: false, title, activatable: false});
       heading.add_css_class('heading');
       beforeAfterRows.push(heading);
       if (editable) {
@@ -194,8 +194,8 @@ function pushLayoutEditor(ctx, name, source = null) {
         });
         beforeAfterRows.push(...list.rows);
       } else {
-        for (const op of layout[key] ?? []) beforeAfterRows.push(new Adw.ActionRow({title: actionTitle(op), subtitle: actionDetail(op), activatable: false}));
-        if (!(layout[key] ?? []).length) beforeAfterRows.push(new Adw.ActionRow({title: 'Nothing', activatable: false}));
+        for (const op of layout[key] ?? []) beforeAfterRows.push(new Adw.ActionRow({use_markup: false, title: actionTitle(op), subtitle: actionDetail(op), activatable: false}));
+        if (!(layout[key] ?? []).length) beforeAfterRows.push(new Adw.ActionRow({use_markup: false, title: 'Nothing', activatable: false}));
       }
     }
     for (const r of beforeAfterRows) beforeAfter.add(r);
@@ -269,6 +269,7 @@ export function createLayoutsPane(ctx) {
 
   function layoutRow(layout, source) {
     const row = new Adw.ActionRow({
+      use_markup: false,
       title: layout.name || 'Untitled', subtitle: (layout.apps ?? []).length ? layout.apps.map(a => a.app).join(', ') : 'No apps yet',
       activatable: true,
     });
@@ -284,7 +285,7 @@ export function createLayoutsPane(ctx) {
   function rebuild() {
     for (const r of slatedRows) slatedGroup.remove(r);
     slatedRows = model.configuration.layouts.map(l => layoutRow(l, null));
-    if (!slatedRows.length) slatedRows.push(new Adw.ActionRow({title: 'None yet', subtitle: 'Use the + button to create one.', activatable: false}));
+    if (!slatedRows.length) slatedRows.push(new Adw.ActionRow({use_markup: false, title: 'None yet', subtitle: 'Use the + button to create one.', activatable: false}));
     for (const r of slatedRows) slatedGroup.add(r);
     for (const g of sourceGroups) prefs.remove(g);
     sourceGroups = [];

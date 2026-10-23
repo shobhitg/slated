@@ -134,5 +134,13 @@ export default suite('Status and placement', [
     expectEqual(paths.logFile, '/home/me/.local/state/slated/slated.log');
     const custom = slatedPaths('/home/me/', name => ({XDG_CONFIG_HOME: '/cfg/', XDG_STATE_HOME: 'relative/ignored'})[name] ?? null);
     expectEqual([custom.configFile, custom.stateDir], ['/cfg/slated/config.json', '/home/me/.local/state/slated']);
+    // Like the extension and the macOS app: SLATED_HOME replaces the home (XDG variables belong to the real one).
+    const env = {SLATED_HOME: '/tmp/test-home/', XDG_CONFIG_HOME: '/cfg', XDG_STATE_HOME: '/state'};
+    const test = slatedPaths('/home/me', name => env[name] ?? null);
+    expectEqual([test.home, test.configFile, test.logFile],
+      ['/tmp/test-home', '/tmp/test-home/.config/slated/config.json', '/tmp/test-home/.local/state/slated/slated.log']);
+    const config = slatedPaths('/home/me', name => ({SLATED_CONFIG: '/elsewhere/slated.json'})[name] ?? null);
+    expectEqual([config.configFile, config.configDir, config.statusFile],
+      ['/elsewhere/slated.json', '/elsewhere', '/home/me/.local/state/slated/status.json']);
   }],
 ]);

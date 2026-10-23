@@ -17,5 +17,5 @@ import importer from './importer.test.mjs';
 import model from './model.test.mjs';
 import misc from './misc.test.mjs';
 
-const failed = await run([keys, config, actions, validator, status, importer, model, misc], commandLineArgs()[0] ?? '');
-exit(failed ? 1 : 0);
+const failed = await run([keys, config, actions, validator, status, importer, model, misc], (await commandLineArgs())[0] ?? '');
+await exit(failed ? 1 : 0);

@@ -70,6 +70,15 @@ export function singleLine(text) {
   return String(text ?? '').replace(/\r?\n/g, ' ⏎ ');
 }
 
+/**
+ * Text made safe for widgets that always parse Pango markup (Adw.StatusPage's description,
+ * Adw.Toast's title), like GLib.markup_escape_text. Rows are built with use_markup: false instead.
+ */
+export function escapeMarkup(text) {
+  const entities = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+  return String(text ?? '').replace(/[&<>"']/g, c => entities[c]);
+}
+
 /** Expands a leading `~` to `home`. */
 export function expandHome(path, home) {
   if (path === '~') return home;

@@ -6,6 +6,10 @@
 //   modifier. Some layouts share it with Super, and tapping it alone can't send Escape.
 // - keyd: a small system daemon maps Caps Lock to Ctrl+Alt+Shift+Super, exactly like the macOS
 //   Hyper key, and can send Escape on a tap. Set up once with `linux/install.sh --hyper-keyd`.
+//
+// keyd's configuration is a root-owned file, so the extension can't change it: the installer writes
+// it from config.json's capsLockAlone and hyperModifiers, and this page says to run it again after
+// changing either. GNOME's option always sends Hyper and can't tell a tap from a hold.
 
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
@@ -23,7 +27,7 @@ function keycap(text, accent = false) {
   return new Gtk.Label({label: text, css_classes: classes, valign: Gtk.Align.CENTER});
 }
 
-/** Caps Lock → ✦ = Ctrl + Alt + Shift + Super, drawn with keycaps. */
+/** Caps Lock → ✦ = Ctrl + Alt + Shift + Super (or Hyper, with GNOME's option), drawn with keycaps. */
 function illustration() {
   const row = box('horizontal', 8);
   row.set_halign(Gtk.Align.CENTER);
@@ -48,7 +52,7 @@ function illustration() {
         mods.remove(child);
         child = next;
       }
-      const names = {ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', cmd: 'Super'};
+      const names = {ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', cmd: 'Super', hyperModifier: 'Hyper'};
       modifiers.forEach((m, i) => {
         if (i) mods.append(label('+', {classes: ['dim-label']}));
         mods.append(keycap(names[m] ?? m));
@@ -64,7 +68,7 @@ export function createKeyboardPane(ctx) {
 
   // Hero
   const hero = group({title: 'Caps Lock as Hyper',
-    description: 'Hold Caps Lock and every key you press gets Ctrl, Alt, Shift and Super at once — a combination no app uses, so shortcuts like ✦← are all yours.'});
+    description: 'Hold Caps Lock and press another key for a ✦ shortcut, like ✦← for the left half. With keyd, ✦ is Ctrl, Alt, Shift and Super at once, a combination apps leave alone.'});
   const statusPill = box('horizontal', 0);
   hero.set_header_suffix(statusPill);
   const picture = illustration();
@@ -83,14 +87,16 @@ export function createKeyboardPane(ctx) {
   const modes = group({title: 'How Slated Does It',
     description: 'Wayland lets no app remap keys, so the Hyper key comes from GNOME itself or from keyd. Slated uses whichever is set up.'});
   const xkbRow = new Adw.ActionRow({
+    use_markup: false,
     title: 'GNOME keyboard option (xkb)',
-    subtitle: 'Built in, nothing to install: GNOME turns Caps Lock into the Hyper modifier (caps:hyper). Some keyboard layouts share Hyper with Super, so a few Super shortcuts may record as ✦. Tapping Caps Lock alone does nothing.',
+    subtitle: 'Built in, nothing to install: GNOME turns Caps Lock into the Hyper modifier (caps:hyper). In many keyboard layouts Hyper shares a modifier with Super, so GNOME takes ✦A and Super+A for the same shortcut. Tapping Caps Lock alone does nothing.',
   });
   xkbRow.set_subtitle_lines(0);
   const xkbBadge = box('horizontal', 0);
   xkbRow.add_suffix(xkbBadge);
   modes.add(xkbRow);
   const keydRow = new Adw.ActionRow({
+    use_markup: false,
     title: 'keyd',
     subtitle: 'A small system service sends Ctrl+Alt+Shift+Super while Caps Lock is held, exactly like the macOS Hyper key, in every app (Xwayland too), and can send Escape on a tap. Set it up once from the Slated source folder:',
   });
@@ -124,18 +130,21 @@ export function createKeyboardPane(ctx) {
   // Good to know
   const know = group({title: 'Good to Know'});
   const karabiner = new Adw.ActionRow({
+    use_markup: false,
     title: 'Like Karabiner-Elements, built into GNOME',
     subtitle: "On the Mac, Karabiner-Elements remaps Caps Lock with a driver. On GNOME, Slated asks the keyboard layer GNOME already has (or keyd) to do the same, so there's no extra app to keep running.",
   });
   karabiner.set_subtitle_lines(0);
   know.add(karabiner);
   const others = new Adw.ActionRow({
+    use_markup: false,
     title: 'Already remapping Caps Lock?',
     subtitle: 'GNOME Tweaks, keyd, kmonad or input-remapper may also claim Caps Lock. Keep only one of them in charge of it.',
   });
   others.set_subtitle_lines(0);
   know.add(others);
   const terminals = new Adw.ActionRow({
+    use_markup: false,
     title: 'Hyper in terminals and games',
     subtitle: "Apps that read raw keys may see Hyper as Super in xkb mode. keyd mode sends real modifiers, so it behaves the same everywhere.",
   });
@@ -150,7 +159,8 @@ export function createKeyboardPane(ctx) {
     enabled.set(on);
     escape.set(keyboard.capsLockAlone === 'escape');
     modifiers.set(keyboard.hyperModifiers.includes('cmd') ? 'hyper' : 'meh');
-    picture.update(keyboard.hyperModifiers, on);
+    const xkb = model.running && hyper.mode === 'xkb';
+    picture.update(xkb ? ['hyperModifier'] : keyboard.hyperModifiers, on);
     options.set_sensitive(on);
     let status;
     if (!on) status = {label: 'Off', style: 'dim'};
@@ -163,12 +173,18 @@ export function createKeyboardPane(ctx) {
       holder.get_first_child() && holder.remove(holder.get_first_child());
       if (model.running && hyper.mode === mode) holder.append(pill({label: hyper.active ? 'In use' : 'Selected', style: hyper.active ? 'success' : 'warning'}));
     }
-    escape.row.set_subtitle(model.running && hyper.mode === 'xkb'
+    const keyd = model.running && hyper.mode === 'keyd';
+    const rerun = 'keyd applies it: run linux/install.sh --hyper-keyd again after changing this.';
+    escape.row.set_subtitle(xkb
       ? "Needs keyd: GNOME's keyboard option can't tell a tap from a hold."
-      : "A quick tap sends Escape; holding it is still Hyper. Handy in Vim and for closing dialogs.");
-    modifiers.row.set_subtitle(keyboard.hyperModifiers.includes('cmd')
-      ? 'All four modifiers: no app uses this combination, so every ✦ shortcut is yours.'
-      : 'Meh leaves out Super, so ✦ shortcuts never collide with GNOME\'s own Super shortcuts.');
+      : keyd ? `A quick tap sends Escape; holding it is still Hyper. ${rerun}`
+        : 'A quick tap sends Escape; holding it is still Hyper. On GNOME this needs keyd (see above).');
+    const choice = keyboard.hyperModifiers.includes('cmd')
+      ? 'All four, like the Mac\'s Hyper key.'
+      : 'Meh leaves out Super, so ✦ shortcuts stay clear of GNOME\'s own Super shortcuts.';
+    modifiers.row.set_subtitle(xkb
+      ? "GNOME's keyboard option always sends the Hyper modifier; this applies with keyd and on the Mac."
+      : keyd ? `${choice} ${rerun}` : choice);
   };
   model.on('config', sync);
   model.on('status', sync);

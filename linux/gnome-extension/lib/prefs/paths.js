@@ -5,20 +5,26 @@
 //   file the macOS app uses;
 // - state:  $XDG_STATE_HOME/slated/ (default ~/.local/state/slated/) with status.json, written by
 //   the extension, and slated.log, the event log (JSON Lines, same events as on macOS).
+//
+// As in the extension (lib/platform/paths.js) and on macOS, SLATED_HOME stands in for the home
+// folder (then the XDG variables, which belong to the real home, don't apply) and SLATED_CONFIG for
+// the config file, so tests can point everything at a throwaway home.
 
 /**
  * @param {string} home the home folder
  * @param {(name: string) => string|null} getenv environment lookup
  */
 export function slatedPaths(home, getenv = () => null) {
-  const base = home.replace(/\/$/, '');
-  const absolute = value => (value && value.startsWith('/') ? value.replace(/\/$/, '') : null);
-  const configHome = absolute(getenv('XDG_CONFIG_HOME')) ?? `${base}/.config`;
-  const stateHome = absolute(getenv('XDG_STATE_HOME')) ?? `${base}/.local/state`;
+  const absolute = value => (value && value.startsWith('/') ? value.replace(/\/+$/, '') : null);
+  const override = absolute(getenv('SLATED_HOME'));
+  const base = override ?? home.replace(/\/+$/, '');
+  const configHome = (override ? null : absolute(getenv('XDG_CONFIG_HOME'))) ?? `${base}/.config`;
+  const stateHome = (override ? null : absolute(getenv('XDG_STATE_HOME'))) ?? `${base}/.local/state`;
+  const configFile = absolute(getenv('SLATED_CONFIG')) ?? `${configHome}/slated/config.json`;
   return {
     home: base,
-    configDir: `${configHome}/slated`,
-    configFile: `${configHome}/slated/config.json`,
+    configDir: configFile.replace(/\/[^/]*$/, ''),
+    configFile,
     stateDir: `${stateHome}/slated`,
     statusFile: `${stateHome}/slated/status.json`,
     logFile: `${stateHome}/slated/slated.log`,

@@ -7,14 +7,13 @@ import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
 import {target} from '../validator.js';
-import {expandTyping, espansoGuidance} from '../hotstrings.js';
+import {expandTyping, espansoGuidance, gnomeScopeNote} from '../hotstrings.js';
 import {singleLine, truncate} from '../util.js';
 import {
   box, label, button, icon, badge, triggerChip, notice, group, emptyState, comboRow, switchRow, entryRow, textArea, launchUri,
   pill,
 } from './widgets.js';
 import {confirm} from './bindingeditor.js';
-import {appPickerButton} from './apps.js';
 import {METHOD_HINTS} from './actioneditor.js';
 
 const FIRE_ITEMS = [{id: 'immediately', label: 'Right away'}, {id: 'afterDelimiter', label: 'After a space or punctuation'}];
@@ -93,7 +92,7 @@ function pushHotstringEditor(ctx, id) {
     h.trigger = v;
   })});
   triggerGroup.add(trigger.row);
-  const triggerIssues = new Adw.ActionRow({title: 'Tip', subtitle: '', activatable: false});
+  const triggerIssues = new Adw.ActionRow({use_markup: false, title: 'Tip', subtitle: '', activatable: false});
   triggerIssues.set_subtitle_lines(0);
   triggerGroup.add(triggerIssues);
   const fire = comboRow({title: 'Expand', items: FIRE_ITEMS, selected: h0.fire, onChange: v => model.setHotstring(id, h => {
@@ -127,7 +126,9 @@ function pushHotstringEditor(ctx, id) {
   prefs.add(replacementGroup);
 
   // Where it works
-  const whereGroup = group({title: 'Where It Works', description: 'Apps are matched by their desktop id (like org.gnome.TextEditor) or window class.'});
+  // App filters hold Mac bundle identifiers: espanso can't tell apps apart on GNOME (gnomeScopeNote),
+  // so there's no picker of GNOME apps here, only a field for the shared config's Mac side.
+  const whereGroup = group({title: 'Where It Works', description: 'Expands in every app.'});
   let storedScope = h0.onlyInApps?.length ? 'only' : h0.exceptInApps?.length ? 'except' : 'everywhere';
   const scope = comboRow({title: 'Expands', items: SCOPE_ITEMS, selected: storedScope, onChange: v => {
     storedScope = v;
@@ -140,7 +141,7 @@ function pushHotstringEditor(ctx, id) {
   }});
   whereGroup.add(scope.row);
   let appRows = [];
-  const addApp = new Adw.EntryRow({title: 'Add an app id', show_apply_button: true});
+  const addApp = new Adw.EntryRow({use_markup: false, title: 'Add a Mac app (bundle identifier)', show_apply_button: true});
   const appendApp = appId => {
     const value = appId.trim();
     if (!value) return;
@@ -153,7 +154,6 @@ function pushHotstringEditor(ctx, id) {
     appendApp(addApp.get_text());
     addApp.set_text('');
   });
-  addApp.add_suffix(appPickerButton({onPick: app => appendApp(app.id)}));
   let addAppShown = false;
   prefs.add(whereGroup);
 
@@ -168,7 +168,7 @@ function pushHotstringEditor(ctx, id) {
     scope.set(active);
     const list = active === 'only' ? h.onlyInApps : active === 'except' ? h.exceptInApps : [];
     for (const appId of list) {
-      const row = new Adw.ActionRow({title: appId});
+      const row = new Adw.ActionRow({use_markup: false, title: appId});
       row.add_css_class('slated-mono');
       row.add_suffix(button('', () => model.setHotstring(id, x => {
         x.onlyInApps = x.onlyInApps.filter(a => a !== appId);
@@ -177,9 +177,9 @@ function pushHotstringEditor(ctx, id) {
       whereGroup.add(row);
       appRows.push(row);
     }
-    whereGroup.set_description(active === 'everywhere'
-      ? 'Expands in every app. espanso never expands in password fields.'
-      : 'Apps are matched by their desktop id (like org.gnome.TextEditor) or window class.');
+    whereGroup.set_description(gnomeScopeNote(h)?.detail ?? (active === 'everywhere'
+      ? 'Expands in every app.'
+      : `Add the apps below. ${active === 'only' ? 'Mac only' : 'On GNOME it still expands everywhere'}: espanso can't tell apps apart on GNOME.`));
     if (active !== 'everywhere') {
       // The "add" row stays last, below the apps already chosen.
       whereGroup.add(addApp);
@@ -364,11 +364,9 @@ export function createHotstringsPane(ctx) {
     for (const h of visible) {
       const issues = model.issuesFor(target.hotstring(h.id));
       const issue = issues.find(i => i.severity === 'error') ?? issues.find(i => i.severity === 'warning');
-      const caption = issue?.message ?? [
-        h.onlyInApps?.length ? `Only in ${h.onlyInApps.join(', ')}` : h.exceptInApps?.length ? `Not in ${h.exceptInApps.join(', ')}` : null,
-        h.notes?.split('\n')[0] ?? null,
-      ].filter(Boolean).join(' · ');
+      const caption = issue?.message ?? [gnomeScopeNote(h)?.caption ?? null, h.notes?.split('\n')[0] ?? null].filter(Boolean).join(' · ');
       const row = new Adw.ActionRow({
+        use_markup: false,
         title: h.replacement ? truncate(singleLine(h.replacement), 80) : 'Nothing yet', subtitle: caption, activatable: true,
       });
       row.set_title_lines(1);
@@ -383,7 +381,7 @@ export function createHotstringsPane(ctx) {
       row.connect('activated', () => pushHotstringEditor(ctx, h.id));
       rows.push(row);
     }
-    if (all.length && !visible.length) rows.push(new Adw.ActionRow({title: `No matches for “${search.get_text()}”`, activatable: false}));
+    if (all.length && !visible.length) rows.push(new Adw.ActionRow({use_markup: false, title: `No matches for “${search.get_text()}”`, activatable: false}));
     for (const row of rows) listGroup.add(row);
     stack.set_visible_child_name(all.length ? 'list' : 'empty');
   }

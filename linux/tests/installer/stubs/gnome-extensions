@@ -1,0 +1,39 @@
+#!/bin/bash
+# Stand-in for GNOME's gnome-extensions tool, for linux/tests/installer/run.sh: packs with zip,
+# installs into $HOME/.local/share/gnome-shell/extensions, and records every call in $STUB_LOG.
+set -euo pipefail
+echo "gnome-extensions $*" >>"$STUB_LOG"
+EXTENSIONS="$HOME/.local/share/gnome-shell/extensions"
+uuid_of() { python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["uuid"])' "$1"; }
+case "$1" in
+  pack)
+    out="."
+    files=(metadata.json extension.js prefs.js)
+    for arg in "${@:2}"; do
+      case "$arg" in
+        --out-dir=*) out="${arg#--out-dir=}" ;;
+        --extra-source=*) files+=("${arg#--extra-source=}") ;;
+        --force) ;;
+        *) echo "unexpected pack argument $arg" >&2; exit 2 ;;
+      esac
+    done
+    [ -f stylesheet.css ] && files+=(stylesheet.css)
+    zip -qr "$out/$(uuid_of metadata.json).shell-extension.zip" "${files[@]}"
+    ;;
+  install)
+    [ "$2" = "--force" ] || { echo "install without --force" >&2; exit 2; }
+    tmp="$(mktemp -d)"
+    unzip -qo "$3" -d "$tmp"
+    uuid="$(uuid_of "$tmp/metadata.json")"
+    rm -rf "${EXTENSIONS:?}/$uuid"
+    mkdir -p "$EXTENSIONS"
+    mv "$tmp" "$EXTENSIONS/$uuid"
+    ;;
+  enable)
+    # GNOME Shell on Wayland doesn't know a freshly installed extension until the next login.
+    [ "${STUB_ENABLE_FAILS:-0}" = 1 ] && { echo "Extension “$2” does not exist" >&2; exit 2; }
+    ;;
+  disable) ;;
+  uninstall) rm -rf "${EXTENSIONS:?}/$2" ;;
+  *) echo "unexpected command $1" >&2; exit 2 ;;
+esac
