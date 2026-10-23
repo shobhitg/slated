@@ -35,6 +35,7 @@ Primary user: the author, daily, for a few months before a public release. Open 
 | Tests | `Tests/SlatedTests` is an executable harness (`make test`) mirroring Swift Testing's API | Swift Testing and XCTest ship with Xcode, not the CLT. Migrate when Xcode is installed. |
 | Bundle ID | `io.github.shobhit-aida.slated` (provisional, see `docs/QUESTIONS.md`) | Changing it later resets Accessibility permission. |
 | Defaults | First run: an existing Slate config is the default (loaded as-is); otherwise `SlatedConfiguration.starter`, the author's `~/.slate.js` in native form (a test checks they match) | The author asked for their Slate config to be the default; JavaScript isn't required. |
+| Linux | A GNOME Shell extension (GNOME 46–49, Wayland) in `linux/`: JavaScript port of the engine in `lib/core/` pinned to Swift by golden vectors (`fixtures/`, `make fixtures`), platform layer in `lib/platform/`, libadwaita prefs; hotstrings via espanso, Hyper via xkb `caps:hyper` or keyd | Wayland lets only the compositor manage windows, grab shortcuts or overlay UI. Same `config.json` on both platforms. |
 | Scripting | JavaScript (JavaScriptCore) only for Slate compatibility; everyday config is JSON + the UI. `by-orientation` covers the one bit of logic the author's script had | Author doesn't need JS; JSC is built in if real scripting is ever wanted. |
 
 ## Architecture

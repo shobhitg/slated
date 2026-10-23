@@ -107,3 +107,19 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 
   Tell me which matter.
 - **About pane link** to the GitHub repo waits on question 2 (where the repo will live).
+
+## Linux (GNOME) port
+
+9. **Which Linux?** Distro, GNOME version (`gnome-shell --version`) and session type
+   (`echo $XDG_SESSION_TYPE`). *Assumption:* GNOME 46–49 on Wayland (Ubuntu 24.04+, Fedora 40+).
+10. **Docker for GNOME tests.** Docker Desktop is installed here but not running. If you start it,
+    the headless GNOME Shell tests can run on this Mac, verifying the extension without a Linux
+    machine. *Assumption:* left off; CI runs them.
+11. **Hotstrings on Linux via espanso.** GNOME blocks apps from watching the keyboard. Slated
+    generates espanso's config from your hotstrings (espanso is a mature open-source text expander
+    that works on GNOME). OK to depend on it, or do you want a native engine (which needs keyboard
+    device permissions: the `input` group and a udev rule)?
+12. **Hyper key on Linux.** Default: GNOME's built-in "Caps Lock as Hyper" option, which needs no
+    admin rights and gives shortcuts like `<Hyper>a`. Optional: `keyd`, a system service, for
+    macOS-identical ⌃⌥⇧⌘. Preference?
+
