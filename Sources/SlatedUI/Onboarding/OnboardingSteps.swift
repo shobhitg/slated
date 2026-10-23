@@ -29,7 +29,7 @@ struct WelcomeStep: View {
           }
         }
         FeatureCard(
-          symbol: "text.cursor", tint: SettingsPane.hotstrings.tint, title: "Hotstrings",
+          symbol: "text.insert", tint: SettingsPane.hotstrings.tint, title: "Hotstrings",
           detail: "Type a short trigger, get a whole sentence."
         ) {
           TriggerChip(trigger: ";shrug", size: 10.5)
@@ -352,7 +352,7 @@ struct DoneStep: View {
       VStack(spacing: 0) {
         checklistRow(
           "Accessibility access", done: model.runtimeStatus.accessibilityGranted,
-          detail: model.runtimeStatus.accessibilityGranted ? "Allowed" : "Not yet — allow it from the menu bar")
+          detail: model.runtimeStatus.accessibilityGranted ? "Allowed" : "Not yet")
         CardDivider(inset: 44)
         checklistRow("Hyper key", done: model.hyperKeyEnabled, detail: model.hyperKeyEnabled ? "Caps Lock is ✦" : "Off")
         CardDivider(inset: 44)

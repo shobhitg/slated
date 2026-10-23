@@ -149,7 +149,7 @@ private struct StatusGrid: View {
           }
         }
         StatusTile(
-          title: "Hotstrings", symbol: "text.cursor", tint: SettingsPane.hotstrings.tint,
+          title: "Hotstrings", symbol: "text.insert", tint: SettingsPane.hotstrings.tint,
           value: status.hotstringsEnabled ? "\(model.enabledHotstringCount) active" : "Off",
           state: status.hotstringsActive ? .good : .neutral,
           detail: status.hotstringsEnabled ? "Text expansion is on" : "Turned off"
@@ -324,10 +324,13 @@ private struct QuickTips: View {
           title: "Snap a window", detail: "\(BindingTitle.title(for: snap)) for the window in front.",
           keys: AnyView(KeyComboView(combo: snap.keys, modal: snap.modal))))
     }
-    if let chain = bindings.first(where: { if case .chain = $0.action { return true } else { return false } }) {
+    if let chain = bindings.first(where: { if case .chain = $0.action { return true } else { return false } }),
+      case .chain(let steps) = chain.action
+    {
+      let names = steps.prefix(3).map(ActionDescriber.title).joined(separator: " → ")
       tips.append(
         Tip(
-          title: "Cycle sizes", detail: "Press again to step through \(BindingTitle.title(for: chain).lowercased()).",
+          title: "Cycle sizes", detail: "Press it again and again: \(names).",
           keys: AnyView(KeyComboView(combo: chain.keys, modal: chain.modal))))
     } else if let screen = bindings.first(where: { WindowPresets.matching($0.action)?.group == .screens }) {
       tips.append(

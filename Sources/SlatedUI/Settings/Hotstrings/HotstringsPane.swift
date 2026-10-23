@@ -26,7 +26,7 @@ struct HotstringsPane: View {
       Rectangle().fill(Theme.hairline).frame(height: 0.5)
       if model.configuration.hotstrings.isEmpty {
         EmptyStateView(
-          symbol: "text.cursor", title: "No hotstrings yet",
+          symbol: "text.insert", title: "No hotstrings yet",
           message:
             "Hotstrings expand short triggers into longer text — like ;shrug into ¯\\_(ツ)_/¯ or ;addr into your address."
         ) {
@@ -52,7 +52,7 @@ struct HotstringsPane: View {
         .id(id)
     } else {
       EmptyStateView(
-        symbol: "text.cursor", title: "Pick a hotstring",
+        symbol: "text.insert", title: "Pick a hotstring",
         message: "Select a hotstring on the left to edit its trigger, text and where it works."
       )
       .frame(maxHeight: .infinity)

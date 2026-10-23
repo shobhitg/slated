@@ -157,7 +157,7 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .activateSnapshot: return "clock.arrow.circlepath"
     case .deleteSnapshot: return "trash"
     case .undo: return "arrow.uturn.backward"
-    case .insertText: return "text.cursor"
+    case .insertText: return "text.insert"
     case .keystroke: return "keyboard"
     case .openURL: return "link.circle"
     case .shell: return "terminal"

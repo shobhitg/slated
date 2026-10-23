@@ -239,6 +239,13 @@ let uiValidationTests = Suite(
           let output = ConfigValidator.savable(draft, lastSaved: saved, issues: issues)
           expectEqual(output.bindings, [good])
           expectEqual(output.keyboard.capsLock, .hyper)
+
+          // Renaming a layout onto another's name mid-edit must not drop either from disk.
+          saved.layouts = [Layout(name: "Coding"), Layout(name: "Writing")]
+          draft = saved
+          draft.layouts[1].name = "Coding"
+          let clash = ConfigValidator.validate(draft, knownLayouts: ["Coding", "Writing"])
+          expectEqual(ConfigValidator.savable(draft, lastSaved: saved, issues: clash).layouts, saved.layouts)
         }
       }
     ),
@@ -258,14 +265,28 @@ let uiModelTests = Suite(
           expectEqual(services.configuration.keyboard.capsLock, .hyper)
           expect(model.saveState == .saved)
 
+          // A new shortcut isn't written until it has keys, and waiting for them isn't an error.
           model.newBinding()
           model.saveNow()
           expect(services.configuration.bindings.isEmpty)
-          expect(model.saveState == .partiallySaved(count: 1))
+          expect(model.saveState == .saved)
+          expect(model.state(for: model.configuration.bindings[0]) == .new)
           model.configuration.bindings[0].keys = hyper("left")
           model.saveNow()
           expectEqual(services.configuration.bindings.map(\.keys), [hyper("left")])
           expect(model.saveState == .saved)
+
+          // Breaking a saved shortcut keeps its saved version on disk and flags it.
+          let saved = services.configuration.bindings
+          model.configuration.bindings[0].action = .move(x: "", y: "0", width: "1", height: "1", screen: nil)
+          model.saveNow()
+          expectEqual(services.configuration.bindings, saved)
+          expect(model.saveState == .partiallySaved(count: 1))
+          if case .notSaved(_, let wasSaved) = model.state(for: model.configuration.bindings[0]) {
+            expect(wasSaved)
+          } else {
+            expect(false, "a broken saved shortcut should be not saved")
+          }
         }
       }
     ),
@@ -357,6 +378,21 @@ let uiModelTests = Suite(
           expect(model.configuration.bindings.contains { $0.action == .layout(name: "Deep Work") })
           expect(!model.configuration.bindings.contains { $0.action == .layout(name: "Coding") })
           expect(model.selectedLayout == .slated(name: "Deep Work"))
+        }
+      }
+    ),
+    (
+      "its own saves don't count as hand edits",
+      {
+        try onMain {
+          // PreviewServices reports the change from inside saveConfiguration, as the app may.
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          model.newBinding()  // unfinished: not written yet
+          model.configuration.keyboard.capsLock = .hyper  // finished: written now
+          model.saveNow()
+          expectEqual(services.configuration.keyboard.capsLock, .hyper)
+          expectEqual(model.configuration.bindings.count, 1)
         }
       }
     ),

@@ -226,7 +226,7 @@ extension SettingsPane {
     switch self {
     case .overview: return "sparkles"
     case .windows: return "macwindow.on.rectangle"
-    case .hotstrings: return "text.cursor"
+    case .hotstrings: return "text.insert"
     case .keyboard: return "keyboard"
     case .layouts: return "rectangle.3.group"
     case .slate: return "doc.text.magnifyingglass"

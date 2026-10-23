@@ -82,14 +82,14 @@ private struct LayoutList: View {
         if model.configuration.layouts.isEmpty {
           Text("None yet — click New Layout.").font(.system(size: 12)).foregroundStyle(.tertiary).selectionDisabled()
         }
-        ForEach(model.configuration.layouts, id: \.name) { layout in
+        ForEach(Array(model.configuration.layouts.enumerated()), id: \.offset) { _, layout in
           LayoutRow(layout: layout).tag(LayoutSelection.slated(name: layout.name))
             .contextMenu {
               Button("Delete", role: .destructive) { model.deleteLayout(layout.name) }
             }
         }
       } header: {
-        Text("Slated").font(.system(size: 11.5, weight: .semibold))
+        Text("Slated").font(.system(size: 11.5, weight: .semibold)).pinnedHeaderBackground()
       }
       ForEach(model.sources.filter { !$0.layouts.isEmpty }) { source in
         Section {
@@ -103,6 +103,7 @@ private struct LayoutList: View {
             Spacer()
             Text("Read-only").font(.system(size: 10.5)).foregroundStyle(.tertiary)
           }
+          .pinnedHeaderBackground()
         }
       }
     }

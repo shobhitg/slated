@@ -1,4 +1,5 @@
 import AppKit
+import SlatedUI
 import SwiftUI
 
 /// `--probe`: checks which kinds of SwiftUI content `cacheDisplay` can capture on this macOS.
@@ -14,6 +15,8 @@ enum Probe {
     var options: Renderer.Options
     /// Region that must show content, in points; nil means the whole image.
     var region: CGRect?
+    /// Defaults to `Probe.size`.
+    var size: CGSize?
     var view: AnyView
   }
 
@@ -83,6 +86,12 @@ enum Probe {
           } detail: {
             content("Detail")
           })),
+      Case(
+        // Smoke test of the real settings window layout (snapshots use the flat one): the detail
+        // column must render even though the glass sidebar can't be captured.
+        name: "Settings window, real split view (detail)", expectation: "captures", options: sized,
+        region: CGRect(x: 420, y: 40, width: 500, height: 400), size: SlatedUI.settingsWindowSize,
+        view: AnyView(SlatedUI.makeSettingsView(model: AppModel(services: PreviewServices())))),
     ]
   }
 
@@ -90,7 +99,7 @@ enum Probe {
   static func run(outputURL: URL?) throws {
     print("cacheDisplay capture probe — macOS \(ProcessInfo.processInfo.operatingSystemVersionString)\n")
     for probe in cases {
-      let image = Renderer.render(probe.view, size: size, dark: false, options: probe.options)
+      let image = Renderer.render(probe.view, size: probe.size ?? size, dark: false, options: probe.options)
       let fraction = Renderer.contentFraction(image, in: probe.region)
       let captured = fraction > 0.02
       let mark = captured ? "✔ captures" : "✘ blank   "

@@ -514,16 +514,16 @@ struct GridEditor: View {
           .font(.system(size: 12.5).monospacedDigit())
           .fixedSize()
       }
-      ForEach(grids.indices, id: \.self) { index in
+      ForEach(Array(grids.enumerated()), id: \.offset) { index, grid in
         HStack(spacing: 10) {
-          Text("Display \((Int(grids[index].screen) ?? 0) + 1)")
+          Text("Display \((Int(grid.screen) ?? 0) + 1)")
             .font(.system(size: 12.5))
             .frame(width: 72, alignment: .leading)
-          Stepper("\(grids[index].width) wide", value: $grids[index].width, in: 1...24).fixedSize()
-          Stepper("\(grids[index].height) tall", value: $grids[index].height, in: 1...24).fixedSize()
+          Stepper("\(grid.width) wide", value: size(index, \.width), in: 1...24).fixedSize()
+          Stepper("\(grid.height) tall", value: size(index, \.height), in: 1...24).fixedSize()
           Spacer()
           Button {
-            grids.remove(at: index)
+            if grids.indices.contains(index) { grids.remove(at: index) }
           } label: {
             Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
           }
@@ -546,6 +546,13 @@ struct GridEditor: View {
         Hint("Without sizes, every display uses Slate's default grid.")
       }
     }
+  }
+
+  /// A bounds-checked binding to one grid's width or height, safe while rows are being removed.
+  private func size(_ index: Int, _ keyPath: WritableKeyPath<GridScreen, Int>) -> Binding<Int> {
+    Binding(
+      get: { grids.indices.contains(index) ? grids[index][keyPath: keyPath] : 1 },
+      set: { if grids.indices.contains(index) { grids[index][keyPath: keyPath] = $0 } })
   }
 }
 

@@ -8,8 +8,10 @@ enum BindingState: Equatable {
   case disabled
   case duplicate
   case failed(String)
-  /// Has errors, so the last saved version (if any) is what's running.
-  case notSaved(String)
+  /// Just created and waiting for its keys; nothing to save yet.
+  case new
+  /// Has errors. `wasSaved`: an earlier version is on disk and is what's running meanwhile.
+  case notSaved(String, wasSaved: Bool)
   case saving
   case paused
   /// Slate config loading is switched off.
@@ -78,7 +80,7 @@ extension AppModel {
   /// Copies a static Slate binding into Slated's own bindings, where it can be edited.
   func copyIntoSlated(_ source: SourceBinding) {
     guard let action = source.action else { return }
-    let binding = HotkeyBinding(name: source.summary, keys: source.keys, modal: source.modal, action: action)
+    let binding = HotkeyBinding(keys: source.keys, modal: source.modal, action: action)
     configuration.bindings.append(binding)
     selectedBinding = .slated(binding.id)
     showToast("Copied into Slated. Remove it from your Slate file to avoid a duplicate.", symbol: "doc.on.doc.fill")
@@ -90,9 +92,11 @@ extension AppModel {
   }
 
   func state(for binding: HotkeyBinding) -> BindingState {
+    let wasSaved = saved.bindings.contains { $0.id == binding.id }
+    if binding.keys.key.isEmpty && !wasSaved { return .new }
     if !binding.enabled { return .disabled }
     if let error = issues.first(where: { $0.target == .binding(binding.id) && $0.severity == .error }) {
-      return .notSaved(error.message)
+      return .notSaved(error.message, wasSaved: wasSaved)
     }
     if saved.bindings.first(where: { $0.id == binding.id }) != binding { return .saving }
     if runtimeStatus.paused { return .paused }

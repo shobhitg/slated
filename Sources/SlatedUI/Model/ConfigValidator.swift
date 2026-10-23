@@ -231,7 +231,9 @@ enum ConfigValidator {
   // MARK: Saving
 
   /// The configuration to write: the draft, except that items with errors fall back to their last
-  /// saved version (or are left out if they were never saved).
+  /// saved version (or are left out if they were never saved). Layouts have no stable identity
+  /// beyond their name, which is exactly what's being edited when a name clashes or is empty, so
+  /// any layout error keeps all layouts as last saved.
   static func savable(
     _ draft: SlatedConfiguration, lastSaved: SlatedConfiguration, issues: [ValidationIssue]
   ) -> SlatedConfiguration {
@@ -245,7 +247,9 @@ enum ConfigValidator {
     result.hotstrings = draft.hotstrings.compactMap { hotstring in
       bad.contains(.hotstring(hotstring.id)) ? lastSaved.hotstrings.first { $0.id == hotstring.id } : hotstring
     }
-    result.layouts = draft.layouts.filter { !bad.contains(.layout($0.name)) }
+    if bad.contains(where: { if case .layout = $0 { return true } else { return false } }) {
+      result.layouts = lastSaved.layouts
+    }
     return result
   }
 }
@@ -265,13 +269,13 @@ enum BindingTitle {
   }
 
   /// Secondary text for list rows: what the action is, without repeating the title.
-  /// "Cycle Left" → "Cycle Left Half → Left Third → …"; "Left Half" → "Push to Edge".
+  /// "Cycle Left" → "Cycle Left Half → Left Third → …"; "Left Half" → "Push to Edge"; "Undo" → "Snapshots".
   static func subtitle(for binding: HotkeyBinding) -> String {
     let title = title(for: binding)
     let actionTitle = ActionDescriber.title(binding.action)
     if actionTitle != title { return actionTitle }
-    let kind = ActionKind(binding.action).title
-    return kind != title ? kind : ActionDescriber.detail(binding.action)
+    let kind = ActionKind(binding.action)
+    return kind.title != title ? kind.title : kind.category.rawValue
   }
 }
 

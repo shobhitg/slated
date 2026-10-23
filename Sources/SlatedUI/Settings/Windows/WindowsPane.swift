@@ -48,15 +48,31 @@ struct WindowsPane: View {
     }
   }
 
-  private var noSelection: some View {
-    EmptyStateView(
-      symbol: "macwindow.on.rectangle", title: "Pick a shortcut",
-      message: "Select a shortcut on the left to edit it and see exactly where it puts the window."
-    ) {
-      Button("New Shortcut") { model.addBinding() }
-        .buttonStyle(.gradient)
+  @ViewBuilder private var noSelection: some View {
+    if model.configuration.bindings.isEmpty && model.sourceBindingCount == 0 {
+      EmptyStateView(
+        symbol: "macwindow.on.rectangle", title: "Move windows with a keystroke",
+        message:
+          "Create your first shortcut, or start with a set of Hyper shortcuts for halves, maximize, center and more."
+      ) {
+        HStack(spacing: 10) {
+          Button("Add Starter Shortcuts") { model.addStarterBindings() }
+            .buttonStyle(.soft)
+          Button("New Shortcut") { model.addBinding() }
+            .buttonStyle(.gradient)
+        }
+      }
+      .frame(maxHeight: .infinity)
+    } else {
+      EmptyStateView(
+        symbol: "macwindow.on.rectangle", title: "Pick a shortcut",
+        message: "Select a shortcut on the left to edit it and see exactly where it puts the window."
+      ) {
+        Button("New Shortcut") { model.addBinding() }
+          .buttonStyle(.gradient)
+      }
+      .frame(maxHeight: .infinity)
     }
-    .frame(maxHeight: .infinity)
   }
 }
 
@@ -234,6 +250,22 @@ private struct ListSectionHeader: View {
       }
     }
     .foregroundStyle(.secondary)
+    .pinnedHeaderBackground()
+  }
+}
+
+extension View {
+  /// List section headers stay pinned while rows scroll beneath them; give them the pane's
+  /// background so the two never overlap.
+  func pinnedHeaderBackground() -> some View {
+    self
+      .padding(.vertical, 4)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background {
+        Theme.paneBackground
+          .padding(.horizontal, -24)
+          .padding(.vertical, -2)
+      }
   }
 }
 
@@ -320,7 +352,8 @@ extension BindingState {
     case .disabled: return ("Off", "moon.fill", Theme.neutral)
     case .duplicate: return ("Duplicate shortcut", "exclamationmark.triangle.fill", Theme.caution)
     case .failed: return ("Couldn't register", "xmark.octagon.fill", Theme.critical)
-    case .notSaved(let message): return (message, "exclamationmark.circle.fill", Theme.critical)
+    case .new: return ("Waiting for keys", "record.circle", Theme.accent)
+    case .notSaved(let message, _): return (message, "exclamationmark.circle.fill", Theme.critical)
     case .paused: return ("Paused", "pause.circle.fill", Theme.neutral)
     case .slateOff: return ("Slate files off", "moon.fill", Theme.neutral)
     }
@@ -333,6 +366,7 @@ extension BindingState {
     case .disabled: return ("Off", Theme.neutral, nil)
     case .duplicate: return ("Duplicate", Theme.caution, "exclamationmark.triangle.fill")
     case .failed: return ("Failed", Theme.critical, "xmark.octagon.fill")
+    case .new: return ("New", Theme.accent, "sparkle")
     case .notSaved: return ("Not saved", Theme.critical, "exclamationmark.circle.fill")
     case .saving: return ("Saving…", Theme.neutral, nil)
     case .paused: return ("Paused", Theme.neutral, "pause.fill")
@@ -347,8 +381,10 @@ extension BindingState {
     case .duplicate:
       return "Another shortcut uses the same keys, so only one of them can run. Change one of them, or turn one off."
     case .failed(let reason): return reason
-    case .notSaved(let message):
-      return "\(message) Until then, the last saved version of this shortcut stays in effect."
+    case .notSaved(let message, let wasSaved):
+      return wasSaved
+        ? "\(message) Until then, the last saved version of this shortcut stays in effect."
+        : "\(message) The shortcut is saved as soon as that's fixed."
     case .slateOff: return "Loading Slate files is turned off in Slate Compatibility."
     case .paused: return "Slated is paused from the menu bar."
     default: return nil

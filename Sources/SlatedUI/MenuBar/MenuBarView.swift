@@ -24,7 +24,7 @@ struct MenuBarView: View {
           title: "Hotstrings",
           subtitle: model.runtimeStatus.hotstringsEnabled
             ? "\(model.enabledHotstringCount) expanding" : "Not expanding",
-          symbol: "text.cursor", tint: SettingsPane.hotstrings.tint,
+          symbol: "text.insert", tint: SettingsPane.hotstrings.tint,
           isOn: Binding(get: { model.runtimeStatus.hotstringsEnabled }, set: { model.setHotstringsEnabled($0) }))
         SwitchRow(
           title: "Pause Slated",
@@ -80,7 +80,8 @@ struct MenuBarView: View {
   private var summary: String {
     let shortcuts = model.activeBindingCount
     let hotstrings = model.runtimeStatus.hotstringsEnabled ? model.enabledHotstringCount : 0
-    return "\(shortcuts) shortcut\(shortcuts == 1 ? "" : "s") · \(hotstrings) hotstring\(hotstrings == 1 ? "" : "s")"
+    let shortcutText = "\(shortcuts) shortcut\(shortcuts == 1 ? "" : "s")"
+    return hotstrings == 0 ? shortcutText : "\(shortcutText) · \(hotstrings) hotstring\(hotstrings == 1 ? "" : "s")"
   }
 }
 
@@ -139,8 +140,7 @@ private struct SwitchRow: View {
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 6)
-    .contentShape(Rectangle())
-    .onTapGesture { isOn.toggle() }
+    .accessibilityElement(children: .combine)
   }
 }
 
@@ -236,7 +236,7 @@ private struct ActivitySection: View {
         if case .failed(let reason) = status.hotkeys[binding.id] {
           problems.append(
             Problem(
-              id: "source-\(source.path)-\(binding.id)", title: "\(source.fileName) · \(binding.keys.display())",
+              id: "source-\(source.path)-\(binding.id)", title: "\(source.displayName) · \(binding.keys.display())",
               detail: reason, symbol: "xmark.octagon.fill", color: Theme.critical,
               open: { model in
                 model.selectedPane = .windows
@@ -248,7 +248,7 @@ private struct ActivitySection: View {
         problems.append(
           Problem(
             id: "diag-\(source.path)-\(index)",
-            title: source.fileName + (diagnostic.line.map { " · line \($0)" } ?? ""), detail: diagnostic.message,
+            title: source.displayName + (diagnostic.line.map { " · line \($0)" } ?? ""), detail: diagnostic.message,
             symbol: "doc.badge.ellipsis", color: Theme.caution, open: { model in model.selectedPane = .slate }))
       }
     }

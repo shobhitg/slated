@@ -68,6 +68,9 @@ public final class AppModel {
   @ObservationIgnored private var saveTask: Task<Void, Never>?
   @ObservationIgnored private var toastTask: Task<Void, Never>?
   @ObservationIgnored private var suspensions = 0
+  /// True while `saveConfiguration` runs. The app may report the change it causes through
+  /// `onChange` before the call returns; that's our own write, not a hand edit to adopt.
+  @ObservationIgnored private var isSaving = false
 
   public init(services: any AppServices) {
     self.services = services
@@ -118,6 +121,8 @@ public final class AppModel {
     }
     let output = ConfigValidator.savable(draft, lastSaved: saved, issues: issues)
     if output != saved {
+      isSaving = true
+      defer { isSaving = false }
       do {
         try services.saveConfiguration(output)
         // Re-read so `saved` matches what the file decodes to (key order, normalized values).
@@ -127,7 +132,11 @@ public final class AppModel {
         return
       }
     }
-    let held = Set(issues.filter { $0.severity == .error }.map(\.target)).count
+    // A brand-new shortcut still waiting for its keys isn't an error worth flagging.
+    let waiting = Set(
+      draft.bindings.filter { binding in binding.keys.key.isEmpty && !saved.bindings.contains { $0.id == binding.id } }
+        .map { ValidationIssue.Target.binding($0.id) })
+    let held = Set(issues.filter { $0.severity == .error }.map(\.target)).subtracting(waiting).count
     saveState = held > 0 ? .partiallySaved(count: held) : .saved
     refresh()
   }
@@ -153,7 +162,7 @@ public final class AppModel {
 
   private func servicesDidChange() {
     refresh()
-    syncFromDisk()
+    if !isSaving { syncFromDisk() }
   }
 
   /// Adopts config.json when it changed on disk (hand edits), unless the UI has unsaved edits.
