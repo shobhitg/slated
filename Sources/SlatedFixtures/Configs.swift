@@ -76,8 +76,123 @@ private let configMarkdownExample = #"""
   }
   """#
 
+/// docs/CONFIG.md's "Game automation" example, wrapped in an object.
+private let configMarkdownAutomation = #"""
+  {
+  "bindings": [
+    // Auto-click left every 100 ms; press F again to stop. Only in the game.
+    { "name": "Auto-click", "keys": "f", "onlyInApps": ["com.mojang.minecraft"],
+      "action": { "op": "repeat", "action": { "op": "click", "button": "left" }, "interval": 0.1 } },
+
+    // Hold right click (e.g. to mine/block); press again to release.
+    { "name": "Hold right click", "keys": "mouse4", "action": "hold mouse:right" },
+
+    // Auto-run: hold W until pressed again.
+    { "name": "Auto-run", "keys": "hyper+w", "action": "hold key:w" },
+
+    // Toggle sprint by holding Shift.
+    { "name": "Sprint", "keys": "hyper+r", "action": "hold key:shift" },
+
+    // Spam E while the shortcut is held, with ±10% human-like timing.
+    { "name": "Spam E", "keys": "mouse5", "action": "repeat 0.05 while-held jitter:0.1 'keystroke e'" },
+
+    // Click 50 times, then stop by itself.
+    { "name": "50 clicks", "keys": "hyper+5", "action": "repeat 0.1 times:50 'click left'" },
+
+    // Macro: W down for 2 seconds, then click.
+    { "name": "Dash and hit", "keys": "hyper+d",
+      "action": "sequence press key:w down | wait 2 | press key:w up | click left" }
+  ],
+  "automation": {
+    "stopShortcut": "hyper+esc",   // always stops everything (null turns it off)
+    "stopOnAppSwitch": true,       // stop when you leave the app it started in
+    "maxRunMinutes": 0,            // 0 = no limit
+    "showIndicator": true          // the "running" pill at the top of the screen
+  }
+  }
+  """#
+
+/// docs/CONFIG.md's "Clipboard history" example, wrapped in an object.
+private let configMarkdownClipboard = #"""
+  {
+  "clipboard": {
+    "enabled": true,
+    "shortcut": "cmd+shift+v",      // opens the switcher; null turns it off
+    "maxItems": 200,
+    "persist": true,                // kept across restarts, readable only by you
+    "retentionDays": 30,            // pinned items are kept regardless
+    "ignoreConcealed": true,        // skip what password managers mark as secret
+    "excludedApps": ["com.1password.1password", "com.bitwarden.desktop"],
+    "pasteAfterSelecting": true
+  }
+  }
+  """#
+
 private let decodeCases: [(String, String)] = [
   ("empty object", "{}"),
+  ("docs/CONFIG.md game automation example", configMarkdownAutomation),
+  ("docs/CONFIG.md clipboard history example", configMarkdownClipboard),
+  (
+    "binding onlyInApps",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000010", "keys": "f", "onlyInApps": ["com.mojang.minecraft", "steam_app_1234", "org.gnome.Terminal.desktop"], "action": {"op": "repeat", "action": {"op": "click", "button": "left"}, "interval": 0.1}}]}"#
+  ),
+  (
+    "binding onlyInApps empty is left out",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000011", "keys": "f", "onlyInApps": [], "action": "click"}]}"#
+  ),
+  (
+    "binding onlyInApps null",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000012", "keys": "f", "onlyInApps": null, "action": "click"}]}"#
+  ),
+  ("binding onlyInApps not a list", #"{"bindings": [{"keys": "f", "onlyInApps": "steam", "action": "click"}]}"#),
+  ("binding onlyInApps with a number", #"{"bindings": [{"keys": "f", "onlyInApps": ["a", 1], "action": "click"}]}"#),
+  (
+    "binding with an invalid action and onlyInApps",
+    #"{"bindings": [{"keys": "f", "onlyInApps": 5, "action": {"op": "repeat", "action": "click", "interval": 0}}]}"#
+  ),
+  (
+    "automation actions in both forms",
+    #"""
+    {"bindings": [
+      {"id": "E0000000-0000-4000-8000-000000000020", "keys": "hyper+1", "action": {"op": "click", "button": "right", "count": 2}},
+      {"id": "E0000000-0000-4000-8000-000000000021", "keys": "hyper+2", "action": "click middle 3"},
+      {"id": "E0000000-0000-4000-8000-000000000022", "keys": "hyper+3", "action": {"op": "press", "input": "Key:Shift+W", "phase": "down"}},
+      {"id": "E0000000-0000-4000-8000-000000000023", "keys": "hyper+4", "action": "hold mouse:left"},
+      {"id": "E0000000-0000-4000-8000-000000000024", "keys": "hyper+5", "action": {"op": "repeat", "action": "keystroke e", "interval": 0.05, "mode": "while-held", "times": 10, "jitter": 0.1}},
+      {"id": "E0000000-0000-4000-8000-000000000025", "keys": "hyper+6", "action": {"op": "sequence", "operations": ["press key:w down", {"op": "wait", "seconds": 1.5}, "press key:w up"]}},
+      {"id": "E0000000-0000-4000-8000-000000000026", "keys": "hyper+esc", "action": "stop-automations"},
+      {"id": "E0000000-0000-4000-8000-000000000027", "keys": "cmd+shift+v", "action": {"op": "clipboard-history"}},
+      {"id": "E0000000-0000-4000-8000-000000000028", "keys": "mouse3", "action": "click right"},
+      {"id": "E0000000-0000-4000-8000-000000000029", "keys": "ctrl+Mouse5", "action": "repeat 1 'click'"},
+      {"id": "E0000000-0000-4000-8000-00000000002A", "keys": "shift", "action": "hold key:ctrl"}
+    ]}
+    """#
+  ),
+  ("automation action with a bad interval", #"{"bindings": [{"keys": "f", "action": {"op": "repeat", "action": "click", "interval": -1}}]}"#),
+  ("automation action with a bad input", #"{"bindings": [{"keys": "f", "action": {"op": "hold", "input": "key:bogus"}}]}"#),
+  ("automation action with bad syntax", #"{"bindings": [{"keys": "f", "action": "repeat 0.1 jitter:2 'click'"}]}"#),
+  (
+    "clipboard and automation settings",
+    #"""
+    {"clipboard": {"enabled": false, "shortcut": "Ctrl+Alt+V", "maxItems": 50, "persist": false, "retentionDays": 0,
+                   "ignoreConcealed": false, "excludedApps": ["org.keepassxc.KeePassXC"], "pasteAfterSelecting": false},
+     "automation": {"stopShortcut": "ctrl+alt+esc", "stopOnAppSwitch": false, "maxRunMinutes": 2.5, "showIndicator": false}}
+    """#
+  ),
+  ("clipboard and automation shortcuts turned off", #"{"clipboard": {"shortcut": null}, "automation": {"stopShortcut": null}}"#),
+  ("clipboard partial", #"{"clipboard": {"maxItems": 5}, "automation": {}}"#),
+  ("clipboard null", #"{"clipboard": null, "automation": null}"#),
+  ("clipboard invalid shortcut", #"{"clipboard": {"shortcut": "bogus+v"}}"#),
+  ("automation invalid stop shortcut", #"{"automation": {"stopShortcut": ""}}"#),
+  ("automation wrong type", #"{"automation": {"stopOnAppSwitch": "yes"}}"#),
+  ("automation maxRunMinutes as text", #"{"automation": {"maxRunMinutes": "5"}}"#),
+  ("automation maxRunMinutes whole", #"{"automation": {"maxRunMinutes": 10}}"#),
+  ("clipboard maxItems fraction", #"{"clipboard": {"maxItems": 1.5}}"#),
+  ("clipboard excludedApps not a list", #"{"clipboard": {"excludedApps": "com.bitwarden.desktop"}}"#),
+  ("clipboard excludedApps empty", #"{"clipboard": {"excludedApps": []}}"#),
+  ("clipboard negative numbers are kept", #"{"clipboard": {"maxItems": -1, "retentionDays": -7}, "automation": {"maxRunMinutes": -2}}"#),
+  ("clipboard shortcut as a number", #"{"clipboard": {"shortcut": 5}}"#),
+  ("automation is not an object", #"{"automation": []}"#),
   ("full configuration", fullConfig),
   ("docs/CONFIG.md example (JSON with comments)", configMarkdownExample),
   (

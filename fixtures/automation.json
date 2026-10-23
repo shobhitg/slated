@@ -1,0 +1,274 @@
+{
+  "description": "Game automation: SyntheticInput(string:) (the input of press and hold, as its canonical string or null), RepeatSchedule (clamped interval/times/jitter, shouldRunAgain(afterRuns:), nextInterval(random:) for fixed random values), and Action.isAutomation.",
+  "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
+  "isAutomation": [
+    {"action":{"button":"left","op":"click"},"isAutomation":true,"name":"click"},
+    {"action":{"button":"right","count":2,"op":"click"},"isAutomation":true,"name":"click"},
+    {"action":{"input":"key:w","op":"press","phase":"down"},"isAutomation":true,"name":"press"},
+    {"action":{"input":"mouse:right","op":"hold"},"isAutomation":true,"name":"hold"},
+    {"action":{"action":{"button":"left","op":"click"},"interval":0.1,"op":"repeat"},"isAutomation":true,"name":"repeat"},
+    {"action":{"op":"wait","seconds":1},"isAutomation":true,"name":"wait"},
+    {"action":{"op":"stop-automations"},"isAutomation":true,"name":"stop-automations"},
+    {"action":{"op":"clipboard-history"},"isAutomation":false,"name":"clipboard-history"},
+    {"action":{"keys":"e","op":"keystroke"},"isAutomation":false,"name":"keystroke"},
+    {"action":{"op":"insert-text","text":"x"},"isAutomation":false,"name":"insert-text"},
+    {"action":{"direction":"left","op":"push"},"isAutomation":false,"name":"push"},
+    {"action":{"op":"undo"},"isAutomation":false,"name":"undo"},
+    {"action":{"op":"sequence","operations":[{"input":"key:w","op":"press","phase":"down"},{"op":"wait","seconds":2},{"input":"key:w","op":"press","phase":"up"}]},"isAutomation":false,"name":"sequence"},
+    {"action":{"op":"chain","operations":[{"input":"key:w","op":"hold"},{"op":"stop-automations"}]},"isAutomation":false,"name":"chain"}
+  ],
+  "repeatSchedule": [
+    {
+      "interval": 0.1,
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0.1,
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":50},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 50
+    },
+    {
+      "interval": 0.05,
+      "jitter": 0.1,
+      "nextInterval": [{"random":0,"wait":0.045000000000000005},{"random":0.25,"wait":0.04750000000000001},{"random":0.5,"wait":0.05},{"random":0.75,"wait":0.052500000000000005},{"random":1,"wait":0.05500000000000001},{"random":-0.5,"wait":0.045000000000000005},{"random":1.5,"wait":0.05500000000000001},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.04623456789},{"random":0.999999,"wait":0.05499999}],
+      "normalized": {"interval":0.05,"jitter":0.1,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 1,
+      "jitter": 0.5,
+      "nextInterval": [{"random":0,"wait":0.5},{"random":0.25,"wait":0.75},{"random":0.5,"wait":1},{"random":0.75,"wait":1.25},{"random":1,"wait":1.5},{"random":-0.5,"wait":0.5},{"random":1.5,"wait":1.5},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.623456789},{"random":0.999999,"wait":1.4999989999999999}],
+      "normalized": {"interval":1,"jitter":0.5,"times":3},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":false,"runs":3},{"again":false,"runs":6},{"again":false,"runs":7},{"again":false,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 3
+    },
+    {
+      "interval": 2.5,
+      "jitter": 0.25,
+      "nextInterval": [{"random":0,"wait":1.875},{"random":0.25,"wait":2.1875},{"random":0.5,"wait":2.5},{"random":0.75,"wait":2.8125},{"random":1,"wait":3.125},{"random":-0.5,"wait":1.875},{"random":1.5,"wait":3.125},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":2.02932098625},{"random":0.999999,"wait":3.1249987499999996}],
+      "normalized": {"interval":2.5,"jitter":0.25,"times":1},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":false,"runs":1},{"again":false,"runs":2},{"again":false,"runs":3},{"again":false,"runs":6},{"again":false,"runs":7},{"again":false,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 1
+    },
+    {
+      "interval": 0.3,
+      "jitter": 0.1,
+      "nextInterval": [{"random":0,"wait":0.27},{"random":0.25,"wait":0.28500000000000003},{"random":0.5,"wait":0.3},{"random":0.75,"wait":0.315},{"random":1,"wait":0.33},{"random":-0.5,"wait":0.27},{"random":1.5,"wait":0.33},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.27740740733999997},{"random":0.999999,"wait":0.32999994}],
+      "normalized": {"interval":0.3,"jitter":0.1,"times":7},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":false,"runs":7},{"again":false,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 7
+    },
+    {
+      "interval": 0.01,
+      "jitter": 0.5,
+      "nextInterval": [{"random":0,"wait":0.01},{"random":0.25,"wait":0.01},{"random":0.5,"wait":0.01},{"random":0.75,"wait":0.0125},{"random":1,"wait":0.015},{"random":-0.5,"wait":0.01},{"random":1.5,"wait":0.015},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.01},{"random":0.999999,"wait":0.01499999}],
+      "normalized": {"interval":0.01,"jitter":0.5,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0.005,
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.01},{"random":0.25,"wait":0.01},{"random":0.5,"wait":0.01},{"random":0.75,"wait":0.01},{"random":1,"wait":0.01},{"random":-0.5,"wait":0.01},{"random":1.5,"wait":0.01},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.01},{"random":0.999999,"wait":0.01}],
+      "normalized": {"interval":0.01,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0,
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.01},{"random":0.25,"wait":0.01},{"random":0.5,"wait":0.01},{"random":0.75,"wait":0.01},{"random":1,"wait":0.01},{"random":-0.5,"wait":0.01},{"random":1.5,"wait":0.01},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.01},{"random":0.999999,"wait":0.01}],
+      "normalized": {"interval":0.01,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": -1,
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.01},{"random":0.25,"wait":0.01},{"random":0.5,"wait":0.01},{"random":0.75,"wait":0.01},{"random":1,"wait":0.01},{"random":-0.5,"wait":0.01},{"random":1.5,"wait":0.01},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.01},{"random":0.999999,"wait":0.01}],
+      "normalized": {"interval":0.01,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": {"$double":"nan"},
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": {"$double":"inf"},
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": {"$double":"-inf"},
+      "jitter": 0.2,
+      "nextInterval": [{"random":0,"wait":0.08000000000000002},{"random":0.25,"wait":0.09000000000000001},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.11000000000000001},{"random":1,"wait":0.12000000000000002},{"random":-0.5,"wait":0.08000000000000002},{"random":1.5,"wait":0.12000000000000002},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.08493827156},{"random":0.999999,"wait":0.11999996}],
+      "normalized": {"interval":0.1,"jitter":0.2,"times":2},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":false,"runs":2},{"again":false,"runs":3},{"again":false,"runs":6},{"again":false,"runs":7},{"again":false,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 2
+    },
+    {
+      "interval": 0.1,
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":1},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":false,"runs":1},{"again":false,"runs":2},{"again":false,"runs":3},{"again":false,"runs":6},{"again":false,"runs":7},{"again":false,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 0
+    },
+    {
+      "interval": 0.1,
+      "jitter": 0,
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":1},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":false,"runs":1},{"again":false,"runs":2},{"again":false,"runs":3},{"again":false,"runs":6},{"again":false,"runs":7},{"again":false,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": -5
+    },
+    {
+      "interval": 0.1,
+      "jitter": 0.7,
+      "nextInterval": [{"random":0,"wait":0.05},{"random":0.25,"wait":0.07500000000000001},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.125},{"random":1,"wait":0.15000000000000002},{"random":-0.5,"wait":0.05},{"random":1.5,"wait":0.15000000000000002},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.06234567890000001},{"random":0.999999,"wait":0.1499999}],
+      "normalized": {"interval":0.1,"jitter":0.5,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0.1,
+      "jitter": -0.2,
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0.1,
+      "jitter": {"$double":"nan"},
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0.1,
+      "jitter": {"$double":"inf"},
+      "nextInterval": [{"random":0,"wait":0.1},{"random":0.25,"wait":0.1},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.1},{"random":1,"wait":0.1},{"random":-0.5,"wait":0.1},{"random":1.5,"wait":0.1},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.1},{"random":0.999999,"wait":0.1}],
+      "normalized": {"interval":0.1,"jitter":0,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 1e-09,
+      "jitter": 0.5,
+      "nextInterval": [{"random":0,"wait":0.01},{"random":0.25,"wait":0.01},{"random":0.5,"wait":0.01},{"random":0.75,"wait":0.0125},{"random":1,"wait":0.015},{"random":-0.5,"wait":0.01},{"random":1.5,"wait":0.015},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.01},{"random":0.999999,"wait":0.01499999}],
+      "normalized": {"interval":0.01,"jitter":0.5,"times":2},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":false,"runs":2},{"again":false,"runs":3},{"again":false,"runs":6},{"again":false,"runs":7},{"again":false,"runs":49},{"again":false,"runs":50},{"again":false,"runs":51},{"again":false,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 2
+    },
+    {
+      "interval": 1000,
+      "jitter": 0.5,
+      "nextInterval": [{"random":0,"wait":500},{"random":0.25,"wait":750},{"random":0.5,"wait":1000},{"random":0.75,"wait":1250},{"random":1,"wait":1500},{"random":-0.5,"wait":500},{"random":1.5,"wait":1500},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":623.456789},{"random":0.999999,"wait":1499.9989999999998}],
+      "normalized": {"interval":1000,"jitter":0.5,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0.1,
+      "jitter": 0.123456789,
+      "nextInterval": [{"random":0,"wait":0.0876543211},{"random":0.25,"wait":0.09382716055000001},{"random":0.5,"wait":0.1},{"random":0.75,"wait":0.10617283945},{"random":1,"wait":0.11234567890000001},{"random":-0.5,"wait":0.0876543211},{"random":1.5,"wait":0.11234567890000001},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.0907026368500381},{"random":0.999999,"wait":0.1123456542086422}],
+      "normalized": {"interval":0.1,"jitter":0.123456789,"times":null},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":true,"runs":100},{"again":true,"runs":101}],
+      "times": null
+    },
+    {
+      "interval": 0.07,
+      "jitter": 0.33,
+      "nextInterval": [{"random":0,"wait":0.0469},{"random":0.25,"wait":0.05845},{"random":0.5,"wait":0.07},{"random":0.75,"wait":0.08155000000000001},{"random":1,"wait":0.09310000000000002},{"random":-0.5,"wait":0.0469},{"random":1.5,"wait":0.09310000000000002},{"random":{"$double":"nan"},"wait":0.01},{"random":0.123456789,"wait":0.0526037036518},{"random":0.999999,"wait":0.09309995380000001}],
+      "normalized": {"interval":0.07,"jitter":0.33,"times":100},
+      "shouldRunAgain": [{"again":true,"runs":0},{"again":true,"runs":1},{"again":true,"runs":2},{"again":true,"runs":3},{"again":true,"runs":6},{"again":true,"runs":7},{"again":true,"runs":49},{"again":true,"runs":50},{"again":true,"runs":51},{"again":true,"runs":99},{"again":false,"runs":100},{"again":false,"runs":101}],
+      "times": 100
+    }
+  ],
+  "syntheticInputs": [
+    {"input":"mouse:left","string":"mouse:left"},
+    {"input":"mouse:right","string":"mouse:right"},
+    {"input":"mouse:middle","string":"mouse:middle"},
+    {"input":"MOUSE:LEFT","string":"mouse:left"},
+    {"input":"Mouse:Right","string":"mouse:right"},
+    {"input":" mouse:left ","string":"mouse:left"},
+    {"input":"\tmouse:middle\t","string":"mouse:middle"},
+    {"input":"mouse:","string":null},
+    {"input":"mouse:back","string":null},
+    {"input":"mouse:4","string":null},
+    {"input":"mouse: left","string":null},
+    {"input":"mouse:left:right","string":null},
+    {"input":"mouse","string":null},
+    {"input":"key:w","string":"key:w"},
+    {"input":"key:W","string":"key:w"},
+    {"input":"KEY:w","string":"key:w"},
+    {"input":"Key:Shift","string":"key:shift"},
+    {"input":"key:shift","string":"key:shift"},
+    {"input":"key:ctrl","string":"key:ctrl"},
+    {"input":"key:alt","string":"key:alt"},
+    {"input":"key:cmd","string":"key:cmd"},
+    {"input":"key:rightShift","string":"key:rightShift"},
+    {"input":"key:rightshift","string":"key:rightShift"},
+    {"input":"key:RIGHTCTRL","string":"key:rightCtrl"},
+    {"input":"key:rightAlt","string":"key:rightAlt"},
+    {"input":"key:rightCmd","string":"key:rightCmd"},
+    {"input":"key:shift+w","string":"key:shift+w"},
+    {"input":"key:ctrl+shift+w","string":"key:ctrl+shift+w"},
+    {"input":"key:hyper+a","string":"key:hyper+a"},
+    {"input":"key:meh+x","string":"key:ctrl+alt+shift+x"},
+    {"input":"key:fn+f1","string":"key:fn+f1"},
+    {"input":"key:space","string":"key:space"},
+    {"input":"key:f13","string":"key:f13"},
+    {"input":"key:f24","string":null},
+    {"input":"key:esc","string":"key:esc"},
+    {"input":"key:escape","string":"key:esc"},
+    {"input":"key:'","string":"key:'"},
+    {"input":"key:,","string":"key:,"},
+    {"input":"key:+","string":"key:+"},
+    {"input":"key:cmd++","string":"key:cmd++"},
+    {"input":"key:pad+","string":"key:pad+"},
+    {"input":"key:mouse4","string":"key:mouse4"},
+    {"input":"key:","string":null},
+    {"input":"key: w","string":"key:w"},
+    {"input":"key:w ","string":"key:w"},
+    {"input":"key:ab","string":null},
+    {"input":"key:bogus","string":null},
+    {"input":"key:hyper","string":null},
+    {"input":"key:é","string":"key:é"},
+    {"input":"key:É","string":"key:é"},
+    {"input":"key:👍🏽","string":"key:👍🏽"},
+    {"input":"key:+w","string":"key:w"},
+    {"input":"key:shift+","string":null},
+    {"input":"key:ctrl+bogus","string":null},
+    {"input":"key:bogus+w","string":null},
+    {"input":"key:return","string":"key:return"},
+    {"input":"key:Enter","string":"key:return"},
+    {"input":"key:#","string":"key:#"},
+    {"input":"key:|","string":"key:|"},
+    {"input":"w","string":null},
+    {"input":"","string":null},
+    {"input":"  ","string":null},
+    {"input":"key","string":null},
+    {"input":"keyboard:w","string":null},
+    {"input":"button:left","string":null},
+    {"input":"key:w,a","string":null}
+  ]
+}

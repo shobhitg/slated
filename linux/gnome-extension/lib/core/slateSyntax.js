@@ -7,6 +7,7 @@
 // whitespace between parameters, `|`/`>` need no surrounding spaces, expressions are checked when
 // parsing, unknown options are errors, operation names are case-insensitive.
 
+import {formatSyntheticInput, MOUSE_BUTTONS, parseSyntheticInput, PRESS_PHASES, REPEAT_MODES} from './automation.js';
 import {decodeAction, sequenceAction, sequenceSteps, sortedGridKeys} from './config.js';
 import {invalidExpression, invalidSyntax, SlatedError, unknownOperation} from './errors.js';
 import {validateExpression} from './expression.js';
@@ -31,7 +32,9 @@ import {
   hasSuffix,
   isWhitespace,
   lowercased,
+  parseDouble,
   parseInt64,
+  shortNumber,
   stringEquals,
   trimWhitespace,
   trimWhitespaceAndNewlines,
@@ -110,6 +113,13 @@ class OperationParser {
       case 'insert-text': return this.insertText();
       case 'open-url': return this.openURL();
       case 'keystroke': return this.keystroke();
+      case 'click': return this.click();
+      case 'press': return this.press();
+      case 'hold': return this.hold();
+      case 'repeat': return this.repeat();
+      case 'wait': return this.wait();
+      case 'stop-automations': return this.bare('stop-automations');
+      case 'clipboard-history': return this.bare('clipboard-history');
       default: throw unknownOperation(this.name);
     }
   }
@@ -456,6 +466,98 @@ class OperationParser {
     return {op};
   }
 
+  // --- Automation ----------------------------------------------------------------------------------
+
+  /** `click [left|right|middle] [count]` */
+  click() {
+    const words = this.tokens();
+    if (words.length > 2) throw this.fail('Too many parameters', 'like click right 2');
+    let button = 'left';
+    let count = 1;
+    for (const word of words) {
+      const lower = lowercased(word.text);
+      const n = parseInt64(word.text);
+      if (MOUSE_BUTTONS.includes(lower)) {
+        button = lower;
+      } else if (n !== null && n >= 1 && n <= 10) {
+        count = n;
+      } else {
+        throw this.fail(`Unknown click option "${word.text}"`, 'use left, right or middle and a count from 1 to 10');
+      }
+    }
+    const action = {op: 'click', button};
+    if (count !== 1) action.count = count;
+    return action;
+  }
+
+  /** `press <mouse:button|key:combo> <down|up>` */
+  press() {
+    const words = this.tokens();
+    if (words.length !== 2) throw this.fail('press needs an input and down or up', 'like press key:w down');
+    const input = parseSyntheticInput(words[0].text);
+    if (input === null) throw this.invalidInput(words[0].text);
+    const phase = lowercased(words[1].text);
+    if (!PRESS_PHASES.includes(phase)) throw this.fail(`Unknown press phase "${words[1].text}"`, 'use down or up');
+    return {op: 'press', input: formatSyntheticInput(input), phase};
+  }
+
+  /** `hold <mouse:button|key:combo>` */
+  hold() {
+    const words = this.tokens();
+    if (words.length !== 1) throw this.fail('hold needs one input', 'like hold mouse:right or hold key:w');
+    const input = parseSyntheticInput(words[0].text);
+    if (input === null) throw this.invalidInput(words[0].text);
+    return {op: 'hold', input: formatSyntheticInput(input)};
+  }
+
+  /** `repeat <seconds> [toggle|while-held] [times:N] [jitter:F] '<operation>'` */
+  repeat() {
+    const words = this.tokens();
+    if (words.length < 2 || words.length > 5) {
+      throw this.fail('repeat needs an interval and a quoted operation', "like repeat 0.1 'click left'");
+    }
+    const interval = parseDouble(words[0].text);
+    if (interval === null || !Number.isFinite(interval) || !(interval > 0)) {
+      throw this.fail('The interval must be a number of seconds above 0', "like repeat 0.1 'click left'");
+    }
+    let mode = 'toggle';
+    let times;
+    let jitter = 0;
+    for (const word of words.slice(1, -1)) {
+      const lower = lowercased(word.text);
+      const n = hasPrefix(lower, 'times:') ? parseInt64(dropFirst(lower, 'times:'.length)) : null;
+      const j = hasPrefix(lower, 'jitter:') ? parseDouble(dropFirst(lower, 'jitter:'.length)) : null;
+      if (REPEAT_MODES.includes(lower)) {
+        mode = lower;
+      } else if (n !== null && n >= 1) {
+        times = n;
+      } else if (j !== null && Number.isFinite(j) && j >= 0 && j <= 0.5) {
+        jitter = j;
+      } else {
+        throw this.fail(`Unknown repeat option "${word.text}"`, 'use toggle or while-held, times:N (1 or more) and jitter:F (0 to 0.5)');
+      }
+    }
+    const action = {op: 'repeat', action: parseOperation(words[words.length - 1].text), interval};
+    if (mode !== 'toggle') action.mode = mode;
+    if (times !== undefined) action.times = times;
+    if (jitter !== 0) action.jitter = jitter;
+    return action;
+  }
+
+  /** `wait <seconds>` */
+  wait() {
+    const words = this.tokens();
+    const seconds = words.length === 1 ? parseDouble(words[0].text) : null;
+    if (seconds === null || !Number.isFinite(seconds) || !(seconds >= 0)) {
+      throw this.fail('wait needs a number of seconds', 'like wait 0.5');
+    }
+    return {op: 'wait', seconds};
+  }
+
+  invalidInput(text) {
+    return this.fail(`Unknown input "${text}"`, 'use mouse:left, mouse:right, mouse:middle or key:<key>, like key:w');
+  }
+
   // --- Helpers -------------------------------------------------------------------------------------
 
   tokens() {
@@ -674,8 +776,25 @@ function format(a) {
       return join('open-url', quote(a.url));
     case 'keystroke':
       return join('keystroke', word(a.keys));
+    case 'click':
+      return join('click', a.button ?? 'left', a.count === undefined || a.count === 1 ? null : String(a.count));
+    case 'press':
+      return join('press', word(a.input), a.phase);
+    case 'hold':
+      return join('hold', word(a.input));
+    case 'repeat':
+      return join(
+        'repeat',
+        shortNumber(a.interval),
+        a.mode === undefined || a.mode === 'toggle' ? null : a.mode,
+        a.times === undefined ? null : `times:${a.times}`,
+        a.jitter === undefined || a.jitter === 0 ? null : `jitter:${shortNumber(a.jitter)}`,
+        quote(format(a.action)),
+      );
+    case 'wait':
+      return join('wait', shortNumber(a.seconds));
     default:
-      return a.op; // undo, relaunch, switch
+      return a.op; // undo, relaunch, switch, stop-automations, clipboard-history
   }
 }
 

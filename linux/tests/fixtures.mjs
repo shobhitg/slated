@@ -253,6 +253,8 @@ export const checkers = {
         expectEqual(isValidKey(c.name), c.valid, `valid ${label}`);
         expectEqual(keyDisplayName(c.canonical), c.display, `display ${label}`);
         expectEqual(keyDisplayName(c.name), c.displayRaw, `raw display ${label}`);
+        expectEqual(core.isModifierKey(c.name), c.modifierKey, `modifier key ${label}`);
+        expectEqual(core.isMouseButton(c.name), c.mouseButton, `mouse button ${label}`);
       }
     },
     modifierTokens() {
@@ -479,6 +481,85 @@ export const checkers = {
       }
     },
   }),
+
+  'automation.json': (data) => ({
+    syntheticInputs() {
+      for (const c of data.syntheticInputs) {
+        countCheck();
+        const input = core.parseSyntheticInput(c.input);
+        expectEqual(input === null ? null : core.formatSyntheticInput(input), c.string, show(c.input));
+      }
+    },
+    repeatSchedule() {
+      for (const c of data.repeatSchedule) {
+        countCheck();
+        const [interval, jitter] = [revive(c.interval), revive(c.jitter)];
+        const label = `RepeatSchedule(${show(interval)}, ${show(c.times)}, ${show(jitter)})`;
+        const schedule = new core.RepeatSchedule({interval, times: c.times, jitter});
+        expectEqual({interval: schedule.interval, times: schedule.times, jitter: schedule.jitter}, revive(c.normalized), label);
+        for (const {runs, again} of c.shouldRunAgain) expectEqual(schedule.shouldRunAgain(runs), again, `${label}.shouldRunAgain(${runs})`);
+        for (const {random, wait} of c.nextInterval) {
+          expectEqual(schedule.nextInterval(revive(random)), revive(wait), `${label}.nextInterval(${show(revive(random))})`);
+        }
+      }
+    },
+    isAutomation() {
+      for (const c of data.isAutomation) {
+        countCheck();
+        expectEqual(core.isAutomation(c.action), c.isAutomation, show(c.action));
+        expectEqual(core.decodeAction(c.action).op, c.name, `name of ${show(c.action)}`);
+      }
+    },
+  }),
+
+  'clipboard.json': (data) => {
+    const itemsOf = (history) => history.items.map((i) => ({text: i.text, app: i.sourceApp, copiedAt: i.copiedAt, pinned: i.pinned}));
+    let counter = 0;
+    const newId = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`;
+    /** Items listed in a fixture (no ids) as history items, with made-up ids. */
+    const fromFixture = (items) =>
+      new core.ClipboardHistory(items.map((i) => ({id: newId(), text: i.text, copiedAt: i.copiedAt, sourceApp: i.app, pinned: i.pinned})), {newId});
+    return {
+      sessions() {
+        for (const session of data.sessions) {
+          countCheck();
+          const history = fromFixture(session.start);
+          const idOf = (text) => history.items.find((i) => i.text === text)?.id;
+          session.steps.forEach((step, i) => {
+            const label = `${session.name}, step ${i}`;
+            if (step.add) {
+              const added = history.add(step.add.text, {app: step.add.app, at: step.add.at, limit: step.add.limit});
+              expectEqual(added, step.added, `${label}: add ${show(step.add.text)}`);
+            } else if (step.enforce !== undefined) history.enforce(step.enforce);
+            else if (step.prune) history.prune(step.prune.days, step.prune.now);
+            else if (step.remove !== undefined) history.remove(idOf(step.remove));
+            else if (step.togglePin !== undefined) history.togglePin(idOf(step.togglePin));
+            else if (step.removeUnknown) history.remove('00000000-0000-4000-8000-000000000999');
+            else if (step.togglePinUnknown) history.togglePin('00000000-0000-4000-8000-000000000999');
+            else if (step.clear !== undefined) history.clear(step.clear === 'default' ? undefined : {keepPinned: step.clear});
+            else if (step.search !== undefined) {
+              expectEqual(history.search(step.search).map((item) => item.text), step.results, `${label}: search ${show(step.search)}`);
+            } else fail(`${label}: unknown step ${show(step)}`);
+            expectEqual(itemsOf(history), step.items, `${label} (items)`);
+          });
+          expect(new Set(history.items.map((i) => i.id)).size === history.items.length, `${session.name}: ids stay unique`);
+        }
+      },
+      search() {
+        const history = fromFixture(data.searchItems);
+        for (const c of data.search) {
+          countCheck();
+          expectEqual(history.search(c.query).map((item) => item.text), c.results, `search ${show(c.query)}`);
+        }
+      },
+      coding() {
+        for (const c of data.coding) {
+          const outcome = attempt(() => core.ClipboardHistory.fromJSON(JSON.parse(c.json)).toJSON());
+          checkOutcome(c.json, outcome, c, 'history');
+        }
+      },
+    };
+  },
 };
 
 /** Registers one test per fixture section, plus a manifest check, reading files with `readText`. */

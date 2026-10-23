@@ -1,8 +1,18 @@
 {
   "description": "Golden vectors from SlatedCore (Swift) for the JavaScript port. Regenerate with `make fixtures`.",
   "files": {
+    "automation.json": {
+      "isAutomation": 14,
+      "repeatSchedule": 23,
+      "syntheticInputs": 66
+    },
+    "clipboard.json": {
+      "coding": 19,
+      "search": 129,
+      "sessions": 11
+    },
     "config.json": {
-      "decode": 460
+      "decode": 487
     },
     "expressions.json": {
       "closestName": 20,
@@ -20,16 +30,16 @@
       "templates": 748
     },
     "keys.json": {
-      "comboParts": 20,
-      "keyCombos": 103,
-      "keyNames": 84,
+      "comboParts": 25,
+      "keyCombos": 132,
+      "keyNames": 110,
       "keystrokes": 81,
       "modifierTokens": 27
     },
     "operations.json": {
-      "decode": 150,
-      "format": 122,
-      "parse": 444
+      "decode": 240,
+      "format": 159,
+      "parse": 597
     },
     "screens.json": {
       "containing": 99,
@@ -63,14 +73,16 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 15820,
+  "totalVectors": 16449,
   "vectors": {
-    "config.json": 460,
+    "automation.json": 103,
+    "clipboard.json": 159,
+    "config.json": 487,
     "expressions.json": 833,
     "frames.json": 9718,
     "hotstrings.json": 846,
-    "keys.json": 315,
-    "operations.json": 716,
+    "keys.json": 375,
+    "operations.json": 996,
     "screens.json": 2598,
     "settings.json": 75,
     "slate-config.json": 56,
