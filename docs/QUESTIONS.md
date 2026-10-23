@@ -108,6 +108,22 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
   Tell me which matter.
 - **About pane link** to the GitHub repo waits on question 2 (where the repo will live).
 
+## Notch island
+
+13. **Feedback on by default?** Naming each action as it runs ("Left half · Safari") is still off by
+    default, as before; now that it shows at the notch instead of mid-screen it's less intrusive.
+    *Assumption:* off (Settings → General → "Show what just happened"). Failures ("No focused window
+    to move") are explained by default.
+
+### Decisions I made (tell me if you disagree)
+
+- **Hold Caps Lock half a second** to see every Hyper shortcut. Quick combos never show it.
+- **With Caps Lock tapped alone sending Escape**, a hold longer than that delay sends nothing, so
+  looking at the cheat sheet never sends Escape (like Karabiner's `to_if_alone` timeout).
+- **Running automations show beside the notch** instead of the red pill; hover to see them and stop
+  them. With the island off, the pill comes back.
+- **No GNOME island yet.** Linux keeps the settings; a GNOME version could follow.
+
 ## Linux (GNOME) port
 
 9. **Which Linux?** Distro, GNOME version (`gnome-shell --version`) and session type
