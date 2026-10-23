@@ -18,5 +18,7 @@ jobs:
         run: swift build
       - name: Test
         run: swift run SlatedTests
+      - name: Smoke test
+        run: Tests/Smoke/run.sh
       - name: Bundle app
         run: make app

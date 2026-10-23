@@ -1,0 +1,2 @@
+{ "general": { "loadSlateConfigs": false },
+  "bindings": [ { "keys": "hyper+a", "action": { "op": "teleport" } } ] }

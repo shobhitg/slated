@@ -1,0 +1,5 @@
+{ "general": { "loadSlateConfigs": false },
+  "bindings": [
+    { "keys": "ctrl+alt+cmd+f13", "action": "push left" },
+    { "keys": "ctrl+alt+cmd+f13", "action": "push right" }
+  ] }

@@ -29,7 +29,7 @@ final class SlateSourceLoader {
     javascript.reset()
 
     for raw in paths {
-      let path = NSString(string: raw).expandingTildeInPath
+      let path = SlatedPaths.expand(raw)
       let exists = FileManager.default.fileExists(atPath: path)
       let kind: SlateSource.Kind = path.hasSuffix(".js") ? .javascript : .classic
       modificationDates[path] = Self.modificationDate(path)

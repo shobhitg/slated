@@ -23,15 +23,9 @@ final class ConfigStore {
   private var watcher: DispatchSourceFileSystemObject?
   private var lastWritten: Data?
 
-  /// `SLATED_CONFIG` overrides the location (used by tests and `--smoke`).
-  init(fileURL: URL? = nil) {
-    if let fileURL {
-      self.fileURL = fileURL
-    } else if let override = ProcessInfo.processInfo.environment["SLATED_CONFIG"] {
-      self.fileURL = URL(fileURLWithPath: override)
-    } else {
-      self.fileURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/slated/config.json")
-    }
+  /// Defaults to `SlatedPaths.configURL` (`SLATED_CONFIG` / `SLATED_HOME` override it for tests).
+  init(fileURL: URL = SlatedPaths.configURL) {
+    self.fileURL = fileURL
   }
 
   /// Reads the file, creating it with defaults on first run. On a parse error the previous
@@ -42,7 +36,7 @@ final class ConfigStore {
       // start from the built-in bindings (the same setup, in Slated's own format).
       let defaults = GeneralSettings()
       let hasSlateConfig = defaults.slateConfigPaths.contains {
-        FileManager.default.fileExists(atPath: NSString(string: $0).expandingTildeInPath)
+        FileManager.default.fileExists(atPath: SlatedPaths.expand($0))
       }
       configuration = hasSlateConfig ? SlatedConfiguration() : .starter
       loadError = nil
@@ -104,8 +98,17 @@ final class ConfigStore {
     }
   }
 
-  private static func path(_ codingPath: [CodingKey]) -> String {
+  /// `bindings[0].action.op`
+  static func path(_ codingPath: [CodingKey]) -> String {
     guard !codingPath.isEmpty else { return "" }
-    return " (at " + codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }.joined(separator: ".") + ")"
+    var text = ""
+    for key in codingPath {
+      if let index = key.intValue {
+        text += "[\(index)]"
+      } else {
+        text += (text.isEmpty ? "" : ".") + key.stringValue
+      }
+    }
+    return " (at \(text))"
   }
 }

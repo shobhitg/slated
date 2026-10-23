@@ -16,6 +16,9 @@ final class HotkeyManager {
   }
 
   private(set) var statuses: [String: HotkeyStatus] = [:]
+  /// Shortcuts bound more than once; only the first binding is live. (Statuses are keyed by shortcut,
+  /// so they report the live binding.)
+  private(set) var duplicates: [String] = []
   private var settings = SlateSettings()
   private var tokens: [UInt32] = []
   private var direct: [KeyCombo: Entry] = [:]
@@ -33,9 +36,10 @@ final class HotkeyManager {
     var seen = Set<String>()
     var direct: [Entry] = []
     statuses = Dictionary(disabled.map { ($0, HotkeyStatus.disabled) }, uniquingKeysWith: { a, _ in a })
+    duplicates = []
     for entry in entries {
       guard seen.insert(entry.id).inserted else {
-        statuses[entry.id] = .duplicate
+        duplicates.append(entry.id)
         continue
       }
       if let modal = entry.modal {

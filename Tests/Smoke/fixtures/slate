@@ -1,0 +1,7 @@
+# Smoke-test fixture: a classic Slate config.
+config defaultToCurrentScreen true
+alias full move screenOriginX;screenOriginY screenSizeX;screenSizeY
+bind s:ctrl;cmd ${full}
+bind left:ctrl;cmd push left bar-resize:screenSizeX/2
+layout coding 'Terminal' push left bar-resize:screenSizeX/2
+default coding count:2

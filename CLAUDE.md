@@ -66,6 +66,11 @@ Dependency rules: `SlatedCore` imports nothing above it. `SlatedUI` and `SlatedS
 - Style: 2-space indentation, 120 columns, `swift format` (`make fmt`). Doc comments on public API,
   explaining *why* where it isn't obvious. Small focused files.
 - Pure logic goes in `SlatedCore` with tests; keep system wrappers thin.
+- **Testing** (see `docs/TESTING.md`): `make check` must pass before every commit. Every check you
+  run while developing becomes part of the suite, so nothing stays only in a scratch folder:
+  - scratch probes of macOS APIs become contract tests;
+  - one-off runs become smoke tests (`Tests/Smoke`);
+  - behaviors only a real Mac can show go on the manual checklist.
 - Concurrency: UI and app code is `@MainActor` (default isolation in `Slated` and `SlatedUI`). The
   event tap runs on its own thread; hand work to the main actor explicitly.
 - Logging: `os.Logger(subsystem: <bundle id>, category: ...)`; view with `make logs`. Never log keys.
@@ -74,7 +79,7 @@ Dependency rules: `SlatedCore` imports nothing above it. `SlatedUI` and `SlatedS
 ## Commands
 
 - `make app` / `make run` — build, bundle into `build/Slated.app`, sign, (and launch)
-- `make test` (optionally `FILTER=name`) — run the test harness
+- `make check` — all automated tests (`make test [FILTER=name]` for unit/contract, `make smoke` end-to-end)
 - `make dev-cert` — one-time self-signed signing identity so permissions survive rebuilds
 - `make reset-permissions`, `make logs`, `make fmt`, `make lint`, `make clean`
 

@@ -26,6 +26,8 @@ final class Engine {
   private var observers: [NSObjectProtocol] = []
 
   var configuration: SlatedConfiguration { store.configuration }
+  /// False in `--smoke` runs: never install the keyboard tap or remap Caps Lock on the real system.
+  var allowsKeyboardChanges = true
 
   func start() {
     Accessibility.configure()
@@ -60,7 +62,7 @@ final class Engine {
     observeSystem()
     // A mapping left over from a crash would leave Caps Lock dead; adopt it so `applyKeyboard`
     // removes it when Hyper is off (or keeps it when on).
-    capsLockRemapped = HIDRemapper.isCapsLockRemapped
+    capsLockRemapped = allowsKeyboardChanges && HIDRemapper.isCapsLockRemapped
     apply()
     // Permission can be granted or revoked at any time in System Settings; react within a second.
     permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -164,7 +166,7 @@ final class Engine {
     let wantsHyper = config.keyboard.capsLock == .hyper && !suspended
     let wantsHotstrings = config.hotstrings.contains(where: \.enabled) && !suspended
 
-    if trusted && (wantsHyper || wantsHotstrings) {
+    if trusted && allowsKeyboardChanges && (wantsHyper || wantsHotstrings) {
       if !tap.isRunning && !tap.start() { log.error("Couldn't start the keyboard event tap") }
     } else if tap.isRunning {
       tap.stop()
@@ -301,7 +303,7 @@ final class Engine {
       imported += 1
     }
     for raw in config.general.slateConfigPaths {
-      let path = NSString(string: raw).expandingTildeInPath
+      let path = SlatedPaths.expand(raw)
       guard FileManager.default.fileExists(atPath: path) else { continue }
       if path.hasSuffix(".js") {
         let result = SlateImporter.importJavaScript(path: path)

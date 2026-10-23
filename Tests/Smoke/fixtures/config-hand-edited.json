@@ -1,0 +1,12 @@
+{
+  // Hand-edited: comments and trailing commas are allowed.
+  "general": { "loadSlateConfigs": false },
+  "keyboard": { "capsLock": "off" },
+  "bindings": [
+    { "keys": "hyper+w", "action": "push top bar-resize:screenSizeY/2" },
+  ],
+  "hotstrings": [
+    { "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯" },
+    { "trigger": ";today", "replacement": "{date:yyyy-MM-dd}", "fire": "afterDelimiter" },
+  ],
+}

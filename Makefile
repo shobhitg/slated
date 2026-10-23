@@ -10,7 +10,7 @@ DEV_CERT      := Slated Dev
 SIGN_IDENTITY ?= $(shell security find-identity -p codesigning 2>/dev/null | grep -q '"$(DEV_CERT)"' && echo "$(DEV_CERT)" || echo "-")
 APP           := build/$(APP_NAME).app
 
-.PHONY: all build app run stop install test fmt lint icon dev-cert reset-permissions logs clean
+.PHONY: all build app run stop install test smoke check check-swift-testing fmt lint icon dev-cert reset-permissions logs clean
 
 all: app
 
@@ -31,8 +31,20 @@ install:
 	$(MAKE) app CONFIG=release APP="$(HOME)/Applications/$(APP_NAME).app"
 	@echo "Installed ~/Applications/$(APP_NAME).app — open it from there."
 
+# Unit, contract and integration tests (Tests/SlatedTests).
 test:
 	swift run SlatedTests $(FILTER)
+
+# End-to-end: the real app binary against temporary homes and fixture configs (Tests/Smoke).
+smoke:
+	Tests/Smoke/run.sh
+
+# Everything automated. Run before every commit.
+check: test smoke
+
+# Reports whether Swift Testing is usable yet (it needs Xcode).
+check-swift-testing:
+	scripts/check-swift-testing.sh
 
 icon:
 	swift scripts/make-icon.swift Resources/AppIcon.icns
