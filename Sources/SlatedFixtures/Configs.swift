@@ -231,6 +231,12 @@ private let decodeCases: [(String, String)] = [
   ("general partial", #"{"general": {"slateConfigPaths": []}}"#),
   ("general wrong type", #"{"general": {"launchAtLogin": "yes"}}"#),
   ("general null", #"{"general": null}"#),
+  // island (the macOS notch island; Linux keeps it so shared configs round-trip)
+  ("island partial", #"{"island": {"cheatSheet": false}}"#),
+  ("island all fields", #"{"island": {"enabled": false, "cheatSheet": true, "cheatSheetDelay": 1.25, "showFailures": false}}"#),
+  ("island delay as integer", #"{"island": {"cheatSheetDelay": 1}}"#),
+  ("island wrong type", #"{"island": {"enabled": "yes"}}"#),
+  ("island null", #"{"island": null}"#),
   // keyboard
   ("keyboard invalid capsLock", #"{"keyboard": {"capsLock": "on"}}"#),
   ("keyboard unknown modifier tokens are skipped", #"{"keyboard": {"hyperModifiers": ["ctrl", "bogus"]}}"#),

@@ -18,6 +18,7 @@ public struct SlatedConfiguration: Hashable, Sendable {
   public var hotstrings: [Hotstring]
   public var clipboard: ClipboardSettings
   public var automation: AutomationSettings
+  public var island: IslandSettings
 
   public init(
     version: Int = SlatedConfiguration.currentVersion,
@@ -29,7 +30,8 @@ public struct SlatedConfiguration: Hashable, Sendable {
     defaults: [ScreenDefault] = [],
     hotstrings: [Hotstring] = [],
     clipboard: ClipboardSettings = .init(),
-    automation: AutomationSettings = .init()
+    automation: AutomationSettings = .init(),
+    island: IslandSettings = .init()
   ) {
     self.version = version
     self.general = general
@@ -41,12 +43,13 @@ public struct SlatedConfiguration: Hashable, Sendable {
     self.hotstrings = hotstrings
     self.clipboard = clipboard
     self.automation = automation
+    self.island = island
   }
 }
 
 extension SlatedConfiguration: Codable {
   private enum Key: String, CodingKey {
-    case version, general, settings, keyboard, bindings, layouts, defaults, hotstrings, clipboard, automation
+    case version, general, settings, keyboard, bindings, layouts, defaults, hotstrings, clipboard, automation, island
   }
 
   public init(from decoder: Decoder) throws {
@@ -61,7 +64,8 @@ extension SlatedConfiguration: Codable {
       defaults: try c.decodeIfPresent([ScreenDefault].self, forKey: .defaults) ?? [],
       hotstrings: try c.decodeIfPresent([Hotstring].self, forKey: .hotstrings) ?? [],
       clipboard: try c.decodeIfPresent(ClipboardSettings.self, forKey: .clipboard) ?? .init(),
-      automation: try c.decodeIfPresent(AutomationSettings.self, forKey: .automation) ?? .init())
+      automation: try c.decodeIfPresent(AutomationSettings.self, forKey: .automation) ?? .init(),
+      island: try c.decodeIfPresent(IslandSettings.self, forKey: .island) ?? .init())
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -76,6 +80,7 @@ extension SlatedConfiguration: Codable {
     try c.encode(hotstrings, forKey: .hotstrings)
     try c.encode(clipboard, forKey: .clipboard)
     try c.encode(automation, forKey: .automation)
+    try c.encode(island, forKey: .island)
   }
 
   /// Decodes JSON, allowing JSON5 conveniences (comments, trailing commas) in hand-edited files.

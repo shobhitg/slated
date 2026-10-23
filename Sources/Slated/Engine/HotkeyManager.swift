@@ -35,6 +35,8 @@ final class HotkeyManager {
   var onModalChange: ((KeyCombo?) -> Void)?
   /// A binding's key went up (while-held auto-repeats stop then).
   var onRelease: ((Entry) -> Void)?
+  /// A binding fired (not its repeats while held); the island highlights it in the cheat sheet.
+  var onFire: ((Entry) -> Void)?
   /// Whether the keyboard tap can deliver mouse button shortcuts (needs Accessibility permission).
   var mouseTriggersAvailable = false
 
@@ -160,6 +162,7 @@ final class HotkeyManager {
   private func handle(_ entry: Entry, phase: HotKeyCenter.Phase) {
     switch phase {
     case .pressed:
+      onFire?(entry)
       entry.run()
       if entry.repeats { startRepeating(entry.run) }
     case .released where repeatAction != nil:
@@ -205,6 +208,7 @@ final class HotkeyManager {
     for entry in modalEntries[modalKeys] ?? [] {
       if let token = try? HotKeyCenter.shared.register(entry.keys, handler: { [weak self] phase in
         guard phase == .pressed else { return }
+        self?.onFire?(entry)
         entry.run()
         if entry.modal?.toggle != true { self?.exitModal() }
       }) {

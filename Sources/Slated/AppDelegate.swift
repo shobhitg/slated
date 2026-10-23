@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     engine.clipboard.presentSwitcher = { [weak self] in self?.clipboardPanel.show() }
     clipboardPanel.didClose = { [weak self] in self?.engine.clipboard.switcherClosed() }
-    engine.hotkeys.onModalChange = { [weak self] modal in
+    engine.onModalChange = { [weak self] modal in
       self?.modalActive = modal != nil
       self?.refreshStatusIcon()
     }

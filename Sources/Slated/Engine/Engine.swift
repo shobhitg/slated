@@ -18,6 +18,9 @@ final class Engine {
   let automation = AutomationEngine()
   let clipboard = ClipboardService()
   let automationIndicator = AutomationIndicator()
+  let island = IslandPresenter()
+  /// Modal mode started (with its key) or ended (nil); the menu bar icon reflects it.
+  var onModalChange: ((KeyCombo?) -> Void)?
 
   private(set) var status = RuntimeStatus()
   /// Other software that fights over the same keys, with advice.
@@ -55,28 +58,45 @@ final class Engine {
       self?.notify()
     }
 
-    runner.onPerformed = { [weak self] message in
+    runner.onPerformed = { [weak self] report in
       guard let self else { return }
-      status.lastAction = message
-      if store.configuration.general.showActionHUD { hud.show(message) }
+      status.lastAction = report.message
+      if store.configuration.general.showActionHUD { showFeedback(report) }
       notify()
     }
     runner.onError = { [weak self] message in
       self?.status.lastError = message
       self?.notify()
     }
+    runner.onFailed = { [weak self] message in self?.island.flashFailure(message) }
     runner.onRelaunch = { [weak self] in self?.reload() }
     runner.overlays = overlays
     runner.automation = automation
     runner.clipboard = clipboard
     automation.perform = { [weak self] action in self?.runner.perform(action) }
     automation.onChange = { [weak self] in
-      guard let self else { return }
-      automationIndicator.update(
-        active: automation.active, stopShortcut: store.configuration.automation.stopShortcut,
-        visible: store.configuration.automation.showIndicator)
-      notify()
+      self?.refreshAutomationStatus()
+      self?.notify()
     }
+    island.model.onStop = { [weak self] in
+      Log.record("island.stop_clicked", level: .notice)
+      self?.automation.stopAll(reason: "stopped from the island")
+    }
+    island.currentAutomations = { [weak self] in
+      guard let self, store.configuration.automation.showIndicator else { return [] }
+      return automation.active
+    }
+    island.hyperSheet = { [weak self] in
+      guard let self else { return nil }
+      return CheatSheet.hyper(liveShortcuts(), hyperModifiers: store.configuration.keyboard.hyperModifiers)
+    }
+    hotkeys.onModalChange = { [weak self] modal in
+      guard let self else { return }
+      island.modalChanged(modal.map { CheatSheet.modal($0, liveShortcuts()) })
+      onModalChange?(modal)
+    }
+    hotkeys.onFire = { [weak self] entry in self?.island.shortcutFired(id: entry.id) }
+    tap.onHyperEvent = { [weak self] event in self?.island.hyperEvent(event) }
     clipboard.onChange = { [weak self] in self?.notify() }
     hotkeys.onRelease = { [weak self] entry in self?.automation.released(id: "hotkey \(entry.id)") }
     overlays.place = { [weak self] window, frame in self?.runner.place(window, at: frame, label: "Grid") }
@@ -202,6 +222,8 @@ final class Engine {
     }
     automation.settings = config.automation
     clipboard.apply(config.clipboard)
+    island.apply(config.island)
+    refreshAutomationStatus()
     applyKeyboard()
     warnings = Self.detectConflicts(hyperWanted: config.keyboard.capsLock == .hyper)
     if warnings != loggedWarnings {
@@ -297,6 +319,8 @@ final class Engine {
     options.hyperEnabled = remap
     options.hyperModifiers = config.keyboard.hyperModifiers
     options.capsLockAloneSendsEscape = config.keyboard.capsLockAlone == .escape
+    // Holding Caps Lock long enough to see the cheat sheet isn't a tap.
+    if config.island.enabled && config.island.cheatSheet { options.aloneTimeout = min(1, island.cheatSheetDelay) }
     options.hotstringsEnabled = wantsHotstrings
     let hyperCodes = Set(
       hotkeys.boundCombos.filter { $0.modifiers == config.keyboard.hyperModifiers }.compactMap { KeyCodes.code(for: $0.key) })
@@ -309,6 +333,7 @@ final class Engine {
       options: options, hotstrings: config.hotstrings, hyperHotkeys: remap ? hyperCodes : [], mouseHotkeys: mouseHotkeys)
     tap.setFrontmostApp(bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
+    if !remap { island.hyperUnavailable() }
     status.hyperKeyActive = remap
     status.hotstringsActive = wantsHotstrings && tapRunning
     status.hotstringsEnabled = config.general.hotstringsEnabled
@@ -342,7 +367,90 @@ final class Engine {
       }
     }
     status.lastAction = "Expanded \(hotstring.trigger)"
+    if store.configuration.general.showActionHUD {
+      if store.configuration.island.enabled {
+        island.flash(IslandFeedback(title: "Expanded \(hotstring.trigger)", symbol: "text.insert"), near: nil)
+      } else {
+        hud.show(status.lastAction ?? "")
+      }
+    }
     notify()
+  }
+
+  // MARK: Feedback
+
+  /// What a shortcut did: in the island, or the classic pill when the island is off.
+  private func showFeedback(_ report: ActionReport) {
+    guard store.configuration.island.enabled else {
+      hud.show(report.message)
+      return
+    }
+    let frame = report.window?.frame
+    var region: CGRect?
+    if let frame, Self.showsRegion(report.action), let screen = Screens.current().screen(containing: frame) {
+      let v = screen.visibleFrame
+      let fraction = CGRect(
+        x: (frame.minX - v.minX) / v.width, y: (frame.minY - v.minY) / v.height, width: frame.width / v.width,
+        height: frame.height / v.height
+      ).intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+      if !fraction.isNull && !fraction.isEmpty { region = fraction }
+    }
+    let feedback = IslandFeedback(
+      title: report.title, app: report.app, region: region,
+      symbol: report.action.map(IslandFeedback.symbol(for:)) ?? "square.grid.3x3")
+    island.flash(feedback, near: frame)
+  }
+
+  /// Window placements show where the window went; focusing and app actions show their symbol.
+  private static func showsRegion(_ action: Action?) -> Bool {
+    switch action {
+    case .focus, .focusApp, .switchApp, .hint, .show, .hide, .toggle: return false
+    default: return true  // nil: a grid placement
+    }
+  }
+
+  /// Running automations: in the island, or the classic pill when the island is off.
+  private func refreshAutomationStatus() {
+    let config = store.configuration
+    let active = config.automation.showIndicator ? automation.active : []
+    if config.island.enabled {
+      automationIndicator.update(active: [], stopShortcut: nil, visible: false)
+      island.automationsChanged(active, stopShortcut: config.automation.stopShortcut)
+    } else {
+      island.automationsChanged([], stopShortcut: nil)
+      automationIndicator.update(active: active, stopShortcut: config.automation.stopShortcut, visible: !active.isEmpty)
+    }
+  }
+
+  /// Every shortcut that works right now, from every source, in the order they're registered (the
+  /// first for a key wins), for the cheat sheet.
+  private func liveShortcuts() -> [CheatSheet.Shortcut] {
+    let config = store.configuration
+    let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    var result = config.bindings.filter { $0.enabled && $0.isActive(inApp: front) }.map {
+      CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, name: $0.name, action: $0.action)
+    }
+    if config.general.loadSlateConfigs {
+      for source in sources.sources where source.loaded {
+        result += source.bindings.map {
+          CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, action: $0.action, summary: $0.summary)
+        }
+      }
+    }
+    if config.clipboard.enabled, let keys = config.clipboard.shortcut {
+      result.append(CheatSheet.Shortcut(keys: keys, name: "Clipboard history", action: .clipboardHistory))
+    }
+    if let keys = config.automation.stopShortcut {
+      result.append(CheatSheet.Shortcut(keys: keys, name: "Stop automations", action: .stopAutomations))
+    }
+    // Skip what failed to register (taken by another app, say); app-specific ones count as live.
+    return result.filter { shortcut in
+      let id = (shortcut.modal.map { $0.string + " " } ?? "") + shortcut.keys.string
+      switch hotkeys.statuses[id] {
+      case .failed, .disabled: return false
+      default: return true
+      }
+    }
   }
 
   // MARK: System events

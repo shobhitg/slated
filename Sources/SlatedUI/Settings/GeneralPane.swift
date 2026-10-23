@@ -20,7 +20,7 @@ struct GeneralPane: View {
         HStack(spacing: 16) {
           VStack(alignment: .leading, spacing: 3) {
             Text("Show what just happened").font(.system(size: 13, weight: .medium))
-            Text("A small HUD names the action each time a shortcut runs — handy while you learn your bindings.")
+            Text("Names the action each time a shortcut runs — in the notch island, or a small HUD when the island is off. Handy while you learn your bindings.")
               .font(.system(size: 11.5))
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -34,6 +34,7 @@ struct GeneralPane: View {
         }
         .padding(16)
       }
+      IslandCard()
       WindowBehaviorCard()
       SettingsCard(title: "Configuration File", symbol: "doc.badge.gearshape") {
         FactRow(label: "Location", value: displayPath(model.services.configurationFileURL.path), monospaced: true)
@@ -82,6 +83,55 @@ private struct HUDPreview: View {
     .scaleEffect(isOn ? 1 : 0.94)
     .animation(Theme.spring, value: isOn)
     .accessibilityHidden(true)
+  }
+}
+
+/// The notch island: what it shows and the Hyper cheat sheet.
+private struct IslandCard: View {
+  @Environment(AppModel.self) private var model
+
+  var body: some View {
+    @Bindable var model = model
+    let island = model.configuration.island
+    SettingsCard(
+      title: "Notch Island", symbol: "laptopcomputer",
+      footer: "On displays without a notch, the island hangs from the top center of the screen."
+    ) {
+      ToggleRow(
+        title: "Show the island",
+        subtitle: "Running automations, the active modal key and quick feedback grow out of the notch. Hover over a running automation to stop it.",
+        symbol: "laptopcomputer", tint: Color(hex: 0x1C1C1E), isOn: $model.configuration.island.enabled)
+      CardDivider(inset: 54)
+      ToggleRow(
+        title: "Hold Caps Lock to see your shortcuts",
+        subtitle: "Keep the Hyper key held for a moment to list every Hyper shortcut; after a modal key, its keys appear the same way.",
+        symbol: "keyboard", tint: Theme.accent, isOn: $model.configuration.island.cheatSheet)
+        .disabled(!island.enabled)
+      CardDivider(inset: 54)
+      SettingRow(
+        title: "Cheat sheet delay", subtitle: "How long to hold before the shortcuts appear. Quick taps never show them.",
+        symbol: "timer", tint: Color(hex: 0x2F7BF5)
+      ) {
+        Picker("Cheat sheet delay", selection: $model.configuration.island.cheatSheetDelay) {
+          Text("Short").tag(0.3)
+          Text("Medium").tag(0.5)
+          Text("Long").tag(0.8)
+          if ![0.3, 0.5, 0.8].contains(island.cheatSheetDelay) {
+            Text(String(format: "%.2g s", island.cheatSheetDelay)).tag(island.cheatSheetDelay)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .fixedSize()
+      }
+      .disabled(!island.enabled || !island.cheatSheet)
+      CardDivider(inset: 54)
+      ToggleRow(
+        title: "Explain shortcuts that can't run",
+        subtitle: "When a shortcut has nothing to act on — no window to move, say — the island briefly says why.",
+        symbol: "exclamationmark.triangle", tint: Theme.caution, isOn: $model.configuration.island.showFailures)
+        .disabled(!island.enabled)
+    }
   }
 }
 

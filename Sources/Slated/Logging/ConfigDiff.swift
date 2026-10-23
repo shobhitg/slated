@@ -13,7 +13,22 @@ enum ConfigDiff {
     }
     if old.general != new.general {
       changes.append(
-        "general: launchAtLogin \(new.general.launchAtLogin), loadSlateConfigs \(new.general.loadSlateConfigs), showActionHUD \(new.general.showActionHUD)")
+        "general: launchAtLogin \(new.general.launchAtLogin), loadSlateConfigs \(new.general.loadSlateConfigs), showActionHUD \(new.general.showActionHUD), hotstringsEnabled \(new.general.hotstringsEnabled)")
+    }
+    if old.clipboard != new.clipboard {
+      let c = new.clipboard
+      changes.append(
+        "clipboard: enabled \(c.enabled), shortcut \(c.shortcut?.string ?? "none"), maxItems \(c.maxItems), persist \(c.persist), retentionDays \(c.retentionDays), excludedApps \(c.excludedApps.count)")
+    }
+    if old.automation != new.automation {
+      let a = new.automation
+      changes.append(
+        "automation: stopShortcut \(a.stopShortcut?.string ?? "none"), stopOnAppSwitch \(a.stopOnAppSwitch), maxRunMinutes \(a.maxRunMinutes), showIndicator \(a.showIndicator)")
+    }
+    if old.island != new.island {
+      let i = new.island
+      changes.append(
+        "island: enabled \(i.enabled), cheatSheet \(i.cheatSheet), cheatSheetDelay \(i.cheatSheetDelay), showFailures \(i.showFailures)")
     }
     for key in Set(old.settings.values.keys).union(new.settings.values.keys).sorted()
     where old.settings[key] != new.settings[key] {

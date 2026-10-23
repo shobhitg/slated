@@ -34,6 +34,9 @@ let suites: [Suite] = [
   uiAutomationTests,
   uiAutomationValidationTests,
   uiSymbolContractTests,
+  islandSettingsTests,
+  uiCheatSheetTests,
+  uiIslandModelTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first

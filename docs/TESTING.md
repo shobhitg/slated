@@ -155,8 +155,8 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       `~/Library/Application Support/Slated/clipboard.json` is readable only by you (`-rw-------`).
 
 **Game automation** (try in a game and in TextEdit)
-- [ ] An auto-click recipe clicks at the set speed; pressing its shortcut again stops it. The red
-      indicator shows while it runs.
+- [ ] An auto-click recipe clicks at the set speed; pressing its shortcut again stops it. The
+      island (or, with the island off, the red pill) shows while it runs.
 - [ ] Hold right click / Hold W keep the button or key down until pressed again; Hold Shift keeps
       sprint on.
 - [ ] A while-held repeat stops when you let go. A "click N times" repeat stops by itself.
@@ -164,6 +164,22 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Mouse 4/5 work as triggers (after granting Accessibility).
 - [ ] Hyper+Esc stops everything. Switching apps stops automations (if enabled). Pausing, sleeping,
       locking the screen and quitting release anything held: no stuck button or key.
+
+**Notch island** (try the built-in display, an external display, and a full-screen app)
+- [ ] Holding Caps Lock about half a second shows the cheat sheet on the display you're working on;
+      releasing hides it. Quick Hyper combos never show it.
+- [ ] While the cheat sheet is up, Hyper+A still moves the window, and its row lights up.
+- [ ] With "Caps Lock alone sends Escape" on, a quick tap sends Escape; a long hold that showed the
+      cheat sheet doesn't.
+- [ ] With "Show what just happened" on, a window shortcut shows "Left half · App" with a glyph of
+      where the window went, on that window's display.
+- [ ] A window shortcut with nothing focused (click the desktop first) says "No focused window to
+      move".
+- [ ] A running auto-clicker shows a red dot and a timer beside the notch. Hovering expands it;
+      Stop stops it without taking focus from the game. Clicks elsewhere in the menu bar still work.
+- [ ] A modal key shows its key beside the notch, then lists its keys after the delay.
+- [ ] Turning the island off in Settings → General brings back the bottom HUD and the top pill.
+- [ ] No black shape stays at the notch once the island has nothing to show.
 
 **Slate compatibility**
 - [ ] `~/.slate.js` loads (the menu shows 21 hotkeys). Editing and saving it reloads within 2 seconds.

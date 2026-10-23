@@ -106,6 +106,12 @@ public enum SlatedUI {
     ClipboardSwitcherView(model: model)
   }
 
+  /// The notch island. Host it in a borderless, transparent panel pinned to the top center of the
+  /// display (the island draws itself top-aligned and centered, so the panel can be larger than it).
+  public static func makeIslandView(model: IslandModel) -> some View {
+    IslandView(model: model)
+  }
+
   // MARK: Snapshots
 
   @_spi(Snapshots) public static func makeSettingsView(model: AppModel, layout: SettingsLayout) -> some View {

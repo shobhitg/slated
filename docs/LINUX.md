@@ -176,6 +176,7 @@ these to point everything at a throwaway home.
 | Installing an update | `./install.sh` relaunches the app | Log out and back in (Wayland) or Alt+F2 `r` (Xorg). A nested shell lets you try it first |
 | Logs | `~/Library/Logs/Slated`, Console.app | `~/.local/state/slated`, `journalctl` |
 | Automation (click, press, hold, repeat, wait) and clipboard history | ✓ | Not yet. Settings keeps their `config.json` sections as they are |
+| Notch island (automation status, Hyper cheat sheet, feedback) | ✓ | Not yet. Its `island` settings are kept as they are |
 
 ## Limitations
 

@@ -2,14 +2,31 @@ import AppKit
 import SlatedCore
 import SlatedSystem
 
+/// What an action did, for feedback: the island, the classic HUD and the menu bar.
+struct ActionReport {
+  var title: String
+  /// The window it moved or focused, if any.
+  var window: AXWindow?
+  /// The top-level action being run (its symbol stands in when there's no window region).
+  var action: Action?
+
+  var app: String? { window?.app?.localizedName }
+  /// "Left half · Safari".
+  var message: String { app.map { "\(title) · \($0)" } ?? title }
+}
+
 /// Performs actions: window geometry, focus, app visibility, shell commands, text, layouts,
 /// snapshots and undo. Geometry is computed by `FrameCalculator` (pure, tested) and applied here.
 final class ActionRunner {
   var settings = SlateSettings()
   var layouts: [String: Layout] = [:]
   /// Something happened worth showing ("Left half · Safari").
-  var onPerformed: ((String) -> Void)?
+  var onPerformed: ((ActionReport) -> Void)?
+  /// Any step failed (the menu bar shows the last error).
   var onError: ((String) -> Void)?
+  /// A shortcut, hotstring or other top-level run failed, with why (not automation repeats, which
+  /// call `perform` directly).
+  var onFailed: ((String) -> Void)?
   /// Slate's `relaunch`: reload all configuration.
   var onRelaunch: (() -> Void)?
   /// Shows window hints or the grid (implemented by the overlay controller).
@@ -23,6 +40,7 @@ final class ActionRunner {
   /// What triggered the action being run (e.g. "hotkey hyper+r"); identifies auto-repeats so the
   /// same shortcut toggles them and its key-up ends while-held ones.
   private var currentTrigger: String?
+  private var currentAction: Action?
 
   private var undoStack: [(window: AXWindow, frame: CGRect)] = []
   /// The app the current action touched and why it failed, for the event log.
@@ -42,7 +60,11 @@ final class ActionRunner {
     lastApp = nil
     lastFailure = nil
     currentTrigger = trigger
-    defer { currentTrigger = nil }
+    currentAction = action
+    defer {
+      currentTrigger = nil
+      currentAction = nil
+    }
     let ok = perform(action, on: window, label: label, chainKey: chainKey)
     var data: [String: Any] = [
       "trigger": trigger, "action": String(SlateSyntax.format(action).prefix(200)),
@@ -53,6 +75,7 @@ final class ActionRunner {
     data["app"] = lastApp ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     data["error"] = lastFailure
     Log.record(ok ? "action.done" : "action.failed", level: ok ? .info : .error, data)
+    if !ok, let lastFailure { onFailed?(lastFailure) }
     return ok
   }
 
@@ -404,9 +427,8 @@ final class ActionRunner {
   // MARK: Reporting
 
   private func report(_ what: String, _ window: AXWindow? = nil) {
-    let app = window?.app?.localizedName
     if let bundleID = window?.app?.bundleIdentifier { lastApp = bundleID }
-    onPerformed?(app.map { "\(what) · \($0)" } ?? what)
+    onPerformed?(ActionReport(title: what, window: window, action: currentAction))
   }
 
   @discardableResult

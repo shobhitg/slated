@@ -194,6 +194,8 @@ for recipe in ["auto-click-left", "toggle-sprint"] {
     })
 }
 
+shots += islandShots()
+
 shots.append(Shot(name: "components", size: CGSize(width: 900, height: 0)) { AnyView(ComponentGallery()) })
 
 // MARK: - Run

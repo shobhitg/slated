@@ -17,6 +17,9 @@ usually install other tools for:
   extension needed.
 - **Hotstrings** (from Keyboard Maestro): type `;shrug` and get `¯\_(ツ)_/¯`. Placeholders like
   `{date}` and `{clipboard}`, per-app filters, and a choice of typing or pasting.
+- **A notch island:** running automations (hover to stop them), a cheat sheet of your Hyper shortcuts
+  while you hold Caps Lock, the active modal key, and a word on what each shortcut did. On displays
+  without a notch it hangs from the top center.
 - **A settings app** for all of it, with live previews of where a window will land.
 
 > **Status:** early development. Built for macOS 14+ on Apple Silicon. No releases yet: build from

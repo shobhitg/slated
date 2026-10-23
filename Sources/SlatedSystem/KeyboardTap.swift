@@ -17,6 +17,10 @@ public final class KeyboardTap: @unchecked Sendable {
     public var hyperEnabled = false
     public var hyperModifiers: Modifiers = .hyper
     public var capsLockAloneSendsEscape = false
+    /// Caps Lock held longer than this isn't a tap: releasing it sends nothing (like Karabiner's
+    /// `to_if_alone` timeout). Kept below the cheat-sheet delay, so looking at the cheat sheet never
+    /// sends Escape.
+    public var aloneTimeout: TimeInterval = 1
     public var hotstringsEnabled = false
     /// Pass everything through untouched (e.g. while the UI records a shortcut).
     public var suspended = false
@@ -35,6 +39,11 @@ public final class KeyboardTap: @unchecked Sendable {
     }
   }
 
+  /// The Hyper key went down, was first used with another key or click, or went up.
+  public enum HyperEvent: Sendable {
+    case pressed, used, released
+  }
+
   /// Value written into `eventSourceUserData` of events Slated posts, so the tap ignores them.
   public static let syntheticEventMarker: Int64 = 0x534C_4154_4544
   /// The virtual key code Caps Lock is remapped to (F18).
@@ -51,6 +60,9 @@ public final class KeyboardTap: @unchecked Sendable {
   public var onEvent: (@MainActor @Sendable (String) -> Void)?
   /// Runs on the main actor for a bound mouse button shortcut (true = down, false = up).
   public var onMouseHotkey: (@MainActor @Sendable (MouseHotkey, Bool) -> Void)?
+  /// Runs on the main actor as the Hyper key is pressed, first used and released (the island's
+  /// cheat sheet). Never says which key was used.
+  public var onHyperEvent: (@MainActor @Sendable (HyperEvent) -> Void)?
 
   private let lock = NSLock()
   private var options = Options()
@@ -58,6 +70,9 @@ public final class KeyboardTap: @unchecked Sendable {
   private var frontmostBundleID: String?
   private var hyperDown = false
   private var hyperUsed = false
+  /// When Caps Lock went down (monotonic nanoseconds), for `aloneTimeout`. Event timestamps aren't
+  /// used: their unit differs between Intel and Apple silicon.
+  private var hyperDownAt: UInt64 = 0
   private var hyperHotkeyCodes: Set<Int64> = []
   private var hyperHotkeyHeld: Set<Int64> = []
   private var mouseHotkeys: Set<MouseHotkey> = []
@@ -163,7 +178,16 @@ public final class KeyboardTap: @unchecked Sendable {
     var match: HotstringMatch?
     var hyperHotkey: (code: UInt16, down: Bool)?
     var mouseHotkey: (hotkey: MouseHotkey, down: Bool)?
+    var hyperEvent: HyperEvent?
     let result: Unmanaged<CGEvent>? = lock.withLock {
+      let (wasDown, wasUsed) = (hyperDown, hyperUsed)
+      defer {
+        if hyperDown != wasDown {
+          hyperEvent = hyperDown ? .pressed : .released
+        } else if hyperDown && hyperUsed && !wasUsed {
+          hyperEvent = .used
+        }
+      }
       if options.suspended { return pass }
       let hyperFlags = Self.flags(for: options.hyperModifiers)
       switch type {
@@ -174,11 +198,13 @@ public final class KeyboardTap: @unchecked Sendable {
             if !hyperDown {
               hyperDown = true
               hyperUsed = false
+              hyperDownAt = DispatchTime.now().uptimeNanoseconds
               matcher.reset()
             }
           } else {
             hyperDown = false
-            sendEscape = options.capsLockAloneSendsEscape && !hyperUsed
+            let held = TimeInterval(DispatchTime.now().uptimeNanoseconds &- hyperDownAt) / 1_000_000_000
+            sendEscape = options.capsLockAloneSendsEscape && !hyperUsed && held < options.aloneTimeout
           }
           return nil  // the stand-in key itself never reaches apps
         }
@@ -244,6 +270,9 @@ public final class KeyboardTap: @unchecked Sendable {
     }
 
     if sendEscape { Self.postKey(53) }
+    if let hyperEvent, let handler = onHyperEvent {
+      DispatchQueue.main.async { MainActor.assumeIsolated { handler(hyperEvent) } }
+    }
     if let mouseHotkey, let handler = onMouseHotkey {
       DispatchQueue.main.async { MainActor.assumeIsolated { handler(mouseHotkey.hotkey, mouseHotkey.down) } }
     }

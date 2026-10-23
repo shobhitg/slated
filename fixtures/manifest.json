@@ -2,7 +2,7 @@
   "description": "Golden vectors from SlatedCore (Swift) for the JavaScript port. Regenerate with `make fixtures`.",
   "files": {
     "config.json": {
-      "decode": 460
+      "decode": 465
     },
     "expressions.json": {
       "closestName": 20,
@@ -63,9 +63,9 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 15820,
+  "totalVectors": 15825,
   "vectors": {
-    "config.json": 460,
+    "config.json": 465,
     "expressions.json": 833,
     "frames.json": 9718,
     "hotstrings.json": 846,

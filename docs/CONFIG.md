@@ -29,7 +29,7 @@ If both define the same shortcut, Slated's own binding wins and the other is mar
   "general": {
     "launchAtLogin": true,
     "loadSlateConfigs": true,          // also load ~/.slate.js and ~/.slate
-    "showActionHUD": false             // flash a small confirmation after each action
+    "showActionHUD": false             // name each action as it runs (in the notch island)
   },
 
   // Caps Lock becomes ⌃⌥⇧⌘ (Hyper) while held.
@@ -168,7 +168,7 @@ Find a game's bundle identifier with `osascript -e 'id of app "Minecraft"'`.
   "stopShortcut": "hyper+esc",   // always stops everything (null turns it off)
   "stopOnAppSwitch": true,       // stop when you leave the app it started in
   "maxRunMinutes": 0,            // 0 = no limit
-  "showIndicator": true          // the "running" pill at the top of the screen
+  "showIndicator": true          // show what's running (in the notch island, or a pill)
 }
 ```
 
@@ -183,6 +183,31 @@ being added with the same config. Two limits are expected:
 - GNOME can't use mouse buttons as shortcuts. You'll map side buttons to keys with keyd (e.g.
   `mouse1 = f13`) and bind those keys.
 - `while-held` will work through key repeat, so it may stop a moment after you let go.
+
+## Notch island (macOS)
+
+A black capsule that grows out of the MacBook notch, or hangs from the top center of a display
+without one. It shows:
+- **Running automations.** Hover over it to see each one and a Stop button.
+- **The Hyper cheat sheet.** Hold Caps Lock for a moment and every Hyper shortcut appears, grouped
+  and in keyboard order. Shortcuts still work while it's up; the one you press lights up.
+- **Modal keys.** After a modal key, the island shows it, then lists the keys it offers.
+- **Feedback** when `general.showActionHUD` is on ("Left half · Safari"), and why a shortcut
+  couldn't run ("No focused window to move").
+
+```jsonc
+"island": {
+  "enabled": true,          // false: no island; feedback and the automation indicator use pills
+  "cheatSheet": true,       // hold Caps Lock (or press a modal key) to list its shortcuts
+  "cheatSheetDelay": 0.5,   // seconds; quick Hyper combos never show it
+  "showFailures": true      // briefly say why a shortcut couldn't run
+}
+```
+
+With `"capsLockAlone": "escape"`, holding Caps Lock longer than the cheat-sheet delay doesn't send
+Escape when you let go.
+
+The GNOME version reads and keeps these settings but doesn't show an island yet.
 
 ## Clipboard history
 

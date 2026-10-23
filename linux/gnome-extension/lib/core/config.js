@@ -393,6 +393,10 @@ function defaultAutomation() {
   return {stopShortcut: 'hyper+esc', stopOnAppSwitch: true, maxRunMinutes: 0, showIndicator: true};
 }
 
+function defaultIsland() {
+  return {enabled: true, cheatSheet: true, cheatSheetDelay: 0.5, showFailures: true};
+}
+
 /** A shortcut that `null` turns off; a missing key keeps the default (Swift's `contains` check). */
 function optionalShortcut(c, key, fallback) {
   const v = c.raw(key);
@@ -423,6 +427,18 @@ function automation(v, path) {
     stopOnAppSwitch: c.optional('stopOnAppSwitch', bool) ?? d.stopOnAppSwitch,
     maxRunMinutes: c.optional('maxRunMinutes', double) ?? d.maxRunMinutes,
     showIndicator: c.optional('showIndicator', bool) ?? d.showIndicator,
+  };
+}
+
+/** The macOS notch island's settings (kept so a config shared between Macs and Linux round-trips). */
+function island(v, path) {
+  const c = new Keyed(v, path);
+  const d = defaultIsland();
+  return {
+    enabled: c.optional('enabled', bool) ?? d.enabled,
+    cheatSheet: c.optional('cheatSheet', bool) ?? d.cheatSheet,
+    cheatSheetDelay: c.optional('cheatSheetDelay', double) ?? d.cheatSheetDelay,
+    showFailures: c.optional('showFailures', bool) ?? d.showFailures,
   };
 }
 
@@ -572,6 +588,7 @@ function configuration(v, path) {
     hotstrings: c.optional('hotstrings', arrayOf(hotstring)) ?? [],
     clipboard: c.optional('clipboard', clipboard) ?? defaultClipboard(),
     automation: c.optional('automation', automation) ?? defaultAutomation(),
+    island: c.optional('island', island) ?? defaultIsland(),
   };
 }
 
@@ -679,6 +696,7 @@ export function starterConfiguration() {
     hotstrings: [],
     clipboard: defaultClipboard(),
     automation: defaultAutomation(),
+    island: defaultIsland(),
   };
 }
 
