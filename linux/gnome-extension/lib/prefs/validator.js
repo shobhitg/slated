@@ -12,7 +12,7 @@ import {
   keysCombo, keysString, statusKey, isValidKey, isFunctionKey, keyLabel, comboLabel, isModifierKey, isMouseButton,
 } from './keys.js';
 import {checkExpression} from './expressions.js';
-import {bindingTitle, actionDetail, resolveAction} from './actions.js';
+import {bindingTitle, actionDetail, resolveAction, layoutNames} from './actions.js';
 import {
   BUILT_IN_SHORTCUTS, GNOME_NOTES, sharesApps, unreleasedPresses, inputName, parseInput, clipboardSettings,
   automationSettings,
@@ -291,23 +291,31 @@ function layoutIssues(layoutList, layouts) {
  * The configuration to write: the draft, except that items with errors fall back to their last saved
  * version (or are left out if they were never saved). Layouts have no identity beyond their name,
  * which is exactly what's being edited when a name clashes or is empty, so any layout error keeps
- * all layouts as last saved.
+ * all layouts as last saved. What applies a layout by a name only the draft has (renamed or added
+ * since) then waits too, display defaults with the layouts: on disk it would apply no layout.
  */
 export function savable(draft, lastSaved, issues) {
   const bad = new Set(issues.filter(i => i.severity === 'error').map(i => i.target));
   if (!bad.size) return draft;
   const result = {...draft};
+  const layoutsHeld = [...bad].some(t => t.startsWith('layout:'));
+  const savedNames = new Set((lastSaved.layouts ?? []).map(l => l.name));
+  const unsaved = new Set(layoutsHeld ? (draft.layouts ?? []).map(l => l.name).filter(name => !savedNames.has(name)) : []);
+  const waits = action => unsaved.size > 0 && layoutNames(action).some(name => unsaved.has(name));
   result.bindings = (draft.bindings ?? []).flatMap(b => {
-    if (!bad.has(target.binding(b.id))) return [b];
+    if (!bad.has(target.binding(b.id)) && !waits(b.action)) return [b];
     const previous = (lastSaved.bindings ?? []).find(s => s.id === b.id);
     return previous ? [previous] : [];
   });
   result.hotstrings = (draft.hotstrings ?? []).flatMap(h => {
-    if (!bad.has(target.hotstring(h.id))) return [h];
+    if (!bad.has(target.hotstring(h.id)) && !waits(h.action)) return [h];
     const previous = (lastSaved.hotstrings ?? []).find(s => s.id === h.id);
     return previous ? [previous] : [];
   });
-  if ([...bad].some(t => t.startsWith('layout:'))) result.layouts = lastSaved.layouts ?? [];
+  if (layoutsHeld) {
+    result.layouts = lastSaved.layouts ?? [];
+    result.defaults = lastSaved.defaults ?? [];
+  }
   return result;
 }
 

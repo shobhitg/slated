@@ -286,6 +286,52 @@ export default suite('Preferences model', [
     expectEqual(config.defaults.map(d => d.target), ['Coding']);
     expectEqual(model.issues.filter(i => /no layout named/.test(i.message)), [], 'nothing still names the old layout');
   }],
+  ['a rename waits with its shortcuts while another layout can\'t be saved', () => {
+    const bad = {op: 'move', x: 'screenOriginX+', y: '0', width: '10', height: '10'};
+    const start = (chat, code = {name: 'Code', apps: []}) => harness({[CONFIG]: JSON.stringify({
+      layouts: [code, {name: 'Chat', apps: [{app: 'Slack', operations: [chat]}]}],
+      bindings: [{id: A, keys: 'hyper+1', action: {op: 'layout', name: 'Code'}}],
+      defaults: [{target: 'Code', condition: {count: {_0: 2}}}],
+    })});
+    const onDisk = disk => {
+      const saved = decodeConfiguration(disk[CONFIG]);
+      return [saved.layouts.map(l => l.name), saved.bindings[0].action.name, saved.defaults[0].target];
+    };
+    // An operation half-typed in another layout while this one is renamed.
+    let {model, disk, tick} = start(half);
+    model.load();
+    model.setLayout('Chat', l => {
+      l.apps[0].operations = [bad];
+    });
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+    });
+    tick();
+    expectEqual(onDisk(disk), [['Code', 'Chat'], 'Code', 'Code'], 'the shortcut keeps the name config.json has');
+    // A typo already in the file, in another layout.
+    ({model, disk, tick} = start(bad));
+    model.load();
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+    });
+    tick();
+    expectEqual(onDisk(disk), [['Code', 'Chat'], 'Code', 'Code']);
+    // An error in the renamed layout itself, saved as the window closes.
+    ({model, disk} = start(half));
+    model.load();
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+      l.apps.push({app: 'Terminal', operations: [{...bad, x: '0', width: 'screenSizeX/'}]});
+    });
+    model.saveNow();
+    expectEqual(onDisk(disk), [['Code', 'Chat'], 'Code', 'Code']);
+    // Fixed: the rename and its shortcuts save together.
+    model.setLayout('Coding', l => {
+      l.apps.pop();
+    });
+    model.saveNow();
+    expectEqual(onDisk(disk), [['Coding', 'Chat'], 'Coding', 'Coding']);
+  }],
   ['moving, deleting and duplicating', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({
       bindings: [{id: A, keys: 'hyper+a', action: half}, {id: B, keys: 'hyper+b', action: half}],
