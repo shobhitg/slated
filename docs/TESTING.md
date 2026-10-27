@@ -146,6 +146,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       clipboard history, even with "Ignore passwords and other concealed items" turned off.
 - [ ] Nothing expands in a password field (Secure Input).
 - [ ] `onlyInApps` / `exceptInApps` filters work.
+- [ ] Two hotstrings with the same trigger: the one higher in Settings → Hotstrings expands, and the
+      other says it never fires. Dragging that one to the top makes it expand instead, and the warning
+      moves to the other.
 
 **Settings UI**
 - [ ] First launch shows onboarding. After finishing it, it doesn't come back unless Accessibility
@@ -158,6 +161,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Editing a binding takes effect within about half a second, with no Save button.
       `scripts/logs.py --grep config.saved` shows the change.
 - [ ] The sidebar renders correctly (the Liquid Glass sidebar can't be captured by `make snapshots`).
+- [ ] VoiceOver reads icon-only controls by name: the app picker beside an app field says "Choose a
+      running app", and a grid size from a Slate config keyed by resolution says "Remove the grid
+      size for the 1680×1050 display" (the tests can only read the source).
 
 **Clipboard history**
 - [ ] Copying text in a few apps adds it to Settings → Clipboard, newest first. Copying a password
@@ -202,6 +208,7 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] A modal binding on keys another binding already uses: entering the mode logs
       `modal.key_failed`, and Settings shows that binding as failed instead of active.
 - [ ] Turning the island off in Settings → General brings back the bottom HUD and the top pill.
+      Settings → Automation → Show an indicator then previews the pill instead of the island.
 - [ ] No black shape stays at the notch once the island has nothing to show.
 
 **Slate compatibility**
