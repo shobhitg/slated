@@ -47,7 +47,8 @@ final class AutomationEngine {
       return
     }
     let schedule = RepeatSchedule(interval: interval, times: times, jitter: jitter)
-    var title = "Repeat \(SlateSyntax.format(action)) every \(Self.describe(seconds: schedule.interval))"
+    // Logged and shown on screen, so typed text is redacted.
+    var title = "Repeat \(SlateSyntax.format(action.redactedForLog)) every \(Self.describe(seconds: schedule.interval))"
     if let times = schedule.times { title += ", \(times)×" }
     let info = ActiveAutomation(id: id, title: title, trigger: trigger, startedAt: Date(), repetitions: 1)
     repeaters[id] = Repeater(timer: nil, info: info, action: action, schedule: schedule, mode: mode)
