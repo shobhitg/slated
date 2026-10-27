@@ -190,6 +190,13 @@ out=$(smoke "$home")
 expect_output "duplicate shortcuts are flagged" "$out" "duplicate"
 expect_output "the event log lists duplicate shortcuts" "$(log_of "$home")" '"duplicates":["ctrl+alt+cmd+f13"]'
 
+# 7a. Two auto-repeats of different text of the same length, started without a shortcut (a sequence
+#     resuming after a wait), both run: their ids differ though the log shows only the length.
+home=$(new_home)
+out=$(SLATED_SMOKE_STEPS=repeat-text smoke "$home")
+expect_output "auto-repeats of different text don't stop each other" "$out" "auto-repeats running: 2"
+expect_true "the log never has their text" bash -c '! grep -q secret "$1"' _ "$home/Library/Logs/Slated/slated.log"
+
 # 7b. A modal key macOS won't register (not a key at all, or another binding's shortcut): the bindings
 #     behind it can never run, so they're failed, with why, instead of active.
 home=$(new_home)

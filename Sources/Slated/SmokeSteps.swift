@@ -62,6 +62,16 @@ enum SmokeSteps {
         let (bindings, hotstrings) = (model.configuration.bindings.count, model.configuration.hotstrings.count)
         print("after a hand edit, Settings shows \(bindings) bindings, \(hotstrings) hotstrings")
       }
+    case "repeat-text":
+      // Two auto-repeats of different text of the same length, started with no shortcut (as when a
+      // sequence resumes after a wait): both run. Their repetitions do nothing here; nothing is typed.
+      engine.automation.perform = { _ in }
+      for text in ["first secret", "other secret"] {
+        engine.runner.perform(
+          .autoRepeat(.insertText(text, method: .type), interval: 60, mode: .toggle, times: nil, jitter: 0))
+      }
+      print("auto-repeats running: \(engine.automation.active.count)")
+      engine.automation.stopAll(reason: "smoke test")
     case "move-config-away":
       // The file config.json links to goes away while Slated runs (a branch switch, an unmounted volume).
       let target = engine.store.fileURL.resolvingSymlinksInPath()
