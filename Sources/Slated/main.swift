@@ -26,6 +26,13 @@ if CommandLine.arguments.contains("--smoke") {
     for key in engine.hotkeys.duplicates { print("   duplicate:", key) }
     for warning in engine.warnings { print("warning:", warning) }
     print("accessibility:", status.accessibilityGranted, "hyper:", status.hyperKeyActive, "hotstrings:", status.hotstringsActive)
+    let island = config.island
+    print(
+      "island:", island.enabled ? "on" : "off",
+      island.cheatSheet ? "cheat sheet after \(island.cheatSheetDelay) s" : "no cheat sheet",
+      island.showFailures ? "failures shown" : "failures hidden")
+    let sheet = engine.hyperCheatSheet()
+    print("cheat sheet: \(sheet.items.count) Hyper shortcuts (\(sheet.sections.map(\.title).joined(separator: ", ")))")
     print("log:", Log.fileURL.path)
     engine.shutdown()
     Diagnostics.markCleanExit()

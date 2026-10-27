@@ -1,0 +1,11 @@
+{
+  // The notch island turned off, with a slower cheat sheet; one plain-key binding that's not on
+  // the Hyper key, so it stays out of the cheat sheet.
+  "general": { "loadSlateConfigs": false },
+  "island": { "enabled": false, "cheatSheetDelay": 0.8 },
+  "bindings": [
+    { "name": "Left half", "keys": "hyper+a", "action": "push left bar-resize:screenSizeX/2" },
+    { "name": "Focus Terminal", "keys": "hyper+t", "action": { "op": "focus", "app": "Terminal" } },
+    { "name": "Not Hyper", "keys": "ctrl+alt+f13", "action": "undo" },
+  ],
+}

@@ -43,6 +43,9 @@ expect_output "the event log records the start" "$(log_of "$home")" '"event":"ap
 expect_output "the event log records the new config" "$(log_of "$home")" '"event":"config.created"'
 expect_output "the event log records hotkey registration" "$(log_of "$home")" '"event":"hotkeys.registered"'
 expect_output "the event log records a clean quit" "$(log_of "$home")" '"event":"app.quit"'
+# The starter's 21 Hyper bindings plus Slated's automation stop (Hyper+Esc) fill the cheat sheet.
+expect_output "the notch island is on by default" "$out" "island: on cheat sheet after 0.5 s failures shown"
+expect_output "the Hyper cheat sheet lists every Hyper shortcut" "$out" "cheat sheet: 22 Hyper shortcuts (Windows, Displays, Automation)"
 expect_true "every log line is valid JSON" /usr/bin/python3 -I -c 'import json,sys; [json.loads(l) for l in open(sys.argv[1])]' "$home/Library/Logs/Slated/slated.log"
 before=$(shasum "$home/.config/slated/config.json")
 out=$(smoke "$home")
@@ -88,6 +91,14 @@ expect_output "automation config loads" "$out" "native: 4 bindings"
 expect_output "all bindings and built-ins get a status" "$out" "hotkeys: 6 registered"
 expect_output "a modifier alone is rejected as a shortcut, with the reason" "$out" "A modifier key can't be a shortcut on its own"
 expect_output "mouse button shortcuts explain what they need" "$out" "Mouse button shortcuts need Accessibility permission"
+
+# 4d. Notch island settings; the cheat sheet lists only Hyper shortcuts, grouped.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-island.json" "$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "island settings load" "$out" "island: off cheat sheet after 0.8 s failures shown"
+expect_output "the cheat sheet skips non-Hyper shortcuts" "$out" "cheat sheet: 3 Hyper shortcuts (Windows, Apps & Focus, Automation)"
 
 # 5. A broken config.json is reported, not fatal.
 home=$(new_home)

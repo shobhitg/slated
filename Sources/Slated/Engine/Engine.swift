@@ -86,10 +86,7 @@ final class Engine {
       guard let self, store.configuration.automation.showIndicator else { return [] }
       return automation.active
     }
-    island.hyperSheet = { [weak self] in
-      guard let self else { return nil }
-      return CheatSheet.hyper(liveShortcuts(), hyperModifiers: store.configuration.keyboard.hyperModifiers)
-    }
+    island.hyperSheet = { [weak self] in self?.hyperCheatSheet() }
     hotkeys.onModalChange = { [weak self] modal in
       guard let self else { return }
       island.modalChanged(modal.map { CheatSheet.modal($0, liveShortcuts()) })
@@ -420,6 +417,11 @@ final class Engine {
       island.automationsChanged([], stopShortcut: nil)
       automationIndicator.update(active: active, stopShortcut: config.automation.stopShortcut, visible: !active.isEmpty)
     }
+  }
+
+  /// What the island lists while the Hyper key is held.
+  func hyperCheatSheet() -> CheatSheet {
+    CheatSheet.hyper(liveShortcuts(), hyperModifiers: store.configuration.keyboard.hyperModifiers)
   }
 
   /// Every shortcut that works right now, from every source, in the order they're registered (the
