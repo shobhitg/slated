@@ -161,6 +161,34 @@ export function containsWindowGeometry(action) {
   return isWindowGeometry(a) || nested(a).some(containsWindowGeometry);
 }
 
+/** The names of the layouts an action applies, here, in any step or in what it repeats. */
+export function layoutNames(action) {
+  const a = resolveAction(action);
+  if (!a) return [];
+  if (a.op === 'layout') return typeof a.name === 'string' ? [a.name] : [];
+  return [...nested(a), ...(a.op === 'repeat' ? [a.action] : [])].flatMap(layoutNames);
+}
+
+/**
+ * The action with every step that applies the layout `from` applying `to` instead; the same value
+ * when none does. Slate syntax that applies it comes back in JSON form, as the Mac saves it.
+ */
+export function renameLayout(action, from, to) {
+  const a = resolveAction(action);
+  if (!a || !layoutNames(a).includes(from)) return action;
+  const each = list => (list ?? []).map(step => renameLayout(step, from, to));
+  switch (a.op) {
+  case 'layout': return {...a, name: to};
+  case 'chain': return {...a, operations: each(a.operations)};
+  case 'sequence': return a.steps
+    ? {...a, steps: a.steps.map(step => (step ? {...step, action: renameLayout(step.action, from, to)} : step))}
+    : {...a, operations: each(a.operations)};
+  case 'by-orientation': return {...a, landscape: renameLayout(a.landscape, from, to), portrait: renameLayout(a.portrait, from, to)};
+  case 'repeat': return {...a, action: renameLayout(a.action, from, to)};
+  default: return action;
+  }
+}
+
 // --- Forms: switching kinds while keeping compatible parameters ----------------------------------------
 
 const move = (x, y, width, height) => ({op: 'move', x, y, width, height});

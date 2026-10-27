@@ -258,6 +258,34 @@ export default suite('Preferences model', [
     });
     expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps.length}`), ['A: 1', 'AB: 2']);
   }],
+  ['a rename re-points every step, hotstring and display default that applies the layout', () => {
+    const layout = name => ({op: 'layout', name});
+    const {model} = harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'Code', apps: []}],
+      bindings: [
+        {id: A, keys: 'hyper+1', action: layout('Code')},
+        {id: B, keys: 'hyper+2', action: {op: 'chain', operations: [layout('Code'), half]}},
+        {id: testId(0xc), keys: 'hyper+3', action: {op: 'by-orientation', landscape: layout('Code'), portrait: half}},
+        {id: testId(0xd), keys: 'hyper+4', action: {op: 'sequence', operations: [layout('Code'), {op: 'wait', seconds: 1}]}},
+        {id: testId(0xe), keys: 'hyper+5', action: 'layout Code'},
+      ],
+      hotstrings: [{id: H, trigger: ';code', replacement: '', action: layout('Code')}],
+      defaults: [{target: 'Code', condition: {count: {_0: 2}}}],
+    })});
+    model.load();
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+    });
+    const config = model.configuration;
+    expectEqual(config.bindings[0].action, layout('Coding'));
+    expectEqual(config.bindings[1].action.operations[0], layout('Coding'));
+    expectEqual(config.bindings[2].action.landscape, layout('Coding'));
+    expectEqual(config.bindings[3].action.operations[0], layout('Coding'));
+    if (implemented('parseOperation')) expectEqual(config.bindings[4].action, layout('Coding'), 'Slate syntax too');
+    expectEqual(config.hotstrings[0].action, layout('Coding'));
+    expectEqual(config.defaults.map(d => d.target), ['Coding']);
+    expectEqual(model.issues.filter(i => /no layout named/.test(i.message)), [], 'nothing still names the old layout');
+  }],
   ['moving, deleting and duplicating', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({
       bindings: [{id: A, keys: 'hyper+a', action: half}, {id: B, keys: 'hyper+b', action: half}],

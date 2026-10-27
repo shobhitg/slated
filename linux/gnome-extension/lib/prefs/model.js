@@ -17,7 +17,7 @@ import {keysString, statusKey} from './keys.js';
 import {validate, savable, configChanges, target, LAYOUT_NAME_MISSING, LAYOUT_NAME_TAKEN} from './validator.js';
 import {parseStatus, emptyStatus, extensionState, bindingState, runningSummary} from './status.js';
 import {presetById, starterBindings} from './presets.js';
-import {bindingTitle} from './actions.js';
+import {bindingTitle, renameLayout} from './actions.js';
 import {builtInShortcut, recipeBindingName, sharesApps} from './automation.js';
 import {loadSlateScript, importSlateScript, importClassic, planImport} from './importer.js';
 import {newBinding, newHotstring} from './config.js';
@@ -613,9 +613,10 @@ export class PrefsModel extends Emitter {
   }
 
   /**
-   * Changes a layout; a rename also updates bindings that apply it. Returns the layout's new name.
-   * A rename to an empty name or another layout's isn't applied (see layoutNameProblem): the
-   * shortcuts would follow it to the other layout, and finding this one by name would find that.
+   * Changes a layout; a rename also re-points what applies it: bindings and hotstrings, in any step,
+   * and display defaults. Returns the layout's new name. A rename to an empty name or another
+   * layout's isn't applied (see layoutNameProblem): the shortcuts would follow it to the other
+   * layout, and finding this one by name would find that.
    */
   setLayout(name, mutate) {
     let newName = name;
@@ -625,10 +626,13 @@ export class PrefsModel extends Emitter {
       mutate(layout);
       if (layout.name !== name && this.layoutNameProblem(name, layout.name)) layout.name = name;
       newName = layout.name;
-      if (newName !== name) {
-        for (const b of config.bindings) {
-          if (b.action?.op === 'layout' && b.action.name === name) b.action = {...b.action, name: newName};
-        }
+      if (newName === name) return;
+      for (const b of config.bindings) b.action = renameLayout(b.action, name, newName);
+      for (const h of config.hotstrings) {
+        if (h.action !== undefined) h.action = renameLayout(h.action, name, newName);
+      }
+      for (const d of config.defaults ?? []) {
+        if (d.target === name) d.target = newName;
       }
     });
     return newName;
