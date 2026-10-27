@@ -574,7 +574,25 @@ async function run(mode) {
     await settle();
     check(controllers().length === 0 && world.stateOf(window).controllers.length === 0, 'a click elsewhere stopped it');
     check(model.binding(ID.HALF).keys === before, 'the shortcut is unchanged');
+    // A click on the recorder's own row (its title) is a click on the recorder: on release the list
+    // activates the row, and the row clicks its button. That stops the recording, without a restart.
+    const recorderButton = recorderIn(visible('windows'));
+    click(recorderButton);
+    const recorderRow = world.stateOf(recorderButton).parent;
+    world.press(window, recorderRow);
+    await settle();
+    world.emit(recorderRow, 'activated');
+    click(prop(world, recorderRow, 'activatable-widget'));
+    await settle();
+    check(controllers().length === 0, 'clicking the recorder\'s row stopped it without starting over');
     pop('windows');
+    // Another control in a recorder's row is somewhere else, such as the clipboard shortcut's Default.
+    settings.showPane('clipboard');
+    const switcherRow = titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0];
+    click(recorderIn(switcherRow));
+    world.press(window, buttons(switcherRow, 'Default')[0]);
+    await settle();
+    check(controllers().length === 0, 'a press on the row\'s Default button stopped it');
   });
 
   await step('Hotstrings: espanso guidance, editing, the try-it field', async () => {
