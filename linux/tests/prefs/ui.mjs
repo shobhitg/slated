@@ -267,6 +267,15 @@ async function run(mode) {
     const modal = titled(page, 'Adw.SwitchRow', 'Press a modal key first')[0];
     modal.set_active(true);
     check(model.binding(ID.HALF).modal?.keys === 'ctrl+f4', 'modal key added');
+    // After a modal key, the shortcut's own key is usually a plain one ("Ctrl+F4, then 1"), as the
+    // validator agrees.
+    click(recorderButton);
+    press(49);
+    check(model.binding(ID.HALF).keys === '1', `a plain key after a modal key: ${model.binding(ID.HALF).keys}`);
+    check(!model.issuesFor(`binding:${ID.HALF}`).some(i => i.field === 'keys'), 'with nothing to warn about');
+    model.setBinding(ID.HALF, b => {
+      b.keys = 'hyper+a';
+    });
     modal.set_active(false);
     const repeat = titled(page, 'Adw.ComboRow', 'Repeat while held')[0];
     repeat.set_selected(1);

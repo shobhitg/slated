@@ -321,8 +321,9 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
     preview.setAction(binding.action);
     name.set(binding.name ?? '');
     recorder.set(binding.keys);
-    // Limited to some apps, a plain key is fine: it's grabbed only while one of them has focus.
-    recorder.requiresModifier = !(binding.onlyInApps ?? []).length;
+    // Limited to some apps, a plain key is fine: it's grabbed only while one of them has focus. After a
+    // modal key it's the usual choice (typingWarning agrees).
+    recorder.requiresModifier = !(binding.onlyInApps ?? []).length && !binding.modal;
     // Errors and the typing warning go under the keys; longer notes (mouse buttons, the built-in
     // shortcuts) are cards below. Shared keys are listed in "Also used by".
     const keyIssues = model.issuesFor(target.binding(id))
