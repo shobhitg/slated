@@ -42,6 +42,24 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
   return nil
 }
 
+/// Every label, title and string value in the accessibility tree under `root`: what VoiceOver can
+/// read, and a way to check a view's text without pixels.
+@MainActor private func accessibilityTexts(in root: NSView) -> [String] {
+  var texts: [String] = []
+  var pending: [Any] = [root]
+  var visited = 0
+  while let element = pending.popLast(), visited < 20_000 {
+    visited += 1
+    guard let node = element as? NSAccessibilityProtocol else { continue }
+    let candidates: [String?] = [
+      node.accessibilityLabel(), node.accessibilityTitle(), node.accessibilityValue() as? String,
+    ]
+    texts += candidates.compactMap { $0 }.filter { !$0.isEmpty }
+    pending += node.accessibilityChildren()?.reversed() ?? []
+  }
+  return texts
+}
+
 /// Records what a hosted view sees.
 @MainActor private final class EventRecorder {
   var events: [String] = []
@@ -84,6 +102,27 @@ private struct FocusProbe: View {
 let uiHostingContractTests = Suite(
   "UIHostingContract",
   [
+    (
+      "hosted views expose no accessibility tree here, so labels need a real Mac with VoiceOver",
+      {
+        try onMain {
+          // Probed for icon-only buttons (xmark, ellipsis, chevron, function…): nothing comes back,
+          // not even plain text. If this starts failing, accessibility labels can be tested here.
+          let window = hostingWindow(
+            VStack {
+              Text("Marker")
+              Button {
+              } label: {
+                Image(systemName: "xmark")
+              }
+              .accessibilityLabel("Remove Safari")
+            }
+            .frame(width: 200, height: 100))
+          expectEqual(accessibilityTexts(in: try require(window.contentView)), [])
+          window.close()
+        }
+      }
+    ),
     (
       "closing a reused window keeps focus and skips onDisappear, but notifications still arrive",
       {

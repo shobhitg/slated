@@ -70,14 +70,14 @@ struct HotstringEditor: View {
   }
 
   private var state: (text: String, color: Color, symbol: String?) {
-    if model.issues(for: .hotstring(hotstring.id)).contains(where: { $0.severity == .error }) {
-      return ("Not saved", Theme.critical, "exclamationmark.circle.fill")
+    switch model.state(for: hotstring) {
+    case .notSaved: return ("Not saved", Theme.critical, "exclamationmark.circle.fill")
+    case .off: return ("Off", Theme.neutral, nil)
+    case .expansionOff: return ("Expansion is off", Theme.neutral, nil)
+    case .paused: return ("Paused", Theme.neutral, "pause.fill")
+    case .active: return ("Active", Theme.positive, nil)
+    case .waitingForPermission: return ("Waiting for permission", Theme.caution, nil)
     }
-    if !hotstring.enabled { return ("Off", Theme.neutral, nil) }
-    if !model.runtimeStatus.hotstringsEnabled { return ("Expansion is off", Theme.neutral, nil) }
-    if model.runtimeStatus.paused { return ("Paused", Theme.neutral, "pause.fill") }
-    return model.runtimeStatus.hotstringsActive
-      ? ("Active", Theme.positive, nil) : ("Waiting for permission", Theme.caution, nil)
   }
 
   // MARK: Trigger

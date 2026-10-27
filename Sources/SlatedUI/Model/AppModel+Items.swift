@@ -20,6 +20,17 @@ enum BindingState: Equatable {
   case inactive
 }
 
+/// The state of one hotstring, for its editor.
+enum HotstringState: Equatable {
+  case notSaved
+  case off
+  /// The master switch is off.
+  case expansionOff
+  case paused
+  case active
+  case waitingForPermission
+}
+
 extension AppModel {
   // MARK: Bindings
 
@@ -226,6 +237,17 @@ extension AppModel {
   }
 
   var enabledHotstringCount: Int { configuration.hotstrings.filter(\.enabled).count }
+
+  /// What a hotstring's editor says about it: the draft, validation and the engine combined.
+  func state(for hotstring: Hotstring) -> HotstringState {
+    if issues(for: .hotstring(hotstring.id)).contains(where: { $0.severity == .error }) { return .notSaved }
+    if !hotstring.enabled { return .off }
+    if !runtimeStatus.hotstringsEnabled { return .expansionOff }
+    if runtimeStatus.paused { return .paused }
+    // Not `hotstringsActive`: expansion also pauses while the Try It field (or a shortcut recorder)
+    // has focus, which isn't a missing permission.
+    return runtimeStatus.accessibilityGranted ? .active : .waitingForPermission
+  }
 
   // MARK: Layouts
 

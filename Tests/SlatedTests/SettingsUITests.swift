@@ -433,6 +433,27 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "a hotstring stays Active while Try It pauses expansion; only missing permission waits",
+      {
+        try onMain {
+          let services = PreviewServices()
+          let model = AppModel(services: services)
+          let hotstring = try require(model.configuration.hotstrings.first { $0.enabled })
+          expect(model.state(for: hotstring) == .active)
+          model.beginHotkeySuspension()  // the Try It field has focus
+          expect(!model.runtimeStatus.hotstringsActive, "the engine pauses expansion meanwhile")
+          expect(model.state(for: hotstring) == .active, "that's not “Waiting for permission”")
+          model.endHotkeySuspension()
+
+          let firstRun = AppModel(services: PreviewServices(scenario: .firstRun))
+          firstRun.configuration.hotstrings = [Hotstring(trigger: ";a", replacement: "b")]
+          expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .waitingForPermission)
+          firstRun.configuration.hotstrings[0].trigger = ""
+          expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .notSaved)
+        }
+      }
+    ),
+    (
       "its own saves don't count as hand edits",
       {
         try onMain {
