@@ -285,7 +285,8 @@ public struct ModalKey: Hashable, Sendable, Codable {
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
-      keys: try c.decode(KeyCombo.self, forKey: .keys), toggle: try c.decodeIfPresent(Bool.self, forKey: .toggle) ?? false)
+      keys: try c.decode(KeyCombo.self, forKey: .keys),
+      toggle: try c.decodeIfPresent(Bool.self, forKey: .toggle) ?? false)
   }
 }
 

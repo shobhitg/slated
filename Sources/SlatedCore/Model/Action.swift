@@ -231,7 +231,8 @@ public struct SequenceStep: Hashable, Sendable, Codable {
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
-      try c.decode(Action.self, forKey: .action), keepWindow: try c.decodeIfPresent(Bool.self, forKey: .keepWindow) ?? false)
+      try c.decode(Action.self, forKey: .action),
+      keepWindow: try c.decodeIfPresent(Bool.self, forKey: .keepWindow) ?? false)
   }
 }
 

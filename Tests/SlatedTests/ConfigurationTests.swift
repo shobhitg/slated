@@ -85,10 +85,12 @@ let configurationTests = Suite(
         expectEqual(
           config.bindings[1].action,
           .sequence([
-            SequenceStep(.focus(.right)), SequenceStep(.push(direction: .left, style: .none, screen: nil), keepWindow: true),
+            SequenceStep(.focus(.right)),
+            SequenceStep(.push(direction: .left, style: .none, screen: nil), keepWindow: true),
           ]))
         expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
-        expectThrows { _ = try SlatedConfiguration.decode(from: Data(#"{"bindings": [{"keys": "a", "modal": {}, "action": "undo"}]}"#.utf8)) }
+        let noKeys = #"{"bindings": [{"keys": "a", "modal": {}, "action": "undo"}]}"#
+        expectThrows { _ = try SlatedConfiguration.decode(from: Data(noKeys.utf8)) }
       }
     ),
     (
