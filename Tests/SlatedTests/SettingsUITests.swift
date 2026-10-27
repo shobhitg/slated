@@ -471,8 +471,11 @@ let uiModelTests = Suite(
           expectEqual(model.binding(workKey.id)?.action, .layout(name: "Work"))
           expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Workshop"))
           expect(model.selectedLayout == .slated(name: "Workshop", index: 1))
-          // What the name field shows while the typed name can't be used yet.
+          // What the name field shows while the typed name can't be used yet. Spaces around a name
+          // don't show in any list, so “Work ” would look like a second “Work”.
           expectEqual(model.layoutNameProblem("Work", renaming: "Workshop"), "Another layout already has this name.")
+          expectEqual(model.layoutNameProblem("Work ", renaming: "Workshop"), "Another layout already has this name.")
+          expectEqual(model.layoutNameProblem(" Work", renaming: "Workshop"), "Another layout already has this name.")
           expectEqual(model.layoutNameProblem(" ", renaming: "Workshop"), "Name the layout.")
           expect(model.layoutNameProblem("Workshop", renaming: "Workshop") == nil)
         }

@@ -308,13 +308,15 @@ extension AppModel {
   /// Why `name` can't become the name of the layout now called `current` (the one at `index`, see
   /// `layoutIndex`), if it can't.
   func layoutNameProblem(_ name: String, renaming current: String, at index: Int? = nil) -> String? {
-    if name.trimmingCharacters(in: .whitespaces).isEmpty { return "Name the layout." }
+    let trimmed = name.trimmingCharacters(in: .whitespaces)
+    if trimmed.isEmpty { return "Name the layout." }
     guard name != current else { return nil }
     let own = layoutIndex(current, at: index)
-    if configuration.layouts.indices.contains(where: { $0 != own && configuration.layouts[$0].name == name }) {
-      return "Another layout already has this name."
+    // Spaces around a name don't show in any list: “Work ” would look like a second “Work”.
+    let taken = configuration.layouts.indices.contains {
+      $0 != own && configuration.layouts[$0].name.trimmingCharacters(in: .whitespaces) == trimmed
     }
-    return nil
+    return taken ? "Another layout already has this name." : nil
   }
 
   @discardableResult

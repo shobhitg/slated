@@ -197,13 +197,16 @@ private struct LayoutDetail: View {
       IconTile(symbol: "rectangle.3.group", tint: SettingsPane.layouts.tint, size: 38)
       VStack(alignment: .leading, spacing: 5) {
         if editable {
+          let nameProblem = model.layoutNameProblem(nameDraft, renaming: layout.name, at: index)
           TextField("Layout name", text: $nameDraft)
             .textFieldStyle(.plain)
             .font(.system(size: 19, weight: .bold))
-            .onChange(of: nameDraft) { _, name in
-              if model.layoutNameProblem(name, renaming: layout.name, at: index) == nil { layout.name = name }
+            .onChange(of: nameDraft) { _, name in commitName(name) }
+            // A refused name can become usable with no keystroke, e.g. when the other layout is deleted.
+            .onChange(of: nameProblem) { _, problem in
+              if problem == nil { commitName(nameDraft) }
             }
-          if let problem = model.layoutNameProblem(nameDraft, renaming: layout.name, at: index) {
+          if let problem = nameProblem {
             Label(problem, systemImage: "exclamationmark.circle.fill")
               .font(.system(size: 11.5))
               .foregroundStyle(Theme.critical)
@@ -318,6 +321,12 @@ private struct LayoutDetail: View {
       }
       .padding(16)
     }
+  }
+
+  /// Makes the typed name the layout's name when it's usable (see `AppModel.layoutNameProblem`).
+  private func commitName(_ name: String) {
+    guard name != layout.name, model.layoutNameProblem(name, renaming: layout.name, at: index) == nil else { return }
+    layout.name = name
   }
 
   private func appBinding(_ index: Int) -> Binding<LayoutApp> {

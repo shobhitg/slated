@@ -198,6 +198,32 @@ let uiHostingContractTests = Suite(
       }
     ),
     (
+      "a layout name refused as another layout's is taken once that layout is gone",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          model.configuration.layouts = [Layout(name: "Work"), Layout(name: "Home")]
+          model.selectedLayout = .slated(name: "Work")
+          let window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          let field = try require(textInput(in: try require(window.contentView)) as? NSTextField)
+          window.makeFirstResponder(field)
+          spin()
+          let editor = try require(window.firstResponder as? NSTextView)
+          editor.selectAll(nil)
+          editor.insertText("Home", replacementRange: NSRange(location: NSNotFound, length: 0))
+          spin()
+          expectEqual(model.configuration.layouts.map(\.name), ["Work", "Home"])
+          // Deleted from the list's context menu while the field still holds the refused name.
+          model.deleteLayout("Home")
+          spin()
+          expectEqual(field.stringValue, "Home")
+          // What the field shows is the layout's name.
+          expectEqual(model.configuration.layouts.map(\.name), ["Home"])
+          window.close()
+        }
+      }
+    ),
+    (
       "a shortcut behind a modal key can be a plain key in the editor",
       {
         try onMain {
