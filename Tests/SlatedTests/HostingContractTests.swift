@@ -198,6 +198,28 @@ let uiHostingContractTests = Suite(
       }
     ),
     (
+      "a shortcut behind a modal key can be a plain key in the editor",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          let modal = ModalKey(keys: KeyCombo(key: "e", modifiers: .control))
+          let binding = HotkeyBinding(keys: KeyCombo(key: ""), modal: modal, action: .undo)
+          model.configuration.bindings = [binding]
+          model.recordShortcutFor = binding.id  // the keys recorder starts when the editor appears
+          let editor = BindingEditor(binding: try require(model.bindingBinding(binding.id)))
+          let window = hostingWindow(editor.environment(model).frame(width: 700, height: 900))
+          expect(services.hotkeysSuspended, "the keys recorder is recording")
+          NSApp.sendEvent(try require(keyDown(49, in: window)))  // Space, no modifiers
+          spin()
+          // Only live after ⌃E, so a plain key never gets in the way of typing (the validator and the
+          // engine agree).
+          expectEqual(model.binding(binding.id)?.keys, KeyCombo(key: "space"))
+          window.close()
+        }
+      }
+    ),
+    (
       "the shortcut recorder reads Caps Lock as the Hyper key's modifiers, Meh included",
       {
         try onMain {

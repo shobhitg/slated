@@ -91,8 +91,9 @@ struct BindingEditor: View {
         }
         LabeledField("Keys") {
           VStack(alignment: .leading, spacing: 6) {
+            // A plain key is fine where it can't swallow typing: in its apps only, or after a modal key.
             ShortcutRecorder(
-              combo: $binding.keys, requiresModifier: binding.onlyInApps.isEmpty,
+              combo: $binding.keys, requiresModifier: binding.onlyInApps.isEmpty && binding.modal == nil,
               autoStart: model.recordShortcutFor == binding.id,
               plainKeyHint: "Or limit the shortcut to a game below to use a plain key there."
             )
