@@ -200,8 +200,10 @@ test('stop() undoes everything: shortcuts, keyboard options, signals and timers'
   assert.equal(gnome.signals.layout.size, 0, 'no layout manager handlers left');
   assert.equal([...gnome.state.monitors.values()].reduce((n, set) => n + set.size, 0), 0, 'no file monitors left');
   assert.equal(status().running, false);
+  assert.deepEqual(status().hyper, {wanted: true, mode: 'off', active: false}, 'caps:hyper is gone, and status.json says so');
   const [quit] = events('app.quit');
   assert.equal(quit.data.reason, 'disabled');
+  assert.equal(quit.data.hyperRestored, true);
 });
 
 test('first run with ~/.slate.js starts empty and loads the Slate file', () => {
@@ -260,11 +262,13 @@ test('hotstrings are written for espanso and kept only while the screen is locke
   gnome.state.locked = true;
   runtime.stop();
   assert.ok(existsSync(matchFile), 'kept while locked');
+  assert.equal(status().hotstrings.count, 1, 'espanso still expands it');
 
   gnome.state.locked = false;
   runtime = startRuntime();
   runtime.stop();
   assert.ok(!existsSync(matchFile), 'removed when Slated is turned off');
+  assert.equal(status().hotstrings.count, 0, 'and status.json says none are left');
 });
 
 test('with SLATED_DEBUG=1 the debug interface runs actions and reports windows without titles', () => {

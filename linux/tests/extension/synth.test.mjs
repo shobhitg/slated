@@ -55,6 +55,22 @@ test('clicks, held buttons and keys go through virtual devices with increasing t
   assert.throws(() => synth.mouse('left', true), /stopping/);
 });
 
+test('heldModifierMask names the modifiers held down, so typing doesn’t wait for them', () => {
+  const synth = new InputSynthesizer();
+  const M = gnome.modules['gi://Clutter'].ModifierType;
+  assert.equal(synth.heldModifierMask(), 0);
+  synth.key({key: 'shift', modifiers: []}, true);
+  synth.key({key: 'w', modifiers: []}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK, 'W is no modifier');
+  synth.key({key: 'rightAlt', modifiers: []}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK);
+  synth.key({key: 'f', modifiers: ['ctrl', 'cmd']}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK | M.CONTROL_MASK | M.MOD4_MASK | M.SUPER_MASK | M.HYPER_MASK);
+  synth.releaseAll();
+  assert.equal(synth.heldModifierMask(), 0, 'nothing held, nothing ignored');
+  synth.destroy();
+});
+
 test('releaseAll lets go of exactly what is down', () => {
   const synth = new InputSynthesizer();
   synth.key({key: 'ctrl', modifiers: []}, true);
@@ -109,5 +125,21 @@ test('the paste shortcut is Ctrl+V, or Ctrl+Shift+V in terminals, once modifiers
   assert.deepEqual(gnome.state.typed.slice(0, 4).map((t) => [t.code ?? t.keysym, t.pressed]), [[29, true], [42, true], [0x76, true], [0x76, false]]);
   assert.equal(gnome.state.typed.length, 12, 'both queued pastes ran, in order');
   assert.equal(gnome.loop.pending, 0, 'one shared poller, gone when done');
+  input.destroy();
+});
+
+test('cancelPending drops keys waiting for modifiers, so a stopped automation types nothing later', () => {
+  const timers = new Timers();
+  const input = new InputInjector({timers});
+  gnome.global.get_pointer = () => [0, 0, 8]; // Alt held, as for Alt+Tab
+  input.pressKeys({key: 'e', modifiers: []});
+  input.pressKeys({key: 'e', modifiers: []});
+  input.cancelPending();
+  assert.equal(gnome.loop.pending, 0, 'the poller is gone');
+  gnome.global.get_pointer = () => [0, 0, 0];
+  gnome.loop.advance(2000);
+  assert.deepEqual(gnome.state.typed, [], 'nothing typed once Alt is let go');
+  input.pressKeys({key: 'e', modifiers: []});
+  assert.equal(gnome.state.typed.length, 2, 'later keys still work');
   input.destroy();
 });

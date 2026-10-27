@@ -2,7 +2,8 @@
 //
 // - **keyd mode**: if keyd runs (`/run/keyd.socket` exists, or `keyd` is installed and its systemd
 //   service is active), Slated assumes keyd maps Caps Lock to Ctrl+Alt+Shift+Super, as the setup docs
-//   say, and uses plain accelerators. keyd can also make a tap send Escape.
+//   say, and uses plain accelerators. keyd can also make a tap send Escape. The socket is watched, so
+//   keyd started (or stopped) while Slated runs switches the mode without logging out.
 // - **xkb mode** (default): Slated adds the keyboard option `caps:hyper` to
 //   `org.gnome.desktop.input-sources xkb-options`, keeping the user's other options, and removes it
 //   again when Hyper is turned off and on `disable()`. Other `caps:*` options would fight over the
@@ -16,7 +17,7 @@
 
 import Gio from 'gi://Gio';
 
-import {exists, findProgram, readText, remove, writeTextAtomic} from './files.js';
+import {exists, findProgram, readText, remove, watchFile, writeTextAtomic} from './files.js';
 
 export const CAPS_HYPER = 'caps:hyper';
 export const KEYD_SOCKET = '/run/keyd.socket';
@@ -53,12 +54,16 @@ export class HyperManager {
    * @param {object} options
    * @param {object} options.log
    * @param {string} options.statePath  Where to remember what Slated changed (hyper.json).
-   * @param {() => void} options.onDetected  Called when the asynchronous keyd check finishes.
+   * @param {() => void} options.onDetected  Called when the asynchronous keyd check finishes, and when
+   *   keyd starts or stops later.
+   * @param {string} [options.socketPath]  keyd's socket (tests point it elsewhere).
    */
-  constructor({log, statePath, onDetected = null}) {
+  constructor({log, statePath, onDetected = null, socketPath = KEYD_SOCKET}) {
     this._log = log;
     this._statePath = statePath;
     this._onDetected = onDetected;
+    this._socketPath = socketPath;
+    this._socketWatch = null;
     this._settings = null;
     this._keyd = null;
     this._cancellable = new Gio.Cancellable();
@@ -67,9 +72,22 @@ export class HyperManager {
     this._state = this._readState();
   }
 
-  /** Finds out whether keyd runs. Synchronous when its socket exists; otherwise asks systemd. */
+  /**
+   * Finds out whether keyd runs. Synchronous when its socket exists; otherwise asks systemd. Then
+   * keeps watching the socket: keyd set up while Slated runs (linux/install.sh --hyper-keyd) is
+   * picked up without logging out, and Slated falls back to GNOME's option if keyd goes away.
+   */
   detect() {
-    if (exists(KEYD_SOCKET)) {
+    this._socketWatch ??= watchFile(this._socketPath, () => {
+      const before = this._keyd;
+      this._check();
+      if (this._keyd !== null && this._keyd !== before) this._onDetected?.();
+    });
+    this._check();
+  }
+
+  _check() {
+    if (exists(this._socketPath)) {
       this._keyd = true;
       return;
     }
@@ -91,7 +109,8 @@ export class HyperManager {
         } catch {
           return; // Cancelled by destroy().
         }
-        this._keyd = active;
+        // keyd may have started while systemd was answering: its socket says so.
+        this._keyd = active || exists(this._socketPath);
         this._onDetected?.();
       });
     } catch {
@@ -156,6 +175,8 @@ export class HyperManager {
 
   destroy() {
     this._cancellable.cancel();
+    this._socketWatch?.cancel();
+    this._socketWatch = null;
     this.restore();
     this._settings = null;
     this._onDetected = null;

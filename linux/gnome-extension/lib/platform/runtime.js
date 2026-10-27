@@ -152,6 +152,7 @@ export class SlatedRuntime {
         timers: this._timers,
         log: this._log,
         focusedAppId: () => this._platform?.appInfo(this._platform.focusedApp())?.id ?? null,
+        ownModifiers: () => this._synth?.heldModifierMask() ?? 0,
       });
       this._synth = new InputSynthesizer({log: this._log});
       this._platform = new GnomePlatform({timers: this._timers, input: this._input, synth: this._synth, home: this._home});
@@ -187,6 +188,12 @@ export class SlatedRuntime {
       });
       this._automation.perform = (action) => this._runner?.performStep(action) ?? false;
       this._automation.onChange = () => this._automationChanged();
+      // A stop (shortcut, app switch, time limit) also ends what's still pending: the rest of a macro
+      // and keys waiting for modifiers, which would otherwise land in the app you switched to.
+      this._automation.onStopAll = () => {
+        this._runner?.cancelPendingSteps();
+        this._input?.cancelPending();
+      };
       this._indicator = new AutomationIndicator();
       if (this._runner) this._runner.automation = this._automation;
     });
@@ -298,8 +305,13 @@ export class SlatedRuntime {
     this._step('hyper key', () => this._hyperManager?.destroy());
     this._step('hotstrings', () => this._espanso?.destroy({keepFile: locked}));
     this._timers.clearAll();
+    // The last status says what's left: GNOME's caps:hyper option went with Slated (keyd keeps
+    // working without it), and espanso's match file too, unless the screen is only locked.
+    const hyperRestored = this._hyper.mode === 'xkb';
+    if (hyperRestored) this._hyper = {...this._hyper, mode: 'off', active: false, hyperIsSuper: false};
+    if (!locked) this._hotstrings = {...this._hotstrings, count: 0};
     this._step('status', () => this._writeStatus(false));
-    this._log?.record('app.quit', {reason: locked ? 'screen locked' : 'disabled', hyperRestored: this._hyper.mode === 'xkb'}, 'notice');
+    this._log?.record('app.quit', {reason: locked ? 'screen locked' : 'disabled', hyperRestored}, 'notice');
     this._log?.close();
 
     this._debugService = this._monitors = this._screensChanged = this._store = this._sources = null;

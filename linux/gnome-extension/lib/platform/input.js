@@ -2,7 +2,8 @@
 // the device GNOME's on-screen keyboard uses. Events go through Mutter like real key presses.
 //
 // - Slated waits until you let go of the shortcut's modifiers first, so typed keys don't combine with
-//   a still-held Hyper or Ctrl.
+//   a still-held Hyper or Ctrl. Modifiers its own automation holds (a held Shift for sprinting) don't
+//   count: they stay down until the automation stops.
 // - A virtual keyboard can only produce characters the active layout has (Mutter looks keysyms up in
 //   the current layout group and silently drops the rest). So modifiers and named keys (arrows, F-keys,
 //   Return…) are sent as Linux evdev key codes, which don't depend on the layout; character keys are
@@ -301,11 +302,14 @@ export class InputInjector {
    * @param {object} options.timers  A Timers instance (cleared by the runtime on disable).
    * @param {object} [options.log]
    * @param {() => string|null} [options.focusedAppId]  For choosing the terminal paste shortcut.
+   * @param {() => number} [options.ownModifiers]  Clutter modifier bits Slated's own automation holds
+   *   down (synth.js `heldModifierMask`): those aren't waited for, as they stay down until it stops.
    */
-  constructor({timers, log = null, focusedAppId = () => null}) {
+  constructor({timers, log = null, focusedAppId = () => null, ownModifiers = () => 0}) {
     this._timers = timers;
     this._log = log;
     this._focusedAppId = focusedAppId;
+    this._ownModifiers = ownModifiers;
     this._device = null;
     this._clock = 0;
     this._destroyed = false;
@@ -339,6 +343,16 @@ export class InputInjector {
   pasteShortcut() {
     this._whenModifiersReleased(() => this._chord(this._pastePlan()));
     return {ok: true};
+  }
+
+  /**
+   * Drops keys and text still waiting for modifiers to be let go (automations were stopped). An
+   * auto-repeat keeps queueing while you hold a modifier, as for Alt+Tab, and none of that may be
+   * typed into the app you switch to.
+   */
+  cancelPending() {
+    this._waiting = [];
+    this._poller = this._timers.clear(this._poller);
   }
 
   destroy() {
@@ -469,6 +483,6 @@ export class InputInjector {
       Clutter.ModifierType.HYPER_MASK |
       Clutter.ModifierType.META_MASK;
     const [, , mods] = global.get_pointer();
-    return (mods & mask) === 0;
+    return (mods & mask & ~this._ownModifiers()) === 0;
   }
 }
