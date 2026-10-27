@@ -64,10 +64,10 @@ itself and removes again when you turn the Hyper key off. The Keyboard page show
 active, and `linux/install.sh` reminds you while keyd isn't set up.
 
 Slated uses keyd only while keyd runs (systemd says `keyd` is active; without systemd, keyd's socket
-is there) and one of its configs maps
-Caps Lock: Slated's own `/etc/keyd/slated.conf`, or a `capslock =` line in the `[main]` section of
-another `/etc/keyd/*.conf`. A keyd that only maps a mouse's side buttons leaves Caps Lock to GNOME's
-option. Slated notices keyd starting or stopping, and its configs changing, without logging out.
+is there) and one of its configs maps Caps Lock: Slated's own `/etc/keyd/slated.conf`, or a
+`capslock =` line in the `[main]` section of another `/etc/keyd/*.conf`. A keyd that only maps a
+mouse's side buttons leaves Caps Lock to GNOME's option. Slated notices keyd starting or stopping,
+and its configs changing, without logging out.
 
 | | GNOME's keyboard option (xkb) | keyd |
 |---|---|---|
@@ -323,7 +323,7 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | Editing `config.json` by hand changes nothing | The file must be valid JSON (comments and trailing commas are fine). Settings → Overview shows what's wrong, and `scripts/logs.py --errors` shows what the extension saw. |
 | Settings says it can't read `config.json` | The message names the spot, such as `bindings[2].id`. Ids must be UUIDs: delete a bad `"id"` line and Slated makes a new one. Settings won't save until the file reads, so nothing in it is lost. Operations from a newer Slated for Mac than the engine knows also stop it here. |
 | A `while-held` repeat keeps going after I let go | Check that Repeat Keys is on in GNOME Settings → Keyboard (`status.json` says `"whileHeld": "toggle"` otherwise). A repeat that types keys always needs a second press. `scripts/logs.py --grep automation.while_held` says which bindings work like toggles and why. |
-| An automation stops by itself | `scripts/logs.py --grep automation.stopped` gives the reason: switching apps or opening the overview (`automation.stopOnAppSwitch`), the time limit (`automation.maxRunMinutes`), the stop shortcut, or a config change. |
+| An automation stops by itself | `scripts/logs.py --grep automation.stopped` gives the reason: switching apps or opening the overview (`automation.stopOnAppSwitch`), the time limit (`automation.maxRunMinutes`), the stop shortcut, going to sleep, or a config change. |
 | An automation shortcut does nothing in the overview | By design: an auto-clicker started there would click into it. Close the overview first. `scripts/logs.py --grep automation.start_ignored` lists the presses Slated ignored. |
 | The stop or clipboard shortcut says "Couldn't register" | GNOME or another extension uses those keys (`cmd` is Super, so the clipboard's `cmd+shift+v` is Super+Shift+V). With Caps Lock as Hyper through GNOME's own option, `hyper+esc` can collide with GNOME's Super+Esc. Set `automation.stopShortcut` or `clipboard.shortcut` to other keys, such as `ctrl+alt+esc` or `ctrl+alt+v`. |
 | An `onlyInApps` shortcut never works | It's grabbed only while that app has focus. Use the id from `recentApps` in `status.json` (desktop id, or WM_CLASS for games without a desktop file). |
