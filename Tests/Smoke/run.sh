@@ -190,6 +190,19 @@ out=$(smoke "$home")
 expect_output "duplicate shortcuts are flagged" "$out" "duplicate"
 expect_output "the event log lists duplicate shortcuts" "$(log_of "$home")" '"duplicates":["ctrl+alt+cmd+f13"]'
 
+# 7b. A modal key macOS won't register (not a key at all, or another binding's shortcut): the bindings
+#     behind it can never run, so they're failed, with why, instead of active.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-modal-failures.json" "$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "bindings behind a modal key that won't register aren't active" "$out" "hotkeys: 3 registered, 1 active"
+expect_output "a modal key that isn't a key says so" "$out" \
+  "ctrl+alt+cmd+foo a failed: Its modal key can't be used: foo isn't a key on this keyboard layout"
+expect_output "a modal key another binding uses says so" "$out" \
+  "ctrl+alt+cmd+f12 b failed: Its modal key can't be used: Another Slated shortcut already uses"
+expect_output "the event log reports them as errors" "$(log_of "$home")" '"event":"hotkeys.registered","level":"error"'
+
 # 8. A run that didn't quit cleanly is reported on the next start.
 home=$(new_home)
 smoke "$home" >/dev/null

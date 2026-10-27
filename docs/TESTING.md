@@ -206,6 +206,8 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] A modal key shows its key beside the notch, then lists its keys after the delay.
 - [ ] A modal binding on keys another binding already uses: entering the mode logs
       `modal.key_failed`, and Settings shows that binding as failed instead of active.
+- [ ] A modal key that is another binding's shortcut: Settings shows every binding behind it as
+      failed ("Its modal key can't be used: Another Slated shortcut already uses …").
 - [ ] Turning the island off in Settings → General brings back the bottom HUD and the top pill.
 - [ ] No black shape stays at the notch once the island has nothing to show.
 
