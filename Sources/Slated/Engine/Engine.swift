@@ -341,8 +341,8 @@ final class Engine {
     let trusted = Permissions.isAccessibilityTrusted
     guard trusted != status.accessibilityGranted else { return }
     Log.record("permission.accessibility", level: .notice, ["granted": trusted])
-    applyKeyboard()
-    notify()
+    // Everything, not just the keyboard: mouse button shortcuts' statuses depend on the permission.
+    apply()
   }
 
   // MARK: Hotstrings

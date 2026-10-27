@@ -43,7 +43,7 @@ let package = Package(
     // machine only has the Command Line Tools. The harness mirrors Swift Testing's #expect/#require.
     .executableTarget(
       name: "SlatedTests",
-      dependencies: ["SlatedCore", "SlatedScript", "SlatedUI"],
+      dependencies: ["SlatedCore", "SlatedSystem", "SlatedScript", "SlatedUI"],
       path: "Tests/SlatedTests"
     ),
   ]

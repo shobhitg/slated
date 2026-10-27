@@ -67,7 +67,7 @@ final class ActionRunner {
     }
     let ok = perform(action, on: window, label: label, chainKey: chainKey)
     var data: [String: Any] = [
-      "trigger": trigger, "action": String(SlateSyntax.format(action).prefix(200)),
+      "trigger": trigger, "action": String(SlateSyntax.format(action.redactedForLog).prefix(200)),
       "ms": (CFAbsoluteTimeGetCurrent() - start) * 1000,
     ]
     data["label"] = label
@@ -210,7 +210,7 @@ final class ActionRunner {
     case .autoRepeat(let repeated, let interval, let mode, let times, let jitter):
       guard let automation else { return fail("Automation isn't available") }
       if case .autoRepeat = repeated { return fail("An auto-repeat can't repeat another auto-repeat") }
-      let id = currentTrigger ?? chainKey ?? "repeat \(SlateSyntax.format(repeated))"
+      let id = currentTrigger ?? chainKey ?? "repeat \(SlateSyntax.format(repeated.redactedForLog))"
       automation.toggleRepeat(
         repeated, interval: interval, mode: mode, times: times, jitter: jitter, id: id, trigger: currentTrigger)
       return true

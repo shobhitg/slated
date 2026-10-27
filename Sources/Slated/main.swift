@@ -3,11 +3,20 @@ import AppKit
 let app = NSApplication.shared
 
 if CommandLine.arguments.contains("--smoke") {
-  // Start the engine without UI or permission prompts, print what it loaded, and exit.
+  // Start the engine without UI or permission prompts, print what it loaded, and exit. Tests/Smoke can
+  // keep it running longer (SLATED_SMOKE_SECONDS) and drive it half way through (SLATED_SMOKE_STEPS,
+  // see SmokeSteps).
+  let environment = ProcessInfo.processInfo.environment
+  let steps = (environment["SLATED_SMOKE_STEPS"] ?? "").split(separator: " ").map(String.init)
   let engine = Engine()
   engine.allowsKeyboardChanges = false
   engine.start()
-  DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+  let seconds = environment["SLATED_SMOKE_SECONDS"].flatMap(Double.init) ?? 1
+  DispatchQueue.main.asyncAfter(deadline: .now() + seconds / 2) {
+    for step in steps { SmokeSteps.run(step, engine: engine) }
+  }
+  DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+    SmokeSteps.report(steps)
     let status = engine.status
     let config = engine.configuration
     print("config:", engine.store.fileURL.path, engine.store.loadError ?? "ok")

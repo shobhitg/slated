@@ -23,6 +23,9 @@ final class AutomationEngine {
 
   private var repeaters: [String: Repeater] = [:]
   private var held: [SyntheticInput: ActiveAutomation] = [:]
+  /// The key code each held key went down with: the release must go to the same key even if the
+  /// keyboard layout (and so the key a character is on) changes meanwhile.
+  private var pressedKeyCodes: [SyntheticInput: CGKeyCode] = [:]
   /// The app that was frontmost when the first automation started (for `stopOnAppSwitch`).
   private var startedInApp: String?
   private var limitTimer: Timer?
@@ -47,7 +50,8 @@ final class AutomationEngine {
       return
     }
     let schedule = RepeatSchedule(interval: interval, times: times, jitter: jitter)
-    var title = "Repeat \(SlateSyntax.format(action)) every \(Self.describe(seconds: schedule.interval))"
+    // Logged and shown on screen, so typed text is redacted.
+    var title = "Repeat \(SlateSyntax.format(action.redactedForLog)) every \(Self.describe(seconds: schedule.interval))"
     if let times = schedule.times { title += ", \(times)×" }
     let info = ActiveAutomation(id: id, title: title, trigger: trigger, startedAt: Date(), repetitions: 1)
     repeaters[id] = Repeater(timer: nil, info: info, action: action, schedule: schedule, mode: mode)
@@ -141,10 +145,12 @@ final class AutomationEngine {
       InputSynth.mouse(button, down: down)
       return true
     case .key(let combo):
-      guard let code = KeyCodes.code(for: combo.key) else {
+      let pressed = down ? nil : pressedKeyCodes.removeValue(forKey: input)
+      guard let code = pressed ?? KeyCodes.code(for: combo.key) else {
         Log.error("automation.unknown_key", "\(combo.key) isn't a key on this keyboard layout")
         return false
       }
+      if down { pressedKeyCodes[input] = code }
       InputSynth.key(code, modifiers: combo.modifiers, down: down)
       return true
     }

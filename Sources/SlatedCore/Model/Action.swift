@@ -350,6 +350,22 @@ public indirect enum Action: Hashable, Sendable {
     default: return false
     }
   }
+
+  /// A copy safe for the event log: `insert-text` content is replaced by its length, as hotstring
+  /// replacements are never logged (the GNOME extension's `redactForLog` does the same).
+  public var redactedForLog: Action {
+    switch self {
+    case .insertText(let text, let method): return .insertText("(\(text.count) characters)", method: method)
+    case .chain(let actions): return .chain(actions.map(\.redactedForLog))
+    case .sequence(let steps):
+      return .sequence(steps.map { SequenceStep($0.action.redactedForLog, keepWindow: $0.keepWindow) })
+    case .byOrientation(let landscape, let portrait):
+      return .byOrientation(landscape: landscape.redactedForLog, portrait: portrait.redactedForLog)
+    case .autoRepeat(let action, let interval, let mode, let times, let jitter):
+      return .autoRepeat(action.redactedForLog, interval: interval, mode: mode, times: times, jitter: jitter)
+    default: return self
+    }
+  }
 }
 
 // MARK: - Codable

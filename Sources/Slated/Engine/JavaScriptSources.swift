@@ -18,7 +18,7 @@ final class JavaScriptSources {
   /// Layouts with JavaScript steps, run through their engine.
   private var scriptLayouts: [String: (engine: SlateScriptEngine, layout: ScriptLayout)] = [:]
   private var callbackDefaults: [(engine: SlateScriptEngine, condition: ScreenDefault.Condition, id: ScriptCallbackID)] = []
-  private var observers: [NSObjectProtocol] = []
+  private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
   private weak var runner: ActionRunner?
   /// Problems from running scripts (as opposed to loading them).
   var onDiagnostics: (([Diagnostic]) -> Void)?
@@ -30,6 +30,9 @@ final class JavaScriptSources {
     bindings = []
     scriptLayouts = [:]
     callbackDefaults = []
+    // A script that isn't loaded again (Slate files turned off, the file deleted) gets no more events.
+    for observer in observers { observer.center.removeObserver(observer.token) }
+    observers.removeAll()
   }
 
   func load(path: String, displayPath: String, runner: ActionRunner) -> SlateSource {
@@ -142,9 +145,9 @@ final class JavaScriptSources {
 
   // MARK: Events (`slate.on`)
 
+  /// Adds this file's observers; `reset()` removes them before the next load.
   private func observeEvents(_ events: Set<ScriptEventName>, engine: SlateScriptEngine) {
-    for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
-    observers.removeAll()
+    let center = NSWorkspace.shared.notificationCenter
     let workspace: [(ScriptEventName, Notification.Name)] = [
       (.appOpened, NSWorkspace.didLaunchApplicationNotification),
       (.appClosed, NSWorkspace.didTerminateApplicationNotification),
@@ -154,36 +157,36 @@ final class JavaScriptSources {
       (.appDeactivated, NSWorkspace.didDeactivateApplicationNotification),
     ]
     for (event, name) in workspace where events.contains(event) {
-      observers.append(
-        NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) {
-          [weak self, weak engine] note in
-          guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-          let info = ScriptAppInfo(pid: app.processIdentifier, name: app.localizedName ?? "", bundleID: app.bundleIdentifier)
-          MainActor.assumeIsolated {
-            guard let engine else { return }
-            let scriptEvent: ScriptEvent
-            switch event {
-            case .appOpened: scriptEvent = .appOpened(info)
-            case .appClosed: scriptEvent = .appClosed(info)
-            case .appHidden: scriptEvent = .appHidden(info)
-            case .appUnhidden: scriptEvent = .appUnhidden(info)
-            case .appActivated: scriptEvent = .appActivated(info)
-            default: scriptEvent = .appDeactivated(info)
-            }
-            self?.report(engine.dispatch(event: scriptEvent))
+      let token = center.addObserver(forName: name, object: nil, queue: .main) {
+        [weak self, weak engine] note in
+        guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+        let info = ScriptAppInfo(pid: app.processIdentifier, name: app.localizedName ?? "", bundleID: app.bundleIdentifier)
+        MainActor.assumeIsolated {
+          guard let engine else { return }
+          let scriptEvent: ScriptEvent
+          switch event {
+          case .appOpened: scriptEvent = .appOpened(info)
+          case .appClosed: scriptEvent = .appClosed(info)
+          case .appHidden: scriptEvent = .appHidden(info)
+          case .appUnhidden: scriptEvent = .appUnhidden(info)
+          case .appActivated: scriptEvent = .appActivated(info)
+          default: scriptEvent = .appDeactivated(info)
           }
-        })
+          self?.report(engine.dispatch(event: scriptEvent))
+        }
+      }
+      observers.append((center, token))
     }
     if events.contains(.screenConfigurationChanged) {
-      observers.append(
-        NotificationCenter.default.addObserver(
-          forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-        ) { [weak self, weak engine] _ in
-          MainActor.assumeIsolated {
-            guard let engine else { return }
-            self?.report(engine.dispatch(event: .screenConfigurationChanged))
-          }
-        })
+      let token = NotificationCenter.default.addObserver(
+        forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+      ) { [weak self, weak engine] _ in
+        MainActor.assumeIsolated {
+          guard let engine else { return }
+          self?.report(engine.dispatch(event: .screenConfigurationChanged))
+        }
+      }
+      observers.append((NotificationCenter.default, token))
     }
     let unsupported = events.subtracting(Set(workspace.map(\.0)) + [.screenConfigurationChanged])
     if !unsupported.isEmpty {

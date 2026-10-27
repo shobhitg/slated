@@ -12,7 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private let popover = NSPopover()
   private var settingsWindow: NSWindow?
   private var onboardingWindow: NSWindow?
-  private var signalSource: DispatchSourceSignal?
+  private var signalSources: [DispatchSourceSignal] = []
   private lazy var clipboardPanel = ClipboardPanel(services: services)
   private var modalActive = false
   private static let onboardingDoneKey = "onboardingCompleted"
@@ -57,17 +57,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     return false
   }
 
-  /// `install.sh`, `make run` and logout send SIGTERM; route it through normal termination so Caps
-  /// Lock is restored instead of staying remapped until reboot.
+  /// `install.sh`, `make run` and logout send SIGTERM, and a terminal running Slated sends SIGINT
+  /// (Ctrl-C) or SIGHUP (closed); route them through normal termination so Caps Lock is restored
+  /// instead of staying remapped until reboot.
   private func handleTerminationSignals() {
-    signal(SIGTERM, SIG_IGN)
-    let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-    source.setEventHandler {
-      Log.record("app.sigterm")
-      NSApp.terminate(nil)
+    for (number, name) in [(SIGTERM, "sigterm"), (SIGINT, "sigint"), (SIGHUP, "sighup")] {
+      signal(number, SIG_IGN)
+      let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
+      source.setEventHandler {
+        Log.record("app.\(name)")
+        NSApp.terminate(nil)
+      }
+      source.resume()
+      signalSources.append(source)
     }
-    source.resume()
-    signalSource = source
   }
 
   // MARK: Windows

@@ -6,7 +6,7 @@ enum ConfigDiff {
   static func changes(from old: SlatedConfiguration, to new: SlatedConfiguration) -> [String] {
     var changes: [String] = []
     changes += diff(old.bindings, new.bindings, noun: "binding") {
-      "\($0.name ?? SlateSyntax.format($0.action)) (\($0.keys.string))"
+      "\($0.name ?? SlateSyntax.format($0.action.redactedForLog)) (\($0.keys.string))"
     }
     changes += diff(old.hotstrings, new.hotstrings, noun: "hotstring") { $0.trigger }
     if old.keyboard != new.keyboard {
