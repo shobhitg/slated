@@ -46,6 +46,11 @@ function harness(files = {}) {
 
 const half = presetById('left-half').action;
 
+/** A Slate file with a layout named "Code" and a shortcut that applies it. */
+const SLATE_CODE = 'slate.layout("Code", {"Terminal": {"operations": [slate.operation("move", '
+  + '{"x": "screenOriginX", "y": "screenOriginY", "width": "screenSizeX", "height": "screenSizeY"})]}});\n'
+  + 'slate.bind("c:ctrl,alt", slate.operation("layout", {"name": "Code"}));\n';
+
 /** config.json ids must be UUIDs, as in Swift: deterministic ones for the tests. */
 const testId = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const A = testId(0xa);
@@ -257,6 +262,33 @@ export default suite('Preferences model', [
       l.apps.push({app: 'Files', operations: [], options: l.apps[0].options});
     });
     expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps.length}`), ['A: 1', 'AB: 2']);
+  }],
+  ['a Slate file\'s layout name is taken, as when adding a layout', () => {
+    const {model} = harness({[CONFIG]: JSON.stringify({layouts: [{name: 'New Layout', apps: []}]}), [`${HOME}/.slate.js`]: SLATE_CODE});
+    model.load();
+    expectEqual(model.layoutNameProblem('New Layout', 'Code'), 'Another layout already has this name.');
+    expectEqual(model.setLayout('New Layout', l => {
+      l.name = 'Code';
+    }), 'New Layout');
+    expectEqual(model.layoutNameProblem('New Layout', 'Code 2'), null);
+  }],
+  ['a rename keeps what named the new name before (a Slate layout, or none yet) where it was', () => {
+    const {model} = harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'Terminals', apps: []}],
+      bindings: [{id: A, keys: 'hyper+t', action: {op: 'layout', name: 'Terminals'}}, {id: B, keys: 'hyper+g', action: {op: 'layout', name: 'Gaming'}}],
+    })});
+    model.load();
+    expectEqual([...model.layoutReferences('Gaming')], [`binding:${B}`]);
+    // As the layout editor types "Gaming 2" over "Terminals": "Gaming" arrives with hyper+g on it.
+    let name = model.setLayout('Terminals', l => {
+      l.name = 'Gaming';
+    });
+    expectEqual(model.configuration.bindings.map(b => b.action.name), ['Gaming', 'Gaming']);
+    name = model.setLayout(name, l => {
+      l.name = 'Gaming 2';
+    }, {keep: new Set([`binding:${B}`])});
+    expectEqual(name, 'Gaming 2');
+    expectEqual(model.configuration.bindings.map(b => b.action.name), ['Gaming 2', 'Gaming']);
   }],
   ['a rename re-points every step, hotstring and display default that applies the layout', () => {
     const layout = name => ({op: 'layout', name});

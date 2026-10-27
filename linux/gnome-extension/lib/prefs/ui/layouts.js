@@ -74,15 +74,21 @@ function pushLayoutEditor(ctx, name, source = null, index = null) {
   // Why the model didn't take the typed name (empty, or another layout's; see layoutNameProblem). The
   // field keeps what was typed, flagged, until the name is usable.
   let nameProblem = null;
+  // Typing passes through other names. What applied one of them before this layout took it (a
+  // shortcut for a layout still to be made) keeps it when typing goes on: only this layout's own
+  // shortcuts move with it.
+  const arrivals = new Map();
   const nameRow = editable ? entryRow({title: 'Name', text: name, onChange: v => {
     const before = currentName;
     nameProblem = model.layoutNameProblem(before, v, currentIndex);
+    const named = nameProblem || v === before ? null : model.layoutReferences(v);
     // The model runs its listeners, this page's sync among them, before setLayout returns: look the
     // layout up under its new name from the start, or sync finds no layout and closes the page.
     if (!nameProblem) currentName = v;
     currentName = model.setLayout(before, l => {
       l.name = v;
-    }, {index: currentIndex});
+    }, {index: currentIndex, keep: arrivals.get(before)});
+    if (named && currentName === v) arrivals.set(v, named);
     showNameIssues();
   }}) : null;
   if (nameRow) top.add(nameRow.row);

@@ -856,6 +856,42 @@ async function run(mode) {
     model.deleteLayout(`${taken} 2`);
   });
 
+  await step('typing a name through a Slate layout\'s, or one only a shortcut names, takes no shortcut along', async () => {
+    const extra = path.join(files.home, '.slate.layouts.js');
+    fs.writeFileSync(extra, 'slate.layout("Writing", {"Notes": {"operations": [slate.operation("move", '
+      + '{"x": "screenOriginX", "y": "screenOriginY", "width": "screenSizeX", "height": "screenSizeY"})]}});\n'
+      + 'slate.bind("w:ctrl,alt", slate.operation("layout", {"name": "Writing"}));\n');
+    model.update(config => {
+      config.general.slateConfigPaths.push('~/.slate.layouts.js');
+    });
+    const copied = model.copyIntoSlated(model.sources.find(s => s.file === extra).bindings[0]);
+    const gaming = model.addBinding({op: 'layout', name: 'Gaming'}, {keys: 'hyper+g'});
+    settings.showPane('layouts');
+    click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'New Layout')[0]);
+    const page = visible('layouts');
+    const own = model.addBinding({op: 'layout', name: 'New Layout'}, {keys: 'hyper+9'});
+    const name = titled(page, 'Adw.EntryRow', 'Name')[0];
+    const problem = titled(page, 'Adw.ActionRow', 'Not saved')[0];
+    // Select all and type, a letter at a time.
+    const type = text => [...text].forEach((_, i) => name.set_text(text.slice(0, i + 1)));
+    type('Writing');
+    check(prop(world, problem, 'visible') !== false && prop(world, problem, 'subtitle') === 'Another layout already has this name.',
+      `the Slate file's layout name is taken: ${prop(world, problem, 'subtitle')}`);
+    type('Writing 2');
+    type('Gaming 2');
+    const names = () => [own, copied, gaming].map(id => model.binding(id).action.name);
+    check(names().join() === 'Gaming 2,Writing,Gaming', `only the layout's own shortcut follows: ${names()}`);
+    await settle();
+    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    const saved = [own, copied, gaming].map(id => onDisk.bindings.find(b => b.id === id).action.name);
+    check(saved.join() === 'Gaming 2,Writing,Gaming', `nor on disk: ${saved}`);
+    for (const id of [own, copied, gaming]) model.deleteBinding(id);
+    model.deleteLayout('Gaming 2');
+    model.update(config => {
+      config.general.slateConfigPaths.pop();
+    });
+  });
+
   await step('a layout copied in config.json is its own: its row edits it, and deleting it keeps the original', async () => {
     const original = model.configuration.layouts[0];
     model.update(config => {

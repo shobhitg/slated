@@ -17,7 +17,7 @@ import {keysString, statusKey} from './keys.js';
 import {validate, savable, configChanges, target, LAYOUT_NAME_MISSING, LAYOUT_NAME_TAKEN} from './validator.js';
 import {parseStatus, emptyStatus, extensionState, bindingState, runningSummary} from './status.js';
 import {presetById, starterBindings} from './presets.js';
-import {bindingTitle, renameLayout} from './actions.js';
+import {bindingTitle, layoutNames, renameLayout} from './actions.js';
 import {builtInShortcut, recipeBindingName, sharesApps} from './automation.js';
 import {loadSlateScript, importSlateScript, importClassic, planImport} from './importer.js';
 import {newBinding, newHotstring} from './config.js';
@@ -615,13 +615,25 @@ export class PrefsModel extends Emitter {
 
   /**
    * Why the layout called `name` (at `index`) can't be renamed to `newName`, or null. Shortcuts apply
-   * a layout by its name, so a rename that clashes would move them to the other layout.
+   * a layout by its name, so a rename that clashes would move them to the other layout. A Slate
+   * file's layouts count, as for addLayout: their shortcuts would come along too.
    */
   layoutNameProblem(name, newName, index = null) {
     if (!String(newName ?? '').trim()) return LAYOUT_NAME_MISSING;
     if (newName === name) return null;
     const own = layoutIndex(this.draft.layouts, name, index);
-    return this.draft.layouts.some((l, i) => i !== own && l.name === newName) ? LAYOUT_NAME_TAKEN : null;
+    const taken = this.draft.layouts.some((l, i) => i !== own && l.name === newName)
+      || this.sources.some(s => s.layouts.some(l => l.name === newName));
+    return taken ? LAYOUT_NAME_TAKEN : null;
+  }
+
+  /** What applies the layout called `name`: "binding:<id>", "hotstring:<id>" and "default:<index>" keys. */
+  layoutReferences(name) {
+    const refs = new Set();
+    for (const b of this.draft.bindings) if (layoutNames(b.action).includes(name)) refs.add(target.binding(b.id));
+    for (const h of this.draft.hotstrings) if (layoutNames(h.action).includes(name)) refs.add(target.hotstring(h.id));
+    (this.draft.defaults ?? []).forEach((d, i) => d.target === name && refs.add(`default:${i}`));
+    return refs;
   }
 
   /**
@@ -629,9 +641,10 @@ export class PrefsModel extends Emitter {
    * what applies it: bindings and hotstrings, in any step, and display defaults. Returns the
    * layout's new name. A rename to an empty name or another layout's isn't applied (see
    * layoutNameProblem): the shortcuts would follow it to the other layout, and finding this one by
-   * name would find that.
+   * name would find that. What's in `keep` (layoutReferences keys) isn't re-pointed: as a name is
+   * typed, the layout editor keeps there what named a name before the layout took it.
    */
-  setLayout(name, mutate, {index = null} = {}) {
+  setLayout(name, mutate, {index = null, keep = new Set()} = {}) {
     let newName = name;
     this.update(config => {
       const at = layoutIndex(config.layouts, name, index);
@@ -642,13 +655,15 @@ export class PrefsModel extends Emitter {
       newName = layout.name;
       // A copy still has the old name: what applies that name stays with it.
       if (newName === name || config.layouts.some(l => l.name === name)) return;
-      for (const b of config.bindings) b.action = renameLayout(b.action, name, newName);
+      for (const b of config.bindings) {
+        if (!keep.has(target.binding(b.id))) b.action = renameLayout(b.action, name, newName);
+      }
       for (const h of config.hotstrings) {
-        if (h.action !== undefined) h.action = renameLayout(h.action, name, newName);
+        if (h.action !== undefined && !keep.has(target.hotstring(h.id))) h.action = renameLayout(h.action, name, newName);
       }
-      for (const d of config.defaults ?? []) {
-        if (d.target === name) d.target = newName;
-      }
+      (config.defaults ?? []).forEach((d, i) => {
+        if (d.target === name && !keep.has(`default:${i}`)) d.target = newName;
+      });
     });
     return newName;
   }
