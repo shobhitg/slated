@@ -195,6 +195,7 @@ struct ClipboardSwitcherView: View {
         }
         .buttonStyle(.plain)
         .help("Clear search")
+        .accessibilityLabel("Clear search")
       }
       Text(countText)
         .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())

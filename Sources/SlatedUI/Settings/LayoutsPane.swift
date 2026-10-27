@@ -216,6 +216,7 @@ private struct LayoutDetail: View {
         } label: {
           Image(systemName: "ellipsis.circle").font(.system(size: 15))
         }
+        .accessibilityLabel("More")
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
@@ -345,6 +346,7 @@ private struct LayoutAppRow: View {
           } label: {
             Image(systemName: "ellipsis")
           }
+          .accessibilityLabel("Options for \(app.app.isEmpty ? "this app" : app.app)")
           .menuStyle(.borderlessButton)
           .menuIndicator(.hidden)
           .fixedSize()

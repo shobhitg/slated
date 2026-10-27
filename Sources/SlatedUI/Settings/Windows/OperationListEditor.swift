@@ -161,6 +161,7 @@ private struct StepRow: View {
       } label: {
         Image(systemName: "ellipsis")
       }
+      .accessibilityLabel("Options for step \(index + 1)")
       .menuStyle(.borderlessButton)
       .menuIndicator(.hidden)
       .fixedSize()

@@ -92,6 +92,7 @@ private struct SourceCard: View {
           } label: {
             Image(systemName: "ellipsis.circle").font(.system(size: 14))
           }
+          .accessibilityLabel("More")
           .menuStyle(.borderlessButton)
           .menuIndicator(.hidden)
           .fixedSize()
@@ -180,6 +181,7 @@ private struct PathsCard: View {
           }
           .buttonStyle(.plain)
           .help("Stop loading this file")
+          .accessibilityLabel("Stop loading \(paths[index])")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

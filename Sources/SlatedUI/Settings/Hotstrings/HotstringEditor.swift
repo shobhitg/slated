@@ -63,6 +63,7 @@ struct HotstringEditor: View {
       } label: {
         Image(systemName: "ellipsis.circle").font(.system(size: 15))
       }
+      .accessibilityLabel("More")
       .menuStyle(.borderlessButton)
       .menuIndicator(.hidden)
       .fixedSize()

@@ -76,6 +76,7 @@ struct BindingEditor: View {
       } label: {
         Image(systemName: "ellipsis.circle").font(.system(size: 15))
       }
+      .accessibilityLabel("More")
       .menuStyle(.borderlessButton)
       .menuIndicator(.hidden)
       .fixedSize()
@@ -340,6 +341,7 @@ private struct ChainStepper: View {
       } label: {
         Image(systemName: "chevron.left")
       }
+      .accessibilityLabel("Previous press")
       Text("Press \(step % count + 1) of \(count)")
         .font(.system(size: 11, weight: .medium).monospacedDigit())
         .frame(minWidth: 74)
@@ -348,6 +350,7 @@ private struct ChainStepper: View {
       } label: {
         Image(systemName: "chevron.right")
       }
+      .accessibilityLabel("Next press")
     }
     .buttonStyle(.borderless)
     .font(.system(size: 10, weight: .semibold))
