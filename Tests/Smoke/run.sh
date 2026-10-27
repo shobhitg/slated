@@ -140,6 +140,15 @@ expect_true "the unreadable config.json is left as it was" \
   cmp -s "$FIXTURES/config-broken.json" "$home/.config/slated/config.json"
 expect_output "the event log records the refused save" "$(log_of "$home")" '"event":"config.save_failed"'
 
+# 5e. While config.json can't be read, Slated keeps running the last good configuration, and the
+#     clipboard switcher says what Return does with it ("Copy" with pasteAfterSelecting off).
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+echo '{ "clipboard": { "pasteAfterSelecting": false } }' >"$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_STEPS="switcher break-config switcher" smoke "$home")
+expect_true "the switcher says Return copies, before and after config.json breaks" \
+  test "$(grep -c "^switcher: Return copies" <<<"$out")" -eq 2
+
 # 5c. A config.json symlinked from a dotfiles folder stays a symlink when Slated saves it.
 home=$(new_home)
 mkdir -p "$home/.config/slated" "$home/dotfiles"

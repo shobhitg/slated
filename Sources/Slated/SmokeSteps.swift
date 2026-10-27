@@ -81,6 +81,14 @@ enum SmokeSteps {
       let items = engine.clipboard.history.items
       let expired = items.filter { !$0.pinned && $0.copiedAt < later.addingTimeInterval(-30 * 86_400) }.count
       print("clipboard after a copy a day later: \(expired) expired, \(items.filter(\.pinned).count) pinned")
+    case "break-config":
+      // config.json stops being readable while Slated runs (a hand edit half done), and is reloaded.
+      try? Data("{ \"bindings\": [".utf8).write(to: engine.store.fileURL)
+      engine.reload()
+    case "switcher":
+      // What the clipboard switcher says Return does, with the services the app gives it.
+      let model = ClipboardSwitcherModel(services: LiveServices.forClipboardSwitcher(engine))
+      print("switcher: Return \(model.pasteAfterSelecting ? "pastes" : "copies")")
     case "move-config-away":
       // The file config.json links to goes away while Slated runs (a branch switch, an unmounted volume).
       let target = engine.store.fileURL.resolvingSymlinksInPath()

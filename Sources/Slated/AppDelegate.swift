@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var settingsWindow: NSWindow?
   private var onboardingWindow: NSWindow?
   private var signalSources: [DispatchSourceSignal] = []
-  private lazy var clipboardPanel = ClipboardPanel(services: services)
+  private lazy var clipboardPanel = ClipboardPanel(services: LiveServices.forClipboardSwitcher(engine))
   private var modalActive = false
   private static let onboardingDoneKey = "onboardingCompleted"
 
