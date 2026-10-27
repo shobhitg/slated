@@ -127,7 +127,8 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 ## Linux (GNOME) port
 
 9. **Which Linux?** Distro, GNOME version (`gnome-shell --version`) and session type
-   (`echo $XDG_SESSION_TYPE`). *Assumption:* GNOME 46–49 on Wayland (Ubuntu 24.04+, Fedora 40+).
+   (`echo $XDG_SESSION_TYPE`). *Assumption:* GNOME 46–51 on Wayland (Ubuntu 24.04+, Fedora 40+);
+   50 and 51 are declared but untested.
 10. **Docker for GNOME tests.** Docker Desktop is installed here but not running. If you start it,
     the headless GNOME Shell tests can run on this Mac, verifying the extension without a Linux
     machine. *Assumption:* left off; CI runs them.
@@ -135,7 +136,29 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
     generates espanso's config from your hotstrings (espanso is a mature open-source text expander
     that works on GNOME). OK to depend on it, or do you want a native engine (which needs keyboard
     device permissions: the `input` group and a udev rule)?
-12. **Hyper key on Linux.** Default: GNOME's built-in "Caps Lock as Hyper" option, which needs no
-    admin rights and gives shortcuts like `<Hyper>a`. Optional: `keyd`, a system service, for
-    macOS-identical ⌃⌥⇧⌘. Preference?
+12. **Hyper key on Linux.** Slated uses keyd when it's running (`linux/install.sh --hyper-keyd`, asks
+    for sudo): Caps Lock then sends Ctrl+Alt+Shift+Super exactly like the Mac, and can tap for
+    Escape. Without keyd it falls back to GNOME's own "Caps Lock as Hyper" option, which needs no
+    admin rights, but in many layouts GNOME then treats ✦A and Super+A as the same shortcut.
+    *Assumption:* recommend keyd. OK to ask for sudo once, or should the GNOME option be the default?
+14. **Games and app ids on Linux.** Per-app automations name apps by desktop id, or by WM_CLASS for
+    games without one (Steam/Proton games are `steam_app_<id>`). Which games do you play on Linux,
+    so I can check their ids? And which password manager, so clipboard history skips it (KeePassXC,
+    Bitwarden, 1Password, GNOME Secrets and Seahorse are preset, with ids I couldn't check on a real
+    install)?
+
+### Linux decisions (tell me if you disagree)
+
+- **Mouse buttons can't be shortcuts in GNOME.** Bindings on mouse buttons 3–5 show as failed there;
+  keyd can turn the side buttons into F13–F20, and Settings shows the hint. Kept as a warning, not
+  an error, so a shared config still saves for the Mac.
+- **`while-held` repeats stop through key repeat**, because GNOME only reports key presses: about
+  0.1 s after you let go, or right away when you press another key. With key repeat off, or for
+  repeats that type keys themselves, a second press stops them.
+- **Opening the overview counts as leaving the app:** automations stop, like switching apps.
+- **The Clipboard settings page shows only how many items are saved.** Picking, pinning and
+  deleting happen in the switcher (Super+Shift+V); showing the items in Settings would need another
+  channel between the extension and the settings window.
+- **No notch island on GNOME yet.** Running automations show as a pill at the top of the primary
+  display, like the Mac's classic indicator.
 
