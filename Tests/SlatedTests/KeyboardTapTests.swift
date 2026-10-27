@@ -236,6 +236,50 @@ let keyboardTapTests = Suite(
       }
     ),
     (
+      "recording a shortcut keeps the Hyper key but no shortcut or hotstring; Pause Slated turns all off",
+      {
+        var config = SlatedConfiguration()
+        config.keyboard.capsLock = .hyper
+        config.hotstrings = [Hotstring(trigger: ";sig", replacement: "Best")]
+        func live(paused: Bool, recording: Bool) -> String {
+          let live = LiveTriggers(config, paused: paused, recording: recording)
+          return "hyper \(live.hyperKey), shortcuts \(live.shortcuts), hotstrings \(live.hotstrings)"
+        }
+        expectEqual(live(paused: false, recording: false), "hyper true, shortcuts true, hotstrings true")
+        // Caps Lock must still reach the recorder as ✦, not as a plain Caps Lock.
+        expectEqual(live(paused: false, recording: true), "hyper true, shortcuts false, hotstrings false")
+        expectEqual(live(paused: true, recording: false), "hyper false, shortcuts false, hotstrings false")
+        expectEqual(live(paused: true, recording: true), "hyper false, shortcuts false, hotstrings false")
+        config.keyboard.capsLock = .off
+        expect(!LiveTriggers(config, paused: false, recording: true).hyperKey)
+      }
+    ),
+    (
+      "while a shortcut is recorded, Caps Lock + a key or click reaches it with the Hyper modifiers, Meh too",
+      {
+        // The options the engine gives the tap while recording: Hyper on; no Hyper combos, mouse
+        // buttons or hotstrings to catch.
+        for (modifiers, flags) in [(Modifiers.hyper, hyperFlags), (.meh, [.maskControl, .maskAlternate, .maskShift])] {
+          let (tap, recorder) = recordingTap()
+          var options = hyperOn
+          options.hyperModifiers = modifiers
+          tap.update(options: options, hotstrings: [Hotstring(trigger: "a", replacement: "Best")])
+          expect(tap.handle(type: .keyDown, event: key(capsLock, down: true)) == nil)
+          let combo = key(keyA, down: true)
+          expect(tap.handle(type: .keyDown, event: combo) != nil, "the key reaches the recorder")
+          expectEqual(combo.flags.intersection(hyperFlags), flags)
+          let click = otherMouse(button: 3, down: true)
+          expect(tap.handle(type: .otherMouseDown, event: click) != nil, "the click reaches the recorder")
+          expectEqual(click.flags.intersection(hyperFlags), flags)
+          _ = tap.handle(type: .keyUp, event: key(capsLock, down: false))
+          let plain = key(keyA, down: true)
+          expect(tap.handle(type: .keyDown, event: plain) != nil, "no hotstring expands")
+          deliverCallbacks()
+          expectEqual(recorder.events, ["hyper pressed", "hyper used", "hyper released"])
+        }
+      }
+    ),
+    (
       "contract: the HID system answers for any mouse button, including 4 and 5",
       {
         // Read-only. CGMouseButton is a C enum with three named cases; the tap asks about buttons 4

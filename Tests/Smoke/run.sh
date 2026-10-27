@@ -103,6 +103,21 @@ expect_output "pausing unregisters every hotkey" "$out" "paused: 0 hotkeys regis
 expect_output "switching apps while paused doesn't bring them back" "$out" \
   "paused, after switching apps: 0 hotkeys registered"
 
+# 4c2. Recording a shortcut in Settings: no shortcut or hotstring fires, but the Hyper key keeps working
+#      (Caps Lock stays mapped, the tap adds its modifiers), so holding Caps Lock records ✦. Only Pause
+#      Slated gives Caps Lock back.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+echo '{ "keyboard": { "capsLock": "hyper" }, "hotstrings": [ { "trigger": ";sig", "replacement": "Best" } ] }' \
+  >"$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_STEPS=record-shortcut smoke "$home")
+expect_output "recording a shortcut keeps the Hyper key, with no shortcut or hotstring live" "$out" \
+  "recording a shortcut: Hyper key on, shortcuts off, hotstrings off, 0 hotkeys registered"
+expect_output "pausing while recording turns the Hyper key off too" "$out" \
+  "paused while recording: Hyper key off, shortcuts off, hotstrings off, 0 hotkeys registered"
+expect_true "everything comes back after recording" \
+  grep -qE "^after recording: Hyper key on, shortcuts on, hotstrings on, [1-9][0-9]* hotkeys registered" <<<"$out"
+
 # 4d. Notch island settings; the cheat sheet lists only Hyper shortcuts, grouped.
 home=$(new_home)
 mkdir -p "$home/.config/slated"

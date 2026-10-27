@@ -139,11 +139,10 @@ public protocol AppServices: AnyObject {
   func revealConfigurationFile()
   /// Shows a file in the Finder, e.g. a Slate config. `path` may start with `~`.
   func revealFile(atPath path: String)
-  /// Suspends global hotkeys, Hyper and hotstrings while the UI records a shortcut, and while the
-  /// hotstring "try it" field has focus (so the real engine doesn't expand into it too).
-  /// The recorder reads F18, the Hyper key's raw key, as the Hyper modifiers itself, so Hyper
-  /// shortcuts can be recorded even though the Hyper event tap is suspended. That needs Caps Lock to
-  /// stay mapped to F18 meanwhile.
+  /// Stops every shortcut and hotstring from firing while the UI records a shortcut, and while the
+  /// hotstring "try it" field has focus (so the real engine doesn't expand into it too). The Hyper key
+  /// keeps working meanwhile (Caps Lock stays mapped to F18 and the event tap still adds its
+  /// modifiers), so holding Caps Lock records ✦; only `setPaused` turns it off.
   func setHotkeysSuspended(_ suspended: Bool)
   /// Pauses or resumes all hotkeys, the Hyper key and hotstrings (menu bar "Pause Slated").
   /// Runtime only: not saved in the configuration. Reflected in `RuntimeStatus.paused`.

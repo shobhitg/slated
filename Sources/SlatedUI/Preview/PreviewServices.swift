@@ -108,7 +108,7 @@ public final class PreviewServices: AppServices {
   public func revealConfigurationFile() {}
   public func revealFile(atPath path: String) {}
   public func setHotkeysSuspended(_ suspended: Bool) {
-    // Like the app: while suspended, neither the Hyper key nor hotstrings are live.
+    // Like the app: while suspended, no shortcut or hotstring is live, but the Hyper key is.
     hotkeysSuspended = suspended
     recomputeStatus()
     notify()
@@ -241,7 +241,7 @@ public final class PreviewServices: AppServices {
     }
     status.hotkeys = hotkeys
     status.hotstringsEnabled = configuration.general.hotstringsEnabled
-    status.hyperKeyActive = configuration.keyboard.capsLock == .hyper && !status.paused && !hotkeysSuspended
+    status.hyperKeyActive = configuration.keyboard.capsLock == .hyper && !status.paused
     status.hotstringsActive =
       status.hotstringsEnabled && !status.paused && !hotkeysSuspended && !configuration.hotstrings.isEmpty
   }

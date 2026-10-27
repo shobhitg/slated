@@ -2,12 +2,12 @@ import AppKit
 import SlatedCore
 import SwiftUI
 
-/// Click, then press a shortcut. Global hotkeys, Hyper and hotstrings are suspended while recording
-/// so the shortcut reaches this field instead of triggering an action.
+/// Click, then press a shortcut. Global hotkeys and hotstrings are suspended while recording so the
+/// shortcut reaches this field instead of triggering an action.
 ///
-/// Holding Caps Lock records ✦ (Hyper) even while the Hyper event tap is suspended: the recorder
-/// reads F18, Caps Lock's remapped key, as the Hyper key's modifiers itself (⌃⌥⇧⌘, or ⌃⌥⇧ when
-/// set to Meh). Esc cancels. Pressing the middle or a side
+/// Holding Caps Lock records ✦ (Hyper): the Hyper key keeps working while recording, so keys arrive
+/// with its modifiers (⌃⌥⇧⌘, or ⌃⌥⇧ when set to Meh). Should F18, Caps Lock's remapped key, arrive
+/// itself, the recorder reads it as those modifiers too. Esc cancels. Pressing the middle or a side
 /// mouse button over the window records Mouse 3/4/5 when `allowsMouseButtons`.
 struct ShortcutRecorder: View {
   @Binding var combo: KeyCombo

@@ -35,6 +35,16 @@ enum SmokeSteps {
           name: NSWorkspace.didActivateApplicationNotification, object: NSWorkspace.shared,
           userInfo: [NSWorkspace.applicationUserInfoKey: other])
       }
+    case "record-shortcut":
+      // Settings records a shortcut: nothing bound may fire, but the Hyper key keeps working, so Caps
+      // Lock + a key reaches the recorder as ✦ + that key. Pause Slated turns the Hyper key off too.
+      engine.setSuspended(true)
+      print("recording a shortcut: \(keyboard(engine))")
+      engine.setPaused(true)
+      print("paused while recording: \(keyboard(engine))")
+      engine.setPaused(false)
+      engine.setSuspended(false)
+      print("after recording: \(keyboard(engine))")
     case "reload":
       engine.reload()
     case "stop-loading-slate":
@@ -96,6 +106,14 @@ enum SmokeSteps {
     default:
       print("unknown smoke step:", step)
     }
+  }
+
+  /// What the keyboard tap and Caps Lock mapping are asked for (smoke runs never set them up), and how
+  /// many hotkeys are registered.
+  private static func keyboard(_ engine: Engine) -> String {
+    let live = engine.liveTriggers
+    return "Hyper key \(live.hyperKey ? "on" : "off"), shortcuts \(live.shortcuts ? "on" : "off"), "
+      + "hotstrings \(live.hotstrings ? "on" : "off"), \(HotKeyCenter.shared.registrationCount) hotkeys registered"
   }
 
   /// Printed with the summary at the end of the run.
