@@ -37,6 +37,7 @@ let suites: [Suite] = [
   islandSettingsTests,
   uiCheatSheetTests,
   uiIslandModelTests,
+  hidRemapperTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first

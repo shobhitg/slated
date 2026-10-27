@@ -10,40 +10,59 @@ public enum HIDRemapper {
   private static let srcKey = "HIDKeyboardModifierMappingSrc"
   private static let dstKey = "HIDKeyboardModifierMappingDst"
 
+  /// One `UserKeyMapping` entry: the key with HID usage `src` produces usage `dst`.
+  struct Mapping: Equatable {
+    var src: UInt64
+    var dst: UInt64
+  }
+
   /// Turns the Caps Lock → F18 mapping on or off. Returns false if `hidutil` failed.
   @discardableResult
   public static func setCapsLockRemapped(_ enabled: Bool) -> Bool {
-    var mappings = currentMappings().filter { ($0[srcKey] as? NSNumber)?.uint64Value != capsLockUsage }
-    if enabled {
-      mappings.append([srcKey: NSNumber(value: capsLockUsage), dstKey: NSNumber(value: f18Usage)])
-    }
-    let entries = mappings.compactMap { m -> String? in
-      guard let src = (m[srcKey] as? NSNumber)?.uint64Value, let dst = (m[dstKey] as? NSNumber)?.uint64Value else {
-        return nil
-      }
-      return "{\"\(srcKey)\":\(src),\"\(dstKey)\":\(dst)}"
-    }
-    let json = "{\"UserKeyMapping\":[\(entries.joined(separator: ","))]}"
-    return run(["property", "--set", json]) != nil
+    run(["property", "--set", settingJSON(keeping: currentMappings(), capsLockRemapped: enabled)]) != nil
   }
 
   /// Whether Caps Lock is currently mapped to F18.
   public static var isCapsLockRemapped: Bool {
-    currentMappings().contains {
-      ($0[srcKey] as? NSNumber)?.uint64Value == capsLockUsage && ($0[dstKey] as? NSNumber)?.uint64Value == f18Usage
+    currentMappings().contains(Mapping(src: capsLockUsage, dst: f18Usage))
+  }
+
+  /// The `hidutil property --set` argument: `current` with Caps Lock's entry replaced or removed.
+  static func settingJSON(keeping current: [Mapping], capsLockRemapped: Bool) -> String {
+    var mappings = current.filter { $0.src != capsLockUsage }
+    if capsLockRemapped { mappings.append(Mapping(src: capsLockUsage, dst: f18Usage)) }
+    let entries = mappings.map { "{\"\(srcKey)\":\($0.src),\"\(dstKey)\":\($0.dst)}" }
+    return "{\"UserKeyMapping\":[\(entries.joined(separator: ","))]}"
+  }
+
+  /// Reads `hidutil property --get UserKeyMapping` output: an old-style (OpenStep) plist, or "(null)".
+  /// That format has no number type, so the usages come back as strings.
+  static func parseMappings(_ output: String) -> [Mapping] {
+    guard let data = output.data(using: .utf8),
+      let list = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [Any]
+    else { return [] }
+    return list.compactMap { item in
+      guard let entry = item as? [String: Any], let src = usage(entry[srcKey]), let dst = usage(entry[dstKey]) else {
+        return nil
+      }
+      return Mapping(src: src, dst: dst)
     }
   }
 
-  private static func currentMappings() -> [[String: Any]] {
-    // `hidutil property --get` prints an old-style (OpenStep) plist, or "(null)".
-    guard let output = run(["property", "--get", "UserKeyMapping"]),
-      let data = output.data(using: .utf8),
-      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [[String: Any]]
-    else { return [] }
-    return plist
+  private static func usage(_ value: Any?) -> UInt64? {
+    switch value {
+    case let number as NSNumber: return number.uint64Value
+    case let text as String: return UInt64(text.trimmingCharacters(in: .whitespaces))
+    default: return nil
+    }
   }
 
-  private static func run(_ arguments: [String]) -> String? {
+  private static func currentMappings() -> [Mapping] {
+    run(["property", "--get", "UserKeyMapping"]).map(parseMappings) ?? []
+  }
+
+  /// Runs `hidutil` and returns what it printed, or nil if it failed.
+  static func run(_ arguments: [String]) -> String? {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/hidutil")
     process.arguments = arguments
