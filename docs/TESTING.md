@@ -4,12 +4,13 @@
 
 | Layer | Where | Run | What it covers |
 |---|---|---|---|
-| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic: model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching and templates, log redaction. From `SlatedSystem`: the keyboard tap's decisions (fed events that are never posted) and `hidutil` parsing. |
+| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic: model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching and templates, log redaction. From `SlatedSystem`: the keyboard tap's decisions (fed events that are never posted, with a stand-in for what the keyboard says is held), `hidutil` parsing, and which Caps Lock mapping is Slated's and what it replaced. |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
 | Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited JSON, broken files, unknown operations, duplicate shortcuts. It also checks what lands in the event log, including crash detection. `SLATED_SMOKE_SECONDS` keeps it running longer and `SLATED_SMOKE_STEPS` drives it half way through (`Sources/Slated/SmokeSteps.swift`): saving over a broken or symlinked config.json, edits made while it runs, pausing then switching apps, reloading `~/.slate.js`. |
-| Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch, confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), uninstall, `--purge`. Launches the app for a few seconds. |
+| Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch (a test run, which leaves the keyboard alone), confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), SIGQUIT, uninstall, `--purge`, and a hung Slated forced to quit whose Caps Lock mapping comes off (a stand-in `hidutil` on `PATH`). Launches the app for a few seconds. |
+| Installer scripts | `Tests/Installer/test_restore_caps_lock.py` | `make test-scripts` | `scripts/restore-caps-lock.py` against a stand-in `hidutil`, for every case in `Tests/Installer/caps-lock-cases.json`; `HIDRemapperTests` checks Slated against the same cases, so the installer and the app agree on which Caps Lock mapping is Slated's. |
 | Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~4,500 curated inputs, ~16,400 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
 | Linux engine | `linux/tests/run.mjs` (+ `harness.mjs`, `fixtures.mjs`, `unit.mjs`) | `make linux-test` | The JavaScript port of SlatedCore (`linux/gnome-extension/lib/core`) against every golden vector, plus tests for its JavaScript-only API (GNOME accelerators). Runs on Node if installed, else macOS's JavaScriptCore; `make linux-test-all` runs every runtime available (Node, GJS, JavaScriptCore). |
 | UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every settings pane, onboarding step and the menu bar panel to PNGs (light and dark) for review. |
@@ -125,6 +126,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] The grid (Hyper+Tab): drag across cells places the window. Escape and clicking outside cancel.
 - [ ] Undo puts the window back.
 - [ ] A window with a minimum size (e.g. System Settings) still ends up flush with the screen edge.
+- [ ] Bind `snapshot work save` and `activate-snapshot work`. Take it, quit and relaunch Slated, move
+      some windows, then activate it: they go back, each to its own place even within one app.
+      `~/Library/Application Support/Slated/snapshots.json` holds `titleHash`es, no window titles.
 
 **Hyper key**
 - [ ] Holding Caps Lock + a bound key runs Slated's binding.
@@ -134,16 +138,32 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Quitting Slated restores Caps Lock: `hidutil property --get UserKeyMapping` prints `(null)`.
 - [ ] After `kill -9` of Slated, relaunching it cleans up or re-applies the mapping correctly.
       With the Hyper key turned off in config.json before relaunching, Caps Lock works again.
-- [ ] Your own `hidutil` key mappings (if any) survive Slated starting and quitting.
-- [ ] Running the binary from a terminal and pressing Ctrl-C restores Caps Lock too.
+- [ ] Your own `hidutil` key mappings (if any) survive Slated starting and quitting. A Caps Lock
+      mapping of your own (`hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000029}]}'`,
+      Caps Lock → Escape) is back after turning the Hyper key off or quitting Slated.
+- [ ] A Caps Lock → F18 mapping made by another tool (the same command with `0x70000006D`) is still
+      there after Slated starts and quits with its own Hyper key off. The log says
+      `keyboard.caps_lock_mapped_elsewhere`.
+- [ ] `kill -9` Slated with the Hyper key on, then `./install.sh --uninstall`: Caps Lock works again
+      (only Slated's mapping is gone; `~/Library/Application Support/Slated/caps-lock-mapping.json`
+      too).
+- [ ] Running the binary from a terminal and pressing Ctrl-C or Ctrl-\ restores Caps Lock too, also
+      when pressed right after launching it (before the menu bar icon appears).
 - [ ] After sleep and wake, the Hyper key still works.
 - [ ] Hold Caps Lock while a password field takes focus (a Hyper shortcut that opens a login
       prompt, say), let go there, then type in another app: keys arrive without ⌃⌥⇧⌘.
+- [ ] When the log shows `tap.reenabled_after_timeout` or `tap.reenabled_after_user_input` while you
+      were holding Caps Lock (or Caps Lock + a bound key), everything you still held kept working:
+      Caps Lock + a bound key ran the binding, a held binding's key never typed its letter, and letting
+      go of a long hold didn't send Escape. (Slated asks the keyboard what is still down.)
 
 **Hotstrings** (try TextEdit, Safari, Notes, Terminal, Slack)
 - [ ] `;shrug` expands immediately; `afterDelimiter` triggers wait for space or punctuation and keep it.
 - [ ] Long replacements paste, and the previous clipboard comes back. They never show up in
-      clipboard history, even with "Ignore passwords and other concealed items" turned off.
+      clipboard history, even with "Ignore passwords and other concealed items" turned off, and the
+      previous clipboard isn't added to it again either (copy in Keychain Access, then expand one).
+- [ ] With Handoff on, expand a long hotstring, then paste on your iPhone or iPad: you get what you
+      copied before, never the replacement (Slated's temporary paste stays on this Mac).
 - [ ] Nothing expands in a password field (Secure Input).
 - [ ] `onlyInApps` / `exceptInApps` filters work.
 
@@ -157,6 +177,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Recording a shortcut with the real Caps Lock (Hyper) works. Global hotkeys pause while recording.
 - [ ] Editing a binding takes effect within about half a second, with no Save button.
       `scripts/logs.py --grep config.saved` shows the change.
+- [ ] Break config.json by hand (delete a comma) with Settings open: the banner appears and says where
+      the error is, and changing anything shows "Fix config.json first". Fix the file: Settings shows
+      it within a second or two, and edits save again.
 - [ ] The sidebar renders correctly (the Liquid Glass sidebar can't be captured by `make snapshots`).
 
 **Clipboard history**
@@ -167,7 +190,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Opening the switcher from the menu bar panel or Settings still pastes into the last app you used,
       not into Slated.
 - [ ] ⇧⌘V, Esc, ⇧⌘V again right away, then pick an item a second later: it pastes into your app.
-- [ ] Esc closes the switcher and typing goes straight back to the app you were in.
+- [ ] Esc closes the switcher and typing goes straight back to the app you were in, also when the
+      switcher was opened from the menu bar panel. Clicking another app's window instead leaves you in
+      that app; opened from Settings, Esc leaves you in Settings.
 - [ ] Quit the app you were in while the switcher is open, then pick an item: nothing is pasted
       anywhere (`clipboard.paste_skipped` in the log), and the item is on the clipboard.
 - [ ] After a restart the history is still there (with "Keep across restarts" on).
@@ -201,6 +226,8 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] A modal key shows its key beside the notch, then lists its keys after the delay.
 - [ ] A modal binding on keys another binding already uses: entering the mode logs
       `modal.key_failed`, and Settings shows that binding as failed instead of active.
+- [ ] A modal key that is another binding's shortcut: Settings shows every binding behind it as
+      failed ("Its modal key can't be used: Another Slated shortcut already uses …").
 - [ ] Turning the island off in Settings → General brings back the bottom HUD and the top pill.
 - [ ] No black shape stays at the notch once the island has nothing to show.
 

@@ -1,0 +1,2 @@
+# Smoke-test fixture: an insert-text that types words without quotes (the error quotes the text).
+bind p:ctrl;cmd insert-text SECRETPHRASE my bank pin 4321

@@ -55,18 +55,37 @@ note() { printf '  \033[33m•\033[0m %s\n' "$*"; }
 die() { printf '  \033[31m✘ %s\033[0m\n' "$*"; exit 1; }
 
 quit_running() {
-  pgrep -x "$APP_NAME" >/dev/null || return 0
-  # SIGTERM is handled by Slated: it restores Caps Lock and writes app.quit to its log.
-  pkill -TERM -x "$APP_NAME" || true
-  for _ in $(seq 1 50); do
-    pgrep -x "$APP_NAME" >/dev/null || break
-    sleep 0.1
-  done
   if pgrep -x "$APP_NAME" >/dev/null; then
-    note "Slated didn't quit within 5 seconds; forcing it"
-    pkill -KILL -x "$APP_NAME" || true
+    # SIGTERM is handled by Slated: it restores Caps Lock and writes app.quit to its log.
+    pkill -TERM -x "$APP_NAME" || true
+    for _ in $(seq 1 50); do
+      pgrep -x "$APP_NAME" >/dev/null || break
+      sleep 0.1
+    done
+    if pgrep -x "$APP_NAME" >/dev/null; then
+      note "Slated didn't quit within 5 seconds; forcing it"
+      pkill -KILL -x "$APP_NAME" || true
+      for _ in $(seq 1 20); do
+        pgrep -x "$APP_NAME" >/dev/null || break
+        sleep 0.1
+      done
+    fi
+    ok "Quit the running Slated"
   fi
-  ok "Quit the running Slated"
+  restore_caps_lock
+}
+
+# A Slated that was forced to quit (or crashed earlier) couldn't take its Caps Lock -> F18 mapping
+# off. Remove it, and only it, the way Slated would: the user's other mappings stay, and a Caps Lock
+# mapping it replaced comes back. Does nothing (doesn't even run hidutil) unless Slated's record of
+# the mapping is there. So --uninstall and --no-launch never leave Caps Lock dead.
+restore_caps_lock() {
+  local message
+  if message="$(/usr/bin/python3 -I "$ROOT/scripts/restore-caps-lock.py" "$USER_HOME" 2>&1)"; then
+    if [ -n "$message" ]; then ok "$message"; fi
+  else
+    note "$message"
+  fi
 }
 
 if [ "$MODE" = "uninstall" ]; then

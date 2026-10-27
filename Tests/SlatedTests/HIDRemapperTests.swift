@@ -18,8 +18,22 @@ private let hidutilOutput = """
 
   """
 
-private let capsToF18 = HIDRemapper.Mapping(src: 0x7_0000_0039, dst: 0x7_0000_006D)
-private let sectionToGrave = HIDRemapper.Mapping(src: 0x7_0000_0064, dst: 0x7_0000_0035)
+private typealias Mapping = HIDRemapper.Mapping
+private typealias Record = HIDRemapper.Record
+
+private let capsToF18 = Mapping(src: 0x7_0000_0039, dst: 0x7_0000_006D)
+private let capsToEscape = Mapping(src: 0x7_0000_0039, dst: 0x7_0000_0029)
+private let capsToControl = Mapping(src: 0x7_0000_0039, dst: 0x7_0000_00E0)
+private let sectionToGrave = Mapping(src: 0x7_0000_0064, dst: 0x7_0000_0035)
+
+/// One case of Tests/Installer/caps-lock-cases.json, which scripts/restore-caps-lock.py (install.sh)
+/// is checked against too.
+private struct RestoreCase: Decodable {
+  var name: String
+  var current: [[UInt64]]
+  var recordText: String?
+  var expected: [[UInt64]]?
+}
 
 let hidRemapperTests = Suite(
   "HIDRemapper",
@@ -44,19 +58,96 @@ let hidRemapperTests = Suite(
     (
       "turning Caps Lock on and off keeps the other mappings",
       {
-        let others = HIDRemapper.parseMappings(hidutilOutput).filter { $0 != capsToF18 }
-        expectEqual(others, [sectionToGrave])
+        let on = HIDRemapper.plan(current: [sectionToGrave], record: nil, enable: true)
+        expectEqual(on.mappings, [sectionToGrave, capsToF18])
+        expectEqual(on.record, Record(replaced: nil))
         let section = "{\"HIDKeyboardModifierMappingSrc\":30064771172,\"HIDKeyboardModifierMappingDst\":30064771125}"
         let caps = "{\"HIDKeyboardModifierMappingSrc\":30064771129,\"HIDKeyboardModifierMappingDst\":30064771181}"
-        expectEqual(
-          HIDRemapper.settingJSON(keeping: HIDRemapper.parseMappings(hidutilOutput), capsLockRemapped: false),
-          "{\"UserKeyMapping\":[\(section)]}")
-        expectEqual(
-          HIDRemapper.settingJSON(keeping: others, capsLockRemapped: true), "{\"UserKeyMapping\":[\(section),\(caps)]}")
-        // Already on: replaced, not duplicated.
-        expectEqual(
-          HIDRemapper.settingJSON(keeping: [capsToF18], capsLockRemapped: true), "{\"UserKeyMapping\":[\(caps)]}")
-        expectEqual(HIDRemapper.settingJSON(keeping: [], capsLockRemapped: false), "{\"UserKeyMapping\":[]}")
+        expectEqual(HIDRemapper.settingJSON(on.mappings), "{\"UserKeyMapping\":[\(section),\(caps)]}")
+        let off = HIDRemapper.plan(current: on.mappings, record: on.record, enable: false)
+        expectEqual(off.mappings, [sectionToGrave])
+        expect(off.record == nil, "the record goes with the mapping")
+        expectEqual(HIDRemapper.settingJSON([]), "{\"UserKeyMapping\":[]}")
+      }
+    ),
+    (
+      "the user's own Caps Lock mapping (Caps Lock → Escape) comes back when Slated's Hyper goes off",
+      {
+        let on = HIDRemapper.plan(current: [capsToEscape, sectionToGrave], record: nil, enable: true)
+        expectEqual(on.mappings, [sectionToGrave, capsToF18])
+        expectEqual(on.record, Record(replaced: capsToEscape))
+        let off = HIDRemapper.plan(current: on.mappings, record: on.record, enable: false)
+        expectEqual(off.mappings, [sectionToGrave, capsToEscape])
+      }
+    ),
+    (
+      "a Caps Lock → F18 mapping another tool made isn't Slated's: never adopted or removed",
+      {
+        // At launch, without Slated's record, the entry is someone else's (a Hammerspoon setup, say).
+        expect(HIDRemapper.owner(of: [capsToF18], record: nil) == .otherTool)
+        expect(HIDRemapper.owner(of: [sectionToGrave], record: nil) == .nobody)
+        // With Slated's Hyper on meanwhile, the other tool's mapping is what comes back afterwards.
+        let on = HIDRemapper.plan(current: [capsToF18], record: nil, enable: true)
+        expectEqual(on.record, Record(replaced: capsToF18))
+        expectEqual(HIDRemapper.plan(current: on.mappings, record: on.record, enable: false).mappings, [capsToF18])
+      }
+    ),
+    (
+      "Slated's mapping left by a crash is adopted, and still knows what to put back",
+      {
+        let record = Record(replaced: capsToEscape)
+        expect(HIDRemapper.owner(of: [sectionToGrave, capsToF18], record: record) == .slated)
+        expect(HIDRemapper.owner(of: [sectionToGrave], record: record) == .nobody)  // out of date
+        // Turning it on again (Hyper still on, or after waking up) doesn't forget Caps Lock → Escape.
+        let again = HIDRemapper.plan(current: [sectionToGrave, capsToF18], record: record, enable: true)
+        expectEqual(again.mappings, [sectionToGrave, capsToF18])
+        expectEqual(again.record, record)
+        let off = HIDRemapper.plan(current: again.mappings, record: again.record, enable: false)
+        expectEqual(off.mappings, [sectionToGrave, capsToEscape])
+      }
+    ),
+    (
+      "turning Slated's mapping off leaves a Caps Lock mapping someone made since",
+      {
+        let off = HIDRemapper.plan(
+          current: [capsToControl, sectionToGrave], record: Record(replaced: capsToEscape), enable: false)
+        expectEqual(off.mappings, [capsToControl, sectionToGrave])
+        expect(off.record == nil)
+      }
+    ),
+    (
+      "the record on disk uses hidutil's own keys, and an unreadable one still counts as Slated's",
+      {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SlatedTest-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("caps-lock-mapping.json")
+        expect(HIDRemapper.readRecord(url) == nil)
+        expect(HIDRemapper.writeRecord(Record(replaced: capsToEscape), to: url))
+        let text = try String(contentsOf: url, encoding: .utf8)
+        expect(text.contains("\"HIDKeyboardModifierMappingDst\":30064771113"), text)
+        expectEqual(HIDRemapper.readRecord(url), Record(replaced: capsToEscape))
+        try Data("not json".utf8).write(to: url)
+        expectEqual(HIDRemapper.readRecord(url), Record(replaced: nil))
+      }
+    ),
+    (
+      "after a Slated that didn't quit cleanly: the same result as install.sh's restore-caps-lock.py",
+      {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+          .appendingPathComponent("Installer/caps-lock-cases.json")
+        struct Cases: Decodable { var cases: [RestoreCase] }
+        let cases = try JSONDecoder().decode(Cases.self, from: Data(contentsOf: file)).cases
+        expect(cases.count >= 7, "cases: \(cases.count)")
+        for test in cases {
+          let current = test.current.map { Mapping(src: $0[0], dst: $0[1]) }
+          let record = test.recordText.map { HIDRemapper.decodeRecord(Data($0.utf8)) }
+          // What a launch of Slated does with it: adopt only its own, then take it off.
+          let result: [Mapping]? =
+            HIDRemapper.owner(of: current, record: record) == .slated
+            ? HIDRemapper.plan(current: current, record: record, enable: false).mappings : nil
+          let expected = test.expected.map { $0.map { Mapping(src: $0[0], dst: $0[1]) } }
+          if result != expected { expect(false, "\(test.name): got \(String(describing: result))") }
+        }
       }
     ),
     (
@@ -69,7 +160,6 @@ let hidRemapperTests = Suite(
         expect(
           output.trimmingCharacters(in: .whitespacesAndNewlines) == "(null)" || !mappings.isEmpty,
           "unreadable hidutil output: \(output)")
-        expectEqual(HIDRemapper.isCapsLockRemapped, mappings.contains(capsToF18))
       }
     ),
   ])

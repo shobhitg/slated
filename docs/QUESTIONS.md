@@ -168,16 +168,13 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 
 ## macOS runtime review (2026-10-27)
 
-15. **Window titles in saved snapshots.** `snapshot name save` keeps the snapshot across restarts in
-    `~/Library/Application Support/Slated/snapshots.json`, and snapshots find windows again by title,
-    so that file holds the title of every window open at the time (document names, page titles, mail
-    subjects). The log never contains titles; this file does. Slated could store a hash of each title
-    instead (windows are matched the same way, nothing readable on disk), or keep saved snapshots in
-    memory only. *Assumption:* unchanged until you say.
-16. **Universal Clipboard.** A long hotstring replacement is pasted through the clipboard for a
-    quarter second, and so is a clipboard history pick. With Handoff on, your other Apple devices can
-    receive those. Slated could mark its own temporary paste as this-Mac-only. *Assumption:*
-    unchanged.
+15. ~~**Window titles in saved snapshots.**~~ **Decided (2026-10-27): hashes.** Snapshots find windows
+    again by comparing titles for equality only, so `snapshots.json` now keeps a SHA-256 of each title
+    instead of the title. Windows are matched as before; an older file with titles is read and
+    rewritten with hashes at the next launch.
+16. ~~**Universal Clipboard.**~~ **Decided (2026-10-27): this Mac only.** Slated's temporary paste of a
+    hotstring replacement or insert-text is written as this-Mac-only, so your other devices never get
+    it. Real copies and clipboard history picks are left alone.
 17. **Importing a `~/.slate.js` with `slate.on` handlers.** "Import Slate Config into Slated…"
     converts the bindings and, when none are skipped, stops loading the file. Event handlers
     (`slate.on("appActivated", …)`) can't be converted but aren't listed as skipped, so they stop
