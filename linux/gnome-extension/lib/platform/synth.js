@@ -27,6 +27,30 @@ export const MODIFIER_KEYSYMS = Object.freeze({
 
 const COMBO_MODIFIERS = ['ctrl', 'alt', 'shift', 'cmd'];
 
+/**
+ * The Clutter modifier bits a held modifier keysym can set: Alt may also read as Meta, and Super as
+ * Hyper (they share Mod1 and Mod4 in the stock keymaps).
+ */
+function modifierBits(keysym) {
+  const M = Clutter.ModifierType;
+  switch (keysym) {
+    case MODIFIER_KEYSYMS.shift:
+    case MODIFIER_KEYSYMS.rightShift:
+      return M.SHIFT_MASK;
+    case MODIFIER_KEYSYMS.ctrl:
+    case MODIFIER_KEYSYMS.rightCtrl:
+      return M.CONTROL_MASK;
+    case MODIFIER_KEYSYMS.alt:
+    case MODIFIER_KEYSYMS.rightAlt:
+      return M.MOD1_MASK | M.META_MASK;
+    case MODIFIER_KEYSYMS.cmd:
+    case MODIFIER_KEYSYMS.rightCmd:
+      return M.MOD4_MASK | M.SUPER_MASK | M.HYPER_MASK;
+    default:
+      return 0;
+  }
+}
+
 /** How to press one key for automation: {keysym} for modifier keys, else what `keystroke` sends. */
 export function automationKey(key, {latin = true} = {}) {
   if (Object.prototype.hasOwnProperty.call(MODIFIER_KEYSYMS, key)) return {keysym: MODIFIER_KEYSYMS[key]};
@@ -93,6 +117,16 @@ export class InputSynthesizer {
     if (!plan) return {ok: false, error: `${combo.key} isn't a key on this keyboard layout`};
     for (const key of down ? plan : [...plan].reverse()) this._key(key, down);
     return {ok: true};
+  }
+
+  /**
+   * The modifier bits of the modifier keys held down here (a held Shift for sprinting). Typing
+   * (input.js) doesn't wait for these to be let go: they stay down until the automation stops.
+   */
+  heldModifierMask() {
+    let mask = 0;
+    for (const id of this._down.keys()) if (id.startsWith('keysym:')) mask |= modifierBits(Number(id.slice('keysym:'.length)));
+    return mask;
   }
 
   /** Lets go of everything Slated still holds down. */

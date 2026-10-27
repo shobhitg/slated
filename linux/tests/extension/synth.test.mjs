@@ -55,6 +55,22 @@ test('clicks, held buttons and keys go through virtual devices with increasing t
   assert.throws(() => synth.mouse('left', true), /stopping/);
 });
 
+test('heldModifierMask names the modifiers held down, so typing doesn’t wait for them', () => {
+  const synth = new InputSynthesizer();
+  const M = gnome.modules['gi://Clutter'].ModifierType;
+  assert.equal(synth.heldModifierMask(), 0);
+  synth.key({key: 'shift', modifiers: []}, true);
+  synth.key({key: 'w', modifiers: []}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK, 'W is no modifier');
+  synth.key({key: 'rightAlt', modifiers: []}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK);
+  synth.key({key: 'f', modifiers: ['ctrl', 'cmd']}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK | M.CONTROL_MASK | M.MOD4_MASK | M.SUPER_MASK | M.HYPER_MASK);
+  synth.releaseAll();
+  assert.equal(synth.heldModifierMask(), 0, 'nothing held, nothing ignored');
+  synth.destroy();
+});
+
 test('releaseAll lets go of exactly what is down', () => {
   const synth = new InputSynthesizer();
   synth.key({key: 'ctrl', modifiers: []}, true);

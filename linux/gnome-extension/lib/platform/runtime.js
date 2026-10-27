@@ -152,6 +152,7 @@ export class SlatedRuntime {
         timers: this._timers,
         log: this._log,
         focusedAppId: () => this._platform?.appInfo(this._platform.focusedApp())?.id ?? null,
+        ownModifiers: () => this._synth?.heldModifierMask() ?? 0,
       });
       this._synth = new InputSynthesizer({log: this._log});
       this._platform = new GnomePlatform({timers: this._timers, input: this._input, synth: this._synth, home: this._home});

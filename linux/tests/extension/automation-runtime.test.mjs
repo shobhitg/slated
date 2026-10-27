@@ -307,6 +307,29 @@ test('keys an auto-repeat queued while you held a modifier are dropped when it s
   assert.equal(events('automation.stopped_all')[0].data.reason, 'switched to another app');
 });
 
+test('keys an auto-repeat types don’t wait for a modifier Slated itself holds (sprinting with the Hold Shift recipe)', () => {
+  start({bindings: [
+    {keys: 'f8', action: {op: 'hold', input: 'key:shift'}},
+    {keys: 'f7', action: {op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.05}},
+  ]});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F8');
+  gnome.state.modifiers = 1; // what GNOME reports while Slated's virtual keyboard holds Shift
+  const es = () => gnome.state.typed.filter((t) => t.keysym === 0x65).length / 2;
+  gnome.press('F7');
+  gnome.loop.advance(1000);
+  assert.ok(es() >= 20, `E is pressed at the repeat rate while sprinting (${es()})`);
+  gnome.press('F7');
+  const atOff = es();
+  gnome.loop.advance(2000);
+  assert.equal(es(), atOff, 'nothing queued up to come out after spamming stops');
+
+  gnome.state.modifiers = 9; // you hold Alt yourself as well: that one is still waited for
+  gnome.press('F7');
+  assert.equal(es(), atOff);
+  gnome.press('F7');
+});
+
 test('the time limit and stopOnAppSwitch come from config.json', () => {
   start({bindings: [{keys: 'hyper+f', action: autoClick}], automation: {maxRunMinutes: 0.01, stopOnAppSwitch: false, stopShortcut: null}});
   assert.ok(!gnome.accelerators().includes(`${HYPER}Escape`), 'stopShortcut null turns it off');
