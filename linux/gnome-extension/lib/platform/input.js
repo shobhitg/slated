@@ -341,6 +341,16 @@ export class InputInjector {
     return {ok: true};
   }
 
+  /**
+   * Drops keys and text still waiting for modifiers to be let go (automations were stopped). An
+   * auto-repeat keeps queueing while you hold a modifier, as for Alt+Tab, and none of that may be
+   * typed into the app you switch to.
+   */
+  cancelPending() {
+    this._waiting = [];
+    this._poller = this._timers.clear(this._poller);
+  }
+
   destroy() {
     this._destroyed = true;
     this._waiting = [];

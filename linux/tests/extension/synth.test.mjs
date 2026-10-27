@@ -111,3 +111,19 @@ test('the paste shortcut is Ctrl+V, or Ctrl+Shift+V in terminals, once modifiers
   assert.equal(gnome.loop.pending, 0, 'one shared poller, gone when done');
   input.destroy();
 });
+
+test('cancelPending drops keys waiting for modifiers, so a stopped automation types nothing later', () => {
+  const timers = new Timers();
+  const input = new InputInjector({timers});
+  gnome.global.get_pointer = () => [0, 0, 8]; // Alt held, as for Alt+Tab
+  input.pressKeys({key: 'e', modifiers: []});
+  input.pressKeys({key: 'e', modifiers: []});
+  input.cancelPending();
+  assert.equal(gnome.loop.pending, 0, 'the poller is gone');
+  gnome.global.get_pointer = () => [0, 0, 0];
+  gnome.loop.advance(2000);
+  assert.deepEqual(gnome.state.typed, [], 'nothing typed once Alt is let go');
+  input.pressKeys({key: 'e', modifiers: []});
+  assert.equal(gnome.state.typed.length, 2, 'later keys still work');
+  input.destroy();
+});

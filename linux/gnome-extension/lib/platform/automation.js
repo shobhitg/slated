@@ -8,7 +8,8 @@
 //   Slated didn't press.
 // - Safety: the stop shortcut (`stopAll`), stopping when you switch away from the app an automation
 //   started in, a time limit (`maxRunMinutes`), and releasing everything on disable, screen lock and
-//   config reload (the runtime calls `stopAll`). Every start and stop is logged; the log never holds
+//   config reload (the runtime calls `stopAll`). A stop also drops what's still pending, such as the
+//   rest of a macro after a `wait` (`onStopAll`). Every start and stop is logged; the log never holds
 //   typed text (insert-text is redacted, like action.done).
 //
 // No GNOME imports: timers, the synthesizer, the clock and the focused app are passed in, so the
@@ -132,6 +133,12 @@ export class AutomationEngine {
     this.perform = null;
     /** Something started or stopped (the indicator and status.json refresh). */
     this.onChange = null;
+    /**
+     * Everything was stopped (`stopAll`: the stop shortcut, switching apps, the time limit…): what
+     * automations left waiting elsewhere is dropped too, so it can't land in the app you switched to
+     * (the runtime drops macro steps after a `wait` and keys waiting for modifiers to be let go).
+     */
+    this.onStopAll = null;
     this._repeaters = new Map();
     this._held = new Map();
     /**
@@ -294,6 +301,11 @@ export class AutomationEngine {
     for (const id of [...this._repeaters.keys()]) this._stopRepeat(id, reason, false);
     for (const input of [...this._held.keys()]) this._release(input, reason, false);
     this._log?.record('automation.stopped_all', {reason}, 'notice');
+    try {
+      this.onStopAll?.(reason);
+    } catch (e) {
+      this._log?.error('automation.stop_failed', e?.message ?? String(e), {reason});
+    }
     this.onChange?.();
   }
 
@@ -315,7 +327,7 @@ export class AutomationEngine {
   destroy(reason = 'disabled') {
     this.stopAll(reason);
     this._limitTimer = this._timers.clear(this._limitTimer);
-    this.perform = this.onChange = null;
+    this.perform = this.onChange = this.onStopAll = null;
   }
 
   _began(info, extra) {

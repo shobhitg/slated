@@ -187,6 +187,12 @@ export class SlatedRuntime {
       });
       this._automation.perform = (action) => this._runner?.performStep(action) ?? false;
       this._automation.onChange = () => this._automationChanged();
+      // A stop (shortcut, app switch, time limit) also ends what's still pending: the rest of a macro
+      // and keys waiting for modifiers, which would otherwise land in the app you switched to.
+      this._automation.onStopAll = () => {
+        this._runner?.cancelPendingSteps();
+        this._input?.cancelPending();
+      };
       this._indicator = new AutomationIndicator();
       if (this._runner) this._runner.automation = this._automation;
     });

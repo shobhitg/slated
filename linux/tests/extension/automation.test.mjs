@@ -184,6 +184,29 @@ test('stopAll stops repeats and releases holds, logs once and tells the indicato
   assert.equal(log.named('automation.stopped_all').length, 1, 'nothing running: nothing logged');
 });
 
+test('every stop asks for what automations left pending (macro steps, queued keys) to be dropped', () => {
+  const {engine, timers} = setup();
+  const dropped = [];
+  engine.onStopAll = (reason) => dropped.push(reason);
+  engine.toggleHold('key:w');
+  engine.focusChanged(appIdentity('firefox'));
+  assert.deepEqual(dropped, ['switched to another app']);
+  engine.settings.maxRunMinutes = 0.01;
+  engine.toggleRepeat(click, {interval: 0.1, id: 'r'});
+  timers.advance(1000);
+  assert.deepEqual(dropped, ['switched to another app', 'time limit reached']);
+  engine.stopAll('nothing runs');
+  assert.equal(dropped.length, 2, 'nothing running: nothing to drop');
+  engine.onStopAll = () => {
+    throw new Error('boom');
+  };
+  engine.toggleHold('key:w');
+  assert.doesNotThrow(() => engine.stopAll('stop shortcut'), 'a failing hook never stops the release');
+  assert.equal(engine.isRunning, false);
+  engine.destroy();
+  assert.equal(engine.onStopAll, null);
+});
+
 test('switching to another app stops everything; the same app and Slated’s settings don’t', () => {
   const {engine, state, log} = setup();
   engine.toggleRepeat(click, {interval: 0.1, id: 'r'});

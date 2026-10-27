@@ -664,7 +664,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     workspace_manager: {get_active_workspace: () => workspace},
     get_window_actors: () => state.windows.map((w) => ({get_meta_window: () => w})),
     stage: {width: 3000, height: 1920, get_event_actor: (event) => event.actor},
-    get_pointer: () => [0, 0, 0],
+    // The modifiers held on the real keyboard (Clutter.ModifierType bits): `state.modifiers`.
+    get_pointer: () => [0, 0, state.modifiers ?? 0],
     create_app_launch_context: () => null,
   };
 

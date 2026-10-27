@@ -51,6 +51,8 @@ beforeEach(() => {
     clipboardMimeTypes: [],
     chrome: new Set(),
     modal: [],
+    modifiers: 0,
+    overview: false,
   });
 });
 
@@ -248,6 +250,61 @@ test('switching apps, reloading the config and disabling stop everything and rel
   assert.ok(gnome.state.disposed.includes('keyboard'), 'the virtual devices are gone');
   assert.equal(gnome.loop.pending, 0, 'no timers left');
   for (const [name, signals] of Object.entries(gnome.signals)) assert.equal(signals.size, 0, `no ${name} signal handlers left`);
+});
+
+// The Settings recipe "Macro: Walk, Then Click".
+const walkThenClick = {op: 'sequence', operations: [
+  {op: 'press', input: 'key:w', phase: 'down'}, {op: 'wait', seconds: 2}, {op: 'press', input: 'key:w', phase: 'up'},
+  {op: 'click', button: 'left'},
+]};
+const firefox = {id: 'firefox', name: 'Firefox'};
+
+test('switching apps or the overview mid-macro drops the rest of it: nothing clicks in the other app', () => {
+  start({bindings: [{keys: 'f6', action: walkThenClick}]});
+  const launcher = gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F6');
+  gnome.loop.run();
+  assert.deepEqual(gnome.state.typed, [{keysym: 0x77, pressed: true}], 'W is down for the wait');
+  gnome.addWindow({id: 2, app: firefox, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.loop.run();
+  assert.deepEqual(gnome.state.typed.at(-1), {keysym: 0x77, pressed: false}, 'W released by the switch');
+  gnome.loop.advance(3000);
+  assert.equal(clicks(), 0, 'the click after the wait never comes');
+  assert.equal(gnome.state.typed.length, 2, 'and nothing else is pressed');
+
+  gnome.focus(launcher);
+  gnome.press('F6');
+  gnome.overview(true);
+  gnome.loop.advance(3000);
+  assert.equal(clicks(), 0, 'no click into the overview either');
+  assert.deepEqual(events('automation.stopped_all').map((e) => e.data.reason), ['switched to another app', 'left the app']);
+  gnome.overview(false);
+});
+
+test('the time limit drops the rest of a macro too', () => {
+  start({bindings: [{keys: 'f6', action: walkThenClick}], automation: {maxRunMinutes: 0.01}});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F6');
+  gnome.loop.advance(3000);
+  assert.equal(events('automation.stopped_all')[0].data.reason, 'time limit reached');
+  assert.deepEqual(gnome.state.typed.at(-1), {keysym: 0x77, pressed: false});
+  assert.equal(clicks(), 0);
+});
+
+test('keys an auto-repeat queued while you held a modifier are dropped when it stops, not typed into the next app', () => {
+  start({bindings: [{keys: 'f7', action: {op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.05}}]});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F7');
+  gnome.loop.advance(500);
+  assert.ok(gnome.state.typed.length >= 20, 'E typed in the game');
+  gnome.state.modifiers = 8; // Alt held for Alt+Tab: keystrokes wait for it to be let go
+  gnome.loop.advance(1000);
+  gnome.addWindow({id: 2, app: firefox, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.state.modifiers = 0; // Alt let go: GNOME's switcher has focused Firefox
+  const atSwitch = gnome.state.typed.length;
+  gnome.loop.advance(2000);
+  assert.equal(gnome.state.typed.length, atSwitch, 'no E reaches Firefox');
+  assert.equal(events('automation.stopped_all')[0].data.reason, 'switched to another app');
 });
 
 test('the time limit and stopOnAppSwitch come from config.json', () => {
