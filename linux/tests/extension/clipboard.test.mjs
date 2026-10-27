@@ -252,6 +252,18 @@ test('settings apply the limit and retention; turning it off stops watching', ()
   s.stop();
 });
 
+test('a new copy also forgets items older than retentionDays, in a session that never reapplies settings', () => {
+  const s = service({retentionDays: 2});
+  gnome.copy('old');
+  s.togglePin(s.history.items[0].id);
+  gnome.copy('older, unpinned');
+  world.now += 3 * 86_400_000;
+  gnome.copy('today');
+  assert.deepEqual(texts(s), ['today', 'old'], 'pinned items stay, as on settings changes');
+  s.stop();
+  assert.deepEqual(JSON.parse(readFileSync(world.path, 'utf8')).items.map((i) => i.text), ['today', 'old'], 'and they’re gone from disk too');
+});
+
 test('picking an item pastes it into the window you were in; copying doesn’t paste', () => {
   const s = service();
   gnome.copy('older');
