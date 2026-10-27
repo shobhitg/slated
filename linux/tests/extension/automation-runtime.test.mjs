@@ -351,7 +351,7 @@ test('going to sleep stops automations and drops waiting macros, as on the Mac',
   gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
   gnome.press(`${HYPER}w`);
   gnome.press('F6');
-  assert.equal(gnome.signals.systemBus.count('org.freedesktop.login1.Manager.PrepareForSleep'), 1, 'logind’s signal is followed');
+  assert.equal(gnome.signals.loginManager.count('prepare-for-sleep'), 1, 'logind’s PrepareForSleep is followed');
   gnome.prepareForSleep(true);
   assert.deepEqual(gnome.state.typed.at(-1), {keysym: 0x77, pressed: false}, 'W released before the suspend');
   assert.equal(events('automation.stopped_all')[0].data.reason, 'sleep');
@@ -361,7 +361,7 @@ test('going to sleep stops automations and drops waiting macros, as on the Mac',
   assert.equal(events('automation.stopped_all').length, 1, 'waking up stops nothing');
   runtime.stop();
   runtime = null;
-  assert.equal(gnome.signals.systemBus.size, 0, 'unsubscribed on disable');
+  assert.equal(gnome.signals.loginManager.size, 0, 'disconnected on disable');
 });
 
 test('the time limit drops a waiting macro as well', () => {

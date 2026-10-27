@@ -336,6 +336,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   const appSystemSignals = new Signals();
   const layoutSignals = new Signals();
   const overviewSignals = new Signals();
+  // GNOME Shell's login manager (misc/loginManager.js): re-emits logind's PrepareForSleep.
+  const loginManagerSignals = new Signals();
   // D-Bus signals on the system bus, by "interface.member" (Gio.DBusConnection.signal_subscribe), and
   // method calls, recorded in `state.dbusCalls` and answered on the next main-loop turn.
   const systemBusSignals = new Signals();
@@ -766,7 +768,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     global,
     signals: {
       display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals, selection: selectionSignals,
-      overview: overviewSignals, systemBus: systemBusSignals,
+      overview: overviewSignals, systemBus: systemBusSignals, loginManager: loginManagerSignals,
     },
 
     /** Opens or closes the overview, as GNOME Shell's Main.overview reports it. */
@@ -780,9 +782,9 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       systemBusSignals.emit(name, {deep_unpack: () => values});
     },
 
-    /** logind announces a suspend (true) or the wake-up after it (false): PrepareForSleep(b). */
+    /** logind announces a suspend (true) or the wake-up after it (false), as GNOME Shell re-emits it. */
     prepareForSleep(start) {
-      this.systemSignal('org.freedesktop.login1.Manager.PrepareForSleep', [start]);
+      loginManagerSignals.emit('prepare-for-sleep', start);
     },
     modules: {
       'gi://GLib': GLib,
@@ -794,6 +796,12 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'resource:///org/gnome/shell/ui/main.js': Main,
       'resource:///org/gnome/shell/misc/config.js': {PACKAGE_VERSION: '47.1'},
       'resource:///org/gnome/shell/ui/status/keyboard.js': {getInputSourceManager: () => ({currentSource: state.inputSource})},
+      'resource:///org/gnome/shell/misc/loginManager.js': {
+        getLoginManager: () => ({
+          connect: (signal, callback) => loginManagerSignals.connect(signal, (_signals, ...args) => callback(loginManagerSignals, ...args)),
+          disconnect: (id) => loginManagerSignals.disconnect(id),
+        }),
+      },
     },
 
     /** Adds a window (on top of the stack) and focuses it, telling focus watchers. */
