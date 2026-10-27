@@ -17,7 +17,8 @@ private let comboInputs: [String] = [
   "ctrl+\u{00A0}a", "ctrl+İ",
   // Modifier keys (holdable for automation) and mouse buttons 3–5 (shortcuts on macOS)
   "shift", "Shift", "ctrl", "alt", "cmd", "rightShift", "rightshift", "RIGHTCTRL", "rightAlt", "rightCmd", "ctrl+shift",
-  "shift+shift", "cmd+rightAlt", "hyper+rightCmd", "mouse3", "mouse4", "MOUSE5", "Mouse3", "ctrl+mouse4", "hyper+mouse5",
+  "shift+shift", "cmd+rightAlt", "hyper+rightCmd", "mouse3", "mouse4", "MOUSE5", "Mouse3", "ctrl+mouse4",
+  "hyper+mouse5",
   "meh+mouse3", "fn+mouse4", "mouse6", "mouse1", "mouse", "f13", "hyper+esc", "cmd+shift+v", "shift+cmd+v",
 ]
 

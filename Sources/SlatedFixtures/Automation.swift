@@ -13,9 +13,11 @@ private let syntheticInputs: [String] = [
   "mouse:", "mouse:back", "mouse:4", "mouse: left", "mouse:left:right", "mouse", "key:w", "key:W", "KEY:w", "Key:Shift",
   "key:shift", "key:ctrl", "key:alt", "key:cmd", "key:rightShift", "key:rightshift", "key:RIGHTCTRL", "key:rightAlt",
   "key:rightCmd", "key:shift+w", "key:ctrl+shift+w", "key:hyper+a", "key:meh+x", "key:fn+f1", "key:space", "key:f13",
-  "key:f24", "key:esc", "key:escape", "key:'", "key:,", "key:+", "key:cmd++", "key:pad+", "key:mouse4", "key:", "key: w",
+  "key:f24", "key:esc", "key:escape", "key:'", "key:,", "key:+", "key:cmd++", "key:pad+", "key:mouse4", "key:",
+  "key: w",
   "key:w ", "key:ab", "key:bogus", "key:hyper", "key:é", "key:É", "key:👍🏽", "key:+w", "key:shift+", "key:ctrl+bogus",
-  "key:bogus+w", "key:return", "key:Enter", "key:#", "key:|", "w", "", "  ", "key", "keyboard:w", "button:left", "key:w,a",
+  "key:bogus+w", "key:return", "key:Enter", "key:#", "key:|", "w", "", "  ", "key", "keyboard:w", "button:left",
+  "key:w,a",
 ]
 
 /// `RepeatSchedule(interval:times:jitter:)` inputs, including the clamps and non-finite values.
@@ -49,7 +51,8 @@ func automationFixtures() -> FixtureFile {
       ],
       "shouldRunAgain": .array(
         runCounts.map { ["runs": .int($0), "again": .bool(schedule.shouldRunAgain(afterRuns: $0))] }),
-      "nextInterval": .array(randoms.map { ["random": .number($0), "wait": .number(schedule.nextInterval(random: $0))] }),
+      "nextInterval": .array(
+        randoms.map { ["random": .number($0), "wait": .number(schedule.nextInterval(random: $0))] }),
     ]
   }
   let isAutomation: [J] = automationActions.map { text in
@@ -95,7 +98,9 @@ private struct ClipSession {
   var steps: [ClipStep]
 }
 
-private func item(_ n: Int, _ text: String, at seconds: Double, app: String? = nil, pinned: Bool = false) -> ClipboardItem {
+private func item(_ n: Int, _ text: String, at seconds: Double, app: String? = nil, pinned: Bool = false)
+  -> ClipboardItem
+{
   ClipboardItem(id: uuid(n), text: text, copiedAt: at(seconds), sourceApp: app, pinned: pinned)
 }
 
@@ -131,7 +136,8 @@ private let clipSessions: [ClipSession] = [
     name: "the limit drops the oldest unpinned items",
     steps: [
       .add("1", at: t0, limit: 3), .add("2", at: t0 + 1, limit: 3), .add("3", at: t0 + 2, limit: 3),
-      .add("4", at: t0 + 3, limit: 3), .togglePin("2"), .add("5", at: t0 + 4, limit: 3), .add("6", at: t0 + 5, limit: 3),
+      .add("4", at: t0 + 3, limit: 3), .togglePin("2"), .add("5", at: t0 + 4, limit: 3),
+      .add("6", at: t0 + 5, limit: 3),
       .enforce(1), .enforce(0), .enforce(-4), .add("7", at: t0 + 6, limit: 0),
     ]),
   ClipSession(
@@ -147,7 +153,9 @@ private let clipSessions: [ClipSession] = [
       item(1, "fresh", at: t0 + 29 * day), item(2, "edge", at: t0), item(3, "old", at: t0 - 1),
       item(4, "old pinned", at: t0 - 100 * day, pinned: true), item(5, "ancient", at: t0 - 365 * day),
     ],
-    steps: [.prune(days: 0, now: t0 + 30 * day), .prune(days: -3, now: t0 + 30 * day), .prune(days: 30, now: t0 + 30 * day)]),
+    steps: [
+      .prune(days: 0, now: t0 + 30 * day), .prune(days: -3, now: t0 + 30 * day), .prune(days: 30, now: t0 + 30 * day),
+    ]),
   ClipSession(
     name: "retention with a cutoff between items",
     start: [item(1, "a", at: t0 + 0.5), item(2, "b", at: t0 - 0.5), item(3, "c", at: t0 - day)],
@@ -156,7 +164,8 @@ private let clipSessions: [ClipSession] = [
     name: "remove, pin and clear",
     steps: [
       .add("one", at: t0), .add("two", at: t0 + 1), .add("three", at: t0 + 2), .togglePin("two"), .togglePin("three"),
-      .togglePin("three"), .remove("one"), .removeUnknown, .togglePinUnknown, .add("four", at: t0 + 3), .clear(keepPinned: nil),
+      .togglePin("three"), .remove("one"), .removeUnknown, .togglePinUnknown, .add("four", at: t0 + 3),
+      .clear(keepPinned: nil),
       .add("five", at: t0 + 4), .clear(keepPinned: true), .clear(keepPinned: false),
     ]),
   ClipSession(
@@ -177,19 +186,22 @@ private let searchItems: [ClipboardItem] = [
   "dot.com", "a-b_c", "$100", "100%", "C:\\Users", "it's", "\"quoted\"",
   // Foundation compares only the first letter a query character folds to (ß → s, ﬁ → f) and lets each further
   // letter match any one character; these pin that down.
-  "sax", "ssx", "sx", "as", "asb", "ass", "fab", "fa", "fix", "f", "s", "xs", "ʼnx", "ʼx", "sss", "Ss", "ßa", "s\u{301}x",
+  "sax", "ssx", "sx", "as", "asb", "ass", "fab", "fa", "fix", "f", "s", "xs", "ʼnx", "ʼx", "sss", "Ss", "ßa",
+  "s\u{301}x",
   "s x", "s\u{301}", "sa\u{301}", "\u{915}", "👍", "q\u{20DD}", "q", "ß", "ﬆ", "ﬃ", "ŉ",
 ].enumerated().map { index, text in item(100 + index, text, at: t0 - Double(index)) }
 
 private let searchQueries: [String] = [
-  "hello", "HELLO", "héllo", "hello world", "world hello", "wörld", "WORLD", "creme", "CRÈME brulee", "brûlée", "strasse",
+  "hello", "HELLO", "héllo", "hello world", "world hello", "wörld", "WORLD", "creme", "CRÈME brulee", "brûlée",
+  "strasse",
   "STRASSE", "straße", "STRAẞE", "ss", "ß", "naive", "NAÏVE", "cafe", "file", "ﬁ", "fi", "ﬁle", "istanbul", "İstanbul",
   "İ", "i", "ı", "omega", "Ω", "ω", "ΩMEGA", "日本", "テキスト", "👍", "👍🏽", "tab", "\t", "line2", "", "   ", "\n",
   "angstrom", "Ångström", "aesir", "æ", "Æ", "oeuvre", "œ", "ǆ", "Ǆ", "dž", "eclair", "\u{E9}clair", "e\u{301}clair",
   "É", "12", "Ⅻ", "xii", "full", "ｆｕｌｌ", "zurich", "zürich", "ZÜRICH", "ff", "ø", "o", "Ä", "ä", "a", "x", "xy",
   "ελληνικα", "ΕΛΛΗΝΙΚΆ", "ёлка", "Елка", ".com", "a-b", "_c", "$", "%", "\\", "'", "\"", "hello zzz", "e", "  hello  ",
   "hel lo", "ßx", "aß", "ﬃ", "ß", "ßß", "xß", "ŉ", "ﬁx", "ßa", "sß", "SS", "ẞ", "ẞx", "ſ", "ﬆ", "ǰ", "ΐ", "ᾳ", "ς", "σ",
-  "Σ", "\u{212A}", "\u{212B}", "k", "å", "\u{915}\u{93F}", "q\u{20DD}", "\u{301}", "sa", "se", "ssa", "ss5", "a\u{20DD}",
+  "Σ", "\u{212A}", "\u{212B}", "k", "å", "\u{915}\u{93F}", "q\u{20DD}", "\u{301}", "sa", "se", "ssa", "ss5",
+  "a\u{20DD}",
   "s", "st", "t", "fi", "ffi", "ʼn", "ʼ", "n",
 ]
 
@@ -259,7 +271,10 @@ func clipboardFixtures() -> FixtureFile {
       result["items"] = historyItemsJ(history)
       return .object(result)
     }
-    return ["name": .string(session.name), "start": historyItemsJ(ClipboardHistory(items: session.start)), "steps": .array(steps)]
+    return [
+      "name": .string(session.name), "start": historyItemsJ(ClipboardHistory(items: session.start)),
+      "steps": .array(steps),
+    ]
   }
 
   let searchHistory = ClipboardHistory(items: searchItems)
@@ -269,7 +284,9 @@ func clipboardFixtures() -> FixtureFile {
 
   let coding: [J] = codingInputs.map { json in
     var entry: [String: J] = ["json": .string(json)]
-    entry.merge(outcome("history") { toJ(try JSONDecoder().decode(ClipboardHistory.self, from: Data(json.utf8))) }) { a, _ in a }
+    entry.merge(outcome("history") { toJ(try JSONDecoder().decode(ClipboardHistory.self, from: Data(json.utf8))) }) {
+      a, _ in a
+    }
     return .object(entry)
   }
 

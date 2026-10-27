@@ -91,7 +91,9 @@ do {
   ]
   try Data((manifest.rendered(expand: 3) + "\n").utf8).write(
     to: outputDirectory.appendingPathComponent("manifest.json"))
-  print("\(total) expected results (\(files.reduce(0) { $0 + $1.caseCount }) cases) in \(files.count) files → \(outputDirectory.path)")
+  print(
+    "\(total) expected results (\(files.reduce(0) { $0 + $1.caseCount }) cases) in \(files.count) files → \(outputDirectory.path)"
+  )
 } catch {
   FileHandle.standardError.write(Data("SlatedFixtures: \(error)\n".utf8))
   exit(1)

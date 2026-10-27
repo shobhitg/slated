@@ -168,8 +168,14 @@ private let decodeCases: [(String, String)] = [
     ]}
     """#
   ),
-  ("automation action with a bad interval", #"{"bindings": [{"keys": "f", "action": {"op": "repeat", "action": "click", "interval": -1}}]}"#),
-  ("automation action with a bad input", #"{"bindings": [{"keys": "f", "action": {"op": "hold", "input": "key:bogus"}}]}"#),
+  (
+    "automation action with a bad interval",
+    #"{"bindings": [{"keys": "f", "action": {"op": "repeat", "action": "click", "interval": -1}}]}"#
+  ),
+  (
+    "automation action with a bad input",
+    #"{"bindings": [{"keys": "f", "action": {"op": "hold", "input": "key:bogus"}}]}"#
+  ),
   ("automation action with bad syntax", #"{"bindings": [{"keys": "f", "action": "repeat 0.1 jitter:2 'click'"}]}"#),
   (
     "clipboard and automation settings",
@@ -179,7 +185,10 @@ private let decodeCases: [(String, String)] = [
      "automation": {"stopShortcut": "ctrl+alt+esc", "stopOnAppSwitch": false, "maxRunMinutes": 2.5, "showIndicator": false}}
     """#
   ),
-  ("clipboard and automation shortcuts turned off", #"{"clipboard": {"shortcut": null}, "automation": {"stopShortcut": null}}"#),
+  (
+    "clipboard and automation shortcuts turned off",
+    #"{"clipboard": {"shortcut": null}, "automation": {"stopShortcut": null}}"#
+  ),
   ("clipboard partial", #"{"clipboard": {"maxItems": 5}, "automation": {}}"#),
   ("clipboard null", #"{"clipboard": null, "automation": null}"#),
   ("clipboard invalid shortcut", #"{"clipboard": {"shortcut": "bogus+v"}}"#),
@@ -190,7 +199,10 @@ private let decodeCases: [(String, String)] = [
   ("clipboard maxItems fraction", #"{"clipboard": {"maxItems": 1.5}}"#),
   ("clipboard excludedApps not a list", #"{"clipboard": {"excludedApps": "com.bitwarden.desktop"}}"#),
   ("clipboard excludedApps empty", #"{"clipboard": {"excludedApps": []}}"#),
-  ("clipboard negative numbers are kept", #"{"clipboard": {"maxItems": -1, "retentionDays": -7}, "automation": {"maxRunMinutes": -2}}"#),
+  (
+    "clipboard negative numbers are kept",
+    #"{"clipboard": {"maxItems": -1, "retentionDays": -7}, "automation": {"maxRunMinutes": -2}}"#
+  ),
   ("clipboard shortcut as a number", #"{"clipboard": {"shortcut": 5}}"#),
   ("automation is not an object", #"{"automation": []}"#),
   ("full configuration", fullConfig),
@@ -348,7 +360,10 @@ private let decodeCases: [(String, String)] = [
   ("general null", #"{"general": null}"#),
   // island (the macOS notch island; Linux keeps it so shared configs round-trip)
   ("island partial", #"{"island": {"cheatSheet": false}}"#),
-  ("island all fields", #"{"island": {"enabled": false, "cheatSheet": true, "cheatSheetDelay": 1.25, "showFailures": false}}"#),
+  (
+    "island all fields",
+    #"{"island": {"enabled": false, "cheatSheet": true, "cheatSheetDelay": 1.25, "showFailures": false}}"#
+  ),
   ("island delay as integer", #"{"island": {"cheatSheetDelay": 1}}"#),
   ("island wrong type", #"{"island": {"enabled": "yes"}}"#),
   ("island null", #"{"island": null}"#),

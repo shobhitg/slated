@@ -74,7 +74,8 @@ private let evaluateInputs: [String] = [
   "1**sqrt(-1)", "1**1e400", "(-1)**1e400", "(-1)**-1e400", "2**sqrt(-1)", "sqrt(-1)**0", "1e400**0", "0**-1e400",
   "(-1)**0.5", "(-0)**-1", "(-8)**(1/3)*0",
   // identifiers and characters
-  "screenSizeX×2", "écran", "\u{915}\u{94D}\u{937}+*", "\u{915}\u{94D}\u{200D}\u{937}+*", "\u{1100}\u{1161}\u{11A8}+*", "x_1", "_a", "a1b2", "2a", "e\u{301}", "1+e\u{301}x", "1+😀", "😀+1", "1+👍🏽",
+  "screenSizeX×2", "écran", "\u{915}\u{94D}\u{937}+*", "\u{915}\u{94D}\u{200D}\u{937}+*", "\u{1100}\u{1161}\u{11A8}+*",
+  "x_1", "_a", "a1b2", "2a", "e\u{301}", "1+e\u{301}x", "1+😀", "😀+1", "1+👍🏽",
   "1+🇺🇸", "1+👨‍👩‍👧", "screenSizeX#2", "screenSizeX%2", "screenSizeX^2", "screenSizeX;2", "[1]", "1,2", "f(1)",
   "screen SizeX", "windowTopLeftX.5",
   // whitespace: Unicode spaces are fine, format characters are not
