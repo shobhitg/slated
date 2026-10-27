@@ -1107,6 +1107,38 @@ async function run(mode) {
     check(!model.loadError && model.saveState.kind === 'saved', 'back to the file as it was');
   });
 
+  await step('Overview counts the hotstrings that expand here: the extension leaves Mac-only ones out of espanso', async () => {
+    const statusText = fs.readFileSync(files.statusFile, 'utf8');
+    const hotstrings = JSON.parse(JSON.stringify(model.configuration.hotstrings));
+    model.setShellInfo({state: 1, error: ''});
+    model.setStatusText(JSON.stringify({session: 'abcd1234', running: true, updatedAt: new Date().toISOString(),
+      hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '~/.config/espanso/match/slated.yml', count: 0}}));
+    model.update(config => {
+      config.general.hotstringsEnabled = true;
+      for (const h of config.hotstrings) {
+        h.enabled = true;
+        h.onlyInApps = ['com.apple.mail'];
+      }
+    });
+    settings.showPane('overview');
+    const row = rowsIn(visible('overview'), (w, s) => s.props.get('title') === 'Hotstrings')[0];
+    const pillText = () => findAll(world, row, 'Gtk.Label', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-pill'))
+      .map(p => prop(world, p, 'label')).join();
+    const count = hotstrings.length;
+    check(prop(world, row, 'subtitle').startsWith(`0 hotstrings · ${count} Mac only`) && pillText() === 'Mac only',
+      `all Mac only: ${prop(world, row, 'subtitle')} [${pillText()}]`);
+    model.update(config => {
+      config.hotstrings[0].onlyInApps = [];
+    });
+    settings.showPane('overview');
+    check(prop(world, row, 'subtitle').startsWith(`1 hotstring · ${count - 1} Mac only`) && pillText() === 'Active',
+      `one expands here: ${prop(world, row, 'subtitle')} [${pillText()}]`);
+    model.update(config => {
+      config.hotstrings = hotstrings;
+    });
+    model.setStatusText(statusText);
+  });
+
   await step('the About dialog has debug information', async () => {
     settings.showPane('about');
     activate(rowsIn(visible('about'), (w, s) => s.props.get('title') === 'Credits, links and debug information')[0]);
