@@ -195,6 +195,12 @@ private let searchItems: [ClipboardItem] = [
   // The letters a query character skips unchecked are whole characters: an emoji, a ZWJ sequence or
   // CR LF counts as one. A skipped character that folds to several letters must match them entirely.
   "ſ😀x", "ſ👨‍👩‍👧x", "ſ\r\nx", "fß", "fﬁx", "fﬀ", "sﬁ", "ﬀß",
+  // Foundation ignores every Grapheme_Extend character (ZWNJ, halfwidth voicing marks, Bengali AA)
+  // but folds a precomposed character only when its base is below U+0510: "é" is "e", "が" isn't "か".
+  // A canonically equivalent spelling still matches ("か" + U+3099 is "が").
+  "میخواهم", "می\u{200C}خواهم", "کتابها", "a\u{200C}b", "a\u{200D}b", "ﾊﾟｿｺﾝ", "ｶﾞｯｺｳ", "がっこう",
+  "か\u{3099}っこう", "パソコン", "ハ\u{309A}ソコン", "ヴ", "\u{3099}", "কা", "कि", "آب", "ا\u{653}ب", "\u{FB2A}",
+  "ש\u{5C1}", "≠", "∉", "각", "\u{1100}\u{1161}\u{11A8}", "\u{F900}", "\u{1FCD}",
 ].enumerated().map { index, text in item(100 + index, text, at: t0 - Double(index)) }
 
 private let searchQueries: [String] = [
@@ -210,6 +216,10 @@ private let searchQueries: [String] = [
   "a\u{20DD}",
   "s", "st", "t", "fi", "ffi", "ʼn", "ʼ", "n",
   "\u{308}", "\u{308}fi", "\u{301}e", "\u{301}", "\u{345}", "ι", "ßx", "ßi", "ﬃs", "ﬆi", "ﬃx", "\u{308}y",
+  "می\u{200C}", "کتاب\u{200C}", "\u{200C}", "ab", "a\u{200C}b", "a\u{200D}b", "ﾊ", "ﾊｿ", "ﾊﾟ", "ｶ", "ﾟ", "か", "が",
+  "か\u{3099}", "かっ", "がっ", "か\u{3099}っ", "ハソコン", "パソコン", "ハ\u{309A}", "ウ", "ゔ", "\u{3099}", "ক",
+  "কা", "क", "ا", "آ", "ا\u{653}", "ש", "\u{FB2A}", "ש\u{5C1}", "=", "≠", "∈", "∉", "가", "각",
+  "\u{1100}\u{1161}\u{11A8}", "\u{F900}", "\u{8C48}", "\u{1FBF}",
 ]
 
 private func historyItemsJ(_ history: ClipboardHistory) -> J {

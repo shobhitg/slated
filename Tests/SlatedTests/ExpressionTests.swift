@@ -242,6 +242,32 @@ let expressionTests = Suite(
       }
     ),
     (
+      "a very long or deeply nested expression is an error, not a crash",
+      {
+        let chain = { (op: String, count: Int) in Array(repeating: "1", count: count).joined(separator: op) }
+        expectEqual(try evaluate(chain("+", 1000)), 1000)
+        expectEqual(try evaluate(chain("**", 1000)), 1)
+        expectEqual(try evaluate("sum({" + chain(",", 999) + "})"), 999)
+        let tooLong =
+          "\"1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+…\" is too long: an expression can have at most 1,000 terms"
+        expectEqual(errorMessage { _ = try evaluate(chain("+", 1001)) }, tooLong)
+        for op in ["-", "*", "/", "**"] {
+          expectMessage(errorMessage { _ = try evaluate(chain(op, 100_000)) }, contains: "is too long")
+        }
+        expectMessage(errorMessage { try SlateExpression.validate(chain("+", 100_000)) }, contains: "is too long")
+        expectMessage(errorMessage { _ = try evaluate("sum({" + chain(",", 1000) + "})") }, contains: "is too long")
+        expectMessage(
+          errorMessage { _ = try evaluate("screenSizeX" + String(repeating: "+windowSizeX", count: 1000)) },
+          contains: "is too long")
+        let tooDeep =
+          "\"((((((((((((((((((((((((((((((((((((((((…\" is nested too deeply: an expression can nest at most 200 levels"
+        expectEqual(errorMessage { _ = try evaluate(String(repeating: "(", count: 100_000) + "1") }, tooDeep)
+        expectEqual(
+          errorMessage { _ = try evaluate(String(repeating: "-", count: 100_000) + "1") },
+          "\"\(String(repeating: "-", count: 40))…\" is nested too deeply: an expression can nest at most 200 levels")
+      }
+    ),
+    (
       "validate checks syntax and variables without evaluating",
       {
         try SlateExpression.validate("screenOriginX+screenSizeX/2")

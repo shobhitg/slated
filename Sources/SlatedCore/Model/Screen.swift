@@ -34,7 +34,9 @@ public struct ScreenInfo: Hashable, Sendable, Codable {
   /// Width × height of the full frame in points, Slate's resolution notation (e.g. "1680x1050").
   public var resolution: String { "\(Int(frame.width))x\(Int(frame.height))" }
 
-  public var isPortrait: Bool { frame.height > frame.width }
+  /// Whether `by-orientation` takes its portrait branch here. A square display counts as portrait:
+  /// Slate configs (the author's `~/.slate.js` among them) test `width > height` for landscape.
+  public var isPortrait: Bool { frame.height >= frame.width }
 }
 
 extension Array where Element == ScreenInfo {

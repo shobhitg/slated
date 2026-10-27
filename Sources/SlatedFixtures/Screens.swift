@@ -140,6 +140,17 @@ let screenSetups: [ScreenSetup] = [
     windows: [("wide", rect(100, 100, 400, 400)), ("tall", rect(2000, 100, 400, 400))],
     settings: ["default", "allFlipped"]),
   ScreenSetup(
+    name: "square",
+    description:
+      "A 1920×1920 square main display, which by-orientation treats as portrait (its visible frame is wider than "
+      + "tall; the full frame decides), and a 2560×1440 display on its right.",
+    screens: [
+      screen(1, "Square", rect(0, 0, 1920, 1920), rect(0, 25, 1920, 1895), main: true),
+      screen(8, "Wide", rect(1920, 0, 2560, 1440), rect(1920, 25, 2560, 1415)),
+    ],
+    windows: [("onSquare", rect(100, 100, 800, 600)), ("onWide", rect(2200, 100, 800, 600))],
+    settings: ["default"]),
+  ScreenSetup(
     name: "empty",
     description: "No displays at all (e.g. while displays reconfigure).",
     screens: [],

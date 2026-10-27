@@ -37,12 +37,22 @@ let starterTests = Suite(
         let tall = try FrameCalculator.targetFrame(
           for: action, in: WindowContext(frame: CGRect(x: 2000, y: 100, width: 400, height: 400), screens: screens))
         expectEqual(tall, CGRect(x: 1800, y: 0, width: 1000, height: 600))
+        // A square display counts as portrait: ~/.slate.js treats only `width > height` as landscape.
+        let square = ScreenInfo(
+          displayID: 3, name: "Square", frame: CGRect(x: 0, y: 1000, width: 1200, height: 1200),
+          visibleFrame: CGRect(x: 0, y: 1000, width: 1200, height: 1200), isMain: false)
+        expect(square.isPortrait && portrait.isPortrait && !landscape.isPortrait)
+        let even = try FrameCalculator.targetFrame(
+          for: action,
+          in: WindowContext(frame: CGRect(x: 100, y: 1100, width: 400, height: 400), screens: screens + [square]))
+        expectEqual(even, CGRect(x: 0, y: 1000, width: 1200, height: 400))
       }
     ),
   ])
 
 /// The starter configuration must behave exactly like the author's ~/.slate.js. Runs each of its
-/// bindings on a landscape and a portrait screen and compares. Skipped when the file isn't there.
+/// bindings on a landscape, a portrait and a square screen and compares. Skipped when the file isn't
+/// there.
 @MainActor
 func starterMatchesSlateJS() throws {
   let path = NSString(string: "~/.slate.js").expandingTildeInPath
@@ -74,6 +84,23 @@ func starterMatchesSlateJS() throws {
       expect(
         false,
         "\(binding.keystroke): starter has \(starter[binding.keys].map(SlateSyntax.format) ?? "nothing"), ~/.slate.js does \(SlateSyntax.format(expected))"
+      )
+    }
+    // On a square screen the starter's by-orientation must take the branch the script takes.
+    let portraitScreen = host.screenList[1]
+    host.screenList[1].frame.size = CGSize(width: portraitScreen.frame.width, height: portraitScreen.frame.width)
+    host.screenList[1].visibleFrame = host.screenList[1].frame
+    defer { host.screenList[1] = portraitScreen }
+    host.focused = FakeScriptHost.terminal
+    host.performed = []
+    _ = engine.invoke(binding)
+    let onSquare = host.performed.last?.action
+    var resolved = starter[binding.keys]
+    if case .byOrientation(let l, let p) = resolved { resolved = host.screenList[1].isPortrait ? p : l }
+    if onSquare != resolved {
+      expect(
+        false,
+        "\(binding.keystroke) on a square screen: starter does \(resolved.map(SlateSyntax.format) ?? "nothing"), ~/.slate.js does \(onSquare.map(SlateSyntax.format) ?? "nothing")"
       )
     }
   }

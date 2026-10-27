@@ -223,4 +223,100 @@ let crossPlatformBugTests = Suite(
         expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
       }
     ),
+    (
+      "display defaults are written as count or resolutions, and the old enum shape still reads",
+      {
+        let config = SlatedConfiguration(defaults: [
+          ScreenDefault(target: "coding", condition: .count(2)),
+          ScreenDefault(target: "big", condition: .resolutions(["2560x1440", "1920x1080"])),
+        ])
+        let text = String(decoding: try config.encoded(), as: UTF8.self)
+        expect(text.contains(#""count" : 2,"#) && text.contains(#""resolutions" : ["#), text)
+        expect(!text.contains("condition") && !text.contains("_0"), text)
+        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        let old = #"""
+          {"defaults": [{"target": "coding", "condition": {"count": {"_0": 2}}},
+                        {"target": "big", "condition": {"resolutions": {"_0": ["2560x1440", "1920x1080"]}}}]}
+          """#
+        expectEqual(try SlatedConfiguration.decode(from: Data(old.utf8)).defaults, config.defaults)
+        for (input, message) in [
+          (#"{"defaults": [{"target": "x"}]}"#, #"A display default needs "count" or "resolutions""#),
+          (
+            #"{"defaults": [{"target": "x", "count": 2, "resolutions": ["1x1"]}]}"#,
+            #"A display default takes one condition: "count" or "resolutions""#
+          ),
+          (
+            #"{"defaults": [{"target": "x", "count": 2, "condition": {"count": {"_0": 2}}}]}"#,
+            #"A display default takes one condition: "count" or "resolutions""#
+          ),
+        ] {
+          do {
+            _ = try SlatedConfiguration.decode(from: Data(input.utf8))
+            expect(false, "decoded \(input)")
+          } catch DecodingError.dataCorrupted(let context) {
+            expectEqual(context.debugDescription, message)
+            expectEqual(context.codingPath.map { $0.intValue.map(String.init) ?? $0.stringValue }, ["defaults", "0"])
+          }
+        }
+      }
+    ),
+    (
+      "an unknown Hyper modifier is an error that says which and where, not dropped",
+      {
+        let input = #"{"keyboard":{"capsLock":"hyper","hyperModifiers":["ctrl","alt","bogus","cmd"]}}"#
+        do {
+          _ = try SlatedConfiguration.decode(from: Data(input.utf8))
+          expect(false, "decoded \(input)")
+        } catch DecodingError.dataCorrupted(let context) {
+          expectEqual(context.debugDescription, #"Unknown modifier "bogus". Use ctrl, alt, shift, cmd, fn, hyper or meh."#)
+          expectEqual(
+            context.codingPath.map { $0.intValue.map(String.init) ?? $0.stringValue }, ["keyboard", "hyperModifiers", "2"])
+        }
+        // Every alias still reads.
+        let aliases = #"["Control","⌃","opt","option","⌥","shift","⇧","Command","⌘","fn","function"]"#
+        let all = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":\#(aliases)}}"#.utf8))
+        expectEqual(all.keyboard.hyperModifiers, [.control, .option, .shift, .command, .function])
+        let hyper = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":["✦"]}}"#.utf8))
+        expectEqual(hyper.keyboard.hyperModifiers, .hyper)
+        let meh = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":["MEH"]}}"#.utf8))
+        expectEqual(meh.keyboard.hyperModifiers, .meh)
+      }
+    ),
+    (
+      "top-level sections from a newer Slated survive a save; unknown fields inside known sections don't",
+      {
+        let input = #"""
+          {"zzz": {"b": [1, 2.5, "x", null, true, {}], "a": 9007199254740993}, "aaa": "first",
+           "general": {"launchAtLogin": true, "someday": 1}}
+          """#
+        let config = try SlatedConfiguration.decode(from: Data(input.utf8))
+        expectEqual(
+          config.unknownSections,
+          [
+            "aaa": .string("first"),
+            "zzz": .object([
+              "a": .int(9_007_199_254_740_993),
+              "b": .array([.int(1), .double(2.5), .string("x"), .null, .bool(true), .object([:])]),
+            ]),
+          ])
+        let text = String(decoding: try config.encoded(), as: UTF8.self)
+        let topLevel = text.split(separator: "\n").filter { $0.hasPrefix("  \"") }.map { $0.split(separator: "\"")[1] }
+        expectEqual(
+          topLevel,
+          [
+            "aaa", "automation", "bindings", "clipboard", "defaults", "general", "hotstrings", "island", "keyboard",
+            "layouts", "settings", "version", "zzz",
+          ])
+        expect(text.contains(#""a" : 9007199254740993,"#), text)
+        expect(!text.contains("someday"), text)
+        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        // Known sections win over unknown ones of the same name, and the initializer doesn't need them.
+        var edited = SlatedConfiguration(bindings: [])
+        expectEqual(edited.unknownSections, [:])
+        edited.unknownSections = ["bindings": .string("not a list"), "later": .null]
+        let again = try SlatedConfiguration.decode(from: edited.encoded())
+        expectEqual(again.bindings, [])
+        expectEqual(again.unknownSections, ["later": .null])
+      }
+    ),
   ])

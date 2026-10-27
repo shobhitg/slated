@@ -88,6 +88,17 @@
     {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Wide","setup":"starterTests"},
     {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Wide","setup":"starterTests"},
     {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Wide","setup":"starterTests"},
+    {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":"Square","setup":"square"},
+    {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":"Square","setup":"square"},
+    {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":"Square","setup":"square"},
+    {"rect":{"height":300,"width":400,"x":-300,"y":-100},"screen":"Square","setup":"square"},
+    {"rect":{"height":100,"width":100,"x":5000,"y":5000},"screen":"Square","setup":"square"},
+    {"rect":{"height":100,"width":0,"x":1440,"y":0},"screen":"Square","setup":"square"},
+    {"rect":{"height":100,"width":100,"x":1390,"y":0},"screen":"Square","setup":"square"},
+    {"rect":{"height":0,"width":0,"x":0,"y":0},"screen":"Square","setup":"square"},
+    {"rect":{"height":4000,"width":5000,"x":-1080,"y":-1080},"screen":"Square","setup":"square"},
+    {"rect":{"height":1,"width":1,"x":1439.5,"y":899.5},"screen":"Square","setup":"square"},
+    {"rect":{"height":-200,"width":-200,"x":500,"y":500},"screen":"Square","setup":"square"},
     {"rect":{"height":600,"width":800,"x":100,"y":100},"screen":null,"setup":"empty"},
     {"rect":{"height":600,"width":800,"x":1300,"y":100},"screen":null,"setup":"empty"},
     {"rect":{"height":300,"width":400,"x":-200,"y":-500},"screen":null,"setup":"empty"},
@@ -111,6 +122,7 @@
     {"names":["Built-in","Corner","Far"],"setup":"cornerOnly"},
     {"names":["DP-1","eDP-1","HDMI-1"],"setup":"gnome"},
     {"names":["Wide","Tall"],"setup":"starterTests"},
+    {"names":["Square","Wide"],"setup":"square"},
     {"names":[],"setup":"empty"},
     {"names":["Built-in","Top"],"screens":[{"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}},{"displayID":10,"frame":{"height":1080,"width":1440,"x":0,"y":-1080},"isMain":false,"name":"Top","scale":2,"visibleFrame":{"height":1055,"width":1440,"x":0,"y":-1055}}]},
     {"names":["Built-in","Top"],"screens":[{"displayID":10,"frame":{"height":1080,"width":1440,"x":0,"y":-1080},"isMain":false,"name":"Top","scale":2,"visibleFrame":{"height":1055,"width":1440,"x":0,"y":-1055}},{"displayID":1,"frame":{"height":900,"width":1440,"x":0,"y":0},"isMain":true,"name":"Built-in","scale":2,"visibleFrame":{"height":815,"width":1440,"x":0,"y":25}}]},
@@ -651,6 +663,54 @@
       "window": "tall"
     },
     {
+      "results": {"(none)":"Square","-1":"Square","-2":null,"0":"Square","1":"Wide","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":"Wide","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Wide","ordered:-1":"Square","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Wide","right":"Wide","up":null},
+      "settings": "default",
+      "setup": "square",
+      "window": "onSquare"
+    },
+    {
+      "results": {"(none)":"Square","-1":"Square","-2":null,"0":"Square","1":"Wide","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":"Wide","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":"Wide","ordered:-1":"Square","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Wide","right":"Wide","up":null},
+      "settings": "osOrder",
+      "setup": "square",
+      "window": "onSquare"
+    },
+    {
+      "results": {"(none)":"Square","-1":"Square","-2":null,"0":"Square","1":"Wide","1080x1920":"Square","1440x815":"Square","1440x900":"Square","1512x982":"Square","1920x1080":"Square","2":"Square","2560x1440":"Wide","3":"Square","4":"Square","800x600":"Square","9":"Square","down":null,"left":null,"next":"Wide","ordered:-1":"Square","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":"Square","ordered:3":"Square","ordered:4":"Square","previous":"Wide","right":"Wide","up":null},
+      "settings": "defaultToCurrent",
+      "setup": "square",
+      "window": "onSquare"
+    },
+    {
+      "results": {"(none)":"Square","-1":"Square","-2":null,"0":"Square","1":"Wide","1080x1920":"Square","1440x815":"Square","1440x900":"Square","1512x982":"Square","1920x1080":"Square","2":"Square","2560x1440":"Wide","3":"Square","4":"Square","800x600":"Square","9":"Square","down":null,"left":null,"next":"Wide","ordered:-1":"Square","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":"Square","ordered:3":"Square","ordered:4":"Square","previous":"Wide","right":"Wide","up":null},
+      "settings": "allFlipped",
+      "setup": "square",
+      "window": "onSquare"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Square","1":"Wide","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":"Wide","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Square","next":"Square","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Square","right":null,"up":null},
+      "settings": "default",
+      "setup": "square",
+      "window": "onWide"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Square","1":"Wide","1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":"Wide","3":null,"4":null,"800x600":null,"9":null,"down":null,"left":"Square","next":"Square","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":"Square","right":null,"up":null},
+      "settings": "osOrder",
+      "setup": "square",
+      "window": "onWide"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Square","1":"Wide","1080x1920":"Wide","1440x815":"Wide","1440x900":"Wide","1512x982":"Wide","1920x1080":"Wide","2":"Wide","2560x1440":"Wide","3":"Wide","4":"Wide","800x600":"Wide","9":"Wide","down":null,"left":"Square","next":"Square","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":"Wide","ordered:3":"Wide","ordered:4":"Wide","previous":"Square","right":null,"up":null},
+      "settings": "defaultToCurrent",
+      "setup": "square",
+      "window": "onWide"
+    },
+    {
+      "results": {"(none)":"Wide","-1":"Wide","-2":null,"0":"Square","1":"Wide","1080x1920":"Wide","1440x815":"Wide","1440x900":"Wide","1512x982":"Wide","1920x1080":"Wide","2":"Wide","2560x1440":"Wide","3":"Wide","4":"Wide","800x600":"Wide","9":"Wide","down":null,"left":"Square","next":"Square","ordered:-1":"Wide","ordered:-2":null,"ordered:0":"Square","ordered:1":"Wide","ordered:2":"Wide","ordered:3":"Wide","ordered:4":"Wide","previous":"Square","right":null,"up":null},
+      "settings": "allFlipped",
+      "setup": "square",
+      "window": "onWide"
+    },
+    {
       "results": {"(none)":null,"-1":null,"-2":null,"0":null,"1":null,"1080x1920":null,"1440x815":null,"1440x900":null,"1512x982":null,"1920x1080":null,"2":null,"2560x1440":null,"3":null,"4":null,"800x600":null,"9":null,"down":null,"left":null,"next":null,"ordered:-1":null,"ordered:-2":null,"ordered:0":null,"ordered:1":null,"ordered:2":null,"ordered:3":null,"ordered:4":null,"previous":null,"right":null,"up":null},
       "settings": "default",
       "setup": "empty",
@@ -827,6 +887,21 @@
         "fractional": {"height":200.4,"width":300.9,"x":10.7,"y":-20.5},
         "offscreen": {"height":100,"width":100,"x":5000,"y":5000},
         "onMain": {"height":600,"width":800,"x":100,"y":100}
+      }
+    },
+    "square": {
+      "description": "A 1920×1920 square main display, which by-orientation treats as portrait (its visible frame is wider than tall; the full frame decides), and a 2560×1440 display on its right.",
+      "screens": [
+        {"displayID":1,"frame":{"height":1920,"width":1920,"x":0,"y":0},"isMain":true,"name":"Square","scale":2,"visibleFrame":{"height":1895,"width":1920,"x":0,"y":25}},
+        {"displayID":8,"frame":{"height":1440,"width":2560,"x":1920,"y":0},"isMain":false,"name":"Wide","scale":2,"visibleFrame":{"height":1415,"width":2560,"x":1920,"y":25}}
+      ],
+      "windowOrder": [
+        "onSquare",
+        "onWide"
+      ],
+      "windows": {
+        "onSquare": {"height":600,"width":800,"x":100,"y":100},
+        "onWide": {"height":600,"width":800,"x":2200,"y":100}
       }
     },
     "starterTests": {

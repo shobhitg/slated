@@ -91,9 +91,25 @@ private let evaluateInputs: [String] = [
   String(repeating: "-", count: 199) + "1", String(repeating: "-", count: 200) + "1",
   "sum(" + String(repeating: "(", count: 198) + "1" + String(repeating: ")", count: 198) + ")",
   "sum(" + String(repeating: "(", count: 199) + "1" + String(repeating: ")", count: 199) + ")",
+  String(repeating: "(", count: 1000) + "1" + String(repeating: ")", count: 1000),
+  String(repeating: "-", count: 1000) + "1", String(repeating: "sqrt(", count: 1000) + "1",
+  // length limit (1,000 numbers, variables and function calls): long chains would overflow the stack
+  chain("+", 1000), chain("+", 1001), chain("-", 1001), chain("*", 1000), chain("*", 1001), chain("/", 1001),
+  chain("**", 1000), chain("**", 1001), "(" + chain("+", 1000) + ")",
+  "(" + chain("+", 500) + ")*(" + chain("+", 501) + ")",
+  "sum({" + chain(",", 999) + "})", "sum({" + chain(",", 1000) + "})", "sum(" + chain(",", 999) + ")",
+  "screenSizeX" + String(repeating: "+windowSizeX", count: 1000),
+  String(repeating: "abs(", count: 150) + chain("+", 850) + String(repeating: ")", count: 150),
+  String(repeating: "abs(", count: 150) + chain("+", 851) + String(repeating: ")", count: 150),
+  chain("+", 1001, term: "e\u{301}"), chain("+", 1001, term: "1\r\n"), chain("+", 1001, term: "\u{915}\u{94D}\u{937}"),
   // stray symbols
   "{", "}", ",", "()", "(", ")", "1(", "*", "**2", "2**", "2***3", "2* *3", "(()", "1)(2",
 ]
+
+/// `count` copies of `term` joined by `op`, such as `1+1+1`.
+private func chain(_ op: String, _ count: Int, term: String = "1") -> String {
+  Array(repeating: term, count: count).joined(separator: op)
+}
 
 /// Expressions whose result goes through pow/log/exp, where libm implementations may differ by an
 /// ulp between Swift (Darwin) and JavaScript engines.
@@ -110,6 +126,8 @@ private let validateInputs: [(String, String)] = [
   ("max({screenSizeX, windowHintsWidth})", "window"), ("foo(1)", "window"), ("windowsizex", "window"),
   ("screenOriginX+bogus+alsoBogus", "window"), ("windowHintsWidht", "all"), ("1 2", "window"), ("(1", "all"),
   ("screenSizeX", "none"), ("2*3", "none"), ("a+b", "custom"), ("aa+b", "custom"), ("c", "custom"),
+  (chain("+", 1000, term: "a"), "custom"), (chain("+", 1001, term: "a"), "custom"),
+  (String(repeating: "(", count: 201) + "a" + String(repeating: ")", count: 201), "custom"),
 ]
 
 private let validateSets: [String: Set<String>] = [

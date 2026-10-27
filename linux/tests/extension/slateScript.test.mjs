@@ -474,6 +474,16 @@ test('slate.source loads JavaScript and classic files relative to home, without 
   );
 });
 
+test('a sourced classic file’s display defaults keep their condition', () => {
+  const files = {'/home/me/.slate.classic': 'default coding count:2\ndefault big resolutions:1920x1080;2560x1440\n'};
+  const {result} = engineWith('slate.source("~/.slate.classic");', {files, core: realCore()});
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(result.defaults, [
+    {condition: {count: 2}, target: {name: 'coding'}},
+    {condition: {resolutions: ['1920x1080', '2560x1440']}, target: {name: 'big'}},
+  ]);
+});
+
 test('slate.bind after loading is ignored with a warning', () => {
   const {engine, result} = engineWith('var late = function () { slate.bind("z:ctrl", "push left"); }; slate.bind("a:ctrl", late);');
   const outcome = engine.invoke(result.bindings[0]);

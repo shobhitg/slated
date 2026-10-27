@@ -54,7 +54,8 @@ function sameScreen(a, b) {
 
 /** "1680x1050": the full frame's size, Slate's resolution notation. */
 export const screenResolution = (s) => `${Math.trunc(width(s.frame))}x${Math.trunc(height(s.frame))}`;
-export const isPortrait = (s) => height(s.frame) > width(s.frame);
+/** A square display counts as portrait: Slate configs test `width > height` for landscape. */
+export const isPortrait = (s) => height(s.frame) >= width(s.frame);
 
 /**
  * Screens in Slate's default numbering (`orderScreensLeftToRight`): by the x of their top-left

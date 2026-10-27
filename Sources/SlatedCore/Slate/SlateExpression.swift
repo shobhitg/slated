@@ -205,7 +205,11 @@ struct ExpressionParser {
   private var tokens: [ExpressionToken] = []
   private var position = 0
   private var depth = 0
+  private var terms = 0
   private static let maximumDepth = 200
+  /// A chain like `1+1+1…` builds a tree as deep as it is long, and evaluating it recurses that deep:
+  /// thousands of terms would overflow the stack.
+  private static let maximumTerms = 1000
 
   init(_ source: String) {
     self.source = source
@@ -241,9 +245,7 @@ struct ExpressionParser {
   private mutating func parseExpression() throws -> ExpressionNode {
     depth += 1
     defer { depth -= 1 }
-    guard depth <= Self.maximumDepth else {
-      throw SlatedError.invalidExpression("\"\(source)\" is nested too deeply")
-    }
+    guard depth <= Self.maximumDepth else { throw tooDeep() }
     var lhs = try parseTerm()
     while isSymbol("+") || isSymbol("-") {
       let op = advance()
@@ -278,9 +280,7 @@ struct ExpressionParser {
       let op = advance()
       depth += 1
       defer { depth -= 1 }
-      guard depth <= Self.maximumDepth else {
-        throw SlatedError.invalidExpression("\"\(source)\" is nested too deeply")
-      }
+      guard depth <= Self.maximumDepth else { throw tooDeep() }
       let operand = try parseUnary()
       return op.kind == .symbol("-") ? .negate(operand) : operand
     }
@@ -291,9 +291,11 @@ struct ExpressionParser {
     let token = current
     switch token.kind {
     case .number(let value):
+      try countTerm()
       _ = advance()
       return .number(value)
     case .identifier(let name):
+      try countTerm()
       _ = advance()
       if isSymbol("(") {
         return try parseCall(name, column: token.column)
@@ -324,6 +326,21 @@ struct ExpressionParser {
       throw unexpected(token, expecting: "a number, a variable or \"(\"")
     }
   }
+
+  /// Counts a number, variable or function call towards `maximumTerms`.
+  private mutating func countTerm() throws {
+    terms += 1
+    guard terms <= Self.maximumTerms else {
+      throw SlatedError.invalidExpression("\(abbreviated) is too long: an expression can have at most 1,000 terms")
+    }
+  }
+
+  private func tooDeep() -> SlatedError {
+    .invalidExpression("\(abbreviated) is nested too deeply: an expression can nest at most 200 levels")
+  }
+
+  /// The start of the expression, quoted: these errors are about expressions of 200 characters or more.
+  private var abbreviated: String { "\"\(source.prefix(40))…\"" }
 
   private mutating func parseCall(_ name: String, column: Int) throws -> ExpressionNode {
     guard let function = ExpressionFunction(rawValue: name.lowercased()) else {

@@ -169,7 +169,8 @@ func errorJ(_ error: Error) -> J {
       "\" needs \"", "Invalid direction \"", "Invalid corner \"", "Invalid focus direction \"",
       "Unknown operation \"", "Invalid operation \"", "Invalid screen reference \"", "Invalid push style \"",
       "Invalid key combo \"", "Invalid input \"", "interval must be more than 0 seconds", "times must be at least 1",
-      "jitter must be between 0 and 0.5", "seconds can't be negative",
+      "jitter must be between 0 and 0.5", "seconds can't be negative", "Unknown modifier \"",
+      "A display default ",
     ]
     let exact = ours.contains { message.contains($0) } && !message.contains("underlying")
     // Foundation's own messages can depend on dictionary order (which of two bad values it meets

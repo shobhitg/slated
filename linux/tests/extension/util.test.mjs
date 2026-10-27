@@ -18,6 +18,7 @@ import {
   sequenceSteps,
   stableStringify,
 } from '../../gnome-extension/lib/platform/util.js';
+import * as realCore from '../../gnome-extension/lib/core/index.js';
 import {fakeCore} from './fake-core.mjs';
 import {landscape, portrait} from './fixtures.mjs';
 
@@ -67,6 +68,20 @@ test('display default conditions accept plain and Swift-coded shapes', () => {
   assert.equal(conditionMatches(null, screens), false);
   assert.deepEqual(defaultEntry({target: 'coding', condition: {count: {_0: 2}}}), {condition: {count: 2}, target: 'coding'});
   assert.equal(defaultEntry({condition: {count: 2}}), null);
+});
+
+test('config.json display defaults apply in both the current and the old shape', () => {
+  const screens = [landscape, portrait];
+  const file = `{"defaults": [{"target": "two", "count": 2}, {"target": "pair", "resolutions": ["1920x1080", "1080x1920"]},
+    {"target": "old", "condition": {"count": {"_0": 2}}}]}`;
+  const entries = realCore.decodeConfiguration(file).defaults.map(defaultEntry);
+  assert.deepEqual(entries, [
+    {condition: {count: 2}, target: 'two'},
+    {condition: {resolutions: ['1920x1080', '1080x1920']}, target: 'pair'},
+    {condition: {count: 2}, target: 'old'},
+  ]);
+  assert.ok(entries.every((entry) => conditionMatches(entry.condition, screens)));
+  assert.equal(defaultEntry({target: 'none'}), null);
 });
 
 test('diagnosticText reads like the Swift Diagnostic.description', () => {

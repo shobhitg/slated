@@ -633,7 +633,8 @@ export class ActionRunner {
 
   _pushUndo(window, frame) {
     this._undo.push({window, frame});
-    const limit = Math.max(Math.trunc(this._settingNumber('undoMaxStackSize', 10)), 1);
+    // Read as the Mac reads it: "inf" keeps everything, text that isn't a number means the default.
+    const limit = Math.max((this.core.readSettings ?? Core.readSettings)(this.settings).undoMaxStackSize, 1);
     if (this._undo.length > limit) this._undo.splice(0, this._undo.length - limit);
   }
 
@@ -804,11 +805,6 @@ export class ActionRunner {
   _setting(key, fallback) {
     const value = this.settings?.[key];
     return value === undefined || value === null ? fallback : value;
-  }
-
-  _settingNumber(key, fallback) {
-    const value = Number(this._setting(key, fallback));
-    return Number.isFinite(value) ? value : fallback;
   }
 
   _settingBool(key, fallback) {

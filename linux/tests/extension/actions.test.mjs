@@ -161,6 +161,21 @@ test('by-orientation picks the action for the window’s screen shape', () => {
   assert.deepEqual(platform.windows[2].frame, {x: 1920, y: 0, width: 1080, height: 640});
 });
 
+test('by-orientation treats a square screen as portrait, like the Mac', () => {
+  const square = {displayID: 0, name: 'Square', frame: {x: 0, y: 0, width: 1200, height: 1200}, visibleFrame: {x: 0, y: 0, width: 1200, height: 1200}, isMain: true, scale: 1};
+  const platform = new FakePlatform({apps, screens: [square], windows: [new FakeWindow({id: 1, app: 'firefox', frame: {x: 100, y: 100, width: 400, height: 400}})]});
+  const runner = new ActionRunner({platform, core: realCore, log: new MemoryLog()});
+  const thirds = {
+    op: 'by-orientation',
+    landscape: {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/3', height: 'screenSizeY'},
+    portrait: {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX', height: 'screenSizeY/3'},
+  };
+  assert.equal(runner.run(thirds, {trigger: 't'}), true);
+  assert.deepEqual(platform.windows[0].frame, {x: 0, y: 0, width: 1200, height: 400});
+  // The core agrees when it resolves by-orientation itself (the settings window's previews).
+  assert.deepEqual(realCore.targetFrame(thirds, {frame: {x: 100, y: 100, width: 400, height: 400}, screens: [square]}), {x: 0, y: 0, width: 1200, height: 400});
+});
+
 test('layouts apply operations to each app’s windows with Slate’s options', () => {
   const windows = [
     new FakeWindow({id: 1, app: 'org.gnome.Terminal', title: 'c', frame: {x: 10, y: 50, width: 400, height: 300}}),
@@ -428,6 +443,22 @@ test('a maximized window that first settles at its old size gets the size asked 
   assert.deepEqual(window.frame, {x: 0, y: 32, width: 960, height: 1048});
   platform.settle();
   assert.equal(platform.calls.filter((c) => c[0] === 'setFrame').length, 2, 'asked once more, then left alone');
+});
+
+test('undoMaxStackSize is read as on the Mac: infinity keeps everything, text that isn\u2019t a number is the default', () => {
+  // 12 moves, then undo until it fails: how many undos were kept (SlateSettings.undoMaxStackSize, at least 1).
+  const kept = (undoMaxStackSize) => {
+    const {runner} = setup();
+    runner.settings = {undoMaxStackSize};
+    for (let i = 0; i < 12; i++) runner.run(i % 2 ? leftHalf : rightHalf, {trigger: 't'});
+    let undos = 0;
+    while (runner.run({op: 'undo'}, {trigger: 't'})) undos++;
+    return undos;
+  };
+  assert.deepEqual(
+    [Infinity, -Infinity, NaN, '', ' 12', '1e20', '3', 2.9, 0, -5].map(kept),
+    [12, 1, 10, 10, 10, 12, 3, 2, 1, 1],
+  );
 });
 
 test('the grid places windows with undo', () => {

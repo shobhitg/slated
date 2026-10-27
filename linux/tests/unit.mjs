@@ -218,6 +218,8 @@ export function registerUnitTests({root, readText}) {
     expect(error instanceof SlatedError && error.kind === 'invalidConfiguration', `got ${error}`);
     const bad = expectThrows(() => core.decodeConfiguration('{"bindings": [{"keys": "x+y", "action": "undo"}]}'));
     expectEqual(bad?.codingPath, ['bindings', 0, 'keys']);
+    const modifier = expectThrows(() => core.decodeConfiguration('{"keyboard": {"hyperModifiers": ["ctrl", "alt", "bogus", "cmd"]}}'));
+    expectEqual([modifier?.message, modifier?.codingPath], ['Unknown modifier "bogus". Use ctrl, alt, shift, cmd, fn, hyper or meh.', ['keyboard', 'hyperModifiers', 2]]);
     const broken = expectThrows(() => core.decodeConfiguration('{"bindings": ['));
     expect(broken instanceof SlatedError && broken.kind === 'invalidConfiguration', `broken JSON: ${broken}`);
   });
@@ -236,6 +238,19 @@ export function registerUnitTests({root, readText}) {
     const keys = starter.bindings.map((b) => b.keys.slice('hyper+'.length)).sort().join(' ');
     expectEqual(keys, "' a b c d down e f g h left q return right s tab up v w x z");
     expect(core.starterConfiguration().bindings[0].id !== starter.bindings[0].id, 'fresh ids each time');
+  });
+
+  test('docs: docs/CONFIG.md lists every operation', () => {
+    const documented = new Set();
+    for (const line of readText(`${root}/docs/CONFIG.md`).split('\n')) {
+      const cell = /^\| ([^|]+) \|/.exec(line);
+      if (cell) for (const [, name] of cell[1].matchAll(/`([a-z-]+)`/g)) documented.add(name);
+    }
+    const source = readText(`${root}/linux/gnome-extension/lib/core/config.js`);
+    const decoder = source.slice(source.indexOf('export function decodeAction'), source.indexOf('export function sequenceAction'));
+    const operations = [...decoder.matchAll(/case '([a-z-]+)':/g)].map((m) => m[1]);
+    expect(operations.length >= 33, `found ${operations.length} operations`);
+    expectEqual(operations.filter((op) => !documented.has(op)), []);
   });
 
   test('slate config: default options and diagnostics', () => {

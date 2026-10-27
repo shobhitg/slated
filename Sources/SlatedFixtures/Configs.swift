@@ -25,8 +25,7 @@ private let fullConfig = #"""
        "before": ["undo"], "after": [{"op": "focus", "app": "Terminal"}]},
       {"name": "empty"}
     ],
-    "defaults": [{"target": "coding", "condition": {"count": {"_0": 2}}},
-                 {"target": "big", "condition": {"resolutions": {"_0": ["2560x1440", "1920x1080"]}}}],
+    "defaults": [{"target": "coding", "count": 2}, {"target": "big", "resolutions": ["2560x1440", "1920x1080"]}],
     "hotstrings": [
       {"id": "55555555-5555-4555-8555-555555555555", "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯"},
       {"id": "66666666-6666-4666-8666-666666666666", "trigger": "brb", "replacement": "be right back", "fire": "afterDelimiter",
@@ -350,7 +349,60 @@ private let decodeCases: [(String, String)] = [
   ("settings not an object", #"{"settings": []}"#),
   // Top-level shapes
   ("top level array", "[]"), ("top level null", "null"), ("empty text", ""), ("whitespace only", "   \n"),
-  ("trailing garbage", "{} x"), ("unknown keys are ignored", #"{"foo": 1, "bar": {"baz": [true]}}"#),
+  ("trailing garbage", "{} x"),
+  // Top-level sections Slated doesn't know (a newer version's) are kept and written back, sorted in
+  // with the rest; unknown fields inside known sections are dropped.
+  ("unknown top-level sections are kept", #"{"foo": 1, "bar": {"baz": [true]}}"#),
+  (
+    "unknown sections of every JSON type",
+    #"""
+    {"n": null, "t": true, "f": false, "i": -42, "d": 2.5, "s": "a \"quote\" \\ / é \n\t\u0001 😀",
+     "a": [1, [2, []], {}], "o": {"z": 1, "a": {"nested": [null, -0.0, 1e-7]}}, "e": {}, "ea": []}
+    """#
+  ),
+  (
+    "unknown sections sort in with the known ones",
+    #"{"zzz": 1, "aaa": 2, "Bindings": 3, "general2": 4, "_x": 5, "": 6, "é": 7, "10": 8, "9": 9, "B": 10}"#
+  ),
+  (
+    "unknown section numbers stay exact",
+    #"""
+    {"future": {"max": 9223372036854775807, "min": -9223372036854775808, "over": 9223372036854775808,
+                "safe": 9007199254740993, "ms": 1730000000000, "tiny": 5e-324, "big": 1.7976931348623157e308,
+                "float": 0.1, "exp": 1e3, "fraction": 1.5e1, "third": 0.3333333333333333}}
+    """#
+  ),
+  (
+    "unknown fields inside known sections are dropped",
+    #"""
+    {"general": {"launchAtLogin": true, "future": 1}, "keyboard": {"capsLock": "hyper", "later": [1]},
+     "island": {"newThing": true}, "clipboard": {"x": 1}, "automation": {"y": 2},
+     "bindings": [{"id": "E0000000-0000-4000-8000-0000000000AB", "keys": "a", "action": "push left", "extra": 1}],
+     "hotstrings": [{"id": "E0000000-0000-4000-8000-0000000000AC", "trigger": "x", "replacement": "y", "extra": 1}],
+     "layouts": [{"name": "l", "extra": 1, "apps": [{"app": "A", "extra": 2}]}],
+     "defaults": [{"target": "l", "count": 1, "extra": 3}]}
+    """#
+  ),
+  (
+    "unknown sections named like built-in properties",
+    #"{"__proto__": {"a": 1}, "constructor": 2, "toString": [3], "hasOwnProperty": null}"#
+  ),
+  ("unknown section with duplicate keys", #"{"future": {"a": 1, "a": 2}, "later": 1, "later": [2]}"#),
+  (
+    "unknown section in JSON5",
+    #"{future: {unquoted: 'single', hex: 0x1F, list: [1, 2,], plus: +1, lead: .5, trail: 5.,}, }"#
+  ),
+  ("unknown section keys that need escaping", #"{"a\"b": 1, "tab\tkey": 2, "/": 3, "\\": 4}"#),
+  ("unknown section with infinity", #"{"future": {"x": Infinity}}"#),
+  ("unknown section with NaN in a list", #"{"future": [1, NaN]}"#),
+  ("unknown section with a number too big for a Double", #"{"future": {"x": [1e400]}}"#),
+  ("unknown section after a broken known section", #"{"version": "1", "future": 1e400}"#),
+  ("broken known section after an unknown one", #"{"future": 1, "keyboard": {"hyperModifiers": ["bogus"]}}"#),
+  (
+    "unknown section nested deeply",
+    #"{"future": "# + String(repeating: "[", count: 30) + #"{"deep": [1]}"# + String(repeating: "]", count: 30) + "}"
+  ),
+  ("only unknown sections", #"{"later": {"enabled": true}}"#),
   ("duplicate keys", #"{"version": 1, "version": 2}"#), ("version as text", #"{"version": "1"}"#),
   ("version 2", #"{"version": 2}"#), ("version as float", #"{"version": 1.0}"#), ("version 1e3", #"{"version": 1e3}"#),
   ("version 1.5", #"{"version": 1.5}"#), ("version null", #"{"version": null}"#),
@@ -369,7 +421,16 @@ private let decodeCases: [(String, String)] = [
   ("island null", #"{"island": null}"#),
   // keyboard
   ("keyboard invalid capsLock", #"{"keyboard": {"capsLock": "on"}}"#),
-  ("keyboard unknown modifier tokens are skipped", #"{"keyboard": {"hyperModifiers": ["ctrl", "bogus"]}}"#),
+  ("keyboard unknown modifier token is an error", #"{"keyboard": {"hyperModifiers": ["ctrl", "bogus"]}}"#),
+  ("keyboard empty modifier token", #"{"keyboard": {"hyperModifiers": [""]}}"#),
+  ("keyboard modifier token with spaces", #"{"keyboard": {"hyperModifiers": ["ctrl", " alt"]}}"#),
+  ("keyboard super is not a modifier", #"{"keyboard": {"hyperModifiers": ["super", "ctrl"]}}"#),
+  ("keyboard unknown modifier before a number", #"{"keyboard": {"hyperModifiers": ["bogus", 5]}}"#),
+  (
+    "keyboard every alias",
+    #"{"keyboard": {"hyperModifiers": ["CTRL", "⌃", "Option", "⌥", "SHIFT", "⇧", "Command", "⌘", "Function"]}}"#
+  ),
+  ("keyboard hyper glyph", #"{"keyboard": {"hyperModifiers": ["✦", "fn"]}}"#),
   ("keyboard empty modifiers", #"{"keyboard": {"hyperModifiers": []}}"#),
   ("keyboard hyper token", #"{"keyboard": {"hyperModifiers": ["hyper"]}}"#),
   ("keyboard fn is dropped on output", #"{"keyboard": {"hyperModifiers": ["fn", "ctrl"]}}"#),
@@ -433,15 +494,44 @@ private let decodeCases: [(String, String)] = [
   ),
   ("layout app without app", #"{"layouts": [{"name": "x", "apps": [{"operations": []}]}]}"#),
   ("layout app options wrong type", #"{"layouts": [{"name": "x", "apps": [{"app": "A", "options": {"repeat": 1}}]}]}"#),
-  ("default count", #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}}}]}"#),
-  ("default resolutions", #"{"defaults": [{"target": "x", "condition": {"resolutions": {"_0": ["1x1"]}}}]}"#),
-  ("default bad condition", #"{"defaults": [{"target": "x", "condition": {"count": 3}}]}"#),
-  ("default unknown condition", #"{"defaults": [{"target": "x", "condition": {"screens": {"_0": 3}}}]}"#),
+  ("default count", #"{"defaults": [{"target": "x", "count": 3}]}"#),
+  ("default resolutions", #"{"defaults": [{"target": "x", "resolutions": ["1x1", "1920x1080"]}]}"#),
+  ("default empty resolutions", #"{"defaults": [{"target": "x", "resolutions": []}]}"#),
+  ("default count zero and negative", #"{"defaults": [{"target": "x", "count": 0}, {"target": "y", "count": -1}]}"#),
+  ("default count as text", #"{"defaults": [{"target": "x", "count": "2"}]}"#),
+  ("default count fraction", #"{"defaults": [{"target": "x", "count": 1.5}]}"#),
+  ("default resolutions not a list", #"{"defaults": [{"target": "x", "resolutions": "1920x1080"}]}"#),
+  ("default without a condition", #"{"defaults": [{"target": "x"}]}"#),
+  ("default count and resolutions", #"{"defaults": [{"target": "x", "count": 2, "resolutions": ["1x1"]}]}"#),
+  ("default null count with resolutions", #"{"defaults": [{"target": "x", "count": null, "resolutions": ["1x1"]}]}"#),
+  ("default null condition", #"{"defaults": [{"target": "x", "count": null}]}"#),
+  ("default bad count before both", #"{"defaults": [{"target": "x", "count": "2", "resolutions": ["1x1"]}]}"#),
+  ("default unknown key", #"{"defaults": [{"target": "x", "screens": 2}]}"#),
+  ("default without target", #"{"defaults": [{"count": 3}]}"#),
+  ("default target not text", #"{"defaults": [{"target": 1, "count": 3}]}"#),
+  ("default second one broken", #"{"defaults": [{"target": "x", "count": 1}, {"target": "y"}]}"#),
+  // The shape Slated wrote before (Swift's synthesized enum coding) still reads; it's written in the new one.
+  ("default count (old shape)", #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}}}]}"#),
   (
-    "default two conditions",
+    "default resolutions (old shape)",
+    #"{"defaults": [{"target": "x", "condition": {"resolutions": {"_0": ["1x1"]}}}]}"#
+  ),
+  ("default bad condition (old shape)", #"{"defaults": [{"target": "x", "condition": {"count": 3}}]}"#),
+  ("default unknown condition (old shape)", #"{"defaults": [{"target": "x", "condition": {"screens": {"_0": 3}}}]}"#),
+  (
+    "default two conditions (old shape)",
     #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}, "resolutions": {"_0": []}}}]}"#
   ),
-  ("default without target", #"{"defaults": [{"condition": {"count": {"_0": 3}}}]}"#),
+  ("default without target (old shape)", #"{"defaults": [{"condition": {"count": {"_0": 3}}}]}"#),
+  ("default null condition (old shape)", #"{"defaults": [{"target": "x", "condition": null}]}"#),
+  (
+    "default old and new shapes together",
+    #"{"defaults": [{"target": "x", "count": 2, "condition": {"count": {"_0": 2}}}]}"#
+  ),
+  (
+    "default old and new shapes in one file",
+    #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 2}}}, {"target": "y", "resolutions": ["1x1"]}]}"#
+  ),
 ]
 
 /// JSON5 number spellings, including malformed ones Swift's scanner still reads as numbers. Each is
@@ -466,6 +556,7 @@ private let numberTokenCases: [(String, String)] = numberTokens.flatMap { token 
     ),
     ("JSON5 number \(token) as an Int", #"{"version": \#(token)}"#),
     ("JSON5 number \(token) as a Double", #"{"settings": {"x": \#(token)}}"#),
+    ("JSON5 number \(token) in an unknown section", #"{"future": {"x": \#(token)}}"#),
   ]
 }
 

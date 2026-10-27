@@ -19,6 +19,9 @@ public struct SlatedConfiguration: Hashable, Sendable {
   public var clipboard: ClipboardSettings
   public var automation: AutomationSettings
   public var island: IslandSettings
+  /// Top-level sections this version doesn't know, such as ones a newer Slated wrote. They're written
+  /// back as read, so saving doesn't drop them. (Unknown fields inside known sections aren't kept.)
+  public var unknownSections: [String: JSONValue]
 
   public init(
     version: Int = SlatedConfiguration.currentVersion,
@@ -31,7 +34,8 @@ public struct SlatedConfiguration: Hashable, Sendable {
     hotstrings: [Hotstring] = [],
     clipboard: ClipboardSettings = .init(),
     automation: AutomationSettings = .init(),
-    island: IslandSettings = .init()
+    island: IslandSettings = .init(),
+    unknownSections: [String: JSONValue] = [:]
   ) {
     self.version = version
     self.general = general
@@ -44,6 +48,7 @@ public struct SlatedConfiguration: Hashable, Sendable {
     self.clipboard = clipboard
     self.automation = automation
     self.island = island
+    self.unknownSections = unknownSections
   }
 }
 
@@ -66,6 +71,10 @@ extension SlatedConfiguration: Codable {
       clipboard: try c.decodeIfPresent(ClipboardSettings.self, forKey: .clipboard) ?? .init(),
       automation: try c.decodeIfPresent(AutomationSettings.self, forKey: .automation) ?? .init(),
       island: try c.decodeIfPresent(IslandSettings.self, forKey: .island) ?? .init())
+    let all = try decoder.container(keyedBy: AnyKey.self)
+    for key in all.allKeys where Key(stringValue: key.stringValue) == nil {
+      unknownSections[key.stringValue] = try all.decode(JSONValue.self, forKey: key)
+    }
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -81,6 +90,11 @@ extension SlatedConfiguration: Codable {
     try c.encode(clipboard, forKey: .clipboard)
     try c.encode(automation, forKey: .automation)
     try c.encode(island, forKey: .island)
+    // The encoder sorts them in with the rest. A known section wins over an unknown one of its name.
+    var others = encoder.container(keyedBy: AnyKey.self)
+    for (key, value) in unknownSections where Key(stringValue: key) == nil {
+      try others.encode(value, forKey: AnyKey(key))
+    }
   }
 
   /// Decodes JSON, allowing JSON5 conveniences (comments, trailing commas) in hand-edited files.
@@ -178,7 +192,18 @@ extension KeyboardSettings: Codable {
     let d = KeyboardSettings()
     var mods = d.hyperModifiers
     if let tokens = try c.decodeIfPresent([String].self, forKey: .hyperModifiers) {
-      mods = tokens.compactMap(Modifiers.token).reduce(into: Modifiers()) { $0.formUnion($1) }
+      mods = []
+      for (index, token) in tokens.enumerated() {
+        // An unknown name is an error rather than skipped: skipping it would change what Caps Lock
+        // sends, and the next save would drop it from the file.
+        guard let modifier = Modifiers.token(token) else {
+          throw DecodingError.dataCorrupted(
+            .init(
+              codingPath: c.codingPath + [Key.hyperModifiers, IndexKey(intValue: index)],
+              debugDescription: "Unknown modifier \"\(token)\". Use ctrl, alt, shift, cmd, fn, hyper or meh."))
+        }
+        mods.formUnion(modifier)
+      }
     }
     self.init(
       capsLock: try c.decodeIfPresent(CapsLockMode.self, forKey: .capsLock) ?? d.capsLock,
@@ -198,6 +223,14 @@ extension KeyboardSettings: Codable {
     if hyperModifiers.contains(.command) { tokens.append("cmd") }
     try c.encode(tokens, forKey: .hyperModifiers)
   }
+}
+
+/// A position in a list, for decoding errors' coding paths (`keyboard.hyperModifiers[2]`).
+private struct IndexKey: CodingKey {
+  var intValue: Int?
+  var stringValue: String { "Index \(intValue ?? 0)" }
+  init(intValue: Int) { self.intValue = intValue }
+  init?(stringValue: String) { nil }
 }
 
 // MARK: - Bindings
@@ -375,7 +408,11 @@ public struct LayoutAppOptions: Hashable, Sendable, Codable {
 }
 
 /// Slate's `default`: activate a layout or snapshot when the display setup matches.
-public struct ScreenDefault: Hashable, Sendable, Codable {
+///
+/// On disk: `{"target": "coding", "count": 2}` or `{"target": "big", "resolutions": ["2560x1440", …]}`.
+public struct ScreenDefault: Hashable, Sendable {
+  /// Its own `Codable` is Swift's synthesized enum coding (`{"count": {"_0": 2}}`), the shape Slated
+  /// wrote before; it's only used to read that shape.
   public enum Condition: Hashable, Sendable, Codable {
     case count(Int)
     /// Exact set of resolutions, e.g. `["1440x900", "1680x1050"]`.
@@ -389,6 +426,38 @@ public struct ScreenDefault: Hashable, Sendable, Codable {
   public init(target: String, condition: Condition) {
     self.target = target
     self.condition = condition
+  }
+}
+
+extension ScreenDefault: Codable {
+  private enum Key: String, CodingKey { case target, count, resolutions, condition }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: Key.self)
+    let target = try c.decode(String.self, forKey: .target)
+    let conditions = [
+      try c.decodeIfPresent(Int.self, forKey: .count).map(Condition.count),
+      try c.decodeIfPresent([String].self, forKey: .resolutions).map(Condition.resolutions),
+      // The old shape, `"condition": {"count": {"_0": 2}}`.
+      try c.decodeIfPresent(Condition.self, forKey: .condition),
+    ].compactMap { $0 }
+    guard conditions.count == 1 else {
+      let message =
+        conditions.isEmpty
+        ? #"A display default needs "count" or "resolutions""#
+        : #"A display default takes one condition: "count" or "resolutions""#
+      throw DecodingError.dataCorrupted(.init(codingPath: c.codingPath, debugDescription: message))
+    }
+    self.init(target: target, condition: conditions[0])
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: Key.self)
+    try c.encode(target, forKey: .target)
+    switch condition {
+    case .count(let count): try c.encode(count, forKey: .count)
+    case .resolutions(let resolutions): try c.encode(resolutions, forKey: .resolutions)
+    }
   }
 }
 

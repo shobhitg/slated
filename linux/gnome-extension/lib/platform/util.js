@@ -116,8 +116,9 @@ export function orderedLeftToRight(screens) {
   return [...screens].sort((a, b) => (a.frame.x !== b.frame.x ? a.frame.x - b.frame.x : b.frame.y - a.frame.y));
 }
 
+/** Whether `by-orientation` takes its portrait branch: a square screen counts as portrait, as in core/frame.js. */
 export function isPortrait(screen) {
-  return !!screen && screen.frame.height > screen.frame.width;
+  return !!screen && screen.frame.height >= screen.frame.width;
 }
 
 /** Slate's resolution notation for a screen's full frame, e.g. `1920x1080`. */
@@ -161,10 +162,13 @@ export function conditionMatches(rawCondition, screens) {
   return want.length === have.length && want.every((r, i) => r === have[i]);
 }
 
-/** A default's condition and target, whichever field names the core uses. */
+/**
+ * A default's condition and target, whichever field names the core uses: config.json's
+ * `{target, count}` / `{target, resolutions}`, or a separate `condition`.
+ */
 export function defaultEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
-  const condition = normalizeCondition(entry.condition ?? entry.screens ?? null);
+  const condition = normalizeCondition(entry.condition ?? entry.screens ?? entry);
   const target = entry.target ?? entry.name ?? null;
   return condition && typeof target === 'string' ? {condition, target} : null;
 }
