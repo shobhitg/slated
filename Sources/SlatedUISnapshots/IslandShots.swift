@@ -12,9 +12,10 @@ import SwiftUI
   let throwRight = IslandFeedback(
     title: "Throw to the screen on the right", app: "Xcode", symbol: "rectangle.portrait.and.arrow.right")
 
-  func shot(_ name: String, _ geometry: IslandGeometry, height: CGFloat = 200, _ configure: @escaping @MainActor (IslandModel) -> Void)
-    -> Shot
-  {
+  func shot(
+    _ name: String, _ geometry: IslandGeometry, height: CGFloat = 200,
+    _ configure: @escaping @MainActor (IslandModel) -> Void
+  ) -> Shot {
     Shot(name: "island-\(name)", size: CGSize(width: 900, height: height)) {
       let model = IslandModel()
       model.geometry = geometry
@@ -62,13 +63,15 @@ import SwiftUI
 
 @MainActor private var modalSheet: CheatSheet {
   let modal = KeyCombo(string: "ctrl+e")!
-  let keys: [(String, String)] = [("h", "left-half"), ("l", "right-half"), ("k", "top-half"), ("j", "bottom-half")]
+  let keys: [(String, String, Direction)] = [
+    ("h", "Left Half", .left), ("l", "Right Half", .right), ("k", "Top Half", .up), ("j", "Bottom Half", .down),
+  ]
   return .modal(
     modal,
-    keys.map { key, name in
+    keys.map { key, name, direction in
       CheatSheet.Shortcut(
-        keys: KeyCombo(key: key, modifiers: []), modal: modal, name: name.replacingOccurrences(of: "-", with: " ").capitalized,
-        action: .push(direction: key == "h" ? .left : key == "l" ? .right : key == "k" ? .up : .down, style: .barResize("screenSizeX/2"), screen: nil))
+        keys: KeyCombo(key: key, modifiers: []), modal: modal, name: name,
+        action: .push(direction: direction, style: .barResize("screenSizeX/2"), screen: nil))
     })
 }
 
@@ -80,7 +83,10 @@ private struct IslandScene: View {
     let band = model.geometry.notch?.height ?? model.geometry.menuBarHeight
     ZStack(alignment: .top) {
       LinearGradient(
-        colors: [Color(red: 0.13, green: 0.17, blue: 0.38), Color(red: 0.5, green: 0.33, blue: 0.62), Color(red: 0.96, green: 0.62, blue: 0.46)],
+        colors: [
+          Color(red: 0.13, green: 0.17, blue: 0.38), Color(red: 0.5, green: 0.33, blue: 0.62),
+          Color(red: 0.96, green: 0.62, blue: 0.46),
+        ],
         startPoint: .topLeading, endPoint: .bottomTrailing)
       Rectangle().fill(.black.opacity(0.22)).frame(height: band)
       HStack(spacing: 18) {

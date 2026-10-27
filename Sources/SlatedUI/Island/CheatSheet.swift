@@ -15,7 +15,9 @@ public struct CheatSheet: Hashable, Sendable {
     /// Shown when there's neither a name nor an action ("JavaScript function").
     public var summary: String?
 
-    public init(keys: KeyCombo, modal: KeyCombo? = nil, name: String? = nil, action: Action? = nil, summary: String? = nil) {
+    public init(
+      keys: KeyCombo, modal: KeyCombo? = nil, name: String? = nil, action: Action? = nil, summary: String? = nil
+    ) {
       self.keys = keys
       self.modal = modal
       self.name = name
@@ -54,7 +56,9 @@ public struct CheatSheet: Hashable, Sendable {
   /// Every shortcut that holds at least the Hyper modifiers, without a modal key. The first
   /// shortcut for a key wins, as when registering hotkeys.
   public static func hyper(_ shortcuts: [Shortcut], hyperModifiers: Modifiers) -> CheatSheet {
-    let matching = shortcuts.filter { $0.modal == nil && $0.keys.modifiers.isSuperset(of: hyperModifiers) && !$0.keys.key.isEmpty }
+    let matching = shortcuts.filter {
+      $0.modal == nil && $0.keys.modifiers.isSuperset(of: hyperModifiers) && !$0.keys.key.isEmpty
+    }
     return CheatSheet(
       title: "Hyper", isHyper: true,
       sections: sections(matching) { combo in
@@ -166,8 +170,8 @@ public struct CheatSheet: Hashable, Sendable {
       let bounds = CGRect(x: 0, y: 0, width: 1600, height: 1000)
       let screen = ScreenInfo(displayID: 1, name: "Sample", frame: bounds, visibleFrame: bounds, isMain: true)
       let start = CGRect(x: 400, y: 250, width: 800, height: 500)
-      guard let frame = try? FrameCalculator.targetFrame(for: action, in: WindowContext(frame: start, screens: [screen])),
-        frame.width > 0, frame.height > 0
+      let context = WindowContext(frame: start, screens: [screen])
+      guard let frame = try? FrameCalculator.targetFrame(for: action, in: context), frame.width > 0, frame.height > 0
       else { return nil }
       let region = CGRect(
         x: frame.minX / bounds.width, y: frame.minY / bounds.height, width: frame.width / bounds.width,

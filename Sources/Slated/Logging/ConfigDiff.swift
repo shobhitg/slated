@@ -5,30 +5,39 @@ import SlatedCore
 enum ConfigDiff {
   static func changes(from old: SlatedConfiguration, to new: SlatedConfiguration) -> [String] {
     var changes: [String] = []
-    changes += diff(old.bindings, new.bindings, noun: "binding") { "\($0.name ?? SlateSyntax.format($0.action)) (\($0.keys.string))" }
+    changes += diff(old.bindings, new.bindings, noun: "binding") {
+      "\($0.name ?? SlateSyntax.format($0.action)) (\($0.keys.string))"
+    }
     changes += diff(old.hotstrings, new.hotstrings, noun: "hotstring") { $0.trigger }
     if old.keyboard != new.keyboard {
+      let k = new.keyboard
       changes.append(
-        "keyboard: capsLock \(new.keyboard.capsLock.rawValue), alone \(new.keyboard.capsLockAlone.rawValue), modifiers \(new.keyboard.hyperModifiers.symbols)")
+        "keyboard: capsLock \(k.capsLock.rawValue), alone \(k.capsLockAlone.rawValue), "
+          + "modifiers \(k.hyperModifiers.symbols)")
     }
     if old.general != new.general {
+      let g = new.general
       changes.append(
-        "general: launchAtLogin \(new.general.launchAtLogin), loadSlateConfigs \(new.general.loadSlateConfigs), showActionHUD \(new.general.showActionHUD), hotstringsEnabled \(new.general.hotstringsEnabled)")
+        "general: launchAtLogin \(g.launchAtLogin), loadSlateConfigs \(g.loadSlateConfigs), "
+          + "showActionHUD \(g.showActionHUD), hotstringsEnabled \(g.hotstringsEnabled)")
     }
     if old.clipboard != new.clipboard {
       let c = new.clipboard
       changes.append(
-        "clipboard: enabled \(c.enabled), shortcut \(c.shortcut?.string ?? "none"), maxItems \(c.maxItems), persist \(c.persist), retentionDays \(c.retentionDays), excludedApps \(c.excludedApps.count)")
+        "clipboard: enabled \(c.enabled), shortcut \(c.shortcut?.string ?? "none"), maxItems \(c.maxItems), "
+          + "persist \(c.persist), retentionDays \(c.retentionDays), excludedApps \(c.excludedApps.count)")
     }
     if old.automation != new.automation {
       let a = new.automation
       changes.append(
-        "automation: stopShortcut \(a.stopShortcut?.string ?? "none"), stopOnAppSwitch \(a.stopOnAppSwitch), maxRunMinutes \(a.maxRunMinutes), showIndicator \(a.showIndicator)")
+        "automation: stopShortcut \(a.stopShortcut?.string ?? "none"), stopOnAppSwitch \(a.stopOnAppSwitch), "
+          + "maxRunMinutes \(a.maxRunMinutes), showIndicator \(a.showIndicator)")
     }
     if old.island != new.island {
       let i = new.island
       changes.append(
-        "island: enabled \(i.enabled), cheatSheet \(i.cheatSheet), cheatSheetDelay \(i.cheatSheetDelay), showFailures \(i.showFailures)")
+        "island: enabled \(i.enabled), cheatSheet \(i.cheatSheet), cheatSheetDelay \(i.cheatSheetDelay), "
+          + "showFailures \(i.showFailures)")
     }
     for key in Set(old.settings.values.keys).union(new.settings.values.keys).sorted()
     where old.settings[key] != new.settings[key] {

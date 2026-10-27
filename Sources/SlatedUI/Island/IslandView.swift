@@ -98,7 +98,8 @@ extension AnyTransition {
   /// Content fades in once the shape has started to grow, and out quickly before it shrinks.
   fileprivate static var islandContent: AnyTransition {
     .asymmetric(
-      insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top)).animation(.easeOut(duration: 0.22).delay(0.1)),
+      insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+        .animation(.easeOut(duration: 0.22).delay(0.1)),
       removal: .opacity.animation(.easeIn(duration: 0.1)))
   }
 }
@@ -267,7 +268,8 @@ private struct AutomationRow: View {
   private func detail(at date: Date) -> String {
     var parts: [String] = []
     if let trigger = automation.trigger {
-      parts.append(trigger.hasPrefix("hotkey ") ? KeyCombo(string: String(trigger.dropFirst(7)))?.display() ?? trigger : trigger)
+      let keys = trigger.hasPrefix("hotkey ") ? KeyCombo(string: String(trigger.dropFirst(7))) : nil
+      parts.append(keys?.display() ?? trigger)
     }
     if !automation.id.hasPrefix("hold:") {
       parts.append(automation.repetitions == 1 ? "1 time" : "\(automation.repetitions) times")

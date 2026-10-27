@@ -67,7 +67,9 @@ let uiCheatSheetTests = Suite(
       "the starter bindings: windows in keyboard order, then displays",
       {
         try onMain {
-          let shortcuts = StarterBindings.all.map { CheatSheet.Shortcut(keys: $0.keys, name: $0.name, action: $0.action) }
+          let shortcuts = StarterBindings.all.map {
+            CheatSheet.Shortcut(keys: $0.keys, name: $0.name, action: $0.action)
+          }
           let sheet = CheatSheet.hyper(shortcuts, hyperModifiers: .hyper)
           expectEqual(sheet.title, "Hyper")
           expect(sheet.isHyper)
@@ -86,11 +88,14 @@ let uiCheatSheetTests = Suite(
       "display titles drop what the section already says",
       {
         try onMain {
-          let shortcuts = StarterBindings.all.map { CheatSheet.Shortcut(keys: $0.keys, name: $0.name, action: $0.action) }
+          let shortcuts = StarterBindings.all.map {
+            CheatSheet.Shortcut(keys: $0.keys, name: $0.name, action: $0.action)
+          }
           let displays = CheatSheet.hyper(shortcuts, hyperModifiers: .hyper).sections[1].items.map(\.title)
           expectEqual(displays, ["Screen on the left", "Screen above", "Second screen", "Screen on the right"])
           expectEqual(CheatSheet.shortened("Throw to Next Screen", in: .displays), "Next Screen")
-          expectEqual(CheatSheet.shortened("Throw to the screen on the right", in: .windows), "Throw to the screen on the right")
+          expectEqual(
+            CheatSheet.shortened("Throw to the screen on the right", in: .windows), "Throw to the screen on the right")
           expectEqual(CheatSheet.shortened("Throw to ", in: .displays), "Throw to ")
         }
       }
@@ -108,7 +113,8 @@ let uiCheatSheetTests = Suite(
           // Not a preset: worked out with the frame math on a sample screen.
           expect(
             approximately(
-              byName["Large center"] ?? nil, CGRect(x: 0.125, y: 0.125, width: 1 / 1.3, height: 1 / 1.3), tolerance: 0.003),
+              byName["Large center"] ?? nil, CGRect(x: 0.125, y: 0.125, width: 1 / 1.3, height: 1 / 1.3),
+              tolerance: 0.003),
             "\(String(describing: byName["Large center"]))")
           expectEqual(byName["Grid"] ?? nil, nil)
           expectEqual(CheatSheet.region(for: .focusApp("Safari")), nil)
@@ -296,7 +302,8 @@ let uiIslandModelTests = Suite(
           let model = IslandModel()
           model.geometry = IslandGeometry(notch: nil, menuBarHeight: 24)
           let banner = IslandModel.Banner.done(
-            IslandFeedback(title: "Throw to the screen on the right", app: "Xcode", symbol: "rectangle.portrait.and.arrow.right"))
+            IslandFeedback(
+              title: "Throw to the screen on the right", app: "Xcode", symbol: "rectangle.portrait.and.arrow.right"))
           model.show(banner)
           expect(model.size.width >= IslandLayout.bannerContentWidth(banner) + 2 * IslandLayout.sheetPadding)
           expectEqual(model.size.height, 40)
@@ -311,7 +318,9 @@ let uiIslandModelTests = Suite(
         try onMain {
           let model = IslandModel()
           model.geometry = IslandGeometry(notch: CGSize(width: 185, height: 32), menuBarHeight: 32)
-          let shortcuts = StarterBindings.all.map { CheatSheet.Shortcut(keys: $0.keys, name: $0.name, action: $0.action) }
+          let shortcuts = StarterBindings.all.map {
+            CheatSheet.Shortcut(keys: $0.keys, name: $0.name, action: $0.action)
+          }
           let sheet = CheatSheet.hyper(shortcuts, hyperModifiers: .hyper)
           model.cheatSheet = sheet
           expectEqual(IslandLayout.sheetGrid(sheet).columns, 3)

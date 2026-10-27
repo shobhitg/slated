@@ -20,10 +20,13 @@ struct GeneralPane: View {
         HStack(spacing: 16) {
           VStack(alignment: .leading, spacing: 3) {
             Text("Show what just happened").font(.system(size: 13, weight: .medium))
-            Text("Names the action each time a shortcut runs — in the notch island, or a small HUD when the island is off. Handy while you learn your bindings.")
-              .font(.system(size: 11.5))
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
+            Text(
+              "Names the action each time a shortcut runs — in the notch island, or a small HUD when the island is "
+                + "off. Handy while you learn your bindings."
+            )
+            .font(.system(size: 11.5))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
           }
           Spacer(minLength: 12)
           HUDPreview(isOn: model.configuration.general.showActionHUD)
@@ -99,17 +102,21 @@ private struct IslandCard: View {
     ) {
       ToggleRow(
         title: "Show the island",
-        subtitle: "Running automations, the active modal key and quick feedback grow out of the notch. Hover over a running automation to stop it.",
+        subtitle: "Running automations, the active modal key and quick feedback grow out of the notch. Hover over "
+          + "a running automation to stop it.",
         symbol: "laptopcomputer", tint: Color(hex: 0x1C1C1E), isOn: $model.configuration.island.enabled)
       CardDivider(inset: 54)
       ToggleRow(
         title: "Hold Caps Lock to see your shortcuts",
-        subtitle: "Keep the Hyper key held for a moment to list every Hyper shortcut; after a modal key, its keys appear the same way.",
-        symbol: "keyboard", tint: Theme.accent, isOn: $model.configuration.island.cheatSheet)
-        .disabled(!island.enabled)
+        subtitle: "Keep the Hyper key held for a moment to list every Hyper shortcut; after a modal key, its keys "
+          + "appear the same way.",
+        symbol: "keyboard", tint: Theme.accent, isOn: $model.configuration.island.cheatSheet
+      )
+      .disabled(!island.enabled)
       CardDivider(inset: 54)
       SettingRow(
-        title: "Cheat sheet delay", subtitle: "How long to hold before the shortcuts appear. Quick taps never show them.",
+        title: "Cheat sheet delay",
+        subtitle: "How long to hold before the shortcuts appear. Quick taps never show them.",
         symbol: "timer", tint: Color(hex: 0x2F7BF5)
       ) {
         Picker("Cheat sheet delay", selection: $model.configuration.island.cheatSheetDelay) {
@@ -129,8 +136,9 @@ private struct IslandCard: View {
       ToggleRow(
         title: "Explain shortcuts that can't run",
         subtitle: "When a shortcut has nothing to act on — no window to move, say — the island briefly says why.",
-        symbol: "exclamationmark.triangle", tint: Theme.caution, isOn: $model.configuration.island.showFailures)
-        .disabled(!island.enabled)
+        symbol: "exclamationmark.triangle", tint: Theme.caution, isOn: $model.configuration.island.showFailures
+      )
+      .disabled(!island.enabled)
     }
   }
 }

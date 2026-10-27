@@ -186,9 +186,8 @@ final class IslandPresenter {
     model.geometry = Self.geometry(of: screen)
     let size = CGSize(
       width: min(Self.panelSize.width, screen.frame.width), height: min(Self.panelSize.height, screen.frame.height))
-    panel.setFrame(
-      NSRect(x: screen.frame.midX - size.width / 2, y: screen.frame.maxY - size.height, width: size.width, height: size.height),
-      display: false)
+    let origin = NSPoint(x: screen.frame.midX - size.width / 2, y: screen.frame.maxY - size.height)
+    panel.setFrame(NSRect(origin: origin, size: size), display: false)
     // Draw collapsed for a moment, so the change animates from the notch.
     parked = true
     model.isParked = true
