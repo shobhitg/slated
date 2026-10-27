@@ -29,7 +29,8 @@ const COMBO_MODIFIERS = ['ctrl', 'alt', 'shift', 'cmd'];
 
 /**
  * The Clutter modifier bits a held modifier keysym can set: Alt may also read as Meta, and Super as
- * Hyper (they share Mod1 and Mod4 in the stock keymaps).
+ * Hyper (they share Mod1 and Mod4 in the stock keymaps). Right Alt sets none here: where the layout
+ * puts AltGr on that key, Mutter drops Slated's Alt_R, and an Alt that's down is then yours.
  */
 function modifierBits(keysym) {
   const M = Clutter.ModifierType;
@@ -41,7 +42,6 @@ function modifierBits(keysym) {
     case MODIFIER_KEYSYMS.rightCtrl:
       return M.CONTROL_MASK;
     case MODIFIER_KEYSYMS.alt:
-    case MODIFIER_KEYSYMS.rightAlt:
       return M.MOD1_MASK | M.META_MASK;
     case MODIFIER_KEYSYMS.cmd:
     case MODIFIER_KEYSYMS.rightCmd:

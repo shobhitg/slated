@@ -64,6 +64,8 @@ test('heldModifierMask names the modifiers held down, so typing doesn’t wait f
   synth.key({key: 'w', modifiers: []}, true);
   assert.equal(synth.heldModifierMask(), M.SHIFT_MASK, 'W is no modifier');
   synth.key({key: 'rightAlt', modifiers: []}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK, 'right Alt may be AltGr, whose Alt_R Mutter drops: an Alt that’s down is yours');
+  synth.key({key: 'alt', modifiers: []}, true);
   assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK);
   synth.key({key: 'f', modifiers: ['ctrl', 'cmd']}, true);
   assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK | M.CONTROL_MASK | M.MOD4_MASK | M.SUPER_MASK | M.HYPER_MASK);

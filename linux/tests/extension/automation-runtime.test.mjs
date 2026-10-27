@@ -448,6 +448,18 @@ test('a stop ends text an automation is still typing', () => {
   assert.equal(gnome.state.typed.length, atSwitch, 'and so does switching apps: nothing more goes to Firefox');
 });
 
+test('a right Alt Slated holds doesn’t hide the Alt you hold (where right Alt is AltGr, Mutter drops Slated’s press)', () => {
+  start({bindings: [{keys: 'f8', action: 'hold key:rightAlt'}, {keys: 'f7', action: {op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.05}}]});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F8');
+  gnome.state.modifiers = 8; // only your own Alt: Mutter dropped Slated's Alt_R
+  gnome.press('F7');
+  gnome.loop.advance(1000);
+  assert.equal(typedKeys(0x65), 0, 'no E goes out as Alt+E');
+  gnome.press('F7');
+  gnome.press('F8');
+});
+
 test('the time limit and stopOnAppSwitch come from config.json', () => {
   start({bindings: [{keys: 'hyper+f', action: autoClick}], automation: {maxRunMinutes: 0.01, stopOnAppSwitch: false, stopShortcut: null}});
   assert.ok(!gnome.accelerators().includes(`${HYPER}Escape`), 'stopShortcut null turns it off');
