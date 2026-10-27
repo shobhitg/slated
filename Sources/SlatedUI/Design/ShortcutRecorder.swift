@@ -6,7 +6,8 @@ import SwiftUI
 /// so the shortcut reaches this field instead of triggering an action.
 ///
 /// Holding Caps Lock records ✦ (Hyper) even while the Hyper event tap is suspended: the recorder
-/// reads F18, Caps Lock's remapped key, as ⌃⌥⇧⌘ itself. Esc cancels. Pressing the middle or a side
+/// reads F18, Caps Lock's remapped key, as the Hyper key's modifiers itself (⌃⌥⇧⌘, or ⌃⌥⇧ when
+/// set to Meh). Esc cancels. Pressing the middle or a side
 /// mouse button over the window records Mouse 3/4/5 when `allowsMouseButtons`.
 struct ShortcutRecorder: View {
   @Binding var combo: KeyCombo
@@ -58,7 +59,7 @@ struct ShortcutRecorder: View {
           .font(.system(size: 13))
           .foregroundStyle(Theme.critical)
           .symbolEffect(.pulse, options: .repeating)
-        let live = KeyCombo(key: "", modifiers: hyperHeld ? held.union(.hyper) : held)
+        let live = KeyCombo(key: "", modifiers: hyperHeld ? held.union(hyperModifiers) : held)
         if live.modifiers.isEmpty {
           Text(allowsMouseButtons ? "Press keys or a side button…" : "Type a shortcut…").foregroundStyle(.secondary)
         } else {
@@ -151,8 +152,8 @@ struct ShortcutRecorder: View {
       hyperHeld = true
       return nil
     }
-    var modifiers = KeyEventMapping.modifiers(event.modifierFlags)
-    if hyperHeld { modifiers.formUnion(.hyper) }
+    let modifiers = KeyEventMapping.modifiers(
+      event.modifierFlags, hyperHeld: hyperHeld, hyperModifiers: hyperModifiers)
     if event.keyCode == KeyEventMapping.escapeKeyCode, modifiers.isEmpty {
       stop()
       return nil
@@ -163,8 +164,11 @@ struct ShortcutRecorder: View {
     }
     let candidate = KeyCombo(key: key, modifiers: modifiers)
     if requiresModifier, !ShortcutRules.isAcceptableGlobalShortcut(candidate) {
+      // Caps Lock only adds modifiers while it's the Hyper key.
+      let capsLock =
+        model.hyperKeyEnabled ? ", or hold Caps Lock for \(KeyCombo(key: "", modifiers: hyperModifiers).display())" : ""
       hint =
-        "Add ⌃, ⌥ or ⌘, or hold Caps Lock for ✦. On its own, \(KeyNames.displayName(for: key)) would get in the way of typing."
+        "Add ⌃, ⌥ or ⌘\(capsLock). On its own, \(KeyNames.displayName(for: key)) would get in the way of typing."
         + (plainKeyHint.map { " \($0)" } ?? "")
       return nil
     }
@@ -179,11 +183,14 @@ struct ShortcutRecorder: View {
       return nil
     }
     guard let key = KeyEventMapping.mouseButtonName(for: event.buttonNumber) else { return event }
-    var modifiers = KeyEventMapping.modifiers(event.modifierFlags)
-    if hyperHeld { modifiers.formUnion(.hyper) }
+    let modifiers = KeyEventMapping.modifiers(
+      event.modifierFlags, hyperHeld: hyperHeld, hyperModifiers: hyperModifiers)
     accept(KeyCombo(key: key, modifiers: modifiers))
     return nil
   }
+
+  /// What holding Caps Lock adds: ⌃⌥⇧⌘, or ⌃⌥⇧ when the Hyper key is set to Meh.
+  private var hyperModifiers: Modifiers { model.configuration.keyboard.hyperModifiers }
 
   private func accept(_ candidate: KeyCombo) {
     combo = candidate

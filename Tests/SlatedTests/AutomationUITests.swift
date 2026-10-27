@@ -138,6 +138,11 @@ let uiRecipeTests = Suite(
           expect(!holdW.matches(.hold(.key(KeyCombo(key: "shift")))))
           let sprint = try require(AutomationRecipes.recipe("toggle-sprint"))
           expect(sprint.matches(.hold(.key(KeyCombo(key: "rightShift")))))
+          // The modifier picked in the add sheet names the binding, so it never claims Shift for Option.
+          expectEqual(sprint.bindingName(for: sprint.action), "Toggle Sprint (Shift)")
+          expectEqual(sprint.bindingName(for: .hold(.key(KeyCombo(key: "alt")))), "Toggle Sprint (Option)")
+          let crouch = try require(AutomationRecipes.recipe("toggle-crouch"))
+          expectEqual(crouch.bindingName(for: .hold(.key(KeyCombo(key: "cmd")))), "Toggle Crouch (Command)")
           let autoClick = try require(AutomationRecipes.recipe("auto-click-left"))
           expect(autoClick.matches(.autoRepeat(.click(.left, count: 1), interval: 0.25, mode: .toggle, jitter: 0.2)))
           expect(!autoClick.matches(.autoRepeat(.click(.left, count: 1), interval: 0.1, mode: .toggle, times: 5)))
@@ -424,6 +429,15 @@ let uiClipboardSwitcherTests = Suite(
           expect(!switcher.items.contains { $0.id == target.id })
           expectEqual(switcher.selectedID, switcher.results[min(index, switcher.results.count - 1)].id)
 
+          // Deleting another row from its context menu keeps the selection, so ↩ still pastes it.
+          let selected = try require(switcher.selectedID)
+          let other = try require(switcher.results.last { $0.id != selected })
+          switcher.delete(other.id)
+          expect(!switcher.items.contains { $0.id == other.id })
+          expectEqual(switcher.selectedID, selected)
+          switcher.paste()
+          expectEqual(services.pastedClipboardItems.last, selected)
+
           var config = services.configuration
           config.clipboard.pasteAfterSelecting = false
           try services.saveConfiguration(config)
@@ -437,6 +451,20 @@ let uiClipboardSwitcherTests = Suite(
 let uiAutomationTests = Suite(
   "UIAutomation",
   [
+    (
+      "the running card says how automations stop, in a sentence for every combination",
+      {
+        try onMain {
+          @MainActor func hint(appSwitch: Bool, minutes: Double) -> String {
+            RunningAutomationsCard.stopHint(AutomationSettings(stopOnAppSwitch: appSwitch, maxRunMinutes: minutes))
+          }
+          expectEqual(hint(appSwitch: true, minutes: 15), "Stops when you switch apps or after 15 min")
+          expectEqual(hint(appSwitch: true, minutes: 0), "Stops when you switch apps")
+          expectEqual(hint(appSwitch: false, minutes: 15), "Stops after 15 min")
+          expectEqual(hint(appSwitch: false, minutes: 0), "Runs until you stop it")
+        }
+      }
+    ),
     (
       "running automations refresh on change and lead back to their bindings",
       {

@@ -74,7 +74,9 @@ public struct SlateSource: Identifiable, Hashable, Sendable {
 public enum HotkeyStatus: Hashable, Sendable {
   case active
   case disabled
-  /// Another binding in Slated uses the same keys.
+  /// Another binding in Slated uses the same keys. Report it for every key bound more than once
+  /// (where the bindings can be live at once): statuses are per key, so this is the only way the UI
+  /// learns that one of them never runs.
   case duplicate
   /// Registration failed, usually because another app owns the shortcut.
   case failed(String)
@@ -117,10 +119,15 @@ public struct RuntimeStatus: Hashable, Sendable {
 @MainActor
 public protocol AppServices: AnyObject {
   var configurationFileURL: URL { get }
+  /// The configuration in config.json. Throws when the file can't be read or decoded, even if the
+  /// app keeps running what it loaded before: the UI then stops saving rather than overwrite the
+  /// user's file with that older (or, at launch, empty) configuration.
   func loadConfiguration() throws -> SlatedConfiguration
   /// Persists the configuration and applies it immediately (re-registers hotkeys, hotstrings, Hyper).
   func saveConfiguration(_ configuration: SlatedConfiguration) throws
   func runtimeStatus() -> RuntimeStatus
+  /// Every configured Slate file, also while `general.loadSlateConfigs` is off (then `loaded` is
+  /// false), so Settings can show them as off rather than missing.
   func slateSources() -> [SlateSource]
   func screens() -> [ScreenInfo]
   func runningApplications() -> [AppInfo]
@@ -134,8 +141,9 @@ public protocol AppServices: AnyObject {
   func revealFile(atPath path: String)
   /// Suspends global hotkeys, Hyper and hotstrings while the UI records a shortcut, and while the
   /// hotstring "try it" field has focus (so the real engine doesn't expand into it too).
-  /// The recorder reads F18, the Hyper key's raw key, as ⌃⌥⇧⌘ itself, so Hyper shortcuts can be
-  /// recorded even though the Hyper event tap is suspended.
+  /// The recorder reads F18, the Hyper key's raw key, as the Hyper modifiers itself, so Hyper
+  /// shortcuts can be recorded even though the Hyper event tap is suspended. That needs Caps Lock to
+  /// stay mapped to F18 meanwhile.
   func setHotkeysSuspended(_ suspended: Bool)
   /// Pauses or resumes all hotkeys, the Hyper key and hotstrings (menu bar "Pause Slated").
   /// Runtime only: not saved in the configuration. Reflected in `RuntimeStatus.paused`.

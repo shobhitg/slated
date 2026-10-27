@@ -76,6 +76,8 @@ public final class AppModel {
   /// True while `saveConfiguration` runs. The app may report the change it causes through
   /// `onChange` before the call returns; that's our own write, not a hand edit to adopt.
   @ObservationIgnored private var isSaving = false
+  /// Ids given to copied items (see `withUniqueIDs`), by kind, original id and occurrence.
+  @ObservationIgnored private var replacementIDs: [String: UUID] = [:]
 
   public init(services: any AppServices) {
     self.services = services
@@ -96,8 +98,36 @@ public final class AppModel {
     runningApps = services.runningApplications()
     clipboardItems = services.clipboardItems()
     activeAutomations = services.activeAutomations()
-    issues = ConfigValidator.validate(loaded, knownLayouts: knownLayoutNames)
+    draft = withUniqueIDs(loaded)
+    saved = draft
+    issues = ConfigValidator.validate(draft, knownLayouts: knownLayoutNames)
     services.onChange { [weak self] in self?.servicesDidChange() }
+  }
+
+  /// `config` with a fresh id for every binding or hotstring that repeats an earlier one's id: an
+  /// item copied in config.json, id and all. Otherwise the two would be one item here, and edits or a
+  /// delete meant for the copy would reach the original. A copy gets the same id each time the file
+  /// is read, and the next save writes it.
+  private func withUniqueIDs(_ config: SlatedConfiguration) -> SlatedConfiguration {
+    var config = config
+    var seen: [String: Int] = [:]
+    func unique(_ id: UUID, kind: String) -> UUID {
+      let occurrence = seen["\(kind)|\(id)", default: 0]
+      seen["\(kind)|\(id)"] = occurrence + 1
+      guard occurrence > 0 else { return id }
+      let key = "\(kind)|\(id)|\(occurrence)"
+      if let replacement = replacementIDs[key] { return replacement }
+      let replacement = UUID()
+      replacementIDs[key] = replacement
+      return replacement
+    }
+    for index in config.bindings.indices {
+      config.bindings[index].id = unique(config.bindings[index].id, kind: "binding")
+    }
+    for index in config.hotstrings.indices {
+      config.hotstrings[index].id = unique(config.hotstrings[index].id, kind: "hotstring")
+    }
+    return config
   }
 
   // MARK: Saving
@@ -133,7 +163,7 @@ public final class AppModel {
       do {
         try services.saveConfiguration(output)
         // Re-read so `saved` matches what the file decodes to (key order, normalized values).
-        saved = (try? services.loadConfiguration()) ?? output
+        saved = withUniqueIDs((try? services.loadConfiguration()) ?? output)
       } catch {
         saveState = .failed(Self.describe(error))
         return
@@ -187,7 +217,7 @@ public final class AppModel {
   private func syncFromDisk() {
     guard saveTask == nil else { return }
     do {
-      let disk = try services.loadConfiguration()
+      let disk = withUniqueIDs(try services.loadConfiguration())
       let wasBlocked = loadError != nil
       loadError = nil
       if disk != saved || wasBlocked {
@@ -229,6 +259,9 @@ public final class AppModel {
 
   func setHotstringsEnabled(_ enabled: Bool) {
     services.setHotstringsEnabled(enabled)
+    // The app writes the switch to config.json itself. Keep the draft in step, or the save of an
+    // edit still waiting for its debounce would write the old value back.
+    configuration.general.hotstringsEnabled = enabled
     refresh()
   }
 

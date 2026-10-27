@@ -79,14 +79,17 @@ struct RunningAutomationsCard: View {
     }
   }
 
-  private var stopHint: String {
-    let settings = model.configuration.automation
-    var parts: [String] = []
-    if settings.stopOnAppSwitch { parts.append("Stops when you switch apps") }
-    if settings.maxRunMinutes > 0 {
-      parts.append("or after \(AutomationLimits.timeLimitTitle(settings.maxRunMinutes))")
+  private var stopHint: String { Self.stopHint(model.configuration.automation) }
+
+  /// "Stops when you switch apps or after 15 min", "Stops after 15 min", "Runs until you stop it".
+  static func stopHint(_ settings: AutomationSettings) -> String {
+    let limit = settings.maxRunMinutes > 0 ? AutomationLimits.timeLimitTitle(settings.maxRunMinutes) : nil
+    switch (settings.stopOnAppSwitch, limit) {
+    case (true, let limit?): return "Stops when you switch apps or after \(limit)"
+    case (true, nil): return "Stops when you switch apps"
+    case (false, let limit?): return "Stops after \(limit)"
+    case (false, nil): return "Runs until you stop it"
     }
-    return parts.isEmpty ? "Runs until you stop it" : parts.joined(separator: " ")
   }
 }
 

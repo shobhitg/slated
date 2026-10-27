@@ -50,6 +50,13 @@ enum KeyEventMapping {
     if flags.contains(.command) { modifiers.insert(.command) }
     return modifiers
   }
+
+  /// The modifiers to record: the event's own, plus what Caps Lock adds while it's held as the Hyper
+  /// key (`keyboard.hyperModifiers`: ⌃⌥⇧⌘, or ⌃⌥⇧ for Meh), so the shortcut matches what the
+  /// Hyper key will send.
+  static func modifiers(_ flags: NSEvent.ModifierFlags, hyperHeld: Bool, hyperModifiers: Modifiers) -> Modifiers {
+    hyperHeld ? modifiers(flags).union(hyperModifiers) : modifiers(flags)
+  }
 }
 
 /// Owns an `NSEvent` local monitor so SwiftUI state can hold it.

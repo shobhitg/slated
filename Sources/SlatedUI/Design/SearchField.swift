@@ -24,6 +24,7 @@ struct SearchField: View {
         }
         .buttonStyle(.plain)
         .help("Clear search")
+        .accessibilityLabel("Clear search")
       }
     }
     .padding(.horizontal, 9)

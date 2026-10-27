@@ -107,7 +107,12 @@ public final class PreviewServices: AppServices {
   public func reload() { notify() }
   public func revealConfigurationFile() {}
   public func revealFile(atPath path: String) {}
-  public func setHotkeysSuspended(_ suspended: Bool) { hotkeysSuspended = suspended }
+  public func setHotkeysSuspended(_ suspended: Bool) {
+    // Like the app: while suspended, neither the Hyper key nor hotstrings are live.
+    hotkeysSuspended = suspended
+    recomputeStatus()
+    notify()
+  }
 
   public func setPaused(_ paused: Bool) {
     status.paused = paused
@@ -116,7 +121,8 @@ public final class PreviewServices: AppServices {
   }
 
   public func setHotstringsEnabled(_ enabled: Bool) {
-    status.hotstringsEnabled = enabled
+    // Like the app: the switch is written to config.json (`general.hotstringsEnabled`) right away.
+    configuration.general.hotstringsEnabled = enabled
     recomputeStatus()
     notify()
   }
@@ -234,7 +240,9 @@ public final class PreviewServices: AppServices {
       }
     }
     status.hotkeys = hotkeys
-    status.hyperKeyActive = configuration.keyboard.capsLock == .hyper && !status.paused
-    status.hotstringsActive = status.hotstringsEnabled && !status.paused && !configuration.hotstrings.isEmpty
+    status.hotstringsEnabled = configuration.general.hotstringsEnabled
+    status.hyperKeyActive = configuration.keyboard.capsLock == .hyper && !status.paused && !hotkeysSuspended
+    status.hotstringsActive =
+      status.hotstringsEnabled && !status.paused && !hotkeysSuspended && !configuration.hotstrings.isEmpty
   }
 }

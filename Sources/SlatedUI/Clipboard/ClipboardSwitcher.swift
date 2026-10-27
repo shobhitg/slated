@@ -87,8 +87,11 @@ public final class ClipboardSwitcherModel {
     guard let id = id ?? selectedID else { return }
     let list = results
     let index = list.firstIndex { $0.id == id } ?? 0
+    let wasSelected = id == selectedID
     services.deleteClipboardItem(id: id)
     reload()
+    // Deleting another row (from its menu) leaves the selection, and so what ↩ pastes, alone.
+    guard wasSelected else { return }
     let remaining = results
     selectedID = remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
   }
@@ -192,6 +195,7 @@ struct ClipboardSwitcherView: View {
         }
         .buttonStyle(.plain)
         .help("Clear search")
+        .accessibilityLabel("Clear search")
       }
       Text(countText)
         .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())

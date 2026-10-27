@@ -241,6 +241,33 @@ let uiValidationTests = Suite(
       }
     ),
     (
+      "hotstrings kept to different apps don't clash; overlapping ones do",
+      {
+        try onMain {
+          let mail = "com.apple.mail"
+          let messages = "com.apple.MobileSMS"
+          var config = SlatedConfiguration()
+          let mailSignature = Hotstring(trigger: ";sig", replacement: "Best, S", onlyInApps: [mail])
+          let chatSignature = Hotstring(trigger: ";sig", replacement: "cheers", onlyInApps: [messages])
+          let notInMail = Hotstring(trigger: ";e", replacement: "e", exceptInApps: [mail])
+          let mailOnlyEmail = Hotstring(trigger: ";email", replacement: "a@b.c", onlyInApps: [mail])
+          config.hotstrings = [mailSignature, chatSignature, notInMail, mailOnlyEmail]
+          // The matcher only considers hotstrings available in the app in front: each one fires there.
+          expect(ConfigValidator.validate(config, knownLayouts: []).isEmpty)
+
+          let everywhere = Hotstring(trigger: ";sig", replacement: "S.")
+          let chatEmail = Hotstring(trigger: ";email", replacement: "a@b.c", onlyInApps: [messages])
+          config.hotstrings += [everywhere, chatEmail]
+          let issues = ConfigValidator.validate(config, knownLayouts: [])
+          for clash in [mailSignature, chatSignature, everywhere] {
+            expect(issues.contains { $0.target == .hotstring(clash.id) && $0.message.hasPrefix("Another hotstring") })
+          }
+          expect(issues.contains { $0.target == .hotstring(chatEmail.id) && $0.message.contains("“;e”") })
+          expect(!issues.contains { $0.target == .hotstring(mailOnlyEmail.id) })
+        }
+      }
+    ),
+    (
       "saving keeps the last good version of an item with errors",
       {
         try onMain {
@@ -394,6 +421,122 @@ let uiModelTests = Suite(
           expect(model.configuration.bindings.contains { $0.action == .layout(name: "Deep Work") })
           expect(!model.configuration.bindings.contains { $0.action == .layout(name: "Coding") })
           expect(model.selectedLayout == .slated(name: "Deep Work"))
+        }
+      }
+    ),
+    (
+      "renaming a layout through another layout's name leaves that layout and its shortcuts alone",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          let mail = LayoutApp(app: "Mail", operations: [preset("maximize")])
+          let xcode = LayoutApp(app: "Xcode", operations: [preset("left-half")])
+          model.configuration.layouts = [Layout(name: "Work", apps: [mail]), Layout(name: "Work 2", apps: [xcode])]
+          let workKey = HotkeyBinding(keys: hyper("1"), action: .layout(name: "Work"))
+          let work2Key = HotkeyBinding(keys: hyper("2"), action: .layout(name: "Work 2"))
+          model.configuration.bindings = [workKey, work2Key]
+          model.selectedLayout = .slated(name: "Work 2")
+          // Backspacing "Work 2" to "Work", then typing on. The pane finds the layout by the
+          // selected name for every keystroke.
+          for name in ["Work ", "Work", "Wor", "Workshop"] {
+            guard case .slated(let selected) = model.selectedLayout else { throw TestFailure(description: "no layout") }
+            try require(model.layoutBinding(selected)).wrappedValue.name = name
+            // Saved as if the user paused after each keystroke: on disk, Work 2's shortcut never
+            // applies Work.
+            model.saveNow()
+            let saved = Dictionary(uniqueKeysWithValues: services.configuration.bindings.map { ($0.id, $0.action) })
+            expectEqual(saved[workKey.id], .layout(name: "Work"))
+            expect(saved[work2Key.id] != .layout(name: "Work"), "after typing “\(name)”")
+          }
+          expectEqual(model.configuration.layouts.map(\.name), ["Work", "Workshop"])
+          expectEqual(model.configuration.layouts.map { $0.apps.map(\.app) }, [["Mail"], ["Xcode"]])
+          expectEqual(model.binding(workKey.id)?.action, .layout(name: "Work"))
+          expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Workshop"))
+          expect(model.selectedLayout == .slated(name: "Workshop"))
+          // What the name field shows while the typed name can't be used yet.
+          expectEqual(model.layoutNameProblem("Work", renaming: "Workshop"), "Another layout already has this name.")
+          expectEqual(model.layoutNameProblem(" ", renaming: "Workshop"), "Name the layout.")
+          expect(model.layoutNameProblem("Workshop", renaming: "Workshop") == nil)
+        }
+      }
+    ),
+    (
+      "the hotstrings switch survives an edit that's still waiting to be saved",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          model.configuration.keyboard.capsLock = .hyper  // an edit, waiting for the debounce
+          model.setHotstringsEnabled(false)  // the app writes the switch to config.json right away
+          model.saveNow()  // then the debounced save runs
+          expect(!services.configuration.general.hotstringsEnabled, "the switch stays off")
+          expectEqual(services.configuration.keyboard.capsLock, .hyper)
+          expect(!model.runtimeStatus.hotstringsEnabled)
+        }
+      }
+    ),
+    (
+      "a hotstring stays Active while Try It pauses expansion; only missing permission waits",
+      {
+        try onMain {
+          let services = PreviewServices()
+          let model = AppModel(services: services)
+          let hotstring = try require(model.configuration.hotstrings.first { $0.enabled })
+          expect(model.state(for: hotstring) == .active)
+          model.beginHotkeySuspension()  // the Try It field has focus
+          expect(!model.runtimeStatus.hotstringsActive, "the engine pauses expansion meanwhile")
+          expect(model.state(for: hotstring) == .active, "that's not “Waiting for permission”")
+          model.endHotkeySuspension()
+
+          let firstRun = AppModel(services: PreviewServices(scenario: .firstRun))
+          firstRun.configuration.hotstrings = [Hotstring(trigger: ";a", replacement: "b")]
+          expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .waitingForPermission)
+          firstRun.configuration.hotstrings[0].trigger = ""
+          expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .notSaved)
+        }
+      }
+    ),
+    (
+      "a binding or hotstring copied in config.json with its id becomes an item of its own",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let left = HotkeyBinding(name: "Left", keys: hyper("left"), action: preset("left-half"))
+          var right = left  // pasted in config.json, id and all, then edited by hand
+          right.name = "Right"
+          right.keys = hyper("right")
+          right.action = preset("right-half")
+          let shrug = Hotstring(trigger: ";shrug", replacement: "¯\\_(ツ)_/¯")
+          var flip = shrug
+          flip.trigger = ";flip"
+          var config = SlatedConfiguration()
+          config.bindings = [left, right]
+          config.hotstrings = [shrug, flip]
+          try services.saveConfiguration(config)
+
+          let model = AppModel(services: services)
+          let bindingIDs = model.configuration.bindings.map(\.id)
+          let hotstringIDs = model.configuration.hotstrings.map(\.id)
+          expectEqual(bindingIDs.first, left.id)
+          expectEqual(Set(bindingIDs).count, 2)
+          expectEqual(hotstringIDs.first, shrug.id)
+          expectEqual(Set(hotstringIDs).count, 2)
+          // Reading the file again (any change the app reports) keeps the new ids.
+          services.simulateCopy("anything")
+          expectEqual(model.configuration.bindings.map(\.id), bindingIDs)
+          expectEqual(model.configuration.hotstrings.map(\.id), hotstringIDs)
+
+          // Edits and deletes reach the copy, not the original.
+          try require(model.bindingBinding(bindingIDs[1])).wrappedValue.name = "Right Half"
+          expectEqual(model.configuration.bindings.map(\.name), ["Left", "Right Half"])
+          model.deleteHotstring(hotstringIDs[1])
+          expectEqual(model.configuration.hotstrings.map(\.trigger), [";shrug"])
+          // The next save writes the new id.
+          model.saveNow()
+          expectEqual(services.configuration.bindings.map(\.id), bindingIDs)
+          expectEqual(services.configuration.bindings.map(\.name), ["Left", "Right Half"])
+          expectEqual(services.configuration.hotstrings.map(\.trigger), [";shrug"])
         }
       }
     ),

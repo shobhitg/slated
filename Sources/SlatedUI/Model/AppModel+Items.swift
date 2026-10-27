@@ -20,6 +20,17 @@ enum BindingState: Equatable {
   case inactive
 }
 
+/// The state of one hotstring, for its editor.
+enum HotstringState: Equatable {
+  case notSaved
+  case off
+  /// The master switch is off.
+  case expansionOff
+  case paused
+  case active
+  case waitingForPermission
+}
+
 extension AppModel {
   // MARK: Bindings
 
@@ -227,8 +238,22 @@ extension AppModel {
 
   var enabledHotstringCount: Int { configuration.hotstrings.filter(\.enabled).count }
 
+  /// What a hotstring's editor says about it: the draft, validation and the engine combined.
+  func state(for hotstring: Hotstring) -> HotstringState {
+    if issues(for: .hotstring(hotstring.id)).contains(where: { $0.severity == .error }) { return .notSaved }
+    if !hotstring.enabled { return .off }
+    if !runtimeStatus.hotstringsEnabled { return .expansionOff }
+    if runtimeStatus.paused { return .paused }
+    // Not `hotstringsActive`: expansion also pauses while the Try It field (or a shortcut recorder)
+    // has focus, which isn't a missing permission.
+    return runtimeStatus.accessibilityGranted ? .active : .waitingForPermission
+  }
+
   // MARK: Layouts
 
+  /// A binding to one Slated layout, found by name. Renames that would make the layout impossible to
+  /// tell apart (an empty name, or another layout's) are ignored: layouts are found by name, so the
+  /// next edit could land on the other layout and its shortcuts would follow this one.
   func layoutBinding(_ name: String) -> Binding<WindowLayout>? {
     guard let current = configuration.layouts.first(where: { $0.name == name }) else { return nil }
     var trackedName = name
@@ -239,6 +264,10 @@ extension AppModel {
           return
         }
         let oldName = trackedName
+        var newValue = newValue
+        if newValue.name != oldName, layoutNameProblem(newValue.name, renaming: oldName) != nil {
+          newValue.name = oldName
+        }
         self.configuration.layouts[index] = newValue
         if newValue.name != oldName {
           trackedName = newValue.name
@@ -246,6 +275,15 @@ extension AppModel {
           self.selectedLayout = .slated(name: newValue.name)
         }
       })
+  }
+
+  /// Why `name` can't become the name of the layout now called `current`, if it can't.
+  func layoutNameProblem(_ name: String, renaming current: String) -> String? {
+    if name.trimmingCharacters(in: .whitespaces).isEmpty { return "Name the layout." }
+    if name != current, configuration.layouts.contains(where: { $0.name == name }) {
+      return "Another layout already has this name."
+    }
+    return nil
   }
 
   @discardableResult

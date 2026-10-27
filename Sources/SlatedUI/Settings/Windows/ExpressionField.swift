@@ -93,5 +93,6 @@ private struct VariableMenu: View {
     .menuIndicator(.hidden)
     .fixedSize()
     .help("Insert a variable or function")
+    .accessibilityLabel("Insert a variable or function")
   }
 }

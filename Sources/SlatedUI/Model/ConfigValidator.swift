@@ -275,7 +275,8 @@ enum ConfigValidator {
             message: "The replacement is empty, so the trigger will just be deleted."))
       }
       guard hotstring.enabled else { continue }
-      for other in hotstrings where other.id != hotstring.id && other.enabled && !other.trigger.isEmpty {
+      for other in hotstrings
+      where other.id != hotstring.id && other.enabled && !other.trigger.isEmpty && hotstring.sharesApps(with: other) {
         let caseInsensitive = !hotstring.caseSensitive || !other.caseSensitive
         let mine = caseInsensitive ? trigger.lowercased() : trigger
         let theirs = caseInsensitive ? other.trigger.lowercased() : other.trigger
@@ -354,6 +355,21 @@ extension HotkeyBinding {
   /// an app.
   func sharesApps(with other: HotkeyBinding) -> Bool {
     onlyInApps.isEmpty || other.onlyInApps.isEmpty || !Set(onlyInApps).isDisjoint(with: other.onlyInApps)
+  }
+}
+
+extension Hotstring {
+  /// Whether some app has both hotstrings available. The matcher only considers hotstrings available
+  /// in the app in front, so two with the same trigger in different apps each fire in their own.
+  func sharesApps(with other: Hotstring) -> Bool {
+    let mine = Set(onlyInApps).subtracting(exceptInApps)
+    let theirs = Set(other.onlyInApps).subtracting(other.exceptInApps)
+    switch (onlyInApps.isEmpty, other.onlyInApps.isEmpty) {
+    case (true, true): return true
+    case (false, true): return !mine.subtracting(other.exceptInApps).isEmpty
+    case (true, false): return !theirs.subtracting(exceptInApps).isEmpty
+    case (false, false): return !mine.isDisjoint(with: theirs)
+    }
   }
 }
 

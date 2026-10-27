@@ -76,6 +76,7 @@ struct BindingEditor: View {
       } label: {
         Image(systemName: "ellipsis.circle").font(.system(size: 15))
       }
+      .accessibilityLabel("More")
       .menuStyle(.borderlessButton)
       .menuIndicator(.hidden)
       .fixedSize()
@@ -91,8 +92,9 @@ struct BindingEditor: View {
         }
         LabeledField("Keys") {
           VStack(alignment: .leading, spacing: 6) {
+            // A plain key is fine where it can't swallow typing: in its apps only, or after a modal key.
             ShortcutRecorder(
-              combo: $binding.keys, requiresModifier: binding.onlyInApps.isEmpty,
+              combo: $binding.keys, requiresModifier: binding.onlyInApps.isEmpty && binding.modal == nil,
               autoStart: model.recordShortcutFor == binding.id,
               plainKeyHint: "Or limit the shortcut to a game below to use a plain key there."
             )
@@ -339,6 +341,7 @@ private struct ChainStepper: View {
       } label: {
         Image(systemName: "chevron.left")
       }
+      .accessibilityLabel("Previous press")
       Text("Press \(step % count + 1) of \(count)")
         .font(.system(size: 11, weight: .medium).monospacedDigit())
         .frame(minWidth: 74)
@@ -347,6 +350,7 @@ private struct ChainStepper: View {
       } label: {
         Image(systemName: "chevron.right")
       }
+      .accessibilityLabel("Next press")
     }
     .buttonStyle(.borderless)
     .font(.system(size: 10, weight: .semibold))

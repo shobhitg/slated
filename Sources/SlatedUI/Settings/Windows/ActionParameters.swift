@@ -571,6 +571,8 @@ struct AppChips: View {
           }
           .buttonStyle(.plain)
           .foregroundStyle(.secondary)
+          .help("Remove")
+          .accessibilityLabel("Remove \(name)")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -618,6 +620,8 @@ struct GridEditor: View {
             Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
           }
           .buttonStyle(.plain)
+          .help("Use Slate's default grid on this display")
+          .accessibilityLabel("Remove the grid size for display \((Int(grid.screen) ?? 0) + 1)")
         }
         .font(.system(size: 12.5).monospacedDigit())
       }
