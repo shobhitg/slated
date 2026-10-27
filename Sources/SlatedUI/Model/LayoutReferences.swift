@@ -1,6 +1,14 @@
 import Foundation
 import SlatedCore
 
+/// Something in config.json that applies a layout by its name: a shortcut or hotstring (in any
+/// step), or a display default (by its place in `defaults`).
+enum LayoutReference: Hashable {
+  case binding(UUID)
+  case hotstring(UUID)
+  case screenDefault(Int)
+}
+
 extension Action {
   /// The names of the layouts this action applies: itself, in any step, or in what it repeats.
   var layoutNames: Set<String> {

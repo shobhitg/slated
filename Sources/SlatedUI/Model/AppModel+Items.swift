@@ -291,39 +291,79 @@ extension AppModel {
   }
 
   /// Renames the Slated layout called `name` (the one at `index`, see `layoutIndex`) and re-points
-  /// what applies it. A name `layoutNameProblem` objects to isn't taken: shortcuts apply a layout by
-  /// its name, so they would follow this one onto the other layout. Returns the layout's name after.
+  /// what applies it, except what's in `keeping`. A name `layoutNameProblem` objects to isn't taken:
+  /// shortcuts apply a layout by its name, so they would follow this one onto the other layout.
+  /// Returns the layout's name after.
   @discardableResult
-  func renameLayout(_ name: String, at index: Int? = nil, to newName: String) -> String {
+  func renameLayout(
+    _ name: String, at index: Int? = nil, to newName: String, keeping: Set<LayoutReference> = []
+  ) -> String {
     guard newName != name, let at = layoutIndex(name, at: index),
       layoutNameProblem(newName, renaming: name, at: at) == nil
     else { return name }
     configuration.layouts[at].name = newName
     // A copy still has the old name: what applies that name stays with it.
-    if !configuration.layouts.contains(where: { $0.name == name }) { renameLayoutReferences(from: name, to: newName) }
+    if !configuration.layouts.contains(where: { $0.name == name }) {
+      renameLayoutReferences(from: name, to: newName, keeping: keeping)
+    }
     selectedLayout = .slated(name: newName, index: at)
     return newName
   }
 
+  /// The layout editor's name field: makes `typed` the name of the layout called `current` (the one
+  /// at `index`) when it's usable, and returns the layout's name after. Typing passes through other
+  /// names. What applied one of them before this layout took it (a shortcut waiting for a layout of
+  /// that name, say) is recorded in `arrivals`, which the editor keeps while it's open, and stays
+  /// on that name when typing goes on: only this layout's own shortcuts move with it.
+  @discardableResult
+  func typeLayoutName(
+    _ typed: String, renaming current: String, at index: Int?, arrivals: inout [String: Set<LayoutReference>]
+  ) -> String {
+    guard typed != current, layoutNameProblem(typed, renaming: current, at: index) == nil else { return current }
+    let named = layoutReferences(typed)
+    let name = renameLayout(current, at: index, to: typed, keeping: arrivals[current] ?? [])
+    if name == typed { arrivals[typed] = named }
+    return name
+  }
+
   /// Why `name` can't become the name of the layout now called `current` (the one at `index`, see
-  /// `layoutIndex`), if it can't.
+  /// `layoutIndex`), if it can't. A Slate file's layout names are taken too, as for `addLayout`:
+  /// Slated's layouts replace Slate's of the same name, for the Slate file's shortcuts as well.
   func layoutNameProblem(_ name: String, renaming current: String, at index: Int? = nil) -> String? {
     let trimmed = name.trimmingCharacters(in: .whitespaces)
     if trimmed.isEmpty { return "Name the layout." }
     guard name != current else { return nil }
     let own = layoutIndex(current, at: index)
     // Spaces around a name don't show in any list: “Work ” would look like a second “Work”.
-    let taken = configuration.layouts.indices.contains {
-      $0 != own && configuration.layouts[$0].name.trimmingCharacters(in: .whitespaces) == trimmed
-    }
+    let isTrimmed = { (layout: WindowLayout) in layout.name.trimmingCharacters(in: .whitespaces) == trimmed }
+    let taken =
+      configuration.layouts.indices.contains { $0 != own && isTrimmed(configuration.layouts[$0]) }
+      || sources.contains { $0.layouts.contains(where: isTrimmed) }
     return taken ? "Another layout already has this name." : nil
+  }
+
+  /// What applies the layout called `name`: shortcuts and hotstrings, in any step, and display
+  /// defaults.
+  func layoutReferences(_ name: String) -> Set<LayoutReference> {
+    var references = Set<LayoutReference>()
+    for binding in configuration.bindings where binding.action.layoutNames.contains(name) {
+      references.insert(.binding(binding.id))
+    }
+    for hotstring in configuration.hotstrings where hotstring.action?.layoutNames.contains(name) == true {
+      references.insert(.hotstring(hotstring.id))
+    }
+    for (index, screenDefault) in configuration.defaults.enumerated() where screenDefault.target == name {
+      references.insert(.screenDefault(index))
+    }
+    return references
   }
 
   @discardableResult
   func addLayout() -> String {
     var name = "New Layout"
     var n = 2
-    while knownLayoutNames.contains(name) {
+    // Nor a name something still applies (a deleted layout's): renaming the new layout would take it along.
+    while knownLayoutNames.contains(name) || !layoutReferences(name).isEmpty {
       name = "New Layout \(n)"
       n += 1
     }
@@ -345,16 +385,17 @@ extension AppModel {
   }
 
   /// Keeps what applies a renamed layout on it: shortcuts and hotstrings, in any step, and display
-  /// defaults.
-  private func renameLayoutReferences(from old: String, to new: String) {
+  /// defaults. What's in `keep` stays where it is.
+  private func renameLayoutReferences(from old: String, to new: String, keeping keep: Set<LayoutReference>) {
     var config = configuration
-    for index in config.bindings.indices {
+    for index in config.bindings.indices where !keep.contains(.binding(config.bindings[index].id)) {
       config.bindings[index].action = config.bindings[index].action.renamingLayout(old, to: new)
     }
-    for index in config.hotstrings.indices {
+    for index in config.hotstrings.indices where !keep.contains(.hotstring(config.hotstrings[index].id)) {
       config.hotstrings[index].action = config.hotstrings[index].action?.renamingLayout(old, to: new)
     }
-    for index in config.defaults.indices where config.defaults[index].target == old {
+    for index in config.defaults.indices
+    where config.defaults[index].target == old && !keep.contains(.screenDefault(index)) {
       config.defaults[index].target = new
     }
     configuration = config

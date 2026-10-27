@@ -198,6 +198,53 @@ let uiHostingContractTests = Suite(
       }
     ),
     (
+      "typing a layout's name through other names takes none of their shortcuts along",
+      {
+        try onMain {
+          /// Types `text` into the layout name field one character at a time, after `prepare`.
+          @MainActor func type(_ text: String, in window: NSWindow, prepare: (NSTextView) -> Void) throws {
+            let field = try require(textInput(in: try require(window.contentView)) as? NSTextField)
+            window.makeFirstResponder(field)
+            spin()
+            prepare(try require(window.firstResponder as? NSTextView))
+            for character in text {
+              let editor = try require(window.firstResponder as? NSTextView, "the name field lost focus")
+              editor.insertText(String(character), replacementRange: NSRange(location: NSNotFound, length: 0))
+              spin(0.1)
+            }
+          }
+          let hyper = { (key: String) in KeyCombo(key: key, modifiers: .hyper) }
+
+          // Through a deleted layout's name, which its shortcut still applies.
+          var model = AppModel(services: PreviewServices(scenario: .empty))
+          model.configuration.layouts = [Layout(name: "Work"), Layout(name: "Work 2")]
+          let workKey = HotkeyBinding(keys: hyper("1"), action: .layout(name: "Work"))
+          let work2Key = HotkeyBinding(keys: hyper("2"), action: .layout(name: "Work 2"))
+          model.configuration.bindings = [workKey, work2Key]
+          model.deleteLayout("Work 2")
+          model.selectedLayout = .slated(name: "Work")
+          var window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          try type(" 2b", in: window) { $0.moveToEndOfDocument(nil) }
+          expectEqual(model.configuration.layouts.map(\.name), ["Work 2b"])
+          expectEqual(model.binding(workKey.id)?.action, .layout(name: "Work 2b"))
+          // The deleted layout's shortcut stays on its name.
+          expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Work 2"))
+          window.close()
+
+          // Through a Slate file's layout name (the preview's ~/.slate.js has “Writing”).
+          model = AppModel(services: PreviewServices())
+          let writingKey = HotkeyBinding(keys: hyper("w"), action: .layout(name: "Writing"))
+          model.configuration.bindings.append(writingKey)
+          model.selectedLayout = .slated(name: "Coding")
+          window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          try type("Writing Room", in: window) { $0.selectAll(nil) }
+          expectEqual(model.configuration.layouts.map(\.name), ["Writing Room"])
+          expectEqual(model.binding(writingKey.id)?.action, .layout(name: "Writing"))
+          window.close()
+        }
+      }
+    ),
+    (
       "a layout name refused as another layout's is taken once that layout is gone",
       {
         try onMain {

@@ -160,6 +160,9 @@ private struct LayoutDetail: View {
   /// The name as typed. It becomes the layout's name whenever it's usable, so typing through
   /// another layout's name ("Work 2" → "Work" → "Workshop") never renames or re-points that layout.
   @State private var nameDraft: String
+  /// What applied each name this layout took while typing, before it took it (see
+  /// `AppModel.typeLayoutName`).
+  @State private var nameArrivals: [String: Set<LayoutReference>] = [:]
 
   init(layout: Binding<WindowLayout>, source: SlateSource?, index: Int? = nil) {
     _layout = layout
@@ -323,10 +326,9 @@ private struct LayoutDetail: View {
     }
   }
 
-  /// Makes the typed name the layout's name when it's usable (see `AppModel.layoutNameProblem`).
+  /// Makes the typed name the layout's name when it's usable (see `AppModel.typeLayoutName`).
   private func commitName(_ name: String) {
-    guard name != layout.name, model.layoutNameProblem(name, renaming: layout.name, at: index) == nil else { return }
-    layout.name = name
+    model.typeLayoutName(name, renaming: layout.name, at: index, arrivals: &nameArrivals)
   }
 
   private func appBinding(_ index: Int) -> Binding<LayoutApp> {
