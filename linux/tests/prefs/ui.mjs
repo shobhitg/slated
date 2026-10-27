@@ -639,6 +639,12 @@ async function run(mode) {
     check(pills('Recommended') === 1, 'with GNOME\'s option in use, keyd is marked recommended');
     const sends = titled(visible('keyboard'), 'Adw.ComboRow', 'Hyper key sends')[0];
     check(/always sends the Hyper modifier/.test(prop(world, sends, 'subtitle')), `xkb: ${prop(world, sends, 'subtitle')}`);
+    // Turning Slated off gives Caps Lock back only where Slated set it up: keyd's mapping stays.
+    const onRow = () => titled(visible('general'), 'Adw.SwitchRow', 'Slated is on')[0];
+    withHyperMode('keyd');
+    check(/keyd keeps Caps Lock as Hyper/.test(prop(world, onRow(), 'subtitle')), `keyd: ${prop(world, onRow(), 'subtitle')}`);
+    withHyperMode('xkb');
+    check(/restores Caps Lock/.test(prop(world, onRow(), 'subtitle')), `xkb: ${prop(world, onRow(), 'subtitle')}`);
     model.setStatusText(statusText);
     titled(visible('keyboard'), 'Adw.SwitchRow', 'Use Caps Lock as Hyper')[0].set_active(false);
     check(model.configuration.keyboard.capsLock === 'off', 'Caps Lock as Hyper off');
