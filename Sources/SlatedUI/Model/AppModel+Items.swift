@@ -29,6 +29,9 @@ enum HotstringState: Equatable {
   case paused
   case active
   case waitingForPermission
+  /// Permission is granted and nothing is paused or switched off, yet the app reports that hotstrings
+  /// aren't running (its keyboard event tap couldn't start), so nothing expands.
+  case notRunning
 }
 
 extension AppModel {
@@ -244,9 +247,14 @@ extension AppModel {
     if !hotstring.enabled { return .off }
     if !runtimeStatus.hotstringsEnabled { return .expansionOff }
     if runtimeStatus.paused { return .paused }
-    // Not `hotstringsActive`: expansion also pauses while the Try It field (or a shortcut recorder)
-    // has focus, which isn't a missing permission.
-    return runtimeStatus.accessibilityGranted ? .active : .waitingForPermission
+    if !runtimeStatus.accessibilityGranted { return .waitingForPermission }
+    // The app also reports hotstrings inactive while Settings suspends them on purpose (the Try It
+    // field or a shortcut recorder has focus), and while none is saved yet: the first one runs once
+    // its save lands. Otherwise they really don't run, e.g. the keyboard event tap couldn't start.
+    if runtimeStatus.hotstringsActive || isSuspendingHotkeys || !saved.hotstrings.contains(where: \.enabled) {
+      return .active
+    }
+    return .notRunning
   }
 
   // MARK: Layouts

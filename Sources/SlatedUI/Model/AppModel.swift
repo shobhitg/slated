@@ -325,6 +325,9 @@ public final class AppModel {
     if suspensions == 0 { services.setHotkeysSuspended(false) }
   }
 
+  /// A recorder or the Try It field has the hotkeys, Hyper key and hotstrings suspended right now.
+  var isSuspendingHotkeys: Bool { suspensions > 0 }
+
   func showToast(_ message: String, symbol: String = "checkmark.circle.fill", style: Toast.Style = .success) {
     toast = Toast(message: message, symbol: symbol, style: style)
     toastTask?.cancel()

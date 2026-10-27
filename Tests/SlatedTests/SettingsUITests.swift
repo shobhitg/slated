@@ -15,6 +15,43 @@ private func hyper(_ key: String) -> KeyCombo { KeyCombo(key: key, modifiers: .h
 
 @MainActor private func preset(_ id: String) -> Action { WindowPresets.preset(id).action }
 
+/// The sample services, as the app reports itself when the keyboard event tap won't start: permission
+/// granted, the hotstrings switch on, not paused, and yet no hotstrings running.
+@MainActor private final class TapFailedServices: AppServices {
+  let base = PreviewServices()
+
+  var configurationFileURL: URL { base.configurationFileURL }
+  func loadConfiguration() throws -> SlatedConfiguration { try base.loadConfiguration() }
+  func saveConfiguration(_ configuration: SlatedConfiguration) throws { try base.saveConfiguration(configuration) }
+  func runtimeStatus() -> RuntimeStatus {
+    var status = base.runtimeStatus()
+    status.hotstringsActive = false
+    return status
+  }
+  func slateSources() -> [SlateSource] { base.slateSources() }
+  func screens() -> [ScreenInfo] { base.screens() }
+  func runningApplications() -> [AppInfo] { base.runningApplications() }
+  func requestAccessibilityPermission() {}
+  func openAccessibilitySettings() {}
+  func reload() {}
+  func revealConfigurationFile() {}
+  func revealFile(atPath path: String) {}
+  func setHotkeysSuspended(_ suspended: Bool) { base.setHotkeysSuspended(suspended) }
+  func setPaused(_ paused: Bool) { base.setPaused(paused) }
+  func setHotstringsEnabled(_ enabled: Bool) { base.setHotstringsEnabled(enabled) }
+  func setLaunchAtLogin(_ enabled: Bool) throws {}
+  func onChange(_ handler: @escaping @MainActor () -> Void) { base.onChange(handler) }
+  func clipboardItems() -> [ClipboardItem] { [] }
+  func pasteClipboardItem(id: UUID) {}
+  func copyClipboardItem(id: UUID) {}
+  func deleteClipboardItem(id: UUID) {}
+  func togglePinClipboardItem(id: UUID) {}
+  func clearClipboardHistory() {}
+  func showClipboardHistory() {}
+  func activeAutomations() -> [ActiveAutomation] { [] }
+  func stopAutomations() {}
+}
+
 let uiActionTests = Suite(
   "UIActions",
   [
@@ -540,6 +577,29 @@ let uiModelTests = Suite(
           expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .waitingForPermission)
           firstRun.configuration.hotstrings[0].trigger = ""
           expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .notSaved)
+        }
+      }
+    ),
+    (
+      "a hotstring isn't Active when hotstrings don't run despite permission",
+      {
+        try onMain {
+          let model = AppModel(services: TapFailedServices())
+          let hotstring = try require(model.configuration.hotstrings.first { $0.enabled })
+          expect(model.state(for: hotstring) == .notRunning, "nothing expands")
+          model.beginHotkeySuspension()  // the Try It field has focus: expansion pauses on purpose
+          expect(model.state(for: hotstring) == .active)
+          model.endHotkeySuspension()
+
+          // The first hotstring runs once it's saved; the engine has none to run until then.
+          let services = PreviewServices(scenario: .empty)
+          let empty = AppModel(services: services)
+          empty.configuration.hotstrings = [Hotstring(trigger: ";a", replacement: "b")]
+          expect(!empty.runtimeStatus.hotstringsActive)
+          expect(empty.state(for: empty.configuration.hotstrings[0]) == .active, "not “Not running” meanwhile")
+          empty.saveNow()
+          expect(empty.runtimeStatus.hotstringsActive)
+          expect(empty.state(for: empty.configuration.hotstrings[0]) == .active)
         }
       }
     ),

@@ -78,6 +78,7 @@ struct HotstringEditor: View {
     case .paused: return ("Paused", Theme.neutral, "pause.fill")
     case .active: return ("Active", Theme.positive, nil)
     case .waitingForPermission: return ("Waiting for permission", Theme.caution, nil)
+    case .notRunning: return ("Not running", Theme.caution, nil)
     }
   }
 
