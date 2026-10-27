@@ -307,6 +307,7 @@ def main():
     stopped = wait_until(lambda: not status()['running'], 10)
     check('status.json says stopped after disable', stopped, status())
     check('the xkb option is removed on disable', "'caps:hyper'" not in xkb_options() and "'compose:ralt'" in xkb_options(), xkb_options())
+    check('…and status.json no longer says the Hyper key is active', status()['hyper'].get('mode') == 'off' and not status()['hyper'].get('active'), status().get('hyper'))
     check('app.quit is logged', bool(log_events('app.quit')))
     if held_before is not None:
         released = wait_until(lambda: window_events()['released'].count('w') > held_before, 5)
