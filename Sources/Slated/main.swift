@@ -3,11 +3,31 @@ import AppKit
 let app = NSApplication.shared
 
 if CommandLine.arguments.contains("--smoke") {
-  // Start the engine without UI or permission prompts, print what it loaded, and exit.
+  // Start the engine without UI or permission prompts, print what it loaded, and exit. Tests/Smoke can
+  // keep it running longer (SLATED_SMOKE_SECONDS) and have it save the configuration first
+  // (SLATED_SMOKE_SAVE).
+  let environment = ProcessInfo.processInfo.environment
   let engine = Engine()
   engine.allowsKeyboardChanges = false
   engine.start()
-  DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+  let seconds = environment["SLATED_SMOKE_SECONDS"].flatMap(Double.init) ?? 1
+  DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+    if environment["SLATED_SMOKE_SAVE"] != nil {
+      // Saving as Settings does (through the UI's services) and as the menu bar's toggles do.
+      let services = LiveServices(engine: engine)
+      let saves: [(String, () throws -> Void)] = [
+        ("settings", { try services.saveConfiguration(try services.loadConfiguration()) }),
+        ("menu", { try engine.save(engine.configuration) }),
+      ]
+      for (name, save) in saves {
+        do {
+          try save()
+          print("\(name) save: saved")
+        } catch {
+          print("\(name) save: refused:", error.localizedDescription)
+        }
+      }
+    }
     let status = engine.status
     let config = engine.configuration
     print("config:", engine.store.fileURL.path, engine.store.loadError ?? "ok")

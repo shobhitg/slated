@@ -109,6 +109,28 @@ expect_output "a broken config.json is reported" "$out" "Couldn't read"
 expect_true "a broken config.json doesn't crash Slated" test "$status" -eq 0
 expect_output "the event log records the config error" "$(log_of "$home")" '"event":"config.error","level":"error"'
 
+# 5b. Saving never replaces a config.json Slated couldn't read: it may only need a small fix.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-broken.json" "$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_SAVE=1 smoke "$home")
+expect_output "Settings pauses saving while config.json can't be read" "$out" "settings save: refused: Couldn't read"
+expect_output "the menu bar's toggles don't save over it either" "$out" "menu save: refused: Couldn't read"
+expect_true "the unreadable config.json is left as it was" \
+  cmp -s "$FIXTURES/config-broken.json" "$home/.config/slated/config.json"
+expect_output "the event log records the refused save" "$(log_of "$home")" '"event":"config.save_failed"'
+
+# 5c. A config.json symlinked from a dotfiles folder stays a symlink when Slated saves it.
+home=$(new_home)
+mkdir -p "$home/.config/slated" "$home/dotfiles"
+cp "$FIXTURES/config-hand-edited.json" "$home/dotfiles/config.json"
+ln -s "$home/dotfiles/config.json" "$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_SAVE=1 smoke "$home")
+expect_output "saving through a symlinked config.json works" "$out" "settings save: saved"
+expect_true "config.json is still a symlink after saving" test -L "$home/.config/slated/config.json"
+expect_true "the save went into the dotfiles copy" \
+  /usr/bin/python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$home/dotfiles/config.json"
+
 # 6. An unknown operation names the operation and where it is.
 home=$(new_home)
 mkdir -p "$home/.config/slated"
@@ -132,6 +154,34 @@ mkdir -p "$home/Library/Application Support/Slated"
 echo "deadbeef 0.1.0" > "$home/Library/Application Support/Slated/running"  # as if the last run crashed
 smoke "$home" >/dev/null
 expect_output "a crashed previous run is recorded" "$(log_of "$home")" '"event":"app.previous_run_crashed"'
+
+# 9. Hand edits are picked up while Slated runs, however the editor saves: in place (nano, Sublime
+#    Text, `>` in a shell), or into a dotfiles folder config.json links to.
+started() { grep -q '"event":"config.loaded"' "$1/Library/Logs/Slated/slated.log" 2>/dev/null; }
+edit_when_started() {  # home, command run once Slated has loaded its config
+  local home="$1"; shift
+  for _ in $(seq 1 100); do started "$home" && break; sleep 0.1; done
+  sleep 0.3
+  "$@"
+}
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-no-builtins.json" "$home/.config/slated/config.json"
+edit_when_started "$home" bash -c 'cat "$1" > "$2"' _ "$FIXTURES/config-hand-edited.json" \
+  "$home/.config/slated/config.json" &
+out=$(SLATED_SMOKE_SECONDS=3 smoke "$home"); wait
+expect_output "an edit saved in place is reloaded while running" "$out" "native: 1 bindings, 2 hotstrings"
+expect_output "the event log records the edit" "$(log_of "$home")" '"event":"config.changed_on_disk"'
+
+home=$(new_home)
+mkdir -p "$home/.config/slated" "$home/dotfiles"
+cp "$FIXTURES/config-no-builtins.json" "$home/dotfiles/config.json"
+ln -s "$home/dotfiles/config.json" "$home/.config/slated/config.json"
+# The way most editors save: write a new file next to it, then rename it over the old one.
+edit_when_started "$home" bash -c 'cp "$1" "$2.new" && mv "$2.new" "$2"' _ "$FIXTURES/config-hand-edited.json" \
+  "$home/dotfiles/config.json" &
+out=$(SLATED_SMOKE_SECONDS=3 smoke "$home"); wait
+expect_output "an edit to the file config.json links to is reloaded" "$out" "native: 1 bindings, 2 hotstrings"
 
 echo
 echo "$passed passed, $failed failed"

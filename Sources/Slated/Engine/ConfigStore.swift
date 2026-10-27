@@ -1,6 +1,12 @@
 import Foundation
 import SlatedCore
 
+/// config.json couldn't be read, so Slated won't save over it: that would replace the user's file,
+/// which may only need a small fix, with the configuration Slated last loaded.
+struct ConfigUnreadable: LocalizedError {
+  let message: String
+  var errorDescription: String? { message }
+}
 
 /// Loads, saves and watches `~/.config/slated/config.json`.
 final class ConfigStore {
@@ -12,7 +18,10 @@ final class ConfigStore {
   var onExternalChange: (() -> Void)?
 
   private var watcher: DispatchSourceFileSystemObject?
-  private var lastWritten: Data?
+  private var pollTimer: Timer?
+  /// The file's contents as last read or written, so each change is handled once.
+  private var lastSeen: Data?
+  private var lastModified: Date?
 
   /// Defaults to `SlatedPaths.configURL` (`SLATED_CONFIG` / `SLATED_HOME` override it for tests).
   init(fileURL: URL = SlatedPaths.configURL) {
@@ -31,16 +40,21 @@ final class ConfigStore {
       }
       configuration = hasSlateConfig ? SlatedConfiguration() : .starter
       loadError = nil
-      try? save(configuration)
-      Log.record(
-        "config.created",
-        ["path": fileURL.path, "from": hasSlateConfig ? "empty (Slate config is the default)" : "starter bindings"])
+      do {
+        try save(configuration)
+        Log.record(
+          "config.created",
+          ["path": fileURL.path, "from": hasSlateConfig ? "empty (Slate config is the default)" : "starter bindings"])
+      } catch {
+        Log.error("config.save_failed", error.localizedDescription, ["path": fileURL.path])
+      }
       return
     }
     do {
+      lastModified = modificationDate()
       let data = try Data(contentsOf: fileURL)
+      lastSeen = data
       configuration = try SlatedConfiguration.decode(from: data)
-      lastWritten = data
       loadError = nil
       Log.record("config.loaded", Self.summary(configuration, path: fileURL.path))
     } catch {
@@ -49,19 +63,34 @@ final class ConfigStore {
     }
   }
 
+  /// Writes `configuration`. Refuses (throws `ConfigUnreadable`) while the file on disk couldn't be
+  /// read, until it's fixed or reloaded.
   func save(_ configuration: SlatedConfiguration) throws {
+    if let loadError { throw ConfigUnreadable(message: "\(loadError) Slated won't save over it until it's fixed.") }
     let data = try configuration.encoded()
-    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try data.write(to: fileURL, options: .atomic)
-    lastWritten = data
+    // Through a symlinked config.json (dotfiles) to its target: an atomic save would replace the link.
+    let destination = fileURL.resolvingSymlinksInPath()
+    try FileManager.default.createDirectory(
+      at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try data.write(to: destination, options: .atomic)
+    lastSeen = data
+    lastModified = modificationDate()
     self.configuration = configuration
     loadError = nil
   }
 
-  /// Watches the config directory (atomic saves replace the file, so watch its parent).
+  /// Watches the config directory (atomic saves replace the file, so watch its parent), and polls the
+  /// file's modification date: saving in place (nano, Sublime Text, `>` in a shell) or through a
+  /// symlink doesn't change the directory, so the watcher never hears of it.
   func startWatching() {
     let directory = fileURL.deletingLastPathComponent()
     try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    pollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self, self.modificationDate() != self.lastModified else { return }
+        self.fileMayHaveChanged()
+      }
+    }
     let fd = open(directory.path, O_EVTONLY)
     guard fd >= 0 else { return }
     let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename], queue: .main)
@@ -74,10 +103,17 @@ final class ConfigStore {
   }
 
   private func fileMayHaveChanged() {
-    guard let data = try? Data(contentsOf: fileURL), data != lastWritten else { return }
+    lastModified = modificationDate()
+    guard let data = try? Data(contentsOf: fileURL), data != lastSeen else { return }
     Log.record("config.changed_on_disk", ["path": fileURL.path])
     load()
     onExternalChange?()
+  }
+
+  /// The modification date of config.json, or of the file it links to.
+  private func modificationDate() -> Date? {
+    let path = fileURL.resolvingSymlinksInPath().path
+    return (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
   }
 
   static func summary(_ config: SlatedConfiguration, path: String) -> [String: Any] {

@@ -11,7 +11,11 @@ final class LiveServices: AppServices {
 
   var configurationFileURL: URL { engine.store.fileURL }
 
-  func loadConfiguration() throws -> SlatedConfiguration { engine.configuration }
+  /// Throws while config.json can't be read, so Settings pauses saving instead of overwriting it.
+  func loadConfiguration() throws -> SlatedConfiguration {
+    if let error = engine.store.loadError { throw ConfigUnreadable(message: error) }
+    return engine.configuration
+  }
 
   func saveConfiguration(_ configuration: SlatedConfiguration) throws { try engine.save(configuration) }
 
