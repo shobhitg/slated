@@ -24,6 +24,18 @@ const MASKS = {
   SUPER: Gdk.ModifierType.SUPER_MASK, HYPER: Gdk.ModifierType.HYPER_MASK, META: Gdk.ModifierType.META_MASK,
 };
 
+/** Recorders that are recording right now. */
+const recording = new Set();
+
+/**
+ * Stops every recording. A recorder captures every key the window gets, so the window calls this when
+ * it shows another section: the recorder's page stays on top of its own section, hidden, and would
+ * otherwise take what's typed there as its shortcut.
+ */
+export function stopAllRecording() {
+  for (const recorder of [...recording]) recorder.stop();
+}
+
 export class ShortcutRecorder {
   /**
    * @param {object} options
@@ -46,6 +58,7 @@ export class ShortcutRecorder {
     this.baseSubtitle = subtitle;
     this.recording = false;
     this.controller = null;
+    this.clicks = null;
     this.window = null;
     this.held = new Set();
 
@@ -107,6 +120,16 @@ export class ShortcutRecorder {
       return false;
     });
     root.add_controller(this.controller);
+    // As on the Mac, a click anywhere else ends the recording (and goes on to what was clicked), so
+    // clicking into a field to type there works. A click on this button stops it through 'clicked'.
+    this.clicks = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    this.clicks.connect('pressed', (gesture, presses, x, y) => {
+      const picked = root.pick(x, y, Gtk.PickFlags.DEFAULT);
+      if (picked && (picked === this.button || picked.is_ancestor(this.button))) return;
+      this.stop();
+    });
+    root.add_controller(this.clicks);
+    recording.add(this);
     this._inhibit(true);
     this._render([]);
     this.onRecording(true);
@@ -115,9 +138,12 @@ export class ShortcutRecorder {
   stop() {
     if (!this.recording) return;
     this.recording = false;
+    recording.delete(this);
     this.button.remove_css_class('recording');
     if (this.controller && this.window) this.window.remove_controller(this.controller);
+    if (this.clicks && this.window) this.window.remove_controller(this.clicks);
     this.controller = null;
+    this.clicks = null;
     this.held.clear();
     this._inhibit(false);
     this.window = null;

@@ -30,6 +30,8 @@ function hotstringState(model, h) {
   if (model.issuesFor(target.hotstring(h.id)).some(i => i.severity === 'error')) return {label: 'Not saved', style: 'error'};
   if (h.enabled === false) return {label: 'Off', style: 'dim'};
   if (model.configuration.general.hotstringsEnabled === false) return {label: 'Expansion is off', style: 'dim'};
+  // espanso can't tell apps apart on GNOME, so the extension leaves these out (gnomeScopeNote).
+  if (h.onlyInApps?.length) return {label: 'Mac only', style: 'dim'};
   if (!model.running) return {label: 'Not running', style: 'dim'};
   const s = model.status.hotstrings;
   if (!s.espansoInstalled || s.engine !== 'espanso') return {label: 'Needs espanso', style: 'warning'};

@@ -201,6 +201,13 @@ let uiValidationTests = Suite(
           expect(!errors(.move(x: "", y: "0", width: "1", height: "1", screen: nil)).isEmpty)
           expect(!errors(.openURL("https://")).isEmpty)
           expect(errors(.openURL("raycast://extensions")).isEmpty)
+          // URL(string:) percent-encodes whitespace in a path, query or user name, but not in the host
+          // or port. The GNOME settings check URLs the same way (linux/tests/prefs/validator.test.mjs).
+          expect(errors(.openURL("https://www.google.com/search?q=hello world")).isEmpty)
+          expect(errors(.openURL("https://user name@example.com/")).isEmpty)
+          expect(!errors(.openURL("https://exa mple.com")).isEmpty)
+          expect(!errors(.openURL("https://example.com ")).isEmpty)
+          expect(!errors(.openURL("https://example.com:80 /x")).isEmpty)
           expect(!errors(.chain([])).isEmpty)
           expect(errors(.chain([.focusApp("")])).first?.hasPrefix("Step 1:") ?? false)
           expect(!errors(.hide(.apps([]))).isEmpty)
@@ -220,8 +227,11 @@ let uiValidationTests = Suite(
           let shadow = Hotstring(trigger: ";e", replacement: "e")
           let dupA = Hotstring(trigger: "btw", replacement: "by the way", caseSensitive: false)
           let dupB = Hotstring(trigger: "BTW", replacement: "By the way")
-          config.hotstrings = [empty, email, shadow, dupA, dupB]
+          // Character.isNewline: the GNOME settings flag the same characters.
+          let separator = Hotstring(trigger: ";a\u{2028}b", replacement: "x")
+          config.hotstrings = [empty, email, shadow, dupA, dupB, separator]
           let issues = ConfigValidator.validate(config, knownLayouts: [])
+          expect(issues.contains { $0.target == .hotstring(separator.id) && $0.severity == .error })
           expect(issues.contains { $0.target == .hotstring(empty.id) && $0.severity == .error })
           expect(issues.contains { $0.target == .hotstring(email.id) && $0.message.contains(";e") })
           expect(!issues.contains { $0.target == .hotstring(shadow.id) })

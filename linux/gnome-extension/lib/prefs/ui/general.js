@@ -147,7 +147,10 @@ export function createGeneralPane(ctx) {
       ? "Couldn't reach GNOME Shell. Use the Extensions app to turn Slated on or off."
       : !shell.known
         ? 'GNOME Shell loads Slated after you log out and back in.'
-        : 'Slated runs with your session while this is on. Turning it off restores Caps Lock and stops your shortcuts.');
+        // keyd's mapping is a system service's, which the extension can't undo (see Keyboard).
+        : model.status.hyper.mode === 'keyd'
+          ? 'Slated runs with your session while this is on. Turning it off stops your shortcuts; keyd keeps Caps Lock as Hyper until you remove it (linux/install.sh --hyper-keyd --remove).'
+          : 'Slated runs with your session while this is on. Turning it off restores Caps Lock and stops your shortcuts.');
     hud.set(model.configuration.general.showActionHUD);
     leftToRight.set(bool(settings(), 'orderScreensLeftToRight', true));
     const delay = number(settings(), 'secondsBeforeRepeat', 0.4);

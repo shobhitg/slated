@@ -102,7 +102,9 @@ export function createSlatePane(ctx) {
 
   const filesGroup = group({title: 'Files', suffix: button('Reload', () => {
     model.reload();
-    ctx.toast('Reloaded config.json and your Slate files');
+    ctx.toast(model.loadError
+      ? "Reloaded your Slate files. config.json still can't be read: Overview shows what to fix."
+      : 'Reloaded config.json and your Slate files');
     model.log('ui.reload', {source: 'slate'});
   }, {icon: 'view-refresh-symbolic', classes: ['flat']})});
   prefs.add(filesGroup);

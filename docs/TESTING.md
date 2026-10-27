@@ -201,6 +201,11 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
       the accent color all look right.
 - [ ] Recording a shortcut: the first time, GNOME asks whether to let the window take shortcuts.
       Caps Lock+A records ✦A, both with GNOME's option and with keyd. Super+A records Super+A, not ✦A.
+- [ ] While recording, clicking the Name field stops the recording and the field takes typing, and
+      clicking another section in the sidebar stops it too. Clicking the recorder again stops it
+      without starting over. With a modal key on, a plain key such as 1 records.
+- [ ] Renaming a layout keeps its editor open. Typing another layout's name shows "Another layout
+      already has this name." and its shortcut still applies it (`scripts/logs.py --grep config.saved`).
 - [ ] Editing a binding reaches the extension within a second (`scripts/logs.py --grep config`),
       and its status badge turns Active, or Couldn't register for a key GNOME owns (Super+A).
 - [ ] The preview shows your real displays once the extension writes `screens` to `status.json`.

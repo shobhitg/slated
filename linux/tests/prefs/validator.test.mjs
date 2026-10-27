@@ -49,6 +49,18 @@ export default suite('Validation', [
     expectEqual(actionProblems({op: 'layout', name: 'Coding'}, new Set(['Coding'])), []);
     expectEqual(actionProblems({op: 'open-url', url: 'https://'})[0].message, 'Enter a full URL, like https://example.com.');
     expectEqual(actionProblems({op: 'open-url', url: 'mailto:me@example.com'}), []);
+    // What the Mac's check makes of whitespace (macOS 14's URL(string:) percent-encodes it in a path,
+    // query, fragment or user name, not in the scheme, host or port), as probed on macOS 26.
+    const urls = {
+      ok: ['https://www.google.com/search?q=hello world', 'https://example.com/a b', 'https://example.com/a\tb',
+        'https://example.com/a\nb', 'https://example.com/ ', 'mailto:me @example.com', 'https://example.com/#a b',
+        'https://user name@example.com/', 'file:///home/me/a b.txt', 'https://example.com?q=a b',
+        'obsidian://open?vault=My Notes', 'https://example.com/\u00a0x', 'slack://open'],
+      bad: ['https://example.com ', ' https://example.com', 'https://exa mple.com', 'https://a\nb', 'https://', 'https:',
+        'https:// example.com', 'ht tp://example.com', 'https://example.com:80 /x', 'https://exa\u00a0mple.com'],
+    };
+    for (const url of urls.ok) expectEqual(actionProblems({op: 'open-url', url}), [], JSON.stringify(url));
+    for (const url of urls.bad) expectEqual(actionProblems({op: 'open-url', url}).length, 1, JSON.stringify(url));
     expectEqual(actionProblems({op: 'keystroke', keys: 'ctrl+wat'})[0].message, '“wat” isn\'t a key Slated knows.');
     expectEqual(actionProblems({op: 'grid', grids: {0: {width: 0, height: 2}}})[0].message, 'Grid sizes must be at least 1 × 1.');
     expectEqual(actionProblems({op: 'hide', app: []})[0].message, 'Choose at least one app.');
@@ -130,11 +142,14 @@ export default suite('Validation', [
         {id: '4', trigger: ';SIG', replacement: 'y', caseSensitive: false},
         {id: '5', trigger: ';br', replacement: 'z'},
         {id: '6', trigger: ';brb', replacement: 'be right back'},
+        // Swift's Character.isNewline: also vertical tab, form feed, NEL and the Unicode separators.
+        ...['\v', '\f', '\r', '\u0085', '\u2028', '\u2029'].map((c, i) => ({id: `nl${i}`, trigger: `;n${i}${c}x`, replacement: 'x'})),
       ],
     }));
     const messages = id => issues.filter(i => i.target === target.hotstring(id)).map(i => i.message);
     expectEqual(messages('1'), ['Type a trigger.']);
     expectEqual(messages('2'), ["A trigger can't contain a line break."]);
+    for (let i = 0; i < 6; i++) expectEqual(messages(`nl${i}`), ["A trigger can't contain a line break."], `newline ${i}`);
     expectEqual(messages('3'), ['The replacement is empty, so the trigger will just be deleted.',
       'Another hotstring uses the same trigger. Only one of them will fire.']);
     expectEqual(messages('6'), ['“;br” fires as soon as it\'s typed, so this one never gets the chance.']);
@@ -186,6 +201,11 @@ export default suite('Validation', [
     expect(changes.includes('keyboard: capsLock hyper, alone nothing, modifiers Ctrl+Alt+Shift+Super'));
     expect(changes.includes('setting undoMaxStackSize: 20'));
     expect(!changes.join(' ').includes('secret'), 'replacements stay out of the log');
+    // Settings → Hotstrings' Expansion switch, named as on the Mac (ConfigDiff.swift).
+    const off = JSON.parse(JSON.stringify(before));
+    off.general.hotstringsEnabled = false;
+    expectEqual(configChanges(before, off),
+      ['general: launchAtLogin false, loadSlateConfigs true, showActionHUD false, hotstringsEnabled false']);
   }],
   ['clipboard and automation settings changes are logged, app ids only counted', () => {
     const before = decodeConfiguration('{}');

@@ -198,6 +198,66 @@ export default suite('Preferences model', [
     expectEqual(model.binding(A).action, {op: 'layout', name: 'Writing'});
     expectEqual(model.triggersForLayout('Writing'), [{keys: 'hyper+1', modal: null}]);
   }],
+  ['a binding or hotstring copied in config.json with its id gets one of its own: editing or deleting the copy spares the original', () => {
+    const {model, disk, tick, writes} = harness({[CONFIG]: JSON.stringify({
+      bindings: [{id: A, name: 'Left', keys: 'hyper+a', action: half}, {id: A, name: 'Right', keys: 'hyper+d', action: half}],
+      hotstrings: [{id: H, trigger: ';a', replacement: 'a'}, {id: H, trigger: ';b', replacement: 'b'}],
+    })});
+    model.load();
+    const [left, right] = model.configuration.bindings;
+    expectEqual(left.id, A);
+    expect(right.id !== A, 'the copy has its own id');
+    expectEqual(model.binding(right.id).name, 'Right');
+    expectEqual(writes.length, 0, 'nothing is written until something changes');
+    // An unrelated hand edit: the copy keeps the id the window gave it, so its open editor stays.
+    disk[CONFIG] = disk[CONFIG].replace('"hyper+a"', '"hyper+q"');
+    model.syncFromDisk();
+    expectEqual(model.configuration.bindings.map(b => [b.id, b.keys]), [[A, 'hyper+q'], [right.id, 'hyper+d']]);
+    model.deleteBinding(right.id);
+    const copy = model.configuration.hotstrings[1].id;
+    expect(copy !== H, 'hotstrings too');
+    model.setHotstring(copy, h => {
+      h.replacement = 'B';
+    });
+    tick();
+    const saved = decodeConfiguration(disk[CONFIG]);
+    expectEqual(saved.bindings.map(b => b.name), ['Left']);
+    expectEqual(saved.hotstrings.map(h => [h.trigger, h.replacement]), [[';a', 'a'], [';b', 'B']]);
+    expect(saved.hotstrings[0].id !== saved.hotstrings[1].id, 'saved with ids of their own');
+  }],
+  ['typing another layout\'s name (or none) over a layout\'s name moves no shortcut and renames no other layout', () => {
+    const {model, disk, tick} = harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'A', apps: [{app: 'Firefox'}]}, {name: 'B', apps: [{app: 'Terminal'}]}],
+      bindings: [{id: A, keys: 'hyper+1', action: {op: 'layout', name: 'A'}}, {id: B, keys: 'hyper+2', action: {op: 'layout', name: 'B'}}],
+    })});
+    model.load();
+    expectEqual(model.layoutNameProblem('B', 'A'), 'Another layout already has this name.');
+    expectEqual(model.layoutNameProblem('B', '  '), 'Name the layout.');
+    expectEqual(model.layoutNameProblem('B', 'B'), null);
+    // The editor tracks its layout by name while "B" becomes "AB": select all, type A, then B.
+    let name = model.setLayout('B', l => {
+      l.name = 'A';
+    });
+    expectEqual(name, 'B');
+    expectEqual(model.binding(B).action.name, 'B');
+    expectEqual(model.setLayout(name, l => {
+      l.name = '';
+    }), 'B');
+    tick();
+    expectEqual(decodeConfiguration(disk[CONFIG]).bindings.map(b => b.action.name), ['A', 'B']);
+    name = model.setLayout(name, l => {
+      l.name = 'AB';
+    });
+    expectEqual(name, 'AB');
+    expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps[0].app}`), ['A: Firefox', 'AB: Terminal']);
+    expectEqual(model.configuration.bindings.map(b => b.action.name), ['A', 'AB']);
+    // The rest of a change still applies.
+    model.setLayout('AB', l => {
+      l.name = 'A';
+      l.apps.push({app: 'Files', operations: [], options: l.apps[0].options});
+    });
+    expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps.length}`), ['A: 1', 'AB: 2']);
+  }],
   ['moving, deleting and duplicating', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({
       bindings: [{id: A, keys: 'hyper+a', action: half}, {id: B, keys: 'hyper+b', action: half}],

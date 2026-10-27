@@ -212,6 +212,9 @@ async function run(mode) {
     settings.showPane('overview');
     const primary = findAll(world, visible('overview'), 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('suggested-action'))[0];
     check(primary && prop(world, primary, 'label') === 'Log Out…', `primary action: ${primary && prop(world, primary, 'label')}`);
+    // With GNOME's keyboard option, Caps Lock is the Hyper modifier, not Ctrl Alt Shift Super.
+    const hyperRow = rowsIn(visible('overview'), (w, s) => s.props.get('title') === 'Hyper Key')[0];
+    check(prop(world, hyperRow, 'subtitle') === 'Caps Lock acts as the Hyper modifier · xkb', `Hyper Key: ${prop(world, hyperRow, 'subtitle')}`);
     click(primary);
     await settle();
     check(shell.calls.includes('Logout'), 'asks the session manager to log out');
@@ -264,6 +267,15 @@ async function run(mode) {
     const modal = titled(page, 'Adw.SwitchRow', 'Press a modal key first')[0];
     modal.set_active(true);
     check(model.binding(ID.HALF).modal?.keys === 'ctrl+f4', 'modal key added');
+    // After a modal key, the shortcut's own key is usually a plain one ("Ctrl+F4, then 1"), as the
+    // validator agrees.
+    click(recorderButton);
+    press(49);
+    check(model.binding(ID.HALF).keys === '1', `a plain key after a modal key: ${model.binding(ID.HALF).keys}`);
+    check(!model.issuesFor(`binding:${ID.HALF}`).some(i => i.field === 'keys'), 'with nothing to warn about');
+    model.setBinding(ID.HALF, b => {
+      b.keys = 'hyper+a';
+    });
     modal.set_active(false);
     const repeat = titled(page, 'Adw.ComboRow', 'Repeat while held')[0];
     repeat.set_selected(1);
@@ -527,6 +539,40 @@ async function run(mode) {
     check(visible('windows') !== page, 'the editor closed');
   });
 
+  await step('switching sections stops a recording: the keys typed there aren\'t taken as a shortcut', async () => {
+    const controllers = () => findAll(world, window, 'Gtk.EventControllerKey');
+    const selectSection = id => sidebar.select_row(rows.find(r => world.stateOf(r).expandos._slatedId === id));
+    settings.navigate('windows', {binding: ID.HALF});
+    const before = model.binding(ID.HALF).keys;
+    click(recorderIn(visible('windows')));
+    check(controllers().length === 1, 'recording');
+    // The editor stays on top of its section's own navigation, so it never gets "hidden".
+    selectSection('hotstrings');
+    check(controllers().length === 0, 'the window no longer captures every key once another section shows');
+    check(model.binding(ID.HALF).keys === before, 'the shortcut is unchanged');
+    selectSection('windows');
+    pop('windows');
+    settings.showPane('clipboard');
+    click(recorderIn(titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0]));
+    check(controllers().length === 1, 'recording the clipboard shortcut');
+    selectSection('general');
+    check(controllers().length === 0, 'stopped when General shows');
+    // In a narrow window the sidebar replaces the content (the split view hides its content page).
+    selectSection('clipboard');
+    click(recorderIn(titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0]));
+    world.emit(settings.contentPage, 'hidden');
+    check(controllers().length === 0, 'stopped when the collapsed sidebar shows');
+    // As on the Mac, a click anywhere else ends it: say, into the Name field to type a name.
+    settings.navigate('windows', {binding: ID.HALF});
+    click(recorderIn(visible('windows')));
+    const clicks = world.stateOf(window).controllers.filter(c => world.stateOf(c).cls === 'Gtk.GestureClick');
+    check(clicks.length === 1, 'recording watches clicks in the window');
+    world.emit(clicks[0], 'pressed', 1, 20, 20);
+    check(controllers().length === 0 && world.stateOf(window).controllers.length === 0, 'a click elsewhere stopped it');
+    check(model.binding(ID.HALF).keys === before, 'the shortcut is unchanged');
+    pop('windows');
+  });
+
   await step('Hotstrings: espanso guidance, editing, the try-it field', async () => {
     settings.showPane('hotstrings');
     const root = visible('hotstrings');
@@ -544,6 +590,9 @@ async function run(mode) {
     add.set_text('com.apple.mail');
     world.emit(add, 'apply');
     check(model.hotstring(ID.SHRUG).onlyInApps.includes('com.apple.mail'), 'app filter added');
+    // The extension leaves it out of espanso's file: installing espanso wouldn't make it expand here.
+    const pills = findAll(world, page, 'Gtk.Label', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-pill'));
+    check(pills.map(p => prop(world, p, 'label')).join() === 'Mac only', `its state: ${pills.map(p => prop(world, p, 'label'))}`);
     const where = findAll(world, page, 'Adw.PreferencesGroup', (w, s) => s.props.get('title') === 'Where It Works')[0];
     check(/Mac only/.test(prop(world, where, 'description') ?? ''), 'says app filters are Mac only on GNOME');
     const trigger = titled(page, 'Adw.EntryRow', 'Trigger')[0];
@@ -566,8 +615,11 @@ async function run(mode) {
     world.emit(add, 'apply');
     check(model.configuration.layouts[0].apps.length === 2, 'app added');
     const name = titled(page, 'Adw.EntryRow', 'Name')[0];
+    name.set_text('Codin');
+    check(visible('layouts') === page, 'the editor stays open while the name changes');
     name.set_text('Code');
     check(model.binding(ID.LAYOUT).action.name === 'Code', 'renaming keeps the shortcut pointing at it');
+    check(visible('layouts') === page && prop(world, page, 'title') === 'Code', 'still open, under the new name');
     pop('layouts');
   });
 
@@ -596,6 +648,12 @@ async function run(mode) {
     check(pills('Recommended') === 1, 'with GNOME\'s option in use, keyd is marked recommended');
     const sends = titled(visible('keyboard'), 'Adw.ComboRow', 'Hyper key sends')[0];
     check(/always sends the Hyper modifier/.test(prop(world, sends, 'subtitle')), `xkb: ${prop(world, sends, 'subtitle')}`);
+    // Turning Slated off gives Caps Lock back only where Slated set it up: keyd's mapping stays.
+    const onRow = () => titled(visible('general'), 'Adw.SwitchRow', 'Slated is on')[0];
+    withHyperMode('keyd');
+    check(/keyd keeps Caps Lock as Hyper/.test(prop(world, onRow(), 'subtitle')), `keyd: ${prop(world, onRow(), 'subtitle')}`);
+    withHyperMode('xkb');
+    check(/restores Caps Lock/.test(prop(world, onRow(), 'subtitle')), `xkb: ${prop(world, onRow(), 'subtitle')}`);
     model.setStatusText(statusText);
     titled(visible('keyboard'), 'Adw.SwitchRow', 'Use Caps Lock as Hyper')[0].set_active(false);
     check(model.configuration.keyboard.capsLock === 'off', 'Caps Lock as Hyper off');
@@ -748,6 +806,34 @@ async function run(mode) {
     check(!layout(), 'layout deleted');
   });
 
+  await step('typing another layout\'s name over a layout\'s name moves no shortcut', async () => {
+    settings.showPane('layouts');
+    const taken = model.binding(ID.LAYOUT).action.name;
+    click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'New Layout')[0]);
+    const page = visible('layouts');
+    const id = model.addBinding({op: 'layout', name: 'New Layout'}, {keys: 'hyper+9'});
+    const name = titled(page, 'Adw.EntryRow', 'Name')[0];
+    const problem = titled(page, 'Adw.ActionRow', 'Not saved')[0];
+    // Select all and start typing "<taken> 2": the name passes through the other layout's.
+    name.set_text(taken);
+    check(prop(world, problem, 'visible') !== false && prop(world, problem, 'subtitle') === 'Another layout already has this name.',
+      `flagged: ${prop(world, problem, 'subtitle')}`);
+    check(model.binding(id).action.name === 'New Layout', `its shortcut stays: ${model.binding(id).action.name}`);
+    check(model.configuration.layouts.filter(l => l.name === taken).length === 1, 'no two layouts share a name');
+    await settle();
+    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    check(onDisk.bindings.find(b => b.id === id).action.name === 'New Layout', 'nor on disk');
+    check(name.get_text() === taken, 'the field keeps what was typed');
+    name.set_text(`${taken} 2`);
+    check(visible('layouts') === page, 'the editor stays open');
+    check(prop(world, problem, 'visible') === false, 'fine again');
+    check(model.binding(id).action.name === `${taken} 2` && model.binding(ID.LAYOUT).action.name === taken,
+      'each shortcut applies its own layout');
+    check(model.configuration.layouts.some(l => l.name === `${taken} 2` && !l.apps.length), 'the layout being edited got the name');
+    model.deleteBinding(id);
+    model.deleteLayout(`${taken} 2`);
+  });
+
   await step('Automation: running now, your automations, recipes and the safety settings', async () => {
     settings.showPane('automation');
     const root = visible('automation');
@@ -882,6 +968,27 @@ async function run(mode) {
     world.touch(files.statusFile);
     await settle();
     check(!model.status.running, 'status change adopted');
+  });
+
+  await step('reloading never says it worked while config.json can\'t be read', async () => {
+    const text = fs.readFileSync(files.configFile, 'utf8');
+    fs.writeFileSync(files.configFile, '{"bindings": [');
+    world.touch(files.configFile);
+    await settle();
+    check(model.loadError, 'the broken file is noticed');
+    settings.showPane('general');
+    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and your Slate files')[0]);
+    settings.showPane('slate');
+    click(buttons(visible('slate'), 'Reload')[0]);
+    // Toast titles are Pango markup, so the window escapes them.
+    const toasts = world.report.toasts.slice(-2).map(t => t.replace(/&#39;/g, "'"));
+    check(toasts[0] === "config.json still can't be read. Overview shows what to fix." && /^Reloaded your Slate files\. config\.json still can't/.test(toasts[1]),
+      `toasts: ${toasts.join(' | ')}`);
+    check(fs.readFileSync(files.configFile, 'utf8') === '{"bindings": [', 'and the file is left alone');
+    fs.writeFileSync(files.configFile, text);
+    world.touch(files.configFile);
+    await settle();
+    check(!model.loadError, 'fixed again');
   });
 
   await step('the About dialog has debug information', async () => {
