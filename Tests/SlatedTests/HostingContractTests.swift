@@ -42,6 +42,15 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
   return nil
 }
 
+/// The first view of type `T` in `view`'s hierarchy, `view` included.
+@MainActor private func firstView<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
+  if let match = view as? T { return match }
+  for subview in view.subviews {
+    if let found = firstView(type, in: subview) { return found }
+  }
+  return nil
+}
+
 /// Every label, title and string value in the accessibility tree under `root`: what VoiceOver can
 /// read, and a way to check a view's text without pixels.
 @MainActor private func accessibilityTexts(in root: NSView) -> [String] {
@@ -237,6 +246,33 @@ let uiHostingContractTests = Suite(
             // What the Hyper key will send for Caps Lock + ←, so the shortcut fires.
             expectEqual(box.combo, KeyCombo(key: "left", modifiers: hyperModifiers))
             expect(!services.hotkeysSuspended, "recording stops once a shortcut is accepted")
+            window.close()
+          }
+        }
+      }
+    ),
+    (
+      "Settings → General shows any undo history size config.json can hold",
+      {
+        try onMain {
+          // Int(_:) traps on most of these, and showing the pane used to. A hand edit can hold them, and
+          // so can config.json after importing a Slate config (`config undoMaxStackSize 1e20`).
+          // The stepper works from 1 to 50, so one click from any of them lands in that range.
+          let clicks: [(value: SettingValue, up: Bool, then: Double)] = [
+            (.number(1e20), false, 49), (.number(.infinity), false, 49), (.string("inf"), false, 49),
+            (.number(100), false, 49), (.number(.nan), true, 11), (.number(20.9), true, 21),
+            (.number(-.infinity), true, 2), (.number(-1e20), true, 2),
+          ]
+          for click in clicks {
+            let model = AppModel(services: PreviewServices(scenario: .empty))
+            model.configuration.settings["undoMaxStackSize"] = click.value
+            let window = hostingWindow(GeneralPane().environment(model).frame(width: 760, height: 1400))
+            // SwiftUI's Stepper is an NSStepper that reports each click as a step from 0.
+            let stepper = try require(firstView(NSStepper.self, in: try require(window.contentView)), "no stepper")
+            stepper.doubleValue += click.up ? stepper.increment : -stepper.increment
+            expect(stepper.sendAction(stepper.action, to: stepper.target))
+            spin(0.1)
+            expectEqual(model.configuration.settings["undoMaxStackSize"], .number(click.then))
             window.close()
           }
         }
