@@ -434,7 +434,8 @@ extension BindingState {
         : "\(message) The shortcut is saved as soon as that's fixed."
     case .slateOff: return "Loading Slate files is turned off in Slate Compatibility."
     case .imported:
-      return "Imported into Slated's own shortcuts, where you can change it. Slated ignores this copy in your Slate file."
+      return "Imported into Slated's own shortcuts, where you can change it. "
+        + "Slated ignores this copy in your Slate file."
     case .paused: return "Slated is paused from the menu bar."
     default: return nil
     }

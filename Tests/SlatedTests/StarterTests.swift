@@ -248,7 +248,8 @@ func importerProbesVariations() throws {
     result.bindings.map(\.action),
     [
       .byOrientation(
-        landscape: .push(direction: .left, style: .none, screen: nil), portrait: .push(direction: .up, style: .none, screen: nil))
+        landscape: .push(direction: .left, style: .none, screen: nil),
+        portrait: .push(direction: .up, style: .none, screen: nil))
     ])
 }
 
@@ -294,7 +295,8 @@ let importerTests = Suite(
   "SlateImporter",
   [
     (
-      "reports what makes an import unreliable", { try MainActor.assumeIsolated { try importerReportsUnreliableRuns() } }
+      "reports what makes an import unreliable",
+      { try MainActor.assumeIsolated { try importerReportsUnreliableRuns() } }
     ),
     ("probes functions on several pretend Macs", { try MainActor.assumeIsolated { try importerProbesVariations() } }),
     ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } }),

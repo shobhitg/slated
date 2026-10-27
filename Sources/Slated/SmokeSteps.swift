@@ -125,7 +125,8 @@ enum SmokeSteps {
       }
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
         let config = model.configuration
-        print("after the debounce, Settings shows \(config.bindings.count) bindings, HUD \(config.general.showActionHUD)")
+        let (bindings, hud) = (config.bindings.count, config.general.showActionHUD)
+        print("after the debounce, Settings shows \(bindings) bindings, HUD \(hud)")
       }
     case "print-hotkeys":
       // Every shortcut's status, active ones too (the summary at the end lists only the others).

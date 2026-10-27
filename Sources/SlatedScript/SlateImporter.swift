@@ -137,7 +137,8 @@ public enum SlateImporter {
       if let first { actions.append(first) }
     }
     guard actions.count == 2 else { return .skipped(needsScript) }
-    return .converted(actions[0] == actions[1] ? actions[0] : .byOrientation(landscape: actions[0], portrait: actions[1]))
+    let (landscape, portrait) = (actions[0], actions[1])
+    return .converted(landscape == portrait ? landscape : .byOrientation(landscape: landscape, portrait: portrait))
   }
 
   private static func describe(_ condition: ScreenDefault.Condition) -> String {
@@ -211,7 +212,11 @@ struct ProbeSetup {
 
   /// The main display loses its top 25 points to the menu bar.
   private static func display(_ id: UInt32, _ frame: CGRect, main: Bool = false) -> ScreenInfo {
-    let visible = main ? CGRect(x: frame.minX, y: frame.minY + 25, width: frame.width, height: frame.height - 25) : frame
+    var visible = frame
+    if main {
+      visible.origin.y += 25
+      visible.size.height -= 25
+    }
     return ScreenInfo(displayID: id, name: "Display \(id)", frame: frame, visibleFrame: visible, isMain: main)
   }
 }
@@ -255,7 +260,6 @@ private final class ProbeHost: ScriptHost {
     engine.nativeObserver = nil
     return Run(actions: recorded, effects: effects, readAppOrTitle: read)
   }
-
 
   func focusedWindow() -> WindowHandle? { Self.focused }
 
