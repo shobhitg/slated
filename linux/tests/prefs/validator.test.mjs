@@ -11,6 +11,14 @@ import {presetById} from '../../gnome-extension/lib/prefs/presets.js';
 const half = presetById('left-half').action;
 const config = fields => fillDefaults(fields, () => 'X');
 
+/** Each hotstring's validation messages, in order. */
+function hotstringWarnings(hotstrings) {
+  const issues = validate(config({hotstrings}));
+  return hotstrings.map(h => issues.filter(i => i.target === target.hotstring(h.id)).map(i => i.message));
+}
+
+const HIGHER_IN_THE_LIST = 'Another hotstring with the same trigger is higher in the list, so this one never fires.';
+
 export default suite('Validation', [
   ['the local expression lint catches typos with suggestions', () => {
     expectEqual(lint('screenOriginX+screenSizeX/2'), {status: 'valid', value: null});
@@ -156,9 +164,76 @@ export default suite('Validation', [
     expectEqual(messages('1'), ['Type a trigger.']);
     expectEqual(messages('2'), ["A trigger can't contain a line break."]);
     for (let i = 0; i < 6; i++) expectEqual(messages(`nl${i}`), ["A trigger can't contain a line break."], `newline ${i}`);
-    expectEqual(messages('3'), ['The replacement is empty, so the trigger will just be deleted.',
-      'Another hotstring uses the same trigger. Only one of them will fire.']);
+    // “;sig” wins when typed so, and “;SIG” (any case) gets the rest: both fire.
+    expectEqual(messages('3'), ['The replacement is empty, so the trigger will just be deleted.']);
+    expectEqual(messages('4'), []);
     expectEqual(messages('6'), ['“;br” fires as soon as it\'s typed, so this one never gets the chance.']);
+  }],
+  ['of two hotstrings with the same trigger the first wins, only where both work', () => {
+    // As in SettingsUITests.swift, without the Mac's “Drag this one above it”: this list can't be reordered.
+    const mail = 'com.apple.mail';
+    const mailOnly = {id: 'mailOnly', trigger: ';sig', replacement: 'Best, S', onlyInApps: [mail]};
+    const global = {id: 'global', trigger: ';sig', replacement: 'S.'};
+    // A per-app override: Mail gets its own, every other app the global one.
+    expectEqual(hotstringWarnings([mailOnly, global]), [[], []]);
+    // Below the global one, the Mail one never fires.
+    expectEqual(hotstringWarnings([global, mailOnly]), [[], [HIGHER_IN_THE_LIST]]);
+    // Each still fires somewhere: Mail gets the first, Notes the second.
+    const mailAndNotes = {id: 'mailAndNotes', trigger: ';sig', replacement: 'S', onlyInApps: [mail, 'com.apple.Notes']};
+    expectEqual(hotstringWarnings([mailOnly, mailAndNotes]), [[], []]);
+    expectEqual(hotstringWarnings([mailAndNotes, mailOnly]), [[], [HIGHER_IN_THE_LIST]]);
+    // Firing as soon as it's typed beats waiting for a delimiter, whatever the order.
+    const waits = {id: 'waits', trigger: ';sig', replacement: 'W', fire: 'afterDelimiter'};
+    const firesFirst = 'Another hotstring with the same trigger fires as soon as it\'s typed, so this one never gets the chance.';
+    expectEqual(hotstringWarnings([waits, global]), [[firesFirst], []]);
+    expectEqual(hotstringWarnings([global, waits]), [[], [firesFirst]]);
+    // A case-sensitive “BTW” first leaves “btw” and “Btw” to the other.
+    const upper = {id: 'upper', trigger: 'BTW', replacement: 'By the way'};
+    const anyCase = {id: 'anyCase', trigger: 'btw', replacement: 'by the way', caseSensitive: false};
+    expectEqual(hotstringWarnings([upper, anyCase]), [[], []]);
+    expectEqual(hotstringWarnings([anyCase, upper]), [[], [HIGHER_IN_THE_LIST]]);
+    // A whole-word one first leaves typing inside a word to the other.
+    const word = {id: 'word', trigger: 'teh', replacement: 'the', wordBoundary: true};
+    const inWords = {id: 'inWords', trigger: 'teh', replacement: 'the'};
+    expectEqual(hotstringWarnings([word, inWords]), [[], []]);
+    expectEqual(hotstringWarnings([inWords, word]), [[], [HIGHER_IN_THE_LIST]]);
+    // One that's off shadows nothing.
+    expectEqual(hotstringWarnings([{...global, enabled: false}, mailOnly]), [[], []]);
+  }],
+  ['a trigger that fires first says where, when that\'s only some of this one\'s apps', () => {
+    // App filters hold Mac bundle ids, which the GNOME settings show as they are.
+    const email = {id: 'email', trigger: ';email', replacement: 'a@b.c'};
+    // Everywhere but Mail, “;e” fires first; in Mail “;email” works.
+    const notInMail = {id: 'notInMail', trigger: ';e', replacement: 'e', exceptInApps: ['com.apple.mail']};
+    expectEqual(hotstringWarnings([notInMail, email]),
+      [[], ['“;e” fires as soon as it\'s typed, so this one only works in com.apple.mail.']]);
+    // Only in Mail and TextEdit does “;e” fire first.
+    const twoApps = {id: 'twoApps', trigger: ';e', replacement: 'e', onlyInApps: ['com.apple.mail', 'com.apple.TextEdit']};
+    expectEqual(hotstringWarnings([twoApps, email])[1],
+      ['In com.apple.TextEdit and com.apple.mail, “;e” fires as soon as it\'s typed, so this one never gets the chance there.']);
+    // Where “;e” works in all of “;email”'s apps, “;email” never fires.
+    const mailEmail = {id: 'mailEmail', trigger: ';email', replacement: 'a@b.c', onlyInApps: ['com.apple.mail']};
+    expectEqual(hotstringWarnings([twoApps, mailEmail])[1],
+      ['“;e” fires as soon as it\'s typed, so this one never gets the chance.']);
+  }],
+  ['a trigger typed on the way to another one fires first', () => {
+    const shrug = {id: 'shrug', trigger: ';shrug', replacement: '¯\\_(ツ)_/¯'};
+    const warnings = (other, longer = shrug) => hotstringWarnings([{id: 'other', replacement: 'x', ...other}, longer])[1];
+    const sh = '“sh” fires as soon as it\'s typed, so this one never gets the chance.';
+    expectEqual(warnings({trigger: 'sh'}), [sh]);
+    expectEqual(warnings({trigger: 'SH', caseSensitive: false}), ['“SH” fires as soon as it\'s typed, so this one never gets the chance.']);
+    // A whole-word trigger fires after the “;” but not after a letter.
+    expectEqual(warnings({trigger: 'sh', wordBoundary: true}), [sh]);
+    expectEqual(warnings({trigger: 'hr', wordBoundary: true}), []);
+    // Waiting for a delimiter, or ending where this one does (the longer trigger wins), is fine.
+    expectEqual(warnings({trigger: 'sh', fire: 'afterDelimiter'}), []);
+    expectEqual(warnings({trigger: 'rug'}), []);
+    // Kept to different apps, they never meet.
+    expectEqual(warnings({trigger: 'sh', onlyInApps: ['com.apple.mail']},
+      {id: 'notesShrug', trigger: ';shrug', replacement: 'x', onlyInApps: ['com.apple.Notes']}), []);
+    // The one typed first is named: “;s” fires before “hr” is complete.
+    expectEqual(hotstringWarnings([{id: 'hr', trigger: 'hr', replacement: 'x'}, {id: 's', trigger: ';s', replacement: 'x'}, shrug])[2],
+      ['“;s” fires as soon as it\'s typed, so this one never gets the chance.']);
   }],
   ['hotstrings kept to different apps don\'t clash; overlapping ones do', () => {
     // The Mac's case (SettingsUITests.swift): its matcher only considers the hotstrings available in
@@ -177,9 +252,8 @@ export default suite('Validation', [
       {id: 'chatEmail', trigger: ';email', replacement: 'a@b.c', onlyInApps: [messages]},
     ]}));
     const about = id => issues.filter(i => i.target === target.hotstring(id)).map(i => i.message);
-    for (const clash of ['mailSignature', 'chatSignature', 'everywhere']) {
-      expect(about(clash).some(m => m.startsWith('Another hotstring')), `${clash} clashes`);
-    }
+    // Listed first, the app-limited ones win in their apps, and the global one fires everywhere else.
+    for (const signature of ['mailSignature', 'chatSignature', 'everywhere']) expectEqual(about(signature), [], signature);
     expect(about('chatEmail').some(m => m.includes('“;e”')), '“;e” works in Messages, where ;email is');
     expectEqual(about('mailOnlyEmail'), [], 'not in Mail, where “;e” isn\'t');
   }],
