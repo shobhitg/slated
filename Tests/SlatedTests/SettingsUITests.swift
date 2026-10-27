@@ -435,7 +435,7 @@ let uiModelTests = Suite(
           layout.wrappedValue.name = "Deep Work"
           expect(model.configuration.bindings.contains { $0.action == .layout(name: "Deep Work") })
           expect(!model.configuration.bindings.contains { $0.action == .layout(name: "Coding") })
-          expect(model.selectedLayout == .slated(name: "Deep Work"))
+          expect(model.selectedLayout == .slated(name: "Deep Work", index: 0))
         }
       }
     ),
@@ -453,10 +453,12 @@ let uiModelTests = Suite(
           model.configuration.bindings = [workKey, work2Key]
           model.selectedLayout = .slated(name: "Work 2")
           // Backspacing "Work 2" to "Work", then typing on. The pane finds the layout by the
-          // selected name for every keystroke.
+          // selection for every keystroke.
           for name in ["Work ", "Work", "Wor", "Workshop"] {
-            guard case .slated(let selected) = model.selectedLayout else { throw TestFailure(description: "no layout") }
-            try require(model.layoutBinding(selected)).wrappedValue.name = name
+            guard case .slated(let selected, let index) = model.selectedLayout else {
+              throw TestFailure(description: "no layout")
+            }
+            try require(model.layoutBinding(selected, at: index)).wrappedValue.name = name
             // Saved as if the user paused after each keystroke: on disk, Work 2's shortcut never
             // applies Work.
             model.saveNow()
@@ -468,11 +470,225 @@ let uiModelTests = Suite(
           expectEqual(model.configuration.layouts.map { $0.apps.map(\.app) }, [["Mail"], ["Xcode"]])
           expectEqual(model.binding(workKey.id)?.action, .layout(name: "Work"))
           expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Workshop"))
-          expect(model.selectedLayout == .slated(name: "Workshop"))
-          // What the name field shows while the typed name can't be used yet.
+          expect(model.selectedLayout == .slated(name: "Workshop", index: 1))
+          // What the name field shows while the typed name can't be used yet. Spaces around a name
+          // don't show in any list, so “Work ” would look like a second “Work”.
           expectEqual(model.layoutNameProblem("Work", renaming: "Workshop"), "Another layout already has this name.")
+          expectEqual(model.layoutNameProblem("Work ", renaming: "Workshop"), "Another layout already has this name.")
+          expectEqual(model.layoutNameProblem(" Work", renaming: "Workshop"), "Another layout already has this name.")
           expectEqual(model.layoutNameProblem(" ", renaming: "Workshop"), "Name the layout.")
           expect(model.layoutNameProblem("Workshop", renaming: "Workshop") == nil)
+        }
+      }
+    ),
+    (
+      "renaming a layout re-points every step, hotstring and display default that applies it",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          let half = preset("left-half")
+          func steps(_ name: String) -> [Action] {
+            let layout = Action.layout(name: name)
+            return [
+              layout, .chain([layout, half]), .byOrientation(landscape: layout, portrait: half),
+              .sequence([SequenceStep(layout), SequenceStep(.wait(1))]),
+              .autoRepeat(layout, interval: 60, mode: .toggle),
+            ]
+          }
+          model.configuration.layouts = [Layout(name: "Code")]
+          model.configuration.bindings = steps("Code").enumerated().map { index, action in
+            HotkeyBinding(keys: hyper("\(index + 1)"), action: action)
+          }
+          model.configuration.hotstrings = [Hotstring(trigger: ";code", replacement: "", action: .layout(name: "Code"))]
+          model.configuration.defaults = [ScreenDefault(target: "Code", condition: .count(2))]
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          expectEqual(model.configuration.bindings.map(\.action), steps("Coding"))
+          expectEqual(model.configuration.hotstrings.map(\.action), [.layout(name: "Coding")])
+          expectEqual(model.configuration.defaults.map(\.target), ["Coding"])
+          expect(!model.issues.contains { $0.message.contains("no layout named") }, "something names the old name")
+        }
+      }
+    ),
+    (
+      "a layout rename waits with its shortcuts while a layout can't be saved",
+      {
+        try onMain {
+          let good = preset("maximize")
+          let bad = Action.move(x: "screenOriginX", y: "screenOriginY", width: "", height: "screenSizeY", screen: nil)
+          @MainActor func start(chat: Action, code: [LayoutApp] = []) throws -> (AppModel, PreviewServices) {
+            let services = PreviewServices(scenario: .empty)
+            var config = SlatedConfiguration()
+            config.layouts = [
+              Layout(name: "Code", apps: code),
+              Layout(name: "Chat", apps: [LayoutApp(app: "Slack", operations: [chat])]),
+            ]
+            config.bindings = [HotkeyBinding(keys: hyper("1"), action: .layout(name: "Code"))]
+            config.hotstrings = [Hotstring(trigger: ";code", replacement: "", action: .layout(name: "Code"))]
+            config.defaults = [ScreenDefault(target: "Code", condition: .count(2))]
+            try services.saveConfiguration(config)
+            return (AppModel(services: services), services)
+          }
+          @MainActor func onDisk(_ services: PreviewServices) -> [String] {
+            let disk = services.configuration
+            return [
+              disk.layouts.map(\.name).joined(separator: ", "), ActionDescriber.title(disk.bindings[0].action),
+              disk.hotstrings[0].action.map(ActionDescriber.title) ?? "", disk.defaults[0].target,
+            ]
+          }
+          let before = ["Code, Chat", "Layout “Code”", "Layout “Code”", "Code"]
+          let after = ["Coding, Chat", "Layout “Coding”", "Layout “Coding”", "Coding"]
+
+          // An operation half-typed in another layout while this one is renamed.
+          var (model, services) = try start(chat: good)
+          model.configuration.layouts[1].apps[0].operations = [bad]
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          model.saveNow()
+          // The shortcuts keep the name config.json has.
+          expectEqual(onDisk(services), before)
+          model.configuration.layouts[1].apps[0].operations = [good]
+          model.saveNow()
+          // Fixed: the rename and its shortcuts save together.
+          expectEqual(onDisk(services), after)
+
+          // A typo already in the file, in another layout.
+          (model, services) = try start(chat: bad)
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          model.saveNow()
+          expectEqual(onDisk(services), before)
+
+          // An error in the renamed layout itself.
+          (model, services) = try start(chat: good)
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          model.configuration.layouts[0].apps = [LayoutApp(app: "Terminal", operations: [bad])]
+          model.saveNow()
+          expectEqual(onDisk(services), before)
+          model.configuration.layouts[0].apps = []
+          model.saveNow()
+          expectEqual(onDisk(services), after)
+        }
+      }
+    ),
+    (
+      "renaming a layout never takes a Slate file's layout name, or another's with spaces around it",
+      {
+        try onMain {
+          // Slated's “Coding” (hyper+1 applies it); the Slate file has “Writing” and “Meeting”.
+          let services = PreviewServices()
+          let model = AppModel(services: services)
+          let writingKey = HotkeyBinding(keys: hyper("w"), action: .layout(name: "Writing"))
+          model.configuration.bindings.append(writingKey)
+          let codingKey = try require(model.configuration.bindings.first { $0.action == .layout(name: "Coding") })
+          let taken = "Another layout already has this name."
+          expectEqual(model.layoutNameProblem("Writing", renaming: "Coding"), taken)
+          expectEqual(model.layoutNameProblem("Meeting ", renaming: "Coding"), taken)
+          // Typed one keystroke at a time over “Coding”, saved as if the user paused after each.
+          var typed = ""
+          for character in "Writing Room" {
+            typed.append(character)
+            let current = try require(model.configuration.layouts.first?.name)
+            try require(model.layoutBinding(current)).wrappedValue.name = typed
+            model.saveNow()
+            let disk = services.configuration
+            expect(
+              !disk.layouts.contains { $0.name.trimmingCharacters(in: .whitespaces) == "Writing" },
+              "after typing “\(typed)” Slated's layout would replace the Slate file's")
+            expectEqual(disk.bindings.first { $0.id == writingKey.id }?.action, .layout(name: "Writing"))
+          }
+          expectEqual(model.configuration.layouts.map(\.name), ["Writing Room"])
+          expectEqual(model.binding(writingKey.id)?.action, .layout(name: "Writing"))
+          expectEqual(model.binding(codingKey.id)?.action, .layout(name: "Writing Room"))
+        }
+      }
+    ),
+    (
+      "typing a layout's name keeps what applied a name before the layout took it on that name",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          model.configuration.layouts = [Layout(name: "Terminals")]
+          let own = HotkeyBinding(keys: hyper("t"), action: .layout(name: "Terminals"))
+          // Made before any layout called “Gaming”.
+          let waiting = HotkeyBinding(keys: hyper("g"), action: .chain([.layout(name: "Gaming"), .undo]))
+          let hotstring = Hotstring(trigger: ";game", replacement: "", action: .layout(name: "Gaming"))
+          model.configuration.bindings = [own, waiting]
+          model.configuration.hotstrings = [hotstring]
+          model.configuration.defaults = [ScreenDefault(target: "Gaming", condition: .count(2))]
+          expectEqual(
+            model.layoutReferences("Gaming"), [.binding(waiting.id), .hotstring(hotstring.id), .screenDefault(0)])
+          // As the editor types “Gaming 2” over “Terminals”: “Gaming” arrives with what applies it.
+          var arrivals: [String: Set<LayoutReference>] = [:]
+          var name = "Terminals"
+          for typed in ["Gaming", "Gaming ", "Gaming 2"] {
+            name = model.typeLayoutName(typed, renaming: name, at: 0, arrivals: &arrivals)
+            expectEqual(name, typed)
+          }
+          expectEqual(model.binding(own.id)?.action, .layout(name: "Gaming 2"))
+          expectEqual(model.binding(waiting.id)?.action, .chain([.layout(name: "Gaming"), .undo]))
+          expectEqual(model.configuration.hotstrings.map(\.action), [.layout(name: "Gaming")])
+          expectEqual(model.configuration.defaults.map(\.target), ["Gaming"])
+          // A refused name (another layout's) changes nothing.
+          model.configuration.layouts.append(Layout(name: "Chat"))
+          expectEqual(model.typeLayoutName("Chat", renaming: name, at: 0, arrivals: &arrivals), "Gaming 2")
+          expectEqual(model.binding(own.id)?.action, .layout(name: "Gaming 2"))
+        }
+      }
+    ),
+    (
+      "a layout copied in config.json is its own: editing or deleting the copy spares the original",
+      {
+        try onMain {
+          @MainActor func copied() throws -> (AppModel, PreviewServices) {
+            let services = PreviewServices(scenario: .empty)
+            var config = SlatedConfiguration()
+            config.layouts = ["Mail", "Xcode"].map { app in
+              Layout(name: "Work", apps: [LayoutApp(app: app, operations: [preset("maximize")])])
+            }
+            config.bindings = [HotkeyBinding(keys: hyper("1"), action: .layout(name: "Work"))]
+            try services.saveConfiguration(config)
+            return (AppModel(services: services), services)
+          }
+          func apps(_ layouts: [Layout]) -> [String] { layouts.map { "\($0.name): \($0.apps.map(\.app).joined())" } }
+          var (model, services) = try copied()
+          expectEqual(model.layoutIndex("Work", at: 1), 1)
+          expectEqual(try require(model.layoutBinding("Work", at: 1)).wrappedValue.apps.map(\.app), ["Xcode"])
+          // Renaming the copy: the original still has the name, so the shortcut stays with it.
+          try require(model.layoutBinding("Work", at: 1)).wrappedValue.name = "Work Xcode"
+          model.saveNow()
+          expectEqual(apps(services.configuration.layouts), ["Work: Mail", "Work Xcode: Xcode"])
+          expectEqual(services.configuration.bindings.map(\.action), [.layout(name: "Work")])
+          expect(model.selectedLayout == .slated(name: "Work Xcode", index: 1))
+          // Renaming the original: the copy still has the name.
+          (model, services) = try copied()
+          try require(model.layoutBinding("Work", at: 0)).wrappedValue.name = "Work Mail"
+          model.saveNow()
+          expectEqual(apps(services.configuration.layouts), ["Work Mail: Mail", "Work: Xcode"])
+          expectEqual(services.configuration.bindings.map(\.action), [.layout(name: "Work")])
+          // Deleting the copy (the one the validator flags) leaves the original.
+          (model, services) = try copied()
+          model.selectedLayout = .slated(name: "Work", index: 1)
+          model.deleteLayout("Work", at: 1)
+          model.saveNow()
+          expectEqual(apps(services.configuration.layouts), ["Work: Mail"])
+          expect(model.selectedLayout == nil)
+          // Deleting a layout before the selected one keeps the selection on it.
+          model.configuration.layouts += [Layout(name: "Home"), Layout(name: "Gym")]
+          model.selectedLayout = .slated(name: "Gym", index: 2)
+          model.deleteLayout("Home", at: 1)
+          expect(model.selectedLayout == .slated(name: "Gym", index: 1))
+        }
+      }
+    ),
+    (
+      "a new layout doesn't take a name that shortcuts still apply",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          expectEqual(model.addLayout(), "New Layout")
+          expectEqual(model.addLayout(), "New Layout 2")
+          let key = model.addBinding(action: .layout(name: "New Layout 2"))
+          model.deleteLayout("New Layout 2")  // its shortcut stays, waiting for a layout of that name
+          expectEqual(model.addLayout(), "New Layout 3")
+          expectEqual(model.binding(key)?.action, .layout(name: "New Layout 2"))
         }
       }
     ),

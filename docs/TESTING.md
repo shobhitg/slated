@@ -180,6 +180,11 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Break config.json by hand (delete a comma) with Settings open: the banner appears and says where
       the error is, and changing anything shows "Fix config.json first". Fix the file: Settings shows
       it within a second or two, and edits save again.
+- [ ] Renaming a layout keeps the name field focused, and its shortcuts (also one that applies it in
+      a sequence or by orientation) still apply it. Typing another layout's name, or a Slate file's,
+      shows "Another layout already has this name." and that layout's shortcut still applies it. A
+      layout block copied in config.json selects its own row and editor, and deleting it keeps the
+      original.
 - [ ] The sidebar renders correctly (the Liquid Glass sidebar can't be captured by `make snapshots`).
 
 **Clipboard history**

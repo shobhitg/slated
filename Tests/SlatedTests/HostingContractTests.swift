@@ -193,7 +193,105 @@ let uiHostingContractTests = Suite(
             spin(0.1)
           }
           expectEqual(model.configuration.layouts.map(\.name), ["Workshop", "Home"])
-          expect(model.selectedLayout == .slated(name: "Workshop"))
+          expect(model.selectedLayout == .slated(name: "Workshop", index: 0))
+        }
+      }
+    ),
+    (
+      "typing a layout's name through other names takes none of their shortcuts along",
+      {
+        try onMain {
+          /// Types `text` into the layout name field one character at a time, after `prepare`.
+          @MainActor func type(_ text: String, in window: NSWindow, prepare: (NSTextView) -> Void) throws {
+            let field = try require(textInput(in: try require(window.contentView)) as? NSTextField)
+            window.makeFirstResponder(field)
+            spin()
+            prepare(try require(window.firstResponder as? NSTextView))
+            for character in text {
+              let editor = try require(window.firstResponder as? NSTextView, "the name field lost focus")
+              editor.insertText(String(character), replacementRange: NSRange(location: NSNotFound, length: 0))
+              spin(0.1)
+            }
+          }
+          let hyper = { (key: String) in KeyCombo(key: key, modifiers: .hyper) }
+
+          // Through a deleted layout's name, which its shortcut still applies.
+          var model = AppModel(services: PreviewServices(scenario: .empty))
+          model.configuration.layouts = [Layout(name: "Work"), Layout(name: "Work 2")]
+          let workKey = HotkeyBinding(keys: hyper("1"), action: .layout(name: "Work"))
+          let work2Key = HotkeyBinding(keys: hyper("2"), action: .layout(name: "Work 2"))
+          model.configuration.bindings = [workKey, work2Key]
+          model.deleteLayout("Work 2")
+          model.selectedLayout = .slated(name: "Work")
+          var window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          try type(" 2b", in: window) { $0.moveToEndOfDocument(nil) }
+          expectEqual(model.configuration.layouts.map(\.name), ["Work 2b"])
+          expectEqual(model.binding(workKey.id)?.action, .layout(name: "Work 2b"))
+          // The deleted layout's shortcut stays on its name.
+          expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Work 2"))
+          window.close()
+
+          // Through a Slate file's layout name (the preview's ~/.slate.js has “Writing”).
+          model = AppModel(services: PreviewServices())
+          let writingKey = HotkeyBinding(keys: hyper("w"), action: .layout(name: "Writing"))
+          model.configuration.bindings.append(writingKey)
+          model.selectedLayout = .slated(name: "Coding")
+          window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          try type("Writing Room", in: window) { $0.selectAll(nil) }
+          expectEqual(model.configuration.layouts.map(\.name), ["Writing Room"])
+          expectEqual(model.binding(writingKey.id)?.action, .layout(name: "Writing"))
+          window.close()
+        }
+      }
+    ),
+    (
+      "a layout name refused as another layout's is taken once that layout is gone",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          model.configuration.layouts = [Layout(name: "Work"), Layout(name: "Home")]
+          model.selectedLayout = .slated(name: "Work")
+          let window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          let field = try require(textInput(in: try require(window.contentView)) as? NSTextField)
+          window.makeFirstResponder(field)
+          spin()
+          let editor = try require(window.firstResponder as? NSTextView)
+          editor.selectAll(nil)
+          editor.insertText("Home", replacementRange: NSRange(location: NSNotFound, length: 0))
+          spin()
+          expectEqual(model.configuration.layouts.map(\.name), ["Work", "Home"])
+          // Deleted from the list's context menu while the field still holds the refused name.
+          model.deleteLayout("Home")
+          spin()
+          expectEqual(field.stringValue, "Home")
+          // What the field shows is the layout's name.
+          expectEqual(model.configuration.layouts.map(\.name), ["Home"])
+          window.close()
+        }
+      }
+    ),
+    (
+      "a layout name typed while config.json can't be read goes back to the layout's name",
+      {
+        try onMain {
+          let services = BreakableServices()
+          let model = AppModel(services: services)  // the preview's one Slated layout, “Coding”
+          model.selectedLayout = .slated(name: "Coding", index: 0)
+          let window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          services.broken = true
+          services.fileChanged()
+          spin()
+          let field = try require(textInput(in: try require(window.contentView)) as? NSTextField)
+          window.makeFirstResponder(field)
+          spin()
+          let editor = try require(window.firstResponder as? NSTextView)
+          editor.selectAll(nil)
+          editor.insertText("Deep Work", replacementRange: NSRange(location: NSNotFound, length: 0))
+          spin()
+          // Refused (Settings is read-only meanwhile), and the field says so, as fields bound to the model do.
+          expectEqual(model.configuration.layouts.map(\.name), ["Coding"])
+          expectEqual(field.stringValue, "Coding")
+          window.close()
         }
       }
     ),

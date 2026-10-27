@@ -12,7 +12,7 @@ private struct Unreadable: LocalizedError {
 
 /// The sample services, with a config.json that can break and be fixed. Like the app, it refuses saves
 /// meanwhile and tells the UI when the file changes.
-@MainActor private final class BreakableServices: AppServices {
+@MainActor final class BreakableServices: AppServices {
   let base = PreviewServices()
   var broken = false
   private var handlers: [@MainActor () -> Void] = []
@@ -108,6 +108,26 @@ let blockedSettingsTests = Suite(
           services.fileChanged()
           expect(model.loadError != nil, "the banner needs the error")
           expect(model.saveState == .blocked)
+        }
+      }
+    ),
+    (
+      "a layout can't be renamed, added or deleted meanwhile, and its editor stays open",
+      {
+        try onMain {
+          let services = BreakableServices()
+          let model = AppModel(services: services)  // the preview's one Slated layout, “Coding”
+          model.selectedLayout = .slated(name: "Coding", index: 0)
+          services.broken = true
+          services.fileChanged()
+          var arrivals: [String: Set<LayoutReference>] = [:]
+          expectEqual(model.typeLayoutName("Deep Work", renaming: "Coding", at: 0, arrivals: &arrivals), "Coding")
+          expect(arrivals.isEmpty)
+          model.addLayout()
+          model.deleteLayout("Coding", at: 0)
+          expectEqual(model.configuration.layouts.map(\.name), ["Coding"])
+          expect(model.selectedLayout == .slated(name: "Coding", index: 0), "the editor would close")
+          expect(model.toast?.message.contains("Fix config.json first") ?? false, "not “Deleted layout”")
         }
       }
     ),

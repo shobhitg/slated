@@ -41,7 +41,9 @@ public enum BindingSelection: Hashable, Sendable {
 
 /// Which layout is selected in Settings → Layouts.
 public enum LayoutSelection: Hashable, Sendable {
-  case slated(name: String)
+  /// One of Slated's own layouts. `index` is its place in `layouts` (see `AppModel.layoutIndex`): a
+  /// layout copied in config.json shares its name with the original.
+  case slated(name: String, index: Int? = nil)
   case source(path: String, name: String)
 }
 
