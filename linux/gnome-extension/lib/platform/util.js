@@ -162,10 +162,13 @@ export function conditionMatches(rawCondition, screens) {
   return want.length === have.length && want.every((r, i) => r === have[i]);
 }
 
-/** A default's condition and target, whichever field names the core uses. */
+/**
+ * A default's condition and target, whichever field names the core uses: config.json's
+ * `{target, count}` / `{target, resolutions}`, or a separate `condition`.
+ */
 export function defaultEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
-  const condition = normalizeCondition(entry.condition ?? entry.screens ?? null);
+  const condition = normalizeCondition(entry.condition ?? entry.screens ?? entry);
   const target = entry.target ?? entry.name ?? null;
   return condition && typeof target === 'string' ? {condition, target} : null;
 }

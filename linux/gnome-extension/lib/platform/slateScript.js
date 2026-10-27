@@ -31,7 +31,7 @@
 import * as Core from '../core/index.js';
 
 import {bindingKey, comboOf, modalOf} from './combos.js';
-import {expandHome, orderedLeftToRight, screenContaining, truthyText} from './util.js';
+import {defaultEntry, expandHome, orderedLeftToRight, screenContaining, truthyText} from './util.js';
 
 export const EVENT_NAMES = Object.freeze([
   'windowOpened',
@@ -1699,7 +1699,8 @@ export class SlateScriptEngine {
       });
     }
     for (const entry of file.defaults ?? []) {
-      if (typeof entry?.target === 'string') this._defaults.push({condition: entry.condition, target: {name: entry.target}});
+      const normalized = defaultEntry(entry);
+      if (normalized) this._defaults.push({condition: normalized.condition, target: {name: normalized.target}});
     }
     this._diagnostics.push(...(file.diagnostics ?? []));
   }

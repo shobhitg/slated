@@ -609,19 +609,31 @@ function layout(v, path) {
   };
 }
 
-/** ScreenDefault.Condition as Swift synthesizes it: {"count": {"_0": 2}} or {"resolutions": {"_0": [...]}}. */
-function condition(v, path) {
+/**
+ * The shape Slated wrote before, ScreenDefault.Condition as Swift synthesizes it: {"count": {"_0": 2}}
+ * or {"resolutions": {"_0": [...]}}. Read as {count} or {resolutions}.
+ */
+function oldCondition(v, path) {
   const c = new Keyed(v, path);
   const keys = ['count', 'resolutions'].filter((k) => c.raw(k) !== undefined);
   if (keys.length !== 1) throw decodingError(path, 'Invalid number of keys found, expected one.');
   const inner = new Keyed(c.raw(keys[0]), c.at(keys[0]));
-  if (keys[0] === 'count') return {count: {_0: inner.required('_0', int)}};
-  return {resolutions: {_0: inner.required('_0', arrayOf(str))}};
+  if (keys[0] === 'count') return {count: inner.required('_0', int)};
+  return {resolutions: inner.required('_0', arrayOf(str))};
 }
 
+/** {"target": "x", "count": 2} or {"target": "x", "resolutions": [...]}; the old "condition" shape still reads. */
 function screenDefault(v, path) {
   const c = new Keyed(v, path);
-  return {target: c.required('target', str), condition: c.required('condition', condition)};
+  const target = c.required('target', str);
+  const count = c.optional('count', int);
+  const resolutions = c.optional('resolutions', arrayOf(str));
+  const conditions = [count === undefined ? undefined : {count}, resolutions === undefined ? undefined : {resolutions}];
+  conditions.push(c.optional('condition', oldCondition));
+  const found = conditions.filter((condition) => condition !== undefined);
+  if (found.length === 0) throw decodingError(path, 'A display default needs "count" or "resolutions"');
+  if (found.length > 1) throw decodingError(path, 'A display default takes one condition: "count" or "resolutions"');
+  return {target, ...found[0]};
 }
 
 function hotstring(v, path) {

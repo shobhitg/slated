@@ -120,6 +120,21 @@ with `"op"` plus Slate's JavaScript parameter names. The object form is exactly 
 - Functions: `min({a,b})`, `max`, `floor`, `ceiling`, `abs`, `sqrt`, and the rest of Slate's list.
 - Unlike Slate, spaces are fine.
 
+## Display defaults
+
+Slate's `default`: when your displays change to match a setup, run a layout or snapshot. Each one has
+a `target` (the layout or snapshot's name) and one condition:
+
+```jsonc
+"defaults": [
+  { "target": "coding", "count": 2 },                              // any two displays
+  { "target": "big", "resolutions": ["2560x1440", "1920x1080"] }  // exactly these, in any order
+]
+```
+
+Resolutions are each display's full size. Slated used to write the condition as
+`"condition": {"count": {"_0": 2}}`; that still reads, and the next save writes the shape above.
+
 ## Game automation
 
 Bind these like any other action. They're deliberately simple: no scripting language.

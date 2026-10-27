@@ -224,6 +224,43 @@ let crossPlatformBugTests = Suite(
       }
     ),
     (
+      "display defaults are written as count or resolutions, and the old enum shape still reads",
+      {
+        let config = SlatedConfiguration(defaults: [
+          ScreenDefault(target: "coding", condition: .count(2)),
+          ScreenDefault(target: "big", condition: .resolutions(["2560x1440", "1920x1080"])),
+        ])
+        let text = String(decoding: try config.encoded(), as: UTF8.self)
+        expect(text.contains(#""count" : 2,"#) && text.contains(#""resolutions" : ["#), text)
+        expect(!text.contains("condition") && !text.contains("_0"), text)
+        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        let old = #"""
+          {"defaults": [{"target": "coding", "condition": {"count": {"_0": 2}}},
+                        {"target": "big", "condition": {"resolutions": {"_0": ["2560x1440", "1920x1080"]}}}]}
+          """#
+        expectEqual(try SlatedConfiguration.decode(from: Data(old.utf8)).defaults, config.defaults)
+        for (input, message) in [
+          (#"{"defaults": [{"target": "x"}]}"#, #"A display default needs "count" or "resolutions""#),
+          (
+            #"{"defaults": [{"target": "x", "count": 2, "resolutions": ["1x1"]}]}"#,
+            #"A display default takes one condition: "count" or "resolutions""#
+          ),
+          (
+            #"{"defaults": [{"target": "x", "count": 2, "condition": {"count": {"_0": 2}}}]}"#,
+            #"A display default takes one condition: "count" or "resolutions""#
+          ),
+        ] {
+          do {
+            _ = try SlatedConfiguration.decode(from: Data(input.utf8))
+            expect(false, "decoded \(input)")
+          } catch DecodingError.dataCorrupted(let context) {
+            expectEqual(context.debugDescription, message)
+            expectEqual(context.codingPath.map { $0.intValue.map(String.init) ?? $0.stringValue }, ["defaults", "0"])
+          }
+        }
+      }
+    ),
+    (
       "an unknown Hyper modifier is an error that says which and where, not dropped",
       {
         let input = #"{"keyboard":{"capsLock":"hyper","hyperModifiers":["ctrl","alt","bogus","cmd"]}}"#

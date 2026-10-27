@@ -258,7 +258,7 @@ class ConfigFileParser {
       case 'count': {
         const count = parseInt64(value);
         if (count === null || !(count > 0)) throw invalid(`count: needs a number of screens, not "${value}"`);
-        condition = {count: {_0: count}};
+        condition = {count};
         break;
       }
       case 'resolutions': {
@@ -273,13 +273,13 @@ class ConfigFileParser {
           resolutions.push(`${width}x${height}`);
         }
         if (resolutions.length === 0) throw invalid(`resolutions: needs at least one resolution, ${usage}`);
-        condition = {resolutions: {_0: resolutions}};
+        condition = {resolutions};
         break;
       }
       default:
         throw invalid(`Unknown screen setup "${setup}"; ${usage}`);
     }
-    this.result.defaults.push({target: words[0].text, condition});
+    this.result.defaults.push({target: words[0].text, ...condition});
   }
 
   /** `source path [if_exists]` */

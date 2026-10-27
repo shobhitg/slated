@@ -836,7 +836,7 @@ private func randomConfigJSON(_ rng: inout FuzzRNG) -> String {
   }
   if rng.chance(0.2) {
     top.append(
-      "\"defaults\": [{\"target\": \"x\", \"condition\": \(rng.pick(["{\"count\": {\"_0\": 2}}", "{\"resolutions\": {\"_0\": [\"1x1\", \"2560x1440\"]}}"]))}]"
+      "\"defaults\": [{\"target\": \"x\", \(rng.pick(defaultConditions))}]"
     )
   }
   if rng.chance(0.2) {
@@ -846,6 +846,13 @@ private func randomConfigJSON(_ rng: inout FuzzRNG) -> String {
   }
   return "{" + top.joined(separator: ", ") + "}"
 }
+
+/// Display default conditions: today's shape, the old one (Swift's enum coding), and mixes that fail.
+private let defaultConditions = [
+  "\"count\": 2", "\"resolutions\": [\"1x1\", \"2560x1440\"]", "\"condition\": {\"count\": {\"_0\": 2}}",
+  "\"condition\": {\"resolutions\": {\"_0\": [\"1x1\", \"2560x1440\"]}}", "\"count\": 2, \"resolutions\": []",
+  "\"count\": null, \"condition\": {\"count\": {\"_0\": 1}}",
+]
 
 func fuzzConfigFile(_ rng: inout FuzzRNG, count: Int) -> FixtureFile {
   var decode: [J] = []

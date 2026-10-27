@@ -25,8 +25,7 @@ private let fullConfig = #"""
        "before": ["undo"], "after": [{"op": "focus", "app": "Terminal"}]},
       {"name": "empty"}
     ],
-    "defaults": [{"target": "coding", "condition": {"count": {"_0": 2}}},
-                 {"target": "big", "condition": {"resolutions": {"_0": ["2560x1440", "1920x1080"]}}}],
+    "defaults": [{"target": "coding", "count": 2}, {"target": "big", "resolutions": ["2560x1440", "1920x1080"]}],
     "hotstrings": [
       {"id": "55555555-5555-4555-8555-555555555555", "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯"},
       {"id": "66666666-6666-4666-8666-666666666666", "trigger": "brb", "replacement": "be right back", "fire": "afterDelimiter",
@@ -442,15 +441,44 @@ private let decodeCases: [(String, String)] = [
   ),
   ("layout app without app", #"{"layouts": [{"name": "x", "apps": [{"operations": []}]}]}"#),
   ("layout app options wrong type", #"{"layouts": [{"name": "x", "apps": [{"app": "A", "options": {"repeat": 1}}]}]}"#),
-  ("default count", #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}}}]}"#),
-  ("default resolutions", #"{"defaults": [{"target": "x", "condition": {"resolutions": {"_0": ["1x1"]}}}]}"#),
-  ("default bad condition", #"{"defaults": [{"target": "x", "condition": {"count": 3}}]}"#),
-  ("default unknown condition", #"{"defaults": [{"target": "x", "condition": {"screens": {"_0": 3}}}]}"#),
+  ("default count", #"{"defaults": [{"target": "x", "count": 3}]}"#),
+  ("default resolutions", #"{"defaults": [{"target": "x", "resolutions": ["1x1", "1920x1080"]}]}"#),
+  ("default empty resolutions", #"{"defaults": [{"target": "x", "resolutions": []}]}"#),
+  ("default count zero and negative", #"{"defaults": [{"target": "x", "count": 0}, {"target": "y", "count": -1}]}"#),
+  ("default count as text", #"{"defaults": [{"target": "x", "count": "2"}]}"#),
+  ("default count fraction", #"{"defaults": [{"target": "x", "count": 1.5}]}"#),
+  ("default resolutions not a list", #"{"defaults": [{"target": "x", "resolutions": "1920x1080"}]}"#),
+  ("default without a condition", #"{"defaults": [{"target": "x"}]}"#),
+  ("default count and resolutions", #"{"defaults": [{"target": "x", "count": 2, "resolutions": ["1x1"]}]}"#),
+  ("default null count with resolutions", #"{"defaults": [{"target": "x", "count": null, "resolutions": ["1x1"]}]}"#),
+  ("default null condition", #"{"defaults": [{"target": "x", "count": null}]}"#),
+  ("default bad count before both", #"{"defaults": [{"target": "x", "count": "2", "resolutions": ["1x1"]}]}"#),
+  ("default unknown key", #"{"defaults": [{"target": "x", "screens": 2}]}"#),
+  ("default without target", #"{"defaults": [{"count": 3}]}"#),
+  ("default target not text", #"{"defaults": [{"target": 1, "count": 3}]}"#),
+  ("default second one broken", #"{"defaults": [{"target": "x", "count": 1}, {"target": "y"}]}"#),
+  // The shape Slated wrote before (Swift's synthesized enum coding) still reads; it's written in the new one.
+  ("default count (old shape)", #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}}}]}"#),
   (
-    "default two conditions",
+    "default resolutions (old shape)",
+    #"{"defaults": [{"target": "x", "condition": {"resolutions": {"_0": ["1x1"]}}}]}"#
+  ),
+  ("default bad condition (old shape)", #"{"defaults": [{"target": "x", "condition": {"count": 3}}]}"#),
+  ("default unknown condition (old shape)", #"{"defaults": [{"target": "x", "condition": {"screens": {"_0": 3}}}]}"#),
+  (
+    "default two conditions (old shape)",
     #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 3}, "resolutions": {"_0": []}}}]}"#
   ),
-  ("default without target", #"{"defaults": [{"condition": {"count": {"_0": 3}}}]}"#),
+  ("default without target (old shape)", #"{"defaults": [{"condition": {"count": {"_0": 3}}}]}"#),
+  ("default null condition (old shape)", #"{"defaults": [{"target": "x", "condition": null}]}"#),
+  (
+    "default old and new shapes together",
+    #"{"defaults": [{"target": "x", "count": 2, "condition": {"count": {"_0": 2}}}]}"#
+  ),
+  (
+    "default old and new shapes in one file",
+    #"{"defaults": [{"target": "x", "condition": {"count": {"_0": 2}}}, {"target": "y", "resolutions": ["1x1"]}]}"#
+  ),
 ]
 
 /// JSON5 number spellings, including malformed ones Swift's scanner still reads as numbers. Each is

@@ -394,7 +394,11 @@ public struct LayoutAppOptions: Hashable, Sendable, Codable {
 }
 
 /// Slate's `default`: activate a layout or snapshot when the display setup matches.
-public struct ScreenDefault: Hashable, Sendable, Codable {
+///
+/// On disk: `{"target": "coding", "count": 2}` or `{"target": "big", "resolutions": ["2560x1440", …]}`.
+public struct ScreenDefault: Hashable, Sendable {
+  /// Its own `Codable` is Swift's synthesized enum coding (`{"count": {"_0": 2}}`), the shape Slated
+  /// wrote before; it's only used to read that shape.
   public enum Condition: Hashable, Sendable, Codable {
     case count(Int)
     /// Exact set of resolutions, e.g. `["1440x900", "1680x1050"]`.
@@ -408,6 +412,38 @@ public struct ScreenDefault: Hashable, Sendable, Codable {
   public init(target: String, condition: Condition) {
     self.target = target
     self.condition = condition
+  }
+}
+
+extension ScreenDefault: Codable {
+  private enum Key: String, CodingKey { case target, count, resolutions, condition }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: Key.self)
+    let target = try c.decode(String.self, forKey: .target)
+    let conditions = [
+      try c.decodeIfPresent(Int.self, forKey: .count).map(Condition.count),
+      try c.decodeIfPresent([String].self, forKey: .resolutions).map(Condition.resolutions),
+      // The old shape, `"condition": {"count": {"_0": 2}}`.
+      try c.decodeIfPresent(Condition.self, forKey: .condition),
+    ].compactMap { $0 }
+    guard conditions.count == 1 else {
+      let message =
+        conditions.isEmpty
+        ? #"A display default needs "count" or "resolutions""#
+        : #"A display default takes one condition: "count" or "resolutions""#
+      throw DecodingError.dataCorrupted(.init(codingPath: c.codingPath, debugDescription: message))
+    }
+    self.init(target: target, condition: conditions[0])
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: Key.self)
+    try c.encode(target, forKey: .target)
+    switch condition {
+    case .count(let count): try c.encode(count, forKey: .count)
+    case .resolutions(let resolutions): try c.encode(resolutions, forKey: .resolutions)
+    }
   }
 }
 
