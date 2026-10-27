@@ -89,6 +89,15 @@ enum SmokeSteps {
       // What the clipboard switcher says Return does, with the services the app gives it.
       let model = ClipboardSwitcherModel(services: LiveServices.forClipboardSwitcher(engine))
       print("switcher: Return \(model.pasteAfterSelecting ? "pastes" : "copies")")
+    case "import-slate":
+      // "Import Slate Config into Slated…" in the menu bar; prints what its alert says.
+      do {
+        let summary = try engine.importSlateConfigs()
+        print("import alert:", summary.title)
+        print(summary.message)
+      } catch {
+        print("import failed:", error.localizedDescription)
+      }
     case "move-config-away":
       // The file config.json links to goes away while Slated runs (a branch switch, an unmounted volume).
       let target = engine.store.fileURL.resolvingSymlinksInPath()

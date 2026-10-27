@@ -342,6 +342,20 @@ expect_true "it holds their SHA-256 instead, which restoring matches windows by"
   grep -q "\"titleHash\":\"$(printf %s "$title" | shasum -a 256 | cut -d' ' -f1)\"" "$snapshots"
 expect_true "the snapshot is still there" grep -q '"work"' "$snapshots"
 
+# 13. "Import Slate Config into Slated…" with a Slate file that converts only in part, so it keeps loading.
+setting_of() {  # home, name: the setting in config.json, or "none"
+  /usr/bin/python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("settings", {}).get(sys.argv[2], "none"))' \
+    "$1/.config/slated/config.json" "$2"
+}
+home=$(new_home)
+cp "$FIXTURES/slate-import.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+expect_output "the import says what stays in the Slate file" "$out" \
+  'slate.config("windowHintsCharacters"): its value comes from a JavaScript function'
+expect_true "a static setting is copied into config.json" test "$(setting_of "$home" nudgePercentOf)" = screenSize
+expect_true "a setting a function computes isn't copied, so the script keeps setting it" \
+  test "$(setting_of "$home" windowHintsCharacters)" = none
+
 echo
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]

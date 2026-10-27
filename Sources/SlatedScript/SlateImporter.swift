@@ -16,6 +16,10 @@ public enum SlateImporter {
     public var bindings: [HotkeyBinding]
     /// Keystrokes that couldn't be converted, with the reason.
     public var skipped: [(keystroke: String, reason: String)]
+    /// `slate.config` names whose value comes from a function. They stay in the script (and are
+    /// skipped): a copy in Slated's settings would freeze today's value and, since Slated's own
+    /// settings win, override the function for good.
+    public var functionSettings: [String]
     public var diagnostics: [Diagnostic]
   }
 
@@ -67,7 +71,9 @@ public enum SlateImporter {
       let reason = entry.screenDefault == nil ? "runs JavaScript" : "display defaults aren't imported yet"
       skipped.append(("slate.default(\(describe(entry.condition)))", reason))
     }
-    return Result(bindings: bindings, skipped: skipped, diagnostics: loaded.diagnostics)
+    return Result(
+      bindings: bindings, skipped: skipped, functionSettings: engine.configFunctions.keys.sorted(),
+      diagnostics: loaded.diagnostics)
   }
 
   private enum Probe {

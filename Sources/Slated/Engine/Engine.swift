@@ -573,6 +573,14 @@ final class Engine {
   struct ImportSummary {
     var imported: Int
     var skipped: [String]
+
+    /// The import alert's title and text.
+    var title: String { "Imported \(imported) bindings" }
+    var message: String {
+      skipped.isEmpty
+        ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
+        : "These need JavaScript and still run from your Slate file:\n" + skipped.joined(separator: "\n")
+    }
   }
 
   /// Copies the bindings from the Slate config files into Slated's own configuration, so they can be
@@ -596,8 +604,11 @@ final class Engine {
         let result = SlateImporter.importJavaScript(path: path)
         result.bindings.forEach(add)
         skipped += result.skipped.map { "\($0.keystroke): \($0.reason)" }
-        // Settings the script set, without overriding ones already in Slated's config.
-        config.settings = sources.javascript.settings.merging(config.settings)
+        // Settings the script set, without overriding ones already in Slated's config. Those a
+        // function computes keep coming from the script (see SlateImporter.Result.functionSettings).
+        var settings = sources.javascript.settings
+        for name in result.functionSettings { settings[name] = nil }
+        config.settings = settings.merging(config.settings)
         config.layouts += sources.javascript.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
       } else if let text = try? String(contentsOfFile: path, encoding: .utf8) {
         let file = SlateConfigParser.parse(text, path: path)

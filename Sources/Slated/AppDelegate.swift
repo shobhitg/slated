@@ -288,11 +288,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let alert = NSAlert()
     do {
       let summary = try engine.importSlateConfigs()
-      alert.messageText = "Imported \(summary.imported) bindings"
-      alert.informativeText =
-        summary.skipped.isEmpty
-        ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
-        : "These need JavaScript and still run from your Slate file:\n" + summary.skipped.joined(separator: "\n")
+      alert.messageText = summary.title
+      alert.informativeText = summary.message
     } catch {
       Log.error("slate.import_failed", LogPrivacy.message(error.localizedDescription))
       alert.messageText = "Couldn't import"

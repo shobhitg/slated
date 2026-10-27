@@ -161,6 +161,8 @@ func importerReportsWhatItLeavesBehind() throws {
     """
   let result = SlateImporter.importJavaScript(path: "/events.js", readFile: { _ in script })
   expectEqual(result.bindings.count, 1)
+  // So the app doesn't copy its value into Slated's settings, where it would override the function.
+  expectEqual(result.functionSettings, ["defaultToCurrentScreen"])
   expectEqual(
     result.skipped.map(\.keystroke),
     [
