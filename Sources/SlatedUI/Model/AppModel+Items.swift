@@ -229,6 +229,9 @@ extension AppModel {
 
   // MARK: Layouts
 
+  /// A binding to one Slated layout, found by name. Renames that would make the layout impossible to
+  /// tell apart (an empty name, or another layout's) are ignored: layouts are found by name, so the
+  /// next edit could land on the other layout and its shortcuts would follow this one.
   func layoutBinding(_ name: String) -> Binding<WindowLayout>? {
     guard let current = configuration.layouts.first(where: { $0.name == name }) else { return nil }
     var trackedName = name
@@ -239,6 +242,10 @@ extension AppModel {
           return
         }
         let oldName = trackedName
+        var newValue = newValue
+        if newValue.name != oldName, layoutNameProblem(newValue.name, renaming: oldName) != nil {
+          newValue.name = oldName
+        }
         self.configuration.layouts[index] = newValue
         if newValue.name != oldName {
           trackedName = newValue.name
@@ -246,6 +253,15 @@ extension AppModel {
           self.selectedLayout = .slated(name: newValue.name)
         }
       })
+  }
+
+  /// Why `name` can't become the name of the layout now called `current`, if it can't.
+  func layoutNameProblem(_ name: String, renaming current: String) -> String? {
+    if name.trimmingCharacters(in: .whitespaces).isEmpty { return "Name the layout." }
+    if name != current, configuration.layouts.contains(where: { $0.name == name }) {
+      return "Another layout already has this name."
+    }
+    return nil
   }
 
   @discardableResult

@@ -121,4 +121,27 @@ let uiHostingContractTests = Suite(
         }
       }
     ),
+    (
+      "typing a layout's name keeps the name field focused",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          model.configuration.layouts = [Layout(name: "Work"), Layout(name: "Home")]
+          model.selectedLayout = .slated(name: "Work")
+          let window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          let field = try require(textInput(in: try require(window.contentView)) as? NSTextField)
+          expectEqual(field.stringValue, "Work")
+          window.makeFirstResponder(field)
+          spin()
+          try require(window.firstResponder as? NSTextView).moveToEndOfDocument(nil)
+          for character in "shop" {
+            let editor = try require(window.firstResponder as? NSTextView, "the name field lost focus")
+            editor.insertText(String(character), replacementRange: NSRange(location: NSNotFound, length: 0))
+            spin(0.1)
+          }
+          expectEqual(model.configuration.layouts.map(\.name), ["Workshop", "Home"])
+          expect(model.selectedLayout == .slated(name: "Workshop"))
+        }
+      }
+    ),
   ])

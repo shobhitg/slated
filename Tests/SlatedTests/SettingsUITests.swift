@@ -388,6 +388,36 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "renaming a layout through another layout's name leaves that layout and its shortcuts alone",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          let mail = LayoutApp(app: "Mail", operations: [preset("maximize")])
+          let xcode = LayoutApp(app: "Xcode", operations: [preset("left-half")])
+          model.configuration.layouts = [Layout(name: "Work", apps: [mail]), Layout(name: "Work 2", apps: [xcode])]
+          let workKey = HotkeyBinding(keys: hyper("1"), action: .layout(name: "Work"))
+          let work2Key = HotkeyBinding(keys: hyper("2"), action: .layout(name: "Work 2"))
+          model.configuration.bindings = [workKey, work2Key]
+          model.selectedLayout = .slated(name: "Work 2")
+          // Backspacing "Work 2" to "Work", then typing on. The pane finds the layout by the
+          // selected name for every keystroke.
+          for name in ["Work ", "Work", "Wor", "Workshop"] {
+            guard case .slated(let selected) = model.selectedLayout else { throw TestFailure(description: "no layout") }
+            try require(model.layoutBinding(selected)).wrappedValue.name = name
+          }
+          expectEqual(model.configuration.layouts.map(\.name), ["Work", "Workshop"])
+          expectEqual(model.configuration.layouts.map { $0.apps.map(\.app) }, [["Mail"], ["Xcode"]])
+          expectEqual(model.binding(workKey.id)?.action, .layout(name: "Work"))
+          expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Workshop"))
+          expect(model.selectedLayout == .slated(name: "Workshop"))
+          // What the name field shows while the typed name can't be used yet.
+          expectEqual(model.layoutNameProblem("Work", renaming: "Workshop"), "Another layout already has this name.")
+          expectEqual(model.layoutNameProblem(" ", renaming: "Workshop"), "Name the layout.")
+          expect(model.layoutNameProblem("Workshop", renaming: "Workshop") == nil)
+        }
+      }
+    ),
+    (
       "its own saves don't count as hand edits",
       {
         try onMain {

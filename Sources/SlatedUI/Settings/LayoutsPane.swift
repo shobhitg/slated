@@ -44,9 +44,12 @@ struct LayoutsPane: View {
   @ViewBuilder private var detail: some View {
     switch model.selectedLayout {
     case .slated(let name):
-      if let layout = model.layoutBinding(name) {
+      if let index = model.configuration.layouts.firstIndex(where: { $0.name == name }),
+        let layout = model.layoutBinding(name)
+      {
+        // Keyed by position, not name: renaming mustn't rebuild the editor (and drop focus) on every keystroke.
         LayoutDetail(layout: layout, source: nil)
-          .id("slated|\(name)")
+          .id("slated|\(index)")
       } else {
         noSelection
       }
@@ -146,6 +149,15 @@ private struct LayoutDetail: View {
   let source: SlateSource?
   @Environment(AppModel.self) private var model
   @State private var confirmDelete = false
+  /// The name as typed. It becomes the layout's name whenever it's usable, so typing through
+  /// another layout's name ("Work 2" → "Work" → "Workshop") never renames or re-points that layout.
+  @State private var nameDraft: String
+
+  init(layout: Binding<WindowLayout>, source: SlateSource?) {
+    _layout = layout
+    self.source = source
+    _nameDraft = State(initialValue: layout.wrappedValue.name)
+  }
 
   private var editable: Bool { source == nil }
 
@@ -176,9 +188,17 @@ private struct LayoutDetail: View {
       IconTile(symbol: "rectangle.3.group", tint: SettingsPane.layouts.tint, size: 38)
       VStack(alignment: .leading, spacing: 5) {
         if editable {
-          TextField("Layout name", text: $layout.name)
+          TextField("Layout name", text: $nameDraft)
             .textFieldStyle(.plain)
             .font(.system(size: 19, weight: .bold))
+            .onChange(of: nameDraft) { _, name in
+              if model.layoutNameProblem(name, renaming: layout.name) == nil { layout.name = name }
+            }
+          if let problem = model.layoutNameProblem(nameDraft, renaming: layout.name) {
+            Label(problem, systemImage: "exclamationmark.circle.fill")
+              .font(.system(size: 11.5))
+              .foregroundStyle(Theme.critical)
+          }
         } else {
           Text(layout.name).font(.system(size: 19, weight: .bold))
         }
