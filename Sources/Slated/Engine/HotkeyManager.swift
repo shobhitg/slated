@@ -86,12 +86,21 @@ final class HotkeyManager {
     }
     defer { logRegistration() }
     for modalKeys in modalEntries.keys {
-      register(modalKeys, id: nil) { [weak self] phase in
-        guard phase == .pressed else { return }
-        self?.toggleModal(modalKeys)
+      // The keys behind a modal key are registered when the mode starts; until then the bindings are
+      // as live as their modal key.
+      let status: HotkeyStatus
+      do {
+        tokens.append(
+          try HotKeyCenter.shared.register(modalKeys) { [weak self] phase in
+            guard phase == .pressed else { return }
+            self?.toggleModal(modalKeys)
+          })
+        status = .active
+      } catch {
+        status = .failed("Its modal key can't be used: \(error.description)")
       }
       for entry in modalEntries[modalKeys] ?? [] where statuses[entry.id] == nil {
-        statuses[entry.id] = .active
+        statuses[entry.id] = status
       }
     }
   }
@@ -154,12 +163,12 @@ final class HotkeyManager {
     stopRepeating()
   }
 
-  private func register(_ keys: KeyCombo, id: String?, handler: @escaping HotKeyCenter.Handler) {
+  private func register(_ keys: KeyCombo, id: String, handler: @escaping HotKeyCenter.Handler) {
     do {
       tokens.append(try HotKeyCenter.shared.register(keys, handler: handler))
-      if let id { statuses[id] = .active }
+      statuses[id] = .active
     } catch {
-      if let id { statuses[id] = .failed(error.description) }
+      statuses[id] = .failed(error.description)
     }
   }
 

@@ -13,6 +13,8 @@ final class ClipboardService {
   var onChange: (() -> Void)?
   /// Shows the switcher panel (wired by the app delegate).
   var presentSwitcher: (() -> Void)?
+  /// The time copies are recorded at (a smoke test moves it ahead).
+  var now: () -> Date = Date.init
 
   private let watcher = PasteboardWatcher()
   private var ignoreNextCopy = false
@@ -66,7 +68,7 @@ final class ClipboardService {
 
   // MARK: Recording
 
-  private func record(_ copy: PasteboardWatcher.Copy) {
+  func record(_ copy: PasteboardWatcher.Copy) {
     if ignoreNextCopy {
       ignoreNextCopy = false
       return
@@ -81,7 +83,11 @@ final class ClipboardService {
       Log.record("clipboard.skipped", level: .debug, ["reason": "excluded app", "app": app])
       return
     }
-    guard history.add(text, from: copy.sourceApp, at: Date(), limit: settings.maxItems) else { return }
+    let now = now()
+    guard history.add(text, from: copy.sourceApp, at: now, limit: settings.maxItems) else { return }
+    // Expired items go as copies come in too, not only when settings are applied (at launch or on a
+    // change): a Slated left running for weeks keeps to retentionDays.
+    history.prune(olderThanDays: settings.retentionDays, now: now)
     Log.record(
       "clipboard.captured",
       ["chars": text.count, "lines": text.split(whereSeparator: \.isNewline).count, "app": copy.sourceApp ?? "unknown",
@@ -154,6 +160,15 @@ final class ClipboardService {
   /// moment later rather than immediately.
   func switcherClosed() {
     forgetPreviousApp?.cancel()
+    // Closed without a pick (Esc): give the keyboard back to the app you were in, as the hints and
+    // grid overlays do; the switcher made Slated the active app. A pick has taken `previousApp` by
+    // now. Clicking into another app, or into a Slated window (Settings makes Slated a regular app),
+    // leaves you there.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+      guard let app = self?.previousApp, NSApp.isActive, NSApp.activationPolicy() == .accessory else { return }
+      Log.record("clipboard.switcher_dismissed", ["returnedTo": app.bundleIdentifier ?? "unknown"])
+      app.activate()
+    }
     let work = DispatchWorkItem { [weak self] in self?.previousApp = nil }
     forgetPreviousApp = work
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)

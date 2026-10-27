@@ -13,6 +13,13 @@ public final class PasteboardWatcher {
     public var isSlatedPaste: Bool
     /// Frontmost app when the copy was noticed.
     public var sourceApp: String?
+
+    public init(text: String?, isConcealed: Bool = false, isSlatedPaste: Bool = false, sourceApp: String? = nil) {
+      self.text = text
+      self.isConcealed = isConcealed
+      self.isSlatedPaste = isSlatedPaste
+      self.sourceApp = sourceApp
+    }
   }
 
   /// Types apps use to say "don't record this" (nspasteboard.org) plus older vendor conventions.
@@ -21,22 +28,51 @@ public final class PasteboardWatcher {
     "com.agilebits.onepassword", "de.petermaurer.TransientPasteboardType", "com.typeit4me.clipping",
     "Pasteboard generator type",
   ]
-  public static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+  nonisolated public static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
   /// Marks text Slated puts on the clipboard only to paste it (a long hotstring replacement). History
   /// never records it, even with concealed items allowed: that setting is about other apps' copies.
-  public static let slatedPasteType = NSPasteboard.PasteboardType("io.github.slated.paste")
+  nonisolated public static let slatedPasteType = NSPasteboard.PasteboardType("io.github.slated.paste")
 
   public var onCopy: ((Copy) -> Void)?
+  private let pasteboard: NSPasteboard
   private var timer: Timer?
-  private var lastChangeCount = NSPasteboard.general.changeCount
+  private var lastChangeCount: Int
 
-  public init() {}
+  /// Change counts, by pasteboard, of writes that only put a clipboard back the way it was (after
+  /// Slated pasted a hotstring's replacement through it): not copies.
+  nonisolated(unsafe) private static var restoredChanges: [String: Set<Int>] = [:]
+  nonisolated private static let restoredLock = NSLock()
+
+  /// `pasteboard` is the general one; tests use a private one.
+  public init(pasteboard: NSPasteboard = .general) {
+    self.pasteboard = pasteboard
+    lastChangeCount = pasteboard.changeCount
+  }
 
   public func start() {
     guard timer == nil else { return }
-    lastChangeCount = NSPasteboard.general.changeCount
+    lastChangeCount = pasteboard.changeCount
     timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.poll() }
+    }
+  }
+
+  /// Tells watchers that `pasteboard`'s current contents were only put back, so they don't record them
+  /// as a new copy: from the app in front, ignoring excluded apps, and returning items the user deleted.
+  nonisolated public static func ignoreCurrentContents(of pasteboard: NSPasteboard) {
+    let (name, count) = (pasteboard.name.rawValue, pasteboard.changeCount)
+    restoredLock.withLock { _ = restoredChanges[name, default: []].insert(count) }
+  }
+
+  /// Whether change `count` only put `pasteboard` back. Forgets it, and older ones (written over before
+  /// a poll saw them).
+  nonisolated private static func wasRestored(_ count: Int, on pasteboard: NSPasteboard) -> Bool {
+    let name = pasteboard.name.rawValue
+    return restoredLock.withLock {
+      let restored = restoredChanges[name]?.contains(count) ?? false
+      let newer = restoredChanges[name]?.filter { $0 > count } ?? Set()
+      restoredChanges[name] = newer.isEmpty ? nil : newer
+      return restored
     }
   }
 
@@ -52,10 +88,11 @@ public final class PasteboardWatcher {
     pasteboard.setString(text, forType: .string)
   }
 
-  private func poll() {
-    let pasteboard = NSPasteboard.general
+  /// Reports a new copy, if there is one. Runs twice a second; internal for tests.
+  func poll() {
     guard pasteboard.changeCount != lastChangeCount else { return }
     lastChangeCount = pasteboard.changeCount
+    if Self.wasRestored(lastChangeCount, on: pasteboard) { return }
     let types = Set((pasteboard.types ?? []).map(\.rawValue))
     onCopy?(
       Copy(

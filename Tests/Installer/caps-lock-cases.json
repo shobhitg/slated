@@ -1,0 +1,47 @@
+{
+  "about": "Putting Caps Lock back after a Slated that didn't quit cleanly: what hidutil's UserKeyMapping becomes, given what it holds now and Slated's record (caps-lock-mapping.json, as raw text; null when there is none). expected null means hidutil is left alone. Checked against HIDRemapper (Tests/SlatedTests/HIDRemapperTests.swift) and scripts/restore-caps-lock.py (Tests/Installer/test_restore_caps_lock.py). Usages: Caps Lock 30064771129, F18 30064771181, Escape 30064771113, left Control 30064771296, section 30064771172, grave 30064771125.",
+  "cases": [
+    {
+      "name": "Slated's entry goes, the user's own Caps Lock -> Escape comes back, other entries stay",
+      "current": [[30064771172, 30064771125], [30064771129, 30064771181]],
+      "recordText": "{\"replaced\":{\"HIDKeyboardModifierMappingSrc\":30064771129,\"HIDKeyboardModifierMappingDst\":30064771113}}",
+      "expected": [[30064771172, 30064771125], [30064771129, 30064771113]]
+    },
+    {
+      "name": "nothing was on Caps Lock before Slated: its entry just goes",
+      "current": [[30064771129, 30064771181], [30064771172, 30064771125]],
+      "recordText": "{}",
+      "expected": [[30064771172, 30064771125]]
+    },
+    {
+      "name": "without Slated's record, Caps Lock -> F18 is another tool's: left alone",
+      "current": [[30064771129, 30064771181]],
+      "recordText": null,
+      "expected": null
+    },
+    {
+      "name": "another tool's Caps Lock -> F18, replaced by Slated's, comes back",
+      "current": [[30064771129, 30064771181]],
+      "recordText": "{\"replaced\":{\"HIDKeyboardModifierMappingSrc\":30064771129,\"HIDKeyboardModifierMappingDst\":30064771181}}",
+      "expected": [[30064771129, 30064771181]]
+    },
+    {
+      "name": "a record without Slated's entry is out of date (mappings don't survive a restart)",
+      "current": [],
+      "recordText": "{}",
+      "expected": null
+    },
+    {
+      "name": "a Caps Lock entry someone made after Slated's is left alone",
+      "current": [[30064771129, 30064771296]],
+      "recordText": "{\"replaced\":{\"HIDKeyboardModifierMappingSrc\":30064771129,\"HIDKeyboardModifierMappingDst\":30064771113}}",
+      "expected": null
+    },
+    {
+      "name": "an unreadable record still says the entry is Slated's, with nothing to put back",
+      "current": [[30064771129, 30064771181]],
+      "recordText": "not json",
+      "expected": []
+    }
+  ]
+}

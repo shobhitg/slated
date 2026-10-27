@@ -12,7 +12,7 @@ APP           := build/$(APP_NAME).app
 
 JSC           := /System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
 
-.PHONY: all build app run stop install uninstall test smoke test-install snapshots check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean fixtures check-fixtures fuzz linux-test linux-test-all
+.PHONY: all build app run stop install uninstall test smoke test-install test-scripts snapshots check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean fixtures check-fixtures fuzz linux-test linux-test-all
 
 all: app
 
@@ -50,6 +50,10 @@ smoke:
 test-install:
 	Tests/Installer/run.sh
 
+# The installer's helper scripts against stand-ins (scripts/restore-caps-lock.py and a fake hidutil).
+test-scripts:
+	/usr/bin/python3 -I Tests/Installer/test_restore_caps_lock.py
+
 # Renders every settings pane, onboarding step and the menu bar panel (light and dark) to
 # build/ui-snapshots, with contact sheets. Takes about two minutes.
 snapshots:
@@ -85,7 +89,7 @@ linux-test-all:
 	linux/tests/run-all.sh $(FILTER)
 
 # Everything automated. Run before every commit.
-check: test smoke check-fixtures linux-test
+check: test smoke test-scripts check-fixtures linux-test
 
 # Reports whether Swift Testing is usable yet (it needs Xcode).
 check-swift-testing:

@@ -86,7 +86,8 @@ private struct LoadErrorBanner: View {
   var body: some View {
     Notice(
       style: .error, title: "Slated can't read config.json",
-      message: "\(message)\nChanges you make here won't be saved until the file is fixed, so nothing in it is lost."
+      message:
+        "\(message)\nSettings are read-only until the file is fixed, so nothing in it is lost. Slated loads it as soon as it can read it."
     ) {
       HStack(spacing: 8) {
         Button("Reveal in Finder") { model.revealConfigurationFile() }

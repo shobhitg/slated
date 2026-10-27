@@ -4,10 +4,13 @@ import SlatedSystem
 import SlatedUI
 
 /// The real implementation of the UI's `AppServices`, backed by the engine.
-final class LiveServices: AppServices {
-  private let engine: Engine
+class LiveServices: AppServices {
+  let engine: Engine
 
   init(engine: Engine) { self.engine = engine }
+
+  /// What the clipboard switcher is given: `SwitcherServices`.
+  static func forClipboardSwitcher(_ engine: Engine) -> any AppServices { SwitcherServices(engine: engine) }
 
   var configurationFileURL: URL { engine.store.fileURL }
 
@@ -67,7 +70,7 @@ final class LiveServices: AppServices {
   func setHotstringsEnabled(_ enabled: Bool) {
     Log.record("ui.hotstrings_enabled", ["enabled": enabled])
     do { try engine.setHotstringsEnabled(enabled) } catch {
-      Log.error("config.save_failed", error.localizedDescription)
+      Log.error("config.save_failed", LogPrivacy.message(error.localizedDescription))
     }
   }
 
@@ -105,4 +108,12 @@ final class LiveServices: AppServices {
     Log.record("ui.automation_stop")
     engine.automation.stopAll(reason: "stopped from Slated")
   }
+}
+
+/// The clipboard switcher's services. It reads the configuration only to say what Return does (paste
+/// or copy), so it gets the one Slated is running, as the clipboard does: while config.json can't be
+/// read, that's the last one that could, not an error (which made it say "Paste" for a setting of
+/// copy only).
+final class SwitcherServices: LiveServices {
+  override func loadConfiguration() throws -> SlatedConfiguration { engine.configuration }
 }

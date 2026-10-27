@@ -1,0 +1,12 @@
+{
+  // Modal keys macOS won't register, so the bindings behind them can never run: one isn't a key at
+  // all, the other is another binding's shortcut.
+  "general": { "loadSlateConfigs": false },
+  "clipboard": { "shortcut": null },
+  "automation": { "stopShortcut": null },
+  "bindings": [
+    { "keys": "a", "modal": { "keys": "ctrl+alt+cmd+foo" }, "action": "push left" },
+    { "keys": "ctrl+alt+cmd+f12", "action": "push right" },
+    { "keys": "b", "modal": { "keys": "ctrl+alt+cmd+f12" }, "action": "push up" },
+  ],
+}
