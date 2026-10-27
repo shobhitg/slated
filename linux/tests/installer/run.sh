@@ -181,6 +181,19 @@ check "uninstall succeeds" test "$status" -eq 0
 check "the extension is gone" test ! -e "$INSTALLED"
 check "it's no longer marked enabled" test -z "$(grep -o "'$UUID'" <<<"$(enabled)")"
 check "uninstall keeps the config" test -f "$HOME/.config/slated/config.json"
+# Uninstalling while GNOME Shell isn't running Slated (from a text console): Slated's record of the
+# keyboard options it changed is still there, so the installer puts them back itself.
+install_sh "$GE_BIN" >/dev/null
+echo '{"addedCapsHyper": true, "removedOptions": ["caps:escape"]}' >"$HOME/.local/state/slated/hyper.json"
+"$STUBS/gsettings" set org.gnome.desktop.input-sources xkb-options "['compose:ralt', 'caps:hyper']"
+xkb_options() { python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("org.gnome.desktop.input-sources xkb-options", ""))' "$HOME/gsettings.json"; }
+out="$(install_sh "$GE_BIN" --uninstall)"
+check "an uninstall Slated couldn't clean up after takes caps:hyper out and restores caps:escape" test "$(xkb_options)" = "['compose:ralt', 'caps:escape']"
+check "...says so" contains "$out" "Put GNOME's keyboard options back"
+check "...and forgets the record" test ! -e "$HOME/.local/state/slated/hyper.json"
+out="$(install_sh "$GE_BIN" --uninstall)"
+check "...only once" bash -c '! grep -q "keyboard options back" <<<"$1"' _ "$out"
+check "...and the options stay as they were" test "$(xkb_options)" = "['compose:ralt', 'caps:escape']"
 install_sh "$GE_BIN" >/dev/null
 install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
 mkdir -p "$WORK/espanso/match"

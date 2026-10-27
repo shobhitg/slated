@@ -400,6 +400,37 @@ hyper_keyd() {
 
 # --- Uninstall ------------------------------------------------------------------------------------------
 
+# Turning Slated off puts GNOME's keyboard options back: it takes out the caps:hyper option it added
+# and restores the caps options it set aside, then deletes its record of them (hyper.json). When
+# GNOME Shell isn't running Slated (uninstalling from a text console or another desktop), that
+# record is still there: do the same from it, or Caps Lock would stay the Hyper key without Slated.
+restore_keyboard_options() {
+  local record="$STATE_DIR/hyper.json" current next
+  [ -f "$record" ] && have gsettings || return 0
+  current="$(gsettings get org.gnome.desktop.input-sources xkb-options 2>/dev/null)" || return 0
+  next="$(python3 -I - "$record" "$current" <<'PY'
+import ast, json, sys
+try:
+    record = json.load(open(sys.argv[1]))
+    raw = sys.argv[2].strip()
+    options = ast.literal_eval(raw[3:].strip() if raw.startswith("@as") else raw or "[]")
+except (OSError, ValueError, SyntaxError):
+    sys.exit(1)
+if not isinstance(record, dict) or not isinstance(options, list):
+    sys.exit(1)
+if record.get("addedCapsHyper") is True:
+    options = [o for o in options if o != "caps:hyper"]
+options += [o for o in record.get("removedOptions", []) if isinstance(o, str) and o not in options]
+print("[" + ", ".join(repr(o) for o in options) + "]")
+PY
+)" || return 0
+  if [ "$next" != "$current" ]; then
+    gsettings set org.gnome.desktop.input-sources xkb-options "$next" || return 0
+    ok "Put GNOME's keyboard options back as they were before Slated: $next"
+  fi
+  rm -f "$record"
+}
+
 uninstall() {
   bold "Uninstalling Slated"
   if [ -n "$UUID" ] && have gnome-extensions; then
@@ -413,6 +444,7 @@ uninstall() {
     ok "Removed $EXTENSIONS_DIR/$UUID"
   fi
   [ -n "$UUID" ] && set_enabled_in_gsettings remove >/dev/null 2>&1 || true
+  restore_keyboard_options
   note "GNOME Shell keeps running the old code until you log out and back in."
   if [ "$PURGE" = 1 ]; then
     local match=""
