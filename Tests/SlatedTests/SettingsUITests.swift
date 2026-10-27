@@ -418,7 +418,8 @@ let uiModelTests = Suite(
       "renaming a layout through another layout's name leaves that layout and its shortcuts alone",
       {
         try onMain {
-          let model = AppModel(services: PreviewServices(scenario: .empty))
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
           let mail = LayoutApp(app: "Mail", operations: [preset("maximize")])
           let xcode = LayoutApp(app: "Xcode", operations: [preset("left-half")])
           model.configuration.layouts = [Layout(name: "Work", apps: [mail]), Layout(name: "Work 2", apps: [xcode])]
@@ -431,6 +432,12 @@ let uiModelTests = Suite(
           for name in ["Work ", "Work", "Wor", "Workshop"] {
             guard case .slated(let selected) = model.selectedLayout else { throw TestFailure(description: "no layout") }
             try require(model.layoutBinding(selected)).wrappedValue.name = name
+            // Saved as if the user paused after each keystroke: on disk, Work 2's shortcut never
+            // applies Work.
+            model.saveNow()
+            let saved = Dictionary(uniqueKeysWithValues: services.configuration.bindings.map { ($0.id, $0.action) })
+            expectEqual(saved[workKey.id], .layout(name: "Work"))
+            expect(saved[work2Key.id] != .layout(name: "Work"), "after typing “\(name)”")
           }
           expectEqual(model.configuration.layouts.map(\.name), ["Work", "Workshop"])
           expectEqual(model.configuration.layouts.map { $0.apps.map(\.app) }, [["Mail"], ["Xcode"]])
