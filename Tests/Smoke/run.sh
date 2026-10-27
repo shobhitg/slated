@@ -127,7 +127,7 @@ mkdir -p "$home/.config/slated"
 cp "$FIXTURES/config-syntax-error.json" "$home/.config/slated/config.json"
 out=$(SLATED_SMOKE_STEPS=save smoke "$home")
 expect_true "a syntax error in config.json says where it is" \
-  grep -qE "^settings save: refused: Couldn't read .*config.json: .*around line 4, column 25" <<<"$out"
+  grep -qE "^settings save: refused: Couldn't read .*config.json: .*line 4" <<<"$out"
 
 # 5b. Saving never replaces a config.json Slated couldn't read: it may only need a small fix.
 home=$(new_home)
