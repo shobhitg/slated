@@ -20,6 +20,11 @@ jobs:
         run: swift run SlatedTests
       - name: Smoke test
         run: Tests/Smoke/run.sh
+      - name: Script tests
+        run: make test-scripts
+      # The Linux engine is checked against these; stale vectors would let the two engines drift.
+      - name: Golden vectors are up to date
+        run: make check-fixtures
       - name: Bundle app
         run: make app
 

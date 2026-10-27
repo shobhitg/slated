@@ -2,7 +2,8 @@
 
 Slated is a keyboard-first macOS productivity app: a modern successor to the Slate window manager
 (https://github.com/jigish/slate), plus the parts of Karabiner-Elements (Caps Lock → Hyper key) and
-Keyboard Maestro (hotstrings / text expansion) its author relies on, with a polished settings UI.
+Keyboard Maestro (hotstrings, clipboard history) its author relies on, AutoHotkey-style game
+automation, a notch island and a GNOME Shell port, with a polished settings UI.
 Primary user: the author, daily, for a few months before a public release. Open source, MIT.
 
 ## Ground rules

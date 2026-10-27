@@ -175,8 +175,32 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 16. ~~**Universal Clipboard.**~~ **Decided (2026-10-27): this Mac only.** Slated's temporary paste of a
     hotstring replacement or insert-text is written as this-Mac-only, so your other devices never get
     it. Real copies and clipboard history picks are left alone.
-17. **Importing a `~/.slate.js` with `slate.on` handlers.** "Import Slate Config into Slated…"
-    converts the bindings and, when none are skipped, stops loading the file. Event handlers
-    (`slate.on("appActivated", …)`) can't be converted but aren't listed as skipped, so they stop
-    with it, unannounced. (Your `~/.slate.js` has none.) Should the import keep loading a file that
-    has handlers, and say why? *Assumption:* unchanged; the importer is in SlatedScript.
+17. ~~**Importing a `~/.slate.js` with `slate.on` handlers.**~~ **Decided (2026-10-27):** anything
+    the importer can't convert (event handlers, JavaScript layouts, config values computed by a
+    function, callbacks whose result depends on state or the screen) is listed as skipped, and the
+    file keeps loading. Your `~/.slate.js` still imports completely.
+
+## End-to-end review (2026-10-27): decisions
+
+Made while fixing what the review found; each is easy to change if you disagree.
+
+- **Square displays count as portrait** for `by-orientation`, matching your `~/.slate.js`
+  (`width > height` means landscape).
+- **Unknown Hyper modifier names are an error** (`"cmmd"` used to vanish silently and drop ⌘).
+- **Display defaults on disk** are `{"target": "x", "count": 2}` or
+  `{"target": "x", "resolutions": [...]}`; the old `{"condition": {"count": {"_0": 2}}}` still reads.
+- **Unknown top-level sections of config.json are kept** when Slated saves, so a newer version's
+  settings survive an older one. Unknown fields inside known sections are still dropped.
+- **Expressions** may have at most 1,000 terms and 200 levels of nesting, instead of crashing.
+- **Settings is read-only while config.json can't be read**, and a save never overwrites a hand
+  edit Slated hasn't seen yet. A config.json symlink to a missing file is an error.
+- **Caps Lock mapping:** Slated adopts a Caps Lock → F18 mapping only if it made it itself, puts back
+  a Caps Lock mapping it replaced, and leaves other tools' mappings alone.
+- **Test runs** (`SLATED_HOME` set) never change the keyboard.
+- **Hotstrings:** Settings warns when one trigger fires while you type another (`sh` inside `;shrug`).
+- **GNOME:** keyd counts as the Hyper key only when systemd runs it and a keyd config maps Caps
+  Lock; automation shortcuts are ignored while the overview is open; sleep stops automations;
+  auto-repeats type nothing while you hold a modifier (nothing reaches the Alt+Tab switcher).
+
+Known small gaps left open: rare clipboard-search differences between the Mac and GNOME (ligatures
+such as "ﬃ"), and keyd started by hand (not through systemd) isn't noticed on GNOME.

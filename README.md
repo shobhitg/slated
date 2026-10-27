@@ -2,12 +2,12 @@
 
 <h1 align="center">Slated</h1>
 
-<p align="center"><b>Keyboard-first window management, a Hyper key, and text expansion for macOS, in one app.</b></p>
+<p align="center"><b>Keyboard-first window management, a Hyper key, text expansion, clipboard history and game automation for macOS and GNOME, in one app.</b></p>
 
 Slated is a modern successor to [Slate](https://github.com/jigish/slate), the endlessly configurable
 window manager that has been unmaintained since 2013. It keeps everything that made Slate great,
-runs your existing `~/.slate` or `~/.slate.js` unchanged, and adds the two things Slate users
-usually install other tools for:
+runs your existing `~/.slate` or `~/.slate.js` unchanged, and adds what Slate users usually install
+other tools for:
 
 - **Window management:** every Slate operation is supported:
   - move, resize, push, nudge, throw and corner;
@@ -17,6 +17,11 @@ usually install other tools for:
   extension needed.
 - **Hotstrings** (from Keyboard Maestro): type `;shrug` and get `¯\_(ツ)_/¯`. Placeholders like
   `{date}` and `{clipboard}`, per-app filters, and a choice of typing or pasting.
+- **Clipboard history** (like Keyboard Maestro's): ⇧⌘V opens a searchable switcher; pin items,
+  paste into the app you were in. Passwords that apps mark as secret are skipped.
+- **Game automation** (like AutoHotkey, without a scripting language): auto-click, hold a mouse
+  button or key, repeat while held or a set number of times, short macros with waits. A stop
+  shortcut and automatic stops (switching apps, sleep, a time limit) make sure nothing stays held.
 - **A notch island:** running automations (hover to stop them), a cheat sheet of your Hyper shortcuts
   while you hold Caps Lock, the active modal key, and a word on what each shortcut did. On displays
   without a notch it hangs from the top center.
@@ -104,6 +109,9 @@ Hotstrings and the Hyper key work by watching keystrokes system-wide.
 - Slated keeps only the last few characters in memory to match triggers.
 - It never logs, stores or sends what you type.
 - Like every such tool, it can't see keystrokes while macOS Secure Input is on (password fields).
+- Clipboard history stays on your Mac in a file only you can read
+  (`~/Library/Application Support/Slated/clipboard.json`). It skips what password managers and
+  browsers mark as secret, and the log notes only how long a copy was, never its text.
 
 ## Development
 
