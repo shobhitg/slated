@@ -555,6 +555,11 @@ private let typedInputs: [[String: SettingValue]] = [
   [
     "defaultToCurrentScreen": .string("maybe"), "orderScreensLeftToRight": .string("0"), "repeatOnHoldOps": .bool(true),
   ],
+  // undoMaxStackSize values Int() can't convert (they used to crash Slated on the next window move).
+  ["undoMaxStackSize": .number(.infinity)], ["undoMaxStackSize": .number(-.infinity)],
+  ["undoMaxStackSize": .number(.nan)], ["undoMaxStackSize": .string("inf")], ["undoMaxStackSize": .string("nan")],
+  ["undoMaxStackSize": .number(1e20)], ["undoMaxStackSize": .number(-1e20)], ["undoMaxStackSize": .number(-0.5)],
+  ["undoMaxStackSize": .number(1e15 + 0.5)], ["undoMaxStackSize": .string("12.9")],
 ]
 
 func settingsFixtures() -> FixtureFile {

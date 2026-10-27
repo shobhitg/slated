@@ -119,7 +119,23 @@ let numericEdgeTests = Suite(
         expectEqual(SettingValue.number(1e20).stringValue, "1e+20")
         expectEqual(SettingValue.number(42).stringValue, "42")
       }
-    )
+    ),
+    (
+      "undoMaxStackSize never traps on NaN, infinite or huge values",
+      {
+        // Each of these used to crash Slated on the next undoable window operation.
+        let slate = SlateConfigParser.parse("config undoMaxStackSize inf", homeDirectory: "/tmp") { _ in nil }
+        expectEqual(slate.settings.undoMaxStackSize, 1_000_000_000_000_000)
+        let json5 = try SlatedConfiguration.decode(from: Data(#"{"settings": {"undoMaxStackSize": Infinity}}"#.utf8))
+        expectEqual(json5.settings.undoMaxStackSize, 1_000_000_000_000_000)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(1e20)]).undoMaxStackSize, 1_000_000_000_000_000)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(-1e20)]).undoMaxStackSize, -1_000_000_000_000_000)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(.nan)]).undoMaxStackSize, 10)
+        expectEqual(SlateSettings(["undoMaxStackSize": .string("nan")]).undoMaxStackSize, 10)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(20.9)]).undoMaxStackSize, 20)
+        expectEqual(SlateSettings().undoMaxStackSize, 10)
+      }
+    ),
   ])
 
 /// Bugs found by the Linux port's golden-vector comparison.

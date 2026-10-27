@@ -112,7 +112,14 @@ public struct SlateSettings: Hashable, Sendable, Codable {
   }
   public var secondsBeforeRepeat: Double { double("secondsBeforeRepeat", default: 0.4) }
   public var secondsBetweenRepeat: Double { double("secondsBetweenRepeat", default: 0.1) }
-  public var undoMaxStackSize: Int { Int(double("undoMaxStackSize", default: 10)) }
+  /// Truncated to a whole number. `Int(_:)` traps on NaN, infinities and values beyond `Int`'s range,
+  /// which a config can hold (`config undoMaxStackSize inf`, JSON5 `Infinity`), so NaN reads as the
+  /// default and the size is capped at ±1e15.
+  public var undoMaxStackSize: Int {
+    let value = double("undoMaxStackSize", default: 10)
+    guard !value.isNaN else { return 10 }
+    return Int(min(max(value, -1e15), 1e15))
+  }
   public var focusCheckWidth: Double { double("focusCheckWidth", default: 100) }
   public var focusCheckWidthMax: Double { double("focusCheckWidthMax", default: 100) }
   public var focusPreferSameApp: Bool { bool("focusPreferSameApp", default: true) }

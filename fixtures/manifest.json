@@ -50,7 +50,7 @@
     "settings.json": {
       "accessors": 27,
       "fromSlate": 44,
-      "typed": 4
+      "typed": 14
     },
     "slate-config.json": {
       "parse": 34,
@@ -73,7 +73,7 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 16454,
+  "totalVectors": 16464,
   "vectors": {
     "automation.json": 103,
     "clipboard.json": 159,
@@ -84,7 +84,7 @@
     "keys.json": 375,
     "operations.json": 996,
     "screens.json": 2598,
-    "settings.json": 75,
+    "settings.json": 85,
     "slate-config.json": 56,
     "starter.json": 21,
     "tokenizer.json": 182
