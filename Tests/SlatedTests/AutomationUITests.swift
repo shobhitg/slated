@@ -452,6 +452,20 @@ let uiAutomationTests = Suite(
   "UIAutomation",
   [
     (
+      "the running card says how automations stop, in a sentence for every combination",
+      {
+        try onMain {
+          func hint(appSwitch: Bool, minutes: Double) -> String {
+            RunningAutomationsCard.stopHint(AutomationSettings(stopOnAppSwitch: appSwitch, maxRunMinutes: minutes))
+          }
+          expectEqual(hint(appSwitch: true, minutes: 15), "Stops when you switch apps or after 15 min")
+          expectEqual(hint(appSwitch: true, minutes: 0), "Stops when you switch apps")
+          expectEqual(hint(appSwitch: false, minutes: 15), "Stops after 15 min")
+          expectEqual(hint(appSwitch: false, minutes: 0), "Runs until you stop it")
+        }
+      }
+    ),
+    (
       "running automations refresh on change and lead back to their bindings",
       {
         try onMain {
