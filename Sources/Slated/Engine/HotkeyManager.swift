@@ -210,20 +210,28 @@ final class HotkeyManager {
     exitModal()
     activeModal = modalKeys
     for entry in modalEntries[modalKeys] ?? [] {
-      if let token = try? HotKeyCenter.shared.register(entry.keys, handler: { [weak self] phase in
-        guard phase == .pressed else { return }
-        self?.onFire?(entry)
-        entry.run()
-        if entry.modal?.toggle != true { self?.exitModal() }
-      }) {
-        modalTokens.append(token)
+      do {
+        modalTokens.append(
+          try HotKeyCenter.shared.register(entry.keys) { [weak self] phase in
+            guard phase == .pressed else { return }
+            self?.onFire?(entry)
+            entry.run()
+            if entry.modal?.toggle != true { self?.exitModal() }
+          })
+      } catch {
+        // Keys are only registered now, so this is where a key another binding or app owns fails.
+        statuses[entry.id] = .failed(error.description)
+        Log.record("modal.key_failed", level: .error, ["keys": entry.id, "reason": error.description])
       }
     }
     let escapeKey = KeyCombo(string: settings.string("modalEscapeKey", default: "esc")) ?? KeyCombo(key: "esc")
-    if let token = try? HotKeyCenter.shared.register(escapeKey, handler: { [weak self] phase in
-      if phase == .pressed { self?.exitModal() }
-    }) {
-      modalTokens.append(token)
+    do {
+      modalTokens.append(
+        try HotKeyCenter.shared.register(escapeKey) { [weak self] phase in
+          if phase == .pressed { self?.exitModal() }
+        })
+    } catch {
+      Log.record("modal.key_failed", level: .error, ["keys": escapeKey.string, "reason": error.description])
     }
     Log.record("modal.entered", ["keys": modalKeys.string])
     onModalChange?(modalKeys)
