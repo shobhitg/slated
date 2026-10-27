@@ -109,6 +109,8 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       "Slated is running" within a second, with no relaunch needed.
 - [ ] After a rebuild (`make run` again), the permission is still granted. This needs `make dev-cert`.
 - [ ] Turning the permission off makes the menu say so. Caps Lock works normally again.
+- [ ] With a mouse button binding (mouse4), turning the permission on or off updates its status in
+      Settings right away, without another edit.
 
 **Window management** (for each, try a regular app, Chrome or an Electron app, and Finder)
 - [ ] Halves, quarters, maximize, centers land exactly at the screen edges, below the menu bar and
