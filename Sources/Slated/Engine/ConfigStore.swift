@@ -78,7 +78,7 @@ final class ConfigStore {
       Log.record("config.loaded", Self.summary(configuration, path: fileURL.path))
     } catch {
       loadError = "Couldn't read \(fileURL.path): \(Self.describe(error))"
-      Log.error("config.error", loadError ?? "", ["path": fileURL.path])
+      Log.error("config.error", LogPrivacy.message(loadError ?? ""), ["path": fileURL.path])
     }
   }
 

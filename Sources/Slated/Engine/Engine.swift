@@ -158,7 +158,7 @@ final class Engine {
     do {
       try store.save(configuration)
     } catch {
-      Log.error("config.save_failed", error.localizedDescription, ["path": store.fileURL.path])
+      Log.error("config.save_failed", LogPrivacy.message(error.localizedDescription), ["path": store.fileURL.path])
       if error is ConfigChangedOnDisk {
         // The store loaded a hand edit instead. Settings ignores changes reported while its own save
         // runs, so tell it again once that save has returned: it then shows the edit.

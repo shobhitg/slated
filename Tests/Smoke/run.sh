@@ -182,6 +182,23 @@ out=$(smoke "$home")
 expect_output "an unknown operation is named in the error" "$out" "Unknown operation \"teleport\""
 expect_output "the error says where the problem is" "$out" "bindings[0]"
 
+# 6a. Errors that quote private text, in config.json, ~/.slate and ~/.slate.js: an insert-text that types
+#     words without quotes, and a JavaScript TypeError that quotes a value (a window title, say). The
+#     event log leaves the text out; Settings still shows the whole message.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-private-text.json" "$home/.config/slated/config.json"
+cp "$FIXTURES/slate-private-text" "$home/.slate"
+cp "$FIXTURES/slate-private-text.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS=save smoke "$home")
+expect_output "Settings shows an insert-text error whole" "$out" "write insert-text 'SECRETPHRASE my bank pin 4321'"
+expect_output "Settings shows a JavaScript error whole" "$out" "(In 'title()', 'title' is \"SECRETTITLE"
+expect_true "the event log has none of the private text" \
+  bash -c '! grep -q SECRET "$1"' _ "$home/Library/Logs/Slated/slated.log"
+expect_output "the log still says where the config.json error is" "$(log_of "$home")" \
+  'Invalid operation \"insert-text … (at bindings[0].action)'
+expect_output "the log still names the JavaScript error" "$(log_of "$home")" 'line 5: TypeError: title is not a function."'
+
 # 7. Two bindings on the same keys: the first wins, the second is flagged.
 home=$(new_home)
 mkdir -p "$home/.config/slated"

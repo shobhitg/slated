@@ -67,7 +67,7 @@ final class LiveServices: AppServices {
   func setHotstringsEnabled(_ enabled: Bool) {
     Log.record("ui.hotstrings_enabled", ["enabled": enabled])
     do { try engine.setHotstringsEnabled(enabled) } catch {
-      Log.error("config.save_failed", error.localizedDescription)
+      Log.error("config.save_failed", LogPrivacy.message(error.localizedDescription))
     }
   }
 

@@ -266,7 +266,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     Log.record("menu.toggle_hyper", ["enable": engine.configuration.keyboard.capsLock != .hyper])
     var config = engine.configuration
     config.keyboard.capsLock = config.keyboard.capsLock == .hyper ? .off : .hyper
-    do { try engine.save(config) } catch { Log.error("config.save_failed", error.localizedDescription) }
+    do {
+      try engine.save(config)
+    } catch {
+      Log.error("config.save_failed", LogPrivacy.message(error.localizedDescription))
+    }
   }
 
   @objc private func togglePause() {
@@ -290,7 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
         : "These need JavaScript and still run from your Slate file:\n" + summary.skipped.joined(separator: "\n")
     } catch {
-      Log.error("slate.import_failed", error.localizedDescription)
+      Log.error("slate.import_failed", LogPrivacy.message(error.localizedDescription))
       alert.messageText = "Couldn't import"
       alert.informativeText = error.localizedDescription
     }

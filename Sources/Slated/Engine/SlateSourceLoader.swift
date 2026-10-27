@@ -74,7 +74,9 @@ final class SlateSourceLoader {
       var data: [String: Any] = [
         "path": source.path, "kind": source.kind.rawValue, "loaded": source.loaded, "bindings": source.bindings.count,
       ]
-      if !source.diagnostics.isEmpty { data["diagnostics"] = source.diagnostics.map(\.description) }
+      if !source.diagnostics.isEmpty {
+        data["diagnostics"] = source.diagnostics.map { LogPrivacy.message($0.description) }
+      }
       Log.record("slate.loaded", level: errors.isEmpty ? .info : .error, data)
     }
   }
