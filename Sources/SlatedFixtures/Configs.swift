@@ -349,7 +349,60 @@ private let decodeCases: [(String, String)] = [
   ("settings not an object", #"{"settings": []}"#),
   // Top-level shapes
   ("top level array", "[]"), ("top level null", "null"), ("empty text", ""), ("whitespace only", "   \n"),
-  ("trailing garbage", "{} x"), ("unknown keys are ignored", #"{"foo": 1, "bar": {"baz": [true]}}"#),
+  ("trailing garbage", "{} x"),
+  // Top-level sections Slated doesn't know (a newer version's) are kept and written back, sorted in
+  // with the rest; unknown fields inside known sections are dropped.
+  ("unknown top-level sections are kept", #"{"foo": 1, "bar": {"baz": [true]}}"#),
+  (
+    "unknown sections of every JSON type",
+    #"""
+    {"n": null, "t": true, "f": false, "i": -42, "d": 2.5, "s": "a \"quote\" \\ / é \n\t\u0001 😀",
+     "a": [1, [2, []], {}], "o": {"z": 1, "a": {"nested": [null, -0.0, 1e-7]}}, "e": {}, "ea": []}
+    """#
+  ),
+  (
+    "unknown sections sort in with the known ones",
+    #"{"zzz": 1, "aaa": 2, "Bindings": 3, "general2": 4, "_x": 5, "": 6, "é": 7, "10": 8, "9": 9, "B": 10}"#
+  ),
+  (
+    "unknown section numbers stay exact",
+    #"""
+    {"future": {"max": 9223372036854775807, "min": -9223372036854775808, "over": 9223372036854775808,
+                "safe": 9007199254740993, "ms": 1730000000000, "tiny": 5e-324, "big": 1.7976931348623157e308,
+                "float": 0.1, "exp": 1e3, "fraction": 1.5e1, "third": 0.3333333333333333}}
+    """#
+  ),
+  (
+    "unknown fields inside known sections are dropped",
+    #"""
+    {"general": {"launchAtLogin": true, "future": 1}, "keyboard": {"capsLock": "hyper", "later": [1]},
+     "island": {"newThing": true}, "clipboard": {"x": 1}, "automation": {"y": 2},
+     "bindings": [{"id": "E0000000-0000-4000-8000-0000000000AB", "keys": "a", "action": "push left", "extra": 1}],
+     "hotstrings": [{"id": "E0000000-0000-4000-8000-0000000000AC", "trigger": "x", "replacement": "y", "extra": 1}],
+     "layouts": [{"name": "l", "extra": 1, "apps": [{"app": "A", "extra": 2}]}],
+     "defaults": [{"target": "l", "count": 1, "extra": 3}]}
+    """#
+  ),
+  (
+    "unknown sections named like built-in properties",
+    #"{"__proto__": {"a": 1}, "constructor": 2, "toString": [3], "hasOwnProperty": null}"#
+  ),
+  ("unknown section with duplicate keys", #"{"future": {"a": 1, "a": 2}, "later": 1, "later": [2]}"#),
+  (
+    "unknown section in JSON5",
+    #"{future: {unquoted: 'single', hex: 0x1F, list: [1, 2,], plus: +1, lead: .5, trail: 5.,}, }"#
+  ),
+  ("unknown section keys that need escaping", #"{"a\"b": 1, "tab\tkey": 2, "/": 3, "\\": 4}"#),
+  ("unknown section with infinity", #"{"future": {"x": Infinity}}"#),
+  ("unknown section with NaN in a list", #"{"future": [1, NaN]}"#),
+  ("unknown section with a number too big for a Double", #"{"future": {"x": [1e400]}}"#),
+  ("unknown section after a broken known section", #"{"version": "1", "future": 1e400}"#),
+  ("broken known section after an unknown one", #"{"future": 1, "keyboard": {"hyperModifiers": ["bogus"]}}"#),
+  (
+    "unknown section nested deeply",
+    #"{"future": "# + String(repeating: "[", count: 30) + #"{"deep": [1]}"# + String(repeating: "]", count: 30) + "}"
+  ),
+  ("only unknown sections", #"{"later": {"enabled": true}}"#),
   ("duplicate keys", #"{"version": 1, "version": 2}"#), ("version as text", #"{"version": "1"}"#),
   ("version 2", #"{"version": 2}"#), ("version as float", #"{"version": 1.0}"#), ("version 1e3", #"{"version": 1e3}"#),
   ("version 1.5", #"{"version": 1.5}"#), ("version null", #"{"version": null}"#),
@@ -503,6 +556,7 @@ private let numberTokenCases: [(String, String)] = numberTokens.flatMap { token 
     ),
     ("JSON5 number \(token) as an Int", #"{"version": \#(token)}"#),
     ("JSON5 number \(token) as a Double", #"{"settings": {"x": \#(token)}}"#),
+    ("JSON5 number \(token) in an unknown section", #"{"future": {"x": \#(token)}}"#),
   ]
 }
 

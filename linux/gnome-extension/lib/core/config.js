@@ -659,9 +659,22 @@ function hotstring(v, path) {
   return out;
 }
 
+/** config.json's top-level sections; others are kept as read (Swift's unknownSections). */
+const SECTIONS = new Set(['version', 'general', 'settings', 'keyboard', 'bindings', 'layouts', 'defaults', 'hotstrings', 'clipboard', 'automation', 'island']);
+
+/** Any JSON value as Swift's JSONValue reads it: whole numbers that fit in an Int stay exact, other numbers are Doubles. */
+function jsonValue(v, path) {
+  if (v === null || typeof v === 'boolean' || typeof v === 'string') return v;
+  if (Array.isArray(v)) return v.map((item, k) => jsonValue(item, [...path, k]));
+  if (isNumberValue(v)) return asInt(v) ?? double(v, path);
+  const out = {};
+  for (const key of Object.keys(v)) put(out, key, jsonValue(v[key], [...path, key]));
+  return out;
+}
+
 function configuration(v, path) {
   const c = new Keyed(v, path);
-  return {
+  const out = {
     version: c.optional('version', int) ?? CURRENT_VERSION,
     general: c.optional('general', general) ?? defaultGeneral(),
     settings: c.optional('settings', settings) ?? {},
@@ -674,6 +687,11 @@ function configuration(v, path) {
     automation: c.optional('automation', automation) ?? defaultAutomation(),
     island: c.optional('island', island) ?? defaultIsland(),
   };
+  // Sections a newer Slated wrote stay at the top level, so they're written back, sorted in with the rest.
+  for (const key of Object.keys(c.value)) {
+    if (!SECTIONS.has(key)) put(out, key, jsonValue(c.value[key], c.at(key)));
+  }
+  return out;
 }
 
 /**

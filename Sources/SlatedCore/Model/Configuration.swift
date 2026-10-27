@@ -19,6 +19,9 @@ public struct SlatedConfiguration: Hashable, Sendable {
   public var clipboard: ClipboardSettings
   public var automation: AutomationSettings
   public var island: IslandSettings
+  /// Top-level sections this version doesn't know, such as ones a newer Slated wrote. They're written
+  /// back as read, so saving doesn't drop them. (Unknown fields inside known sections aren't kept.)
+  public var unknownSections: [String: JSONValue]
 
   public init(
     version: Int = SlatedConfiguration.currentVersion,
@@ -31,7 +34,8 @@ public struct SlatedConfiguration: Hashable, Sendable {
     hotstrings: [Hotstring] = [],
     clipboard: ClipboardSettings = .init(),
     automation: AutomationSettings = .init(),
-    island: IslandSettings = .init()
+    island: IslandSettings = .init(),
+    unknownSections: [String: JSONValue] = [:]
   ) {
     self.version = version
     self.general = general
@@ -44,6 +48,7 @@ public struct SlatedConfiguration: Hashable, Sendable {
     self.clipboard = clipboard
     self.automation = automation
     self.island = island
+    self.unknownSections = unknownSections
   }
 }
 
@@ -66,6 +71,10 @@ extension SlatedConfiguration: Codable {
       clipboard: try c.decodeIfPresent(ClipboardSettings.self, forKey: .clipboard) ?? .init(),
       automation: try c.decodeIfPresent(AutomationSettings.self, forKey: .automation) ?? .init(),
       island: try c.decodeIfPresent(IslandSettings.self, forKey: .island) ?? .init())
+    let all = try decoder.container(keyedBy: AnyKey.self)
+    for key in all.allKeys where Key(stringValue: key.stringValue) == nil {
+      unknownSections[key.stringValue] = try all.decode(JSONValue.self, forKey: key)
+    }
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -81,6 +90,11 @@ extension SlatedConfiguration: Codable {
     try c.encode(clipboard, forKey: .clipboard)
     try c.encode(automation, forKey: .automation)
     try c.encode(island, forKey: .island)
+    // The encoder sorts them in with the rest. A known section wins over an unknown one of its name.
+    var others = encoder.container(keyedBy: AnyKey.self)
+    for (key, value) in unknownSections where Key(stringValue: key) == nil {
+      try others.encode(value, forKey: AnyKey(key))
+    }
   }
 
   /// Decodes JSON, allowing JSON5 conveniences (comments, trailing commas) in hand-edited files.

@@ -9,6 +9,10 @@ Slated reads two kinds of configuration and uses both at once:
 
 If both define the same shortcut, Slated's own binding wins and the other is marked as a duplicate.
 
+**Sections Slated doesn't know**, such as ones a newer version added, are kept as they are when
+Slated saves `config.json`. Unknown fields inside a section it does know (say, a typo in `general`)
+are ignored, and the next save drops them.
+
 **Defaults.** On first launch Slated creates `config.json`:
 - If you have a Slate config, Slated starts with no bindings of its own and your Slate file is the
   default.

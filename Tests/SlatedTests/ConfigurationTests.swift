@@ -282,4 +282,41 @@ let crossPlatformBugTests = Suite(
         expectEqual(meh.keyboard.hyperModifiers, .meh)
       }
     ),
+    (
+      "top-level sections from a newer Slated survive a save; unknown fields inside known sections don't",
+      {
+        let input = #"""
+          {"zzz": {"b": [1, 2.5, "x", null, true, {}], "a": 9007199254740993}, "aaa": "first",
+           "general": {"launchAtLogin": true, "someday": 1}}
+          """#
+        let config = try SlatedConfiguration.decode(from: Data(input.utf8))
+        expectEqual(
+          config.unknownSections,
+          [
+            "aaa": .string("first"),
+            "zzz": .object([
+              "a": .int(9_007_199_254_740_993),
+              "b": .array([.int(1), .double(2.5), .string("x"), .null, .bool(true), .object([:])]),
+            ]),
+          ])
+        let text = String(decoding: try config.encoded(), as: UTF8.self)
+        let topLevel = text.split(separator: "\n").filter { $0.hasPrefix("  \"") }.map { $0.split(separator: "\"")[1] }
+        expectEqual(
+          topLevel,
+          [
+            "aaa", "automation", "bindings", "clipboard", "defaults", "general", "hotstrings", "island", "keyboard",
+            "layouts", "settings", "version", "zzz",
+          ])
+        expect(text.contains(#""a" : 9007199254740993,"#), text)
+        expect(!text.contains("someday"), text)
+        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        // Known sections win over unknown ones of the same name, and the initializer doesn't need them.
+        var edited = SlatedConfiguration(bindings: [])
+        expectEqual(edited.unknownSections, [:])
+        edited.unknownSections = ["bindings": .string("not a list"), "later": .null]
+        let again = try SlatedConfiguration.decode(from: edited.encoded())
+        expectEqual(again.bindings, [])
+        expectEqual(again.unknownSections, ["later": .null])
+      }
+    ),
   ])

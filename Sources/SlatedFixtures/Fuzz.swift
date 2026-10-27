@@ -844,6 +844,8 @@ private func randomConfigJSON(_ rng: inout FuzzRNG) -> String {
       "\"island\": {\"cheatSheetDelay\": \(rng.pick(["0.5", "1", "1.25", "0"]))\(rng.chance(0.5) ? ", \"enabled\": false" : "")}"
     )
   }
+  // A section from a newer Slated: kept and written back as read.
+  if rng.chance(0.2) { top.append("\(J.quote(rng.pick(["future", "aaa", "Bindings", "zzz"]))): \(randomJSONValue(&rng, depth: 0))") }
   return "{" + top.joined(separator: ", ") + "}"
 }
 
