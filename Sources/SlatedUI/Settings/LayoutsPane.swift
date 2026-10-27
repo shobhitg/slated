@@ -328,7 +328,10 @@ private struct LayoutDetail: View {
 
   /// Makes the typed name the layout's name when it's usable (see `AppModel.typeLayoutName`).
   private func commitName(_ name: String) {
-    model.typeLayoutName(name, renaming: layout.name, at: index, arrivals: &nameArrivals)
+    let after = model.typeLayoutName(name, renaming: layout.name, at: index, arrivals: &nameArrivals)
+    // Refused although the name is fine (Settings is read-only while config.json can't be read): show
+    // the name the layout keeps, as fields bound to the model do.
+    if after != name, model.layoutNameProblem(name, renaming: after, at: index) == nil { nameDraft = after }
   }
 
   private func appBinding(_ index: Int) -> Binding<LayoutApp> {

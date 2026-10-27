@@ -271,6 +271,31 @@ let uiHostingContractTests = Suite(
       }
     ),
     (
+      "a layout name typed while config.json can't be read goes back to the layout's name",
+      {
+        try onMain {
+          let services = BreakableServices()
+          let model = AppModel(services: services)  // the preview's one Slated layout, “Coding”
+          model.selectedLayout = .slated(name: "Coding", index: 0)
+          let window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
+          services.broken = true
+          services.fileChanged()
+          spin()
+          let field = try require(textInput(in: try require(window.contentView)) as? NSTextField)
+          window.makeFirstResponder(field)
+          spin()
+          let editor = try require(window.firstResponder as? NSTextView)
+          editor.selectAll(nil)
+          editor.insertText("Deep Work", replacementRange: NSRange(location: NSNotFound, length: 0))
+          spin()
+          // Refused (Settings is read-only meanwhile), and the field says so, as fields bound to the model do.
+          expectEqual(model.configuration.layouts.map(\.name), ["Coding"])
+          expectEqual(field.stringValue, "Coding")
+          window.close()
+        }
+      }
+    ),
+    (
       "a shortcut behind a modal key can be a plain key in the editor",
       {
         try onMain {

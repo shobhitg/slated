@@ -12,7 +12,7 @@ private struct Unreadable: LocalizedError {
 
 /// The sample services, with a config.json that can break and be fixed. Like the app, it refuses saves
 /// meanwhile and tells the UI when the file changes.
-@MainActor private final class BreakableServices: AppServices {
+@MainActor final class BreakableServices: AppServices {
   let base = PreviewServices()
   var broken = false
   private var handlers: [@MainActor () -> Void] = []
