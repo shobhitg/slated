@@ -47,6 +47,20 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
   var events: [String] = []
 }
 
+/// Storage for a recorder's `combo` binding.
+@MainActor private final class ComboBox {
+  var combo = KeyCombo(key: "")
+  var binding: Binding<KeyCombo> { Binding(get: { self.combo }, set: { self.combo = $0 }) }
+}
+
+/// A key press as AppKit delivers it to the app (and so to the recorder's local event monitor).
+@MainActor private func keyDown(_ keyCode: UInt16, in window: NSWindow, _ flags: NSEvent.ModifierFlags = []) -> NSEvent?
+{
+  NSEvent.keyEvent(
+    with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: window.windowNumber,
+    context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: keyCode)
+}
+
 private let probeNotification = Notification.Name("SlatedTests.hostingProbe")
 
 private struct FocusProbe: View {
@@ -141,6 +155,29 @@ let uiHostingContractTests = Suite(
           }
           expectEqual(model.configuration.layouts.map(\.name), ["Workshop", "Home"])
           expect(model.selectedLayout == .slated(name: "Workshop"))
+        }
+      }
+    ),
+    (
+      "the shortcut recorder reads Caps Lock as the Hyper key's modifiers, Meh included",
+      {
+        try onMain {
+          for hyperModifiers in [Modifiers.hyper, .meh] {
+            let services = PreviewServices()
+            let model = AppModel(services: services)
+            model.configuration.keyboard.hyperModifiers = hyperModifiers
+            let box = ComboBox()
+            let window = hostingWindow(
+              ShortcutRecorder(combo: box.binding, autoStart: true).environment(model).frame(width: 420))
+            expect(services.hotkeysSuspended, "recording suspends Slated's hotkeys")
+            NSApp.sendEvent(try require(keyDown(KeyEventMapping.hyperKeyCode, in: window)))  // Caps Lock, as F18
+            NSApp.sendEvent(try require(keyDown(123, in: window)))  // ←
+            spin()
+            // What the Hyper key will send for Caps Lock + ←, so the shortcut fires.
+            expectEqual(box.combo, KeyCombo(key: "left", modifiers: hyperModifiers))
+            expect(!services.hotkeysSuspended, "recording stops once a shortcut is accepted")
+            window.close()
+          }
         }
       }
     ),
