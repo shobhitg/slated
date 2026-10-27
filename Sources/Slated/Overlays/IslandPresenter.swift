@@ -205,7 +205,7 @@ final class IslandPresenter {
     let panel = IslandPanel(
       contentRect: NSRect(origin: .zero, size: Self.panelSize), styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered, defer: false)
-    let host = IslandHostingView(rootView: SlatedUI.makeIslandView(model: model))
+    let host = IslandHostingView(rootView: AnyView(SlatedUI.makeIslandView(model: model)))
     // The panel keeps its size; the island draws itself inside it.
     host.sizingOptions = []
     panel.contentView = host
@@ -305,8 +305,9 @@ private final class IslandPanel: NSPanel {
   override var canBecomeMain: Bool { false }
 }
 
-/// Clicks work on the first try, without activating Slated first.
-private final class IslandHostingView<Content: View>: NSHostingView<Content> {
+/// Clicks work on the first try, without activating Slated first. Not generic: a private generic
+/// NSHostingView subclass crashes the Swift 6.2 optimizer in release builds.
+private final class IslandHostingView: NSHostingView<AnyView> {
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 

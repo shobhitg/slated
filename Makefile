@@ -89,7 +89,11 @@ linux-test-all:
 	linux/tests/run-all.sh $(FILTER)
 
 # Everything automated. Run before every commit.
-check: test smoke test-scripts check-fixtures linux-test
+check: test smoke test-scripts check-fixtures linux-test release-build
+
+# The installer builds with -O; the optimizer has crashed on code debug builds accept.
+release-build:
+	swift build -c release --product $(APP_NAME)
 
 # Reports whether Swift Testing is usable yet (it needs Xcode).
 check-swift-testing:
