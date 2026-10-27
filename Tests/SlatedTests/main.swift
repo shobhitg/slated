@@ -40,6 +40,7 @@ let suites: [Suite] = [
   hidRemapperTests,
   keyboardTapTests,
   logRedactionTests,
+  macOSContractTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first
