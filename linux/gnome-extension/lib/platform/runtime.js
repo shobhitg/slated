@@ -256,6 +256,7 @@ export class SlatedRuntime {
       this._hyperManager = new HyperManager({
         log: this._log,
         statePath: Paths.hyperStatePath(),
+        keydConfigPath: Paths.keydConfigPath(),
         onDetected: () => this.scheduleApply('keyd detected'),
       });
       this._hyperManager.detect();

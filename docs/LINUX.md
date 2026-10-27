@@ -63,6 +63,12 @@ once. Until keyd is set up, Slated uses GNOME's own keyboard option (`caps:hyper
 itself and removes again when you turn the Hyper key off. The Keyboard page shows which method is
 active, and `linux/install.sh` reminds you while keyd isn't set up.
 
+Slated uses keyd only while keyd runs (systemd says `keyd` is active; without systemd, keyd's socket
+is there) and one of its configs maps
+Caps Lock: Slated's own `/etc/keyd/slated.conf`, or a `capslock =` line in the `[main]` section of
+another `/etc/keyd/*.conf`. A keyd that only maps a mouse's side buttons leaves Caps Lock to GNOME's
+option. Slated notices keyd starting or stopping, and its configs changing, without logging out.
+
 | | GNOME's keyboard option (xkb) | keyd |
 |---|---|---|
 | Setup | Nothing to install | `linux/install.sh --hyper-keyd` (installs `/etc/keyd/slated.conf`; asks for sudo) |
@@ -312,7 +318,7 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | Settings says "A newer build is installed" | GNOME Shell is still running the previous build. Log out and back in. |
 | Settings says "This GNOME version isn't supported yet" | You're on GNOME 50 or later (see [Limitations](#limitations)). |
 | A shortcut says "Couldn't register" | GNOME or another extension already uses those keys. Pick other keys, or free them in GNOME Settings → Keyboard → Keyboard Shortcuts. |
-| Caps Lock isn't Hyper | Settings → Keyboard shows which method is active and whether it works. With keyd, check `sudo systemctl status keyd`. |
+| Caps Lock isn't Hyper | Settings → Keyboard shows which method is active and whether it works. With keyd, check `sudo systemctl status keyd`, and that a config in `/etc/keyd` maps `capslock` in its `[main]` section. |
 | Hotstrings don't expand | Settings → Hotstrings shows espanso's status. Check `espanso status` and `espanso log`. |
 | Editing `config.json` by hand changes nothing | The file must be valid JSON (comments and trailing commas are fine). Settings → Overview shows what's wrong, and `scripts/logs.py --errors` shows what the extension saw. |
 | Settings says it can't read `config.json` | The message names the spot, such as `bindings[2].id`. Ids must be UUIDs: delete a bad `"id"` line and Slated makes a new one. Settings won't save until the file reads, so nothing in it is lost. Operations from a newer Slated for Mac than the engine knows also stop it here. |

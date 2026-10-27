@@ -363,7 +363,12 @@ hyper_keyd() {
     confirm "Remove $KEYD_CONF (uses sudo)?" || return 0
     sudo rm -f "$KEYD_CONF"
     have keyd && sudo keyd reload >/dev/null 2>&1 || true
-    ok "Removed $KEYD_CONF; Caps Lock is back to normal unless another keyd config maps it."
+    if config_wants_hyper; then
+      # The extension notices the config is gone and sets GNOME's caps:hyper option instead.
+      ok "Removed $KEYD_CONF; Slated makes Caps Lock the Hyper key with GNOME's own option again."
+    else
+      ok "Removed $KEYD_CONF; Caps Lock is back to normal unless another keyd config maps it."
+    fi
     return 0
   fi
   local config

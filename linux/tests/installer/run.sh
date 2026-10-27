@@ -169,7 +169,8 @@ check "with keyd installed but not set up, an install recommends --hyper-keyd" c
 install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
 out="$(install_sh "$GE_BIN:$KEYD_BIN")"
 check "once keyd is set up, an install says so" contains "$out" "keyd makes Caps Lock the Hyper key"
-install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --remove --yes >/dev/null
+out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --remove --yes)"
+check "--remove with Hyper on says GNOME's option takes over, not that Caps Lock is back to normal" contains "$out" "with GNOME's own option again"
 echo '{ "keyboard": { "capsLock": "off" } }' >"$HOME/.config/slated/config.json"
 out="$(install_sh "$GE_BIN:$KEYD_BIN")"
 check "with Caps Lock as Hyper off, no keyd hint" bash -c '! grep -q keyd <<<"$1"' _ "$out"
