@@ -46,6 +46,9 @@ public final class SlateScriptEngine {
   var recordedExceptions = 0
   /// The window JavaScript is running for (`slate.window()`); nil entries mean "no window".
   var windowContext: [WindowHandle?] = []
+  /// Told the name of every native function the script calls (the importer watches for reads of the
+  /// app name and window title).
+  var nativeObserver: ((String) -> Void)?
 
   // MARK: Never reset, so IDs from an earlier load can't be confused with new ones
 

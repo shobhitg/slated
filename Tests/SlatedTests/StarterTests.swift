@@ -199,9 +199,53 @@ func importerKeepsRepeat() throws {
     ])
 }
 
+/// A bound function converts only when it does the same on every pretend Mac of an orientation:
+/// called twice, with another app and window, and with other display counts and sizes.
+@MainActor
+func importerProbesVariations() throws {
+  let script = """
+    var big = false;
+    slate.bind("1:ctrl,alt", function (win) { big = !big; win.doOperation(big ? "push up" : "push down"); });
+    slate.bind("2:ctrl,alt", function (win) {
+      win.doOperation(win.app().name() === "Terminal" ? "push left" : "push right");
+    });
+    slate.bind("3:ctrl,alt", function (win) { win.doOperation(slate.screenCount() > 1 ? "throw next" : "push up"); });
+    slate.bind("4:ctrl,alt", function (win) {
+      var r = win.screen().visibleRect();
+      win.doOperation("move", {"x": r.x, "y": r.y, "width": r.width / 2, "height": r.height});
+    });
+    slate.bind("5:ctrl,alt", function (win) {
+      win.doOperation(win.rect().width >= win.screen().visibleRect().width ? "push down" : "push up");
+    });
+    slate.bind("6:ctrl,alt", function (win) { win.doOperation(win.title() === "Inbox" ? "push left" : "push up"); });
+    slate.bind("7:ctrl,alt", function (win) {
+      var r = slate.screen().rect();
+      win.doOperation(r.width > r.height ? "push left" : "push up");
+    });
+    """
+  let result = SlateImporter.importJavaScript(path: "/logic.js", readFile: { _ in script })
+  expectEqual(
+    result.skipped.map { "\($0.keystroke): \($0.reason)" },
+    [
+      "1:ctrl,alt: does something different each time it runs",
+      "2:ctrl,alt: depends on the focused app or window title",
+      "3:ctrl,alt: depends on how many displays there are, or their sizes",
+      "4:ctrl,alt: depends on how many displays there are, or their sizes",
+      "5:ctrl,alt: depends on the focused window's position or size",
+      "6:ctrl,alt: depends on the focused app or window title",
+    ])
+  expectEqual(
+    result.bindings.map(\.action),
+    [
+      .byOrientation(
+        landscape: .push(direction: .left, style: .none, screen: nil), portrait: .push(direction: .up, style: .none, screen: nil))
+    ])
+}
+
 let importerTests = Suite(
   "SlateImporter",
   [
+    ("probes functions on several pretend Macs", { try MainActor.assumeIsolated { try importerProbesVariations() } }),
     ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } }),
     ("keeps whether each binding repeats", { try MainActor.assumeIsolated { try importerKeepsRepeat() } }),
     (

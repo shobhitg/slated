@@ -67,6 +67,7 @@ extension SlateScriptEngine {
     let block: @convention(block) () -> JSValue? = { [weak self] in
       guard let self, let context = self.context else { return nil }
       let arguments = Arguments(values: JSContext.currentArguments() as? [JSValue] ?? [], context: context)
+      self.nativeObserver?(name)
       self.nativeDepth += 1
       let value = body(self, arguments)
       self.nativeDepth -= 1
