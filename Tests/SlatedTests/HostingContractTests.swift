@@ -184,6 +184,52 @@ let uiHostingContractTests = Suite(
       }
     ),
     (
+      "the hotstring Try It field takes the hotkeys again when you come back to it, before you type",
+      {
+        try onMain {
+          // A trigger that the first keystroke completes would otherwise expand for real in the field.
+          let services = PreviewServices()
+          let model = AppModel(services: services)
+          let hotstring = Hotstring(trigger: "x", replacement: "expanded")
+          let window = hostingWindow(TryItField(hotstring: hotstring).environment(model).frame(width: 420))
+          let field = try require(textInput(in: try require(window.contentView)))
+          window.makeFirstResponder(field)
+          spin()
+          expect(services.hotkeysSuspended, "focusing Try It suspends the real engine")
+
+          // Switching to another app and back: the field still has focus.
+          NotificationCenter.default.post(name: NSApplication.didResignActiveNotification, object: NSApp)
+          NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+          spin()
+          expect(!services.hotkeysSuspended, "switching apps resumes the engine")
+          NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+          NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: window)
+          spin()
+          expect(services.hotkeysSuspended, "back in Slated, Try It suspends the engine again")
+
+          // Closing Settings, another window coming forward meanwhile, then reopening Settings.
+          window.close()
+          spin()
+          expect(!services.hotkeysSuspended, "closing Settings resumes the engine")
+          let other = NSWindow(
+            contentRect: NSRect(x: -20_000, y: -20_000, width: 100, height: 100), styleMask: [.titled],
+            backing: .buffered, defer: true)
+          other.isReleasedWhenClosed = false
+          NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: other)
+          spin()
+          expect(!services.hotkeysSuspended, "another window isn't Settings")
+          window.makeKeyAndOrderFront(nil)
+          NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: window)
+          spin()
+          expect(window.firstResponder is NSText, "Try It still has the focus")
+          expect(services.hotkeysSuspended, "reopening Settings at Try It suspends the engine again")
+          window.close()
+          spin()
+          expect(!services.hotkeysSuspended)
+        }
+      }
+    ),
+    (
       "typing a layout's name keeps the name field focused",
       {
         try onMain {
