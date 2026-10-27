@@ -26,7 +26,12 @@ public enum SlateImporter {
     var bindings: [HotkeyBinding] = []
     var skipped: [(String, String)] = []
 
-    for binding in loaded.bindings {
+    for (index, binding) in loaded.bindings.enumerated() {
+      // An explicit `repeat` argument carries over. Without one, a static operation keeps following
+      // `repeatOnHoldOps`, and a bound function keeps Slate's rule: no repeat unless asked
+      // (`binding.repeats` already resolved that), whatever operation it turns into.
+      let pending = engine.pendingBindings.indices.contains(index) ? engine.pendingBindings[index] : nil
+      let repeats = binding.target.action == nil ? binding.repeats : pending?.explicitRepeat
       let action: Action
       switch binding.target {
       case .action(let staticAction):
@@ -41,7 +46,7 @@ public enum SlateImporter {
         action = landscape[0] == portrait[0] ? landscape[0] : .byOrientation(landscape: landscape[0], portrait: portrait[0])
       }
       bindings.append(
-        HotkeyBinding(name: nil, keys: binding.keys, modal: binding.modal, action: action, repeats: nil))
+        HotkeyBinding(name: nil, keys: binding.keys, modal: binding.modal, action: action, repeats: repeats))
     }
 
     // The app turns the Slate files off after an import that skipped nothing, so everything else the

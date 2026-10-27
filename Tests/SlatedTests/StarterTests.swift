@@ -177,10 +177,33 @@ func importerReportsWhatItLeavesBehind() throws {
   expect(plain.skipped.isEmpty, "\(plain.skipped)")
 }
 
+/// Imported bindings repeat while held as the script's do: an explicit `repeat` argument carries over,
+/// a static operation keeps following `repeatOnHoldOps`, and a bound function doesn't repeat unless
+/// asked (Slate's rule), whatever operation it turns into.
+@MainActor
+func importerKeepsRepeat() throws {
+  let script = """
+    slate.bind("right:ctrl,alt", "nudge +10% +0", false);
+    slate.bind("up:ctrl,alt", "push up", true);
+    slate.bind("left:ctrl,alt", "nudge -10% +0");
+    slate.bind("down:ctrl,alt", function (win) { win.doOperation("resize +10% +0"); });
+    slate.bind("pageup:ctrl,alt", function (win) { win.doOperation("push up"); }, true);
+    """
+  let result = SlateImporter.importJavaScript(path: "/repeat.js", readFile: { _ in script })
+  expectEqual(result.skipped.map(\.keystroke), [])
+  expectEqual(
+    result.bindings.map { "\($0.keys.string) \($0.repeats.map(String.init) ?? "setting")" },
+    [
+      "ctrl+alt+right false", "ctrl+alt+up true", "ctrl+alt+left setting", "ctrl+alt+down false",
+      "ctrl+alt+pageUp true",
+    ])
+}
+
 let importerTests = Suite(
   "SlateImporter",
   [
     ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } }),
+    ("keeps whether each binding repeats", { try MainActor.assumeIsolated { try importerKeepsRepeat() } }),
     (
       "lists event handlers, JavaScript layouts and defaults as skipped",
       { try MainActor.assumeIsolated { try importerReportsWhatItLeavesBehind() } }
