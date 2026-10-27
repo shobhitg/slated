@@ -48,6 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let onboarded = UserDefaults.standard.bool(forKey: Self.onboardingDoneKey)
     if !isTestRun && (!onboarded || !Permissions.isAccessibilityTrusted) {
       showOnboarding()
+      // Ask right away: macOS shows its own "would like to control this computer" prompt with an
+      // Open System Settings button; onboarding notices the grant within a second.
+      if !Permissions.isAccessibilityTrusted {
+        _ = Permissions.requestAccessibility()
+        Log.record("permission.prompted")
+      }
     }
   }
 
@@ -110,6 +116,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     NSApp.setActivationPolicy(.regular)
     NSApp.activate()
     window.makeKeyAndOrderFront(nil)
+    // macOS 14's cooperative activation may keep an app launched from a script (./install.sh) behind
+    // the terminal; setup must not hide there.
+    window.orderFrontRegardless()
     Log.record("ui.onboarding_shown", ["accessibility": Permissions.isAccessibilityTrusted])
   }
 

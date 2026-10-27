@@ -210,7 +210,7 @@ ok "Running: session $SESSION (pid $PID), signed by \"$SIGNING\""
 if [ "$TRUSTED" = "True" ]; then
   ok "Accessibility permission is granted"
 else
-  note "Accessibility permission is needed: System Settings → Privacy & Security → Accessibility → turn on Slated."
+  note "Slated's setup window and macOS's permission prompt walk you through turning on Accessibility."
   note "(With the \"$CERT\" certificate you only do this once; later reinstalls keep it.)"
 fi
 if pgrep -x Slate >/dev/null; then

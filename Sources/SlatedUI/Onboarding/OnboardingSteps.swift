@@ -160,6 +160,18 @@ private struct PermissionIllustration: View {
 struct HyperKeyStep: View {
   @Environment(AppModel.self) private var model
 
+  /// Points out when the user's own shortcuts already use ⌃⌥⇧⌘, so the choice is obvious.
+  private var hyperSubtitle: String {
+    let fromSlate = model.sources.filter(\.loaded).flatMap(\.bindings).filter {
+      $0.keys.modifiers.isSuperset(of: .hyper)
+    }.count
+    let fromSlated = model.configuration.bindings.filter { $0.keys.modifiers.isSuperset(of: .hyper) }.count
+    let total = fromSlate + fromSlated
+    guard total > 0, !model.hyperKeyEnabled else { return "You can change this any time in Settings → Keyboard." }
+    return "\(total) of your shortcuts use ⌃⌥⇧⌘. Turn this on to press them with Caps Lock. "
+      + "(If Karabiner-Elements does this today, turn its Caps Lock rule off.)"
+  }
+
   var body: some View {
     VStack(spacing: 24) {
       HyperIllustration(modifiers: model.configuration.keyboard.hyperModifiers, isOn: model.hyperKeyEnabled)
@@ -174,7 +186,7 @@ struct HyperKeyStep: View {
       )
       VStack(spacing: 0) {
         ToggleRow(
-          title: "Use Caps Lock as Hyper", subtitle: "You can change this any time in Settings → Keyboard.",
+          title: "Use Caps Lock as Hyper", subtitle: hyperSubtitle,
           symbol: "capslock.fill", tint: SettingsPane.keyboard.tint,
           isOn: Binding(get: { model.hyperKeyEnabled }, set: { model.hyperKeyEnabled = $0 }))
         CardDivider(inset: 54)

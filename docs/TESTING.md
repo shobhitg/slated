@@ -111,8 +111,10 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] `scripts/logs.py --session last` shows the new build's commit in `app.start`.
 
 **Permission**
-- [ ] First launch asks for Accessibility. After it's enabled in System Settings, the menu says
-      "Slated is running" within a second, with no relaunch needed.
+- [ ] First launch (also from `./install.sh` in a terminal): the setup window comes to the front and
+      macOS's own Accessibility prompt appears. After it's enabled in System Settings, the menu says
+      "Slated is running" within a second, with no relaunch needed. The Hyper key step says how many
+      of your shortcuts use ⌃⌥⇧⌘.
 - [ ] After a rebuild (`make run` again), the permission is still granted. This needs `make dev-cert`.
 - [ ] Turning the permission off makes the menu say so. Caps Lock works normally again.
 - [ ] With a mouse button binding (mouse4), turning the permission on or off updates its status in
