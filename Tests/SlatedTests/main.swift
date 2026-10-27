@@ -38,6 +38,7 @@ let suites: [Suite] = [
   uiCheatSheetTests,
   uiIslandModelTests,
   hidRemapperTests,
+  keyboardTapTests,
   logRedactionTests,
 ]
 

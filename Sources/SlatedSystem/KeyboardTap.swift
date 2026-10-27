@@ -125,14 +125,12 @@ public final class KeyboardTap: @unchecked Sendable {
   }
 
   public func stop() {
-    let (port, loop) = lock.withLock { () -> (CFMachPort?, CFRunLoop?) in
+    let (port, loop, held) = lock.withLock { () -> (CFMachPort?, CFRunLoop?, Held) in
       defer {
         machPort = nil
         runLoop = nil
-        hyperDown = false
-        matcher.reset()
       }
-      return (machPort, runLoop)
+      return (machPort, runLoop, forgetHeld())
     }
     if let port {
       CGEvent.tapEnable(tap: port, enable: false)
@@ -140,6 +138,46 @@ public final class KeyboardTap: @unchecked Sendable {
     }
     if let loop { CFRunLoopStop(loop) }
     if port != nil { notify("stopped") }
+    release(held)
+  }
+
+  /// Hyper, Hyper combos and mouse button shortcuts that were down when the tap lost track of input.
+  private struct Held {
+    var hyper = false
+    var keys: [Int64] = []
+    var mouse: [MouseHotkey] = []
+  }
+
+  /// Forgets every press in progress. Must be called with `lock` held. Otherwise a release the tap
+  /// never saw would leave Hyper on for every key, or swallow the next, unrelated release of that
+  /// key or button (leaving it down in the app).
+  private func forgetHeld() -> Held {
+    defer {
+      hyperDown = false
+      hyperUsed = false
+      hyperHotkeyHeld = []
+      mouseHotkeyHeld = [:]
+      matcher.reset()
+    }
+    return Held(hyper: hyperDown, keys: Array(hyperHotkeyHeld), mouse: Array(mouseHotkeyHeld.values))
+  }
+
+  /// Reports everything in `held` as released, so nothing it started (a while-held repeat, the cheat
+  /// sheet) keeps going.
+  private func release(_ held: Held) {
+    if held.hyper, let handler = onHyperEvent {
+      DispatchQueue.main.async { MainActor.assumeIsolated { handler(.released) } }
+    }
+    if let handler = onHyperHotkey {
+      for code in held.keys {
+        DispatchQueue.main.async { MainActor.assumeIsolated { handler(UInt16(code), false) } }
+      }
+    }
+    if let handler = onMouseHotkey {
+      for hotkey in held.mouse {
+        DispatchQueue.main.async { MainActor.assumeIsolated { handler(hotkey, false) } }
+      }
+    }
   }
 
   /// `hyperHotkeys`: key codes bound with exactly the Hyper modifiers.
@@ -165,11 +203,15 @@ public final class KeyboardTap: @unchecked Sendable {
 
   // MARK: - Event handling (tap thread)
 
-  fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+  /// Decides what happens to one event: nil swallows it. Internal for tests.
+  func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
     let pass = Unmanaged.passUnretained(event)
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
       if let port = lock.withLock({ machPort }) { CGEvent.tapEnable(tap: port, enable: true) }
       notify(type == .tapDisabledByTimeout ? "reenabled_after_timeout" : "reenabled_after_user_input")
+      // Events went by unseen while macOS had the tap off, perhaps Caps Lock's release among them.
+      // Still holding it? Its key repeat turns Hyper back on.
+      release(lock.withLock { forgetHeld() })
       return pass
     }
     if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker { return pass }
@@ -202,9 +244,10 @@ public final class KeyboardTap: @unchecked Sendable {
               matcher.reset()
             }
           } else {
+            let wasDown = hyperDown
             hyperDown = false
             let held = TimeInterval(DispatchTime.now().uptimeNanoseconds &- hyperDownAt) / 1_000_000_000
-            sendEscape = options.capsLockAloneSendsEscape && !hyperUsed && held < options.aloneTimeout
+            sendEscape = wasDown && options.capsLockAloneSendsEscape && !hyperUsed && held < options.aloneTimeout
           }
           return nil  // the stand-in key itself never reaches apps
         }
