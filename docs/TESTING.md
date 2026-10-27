@@ -4,12 +4,13 @@
 
 | Layer | Where | Run | What it covers |
 |---|---|---|---|
-| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic: model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching and templates, log redaction. From `SlatedSystem`: the keyboard tap's decisions (fed events that are never posted) and `hidutil` parsing. |
+| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic: model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching and templates, log redaction. From `SlatedSystem`: the keyboard tap's decisions (fed events that are never posted, with a stand-in for what the keyboard says is held), `hidutil` parsing, and which Caps Lock mapping is Slated's and what it replaced. |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape and portrait screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
 | Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited JSON, broken files, unknown operations, duplicate shortcuts. It also checks what lands in the event log, including crash detection. `SLATED_SMOKE_SECONDS` keeps it running longer and `SLATED_SMOKE_STEPS` drives it half way through (`Sources/Slated/SmokeSteps.swift`): saving over a broken or symlinked config.json, edits made while it runs, pausing then switching apps, reloading `~/.slate.js`. |
-| Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch, confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), uninstall, `--purge`. Launches the app for a few seconds. |
+| Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch (a test run, which leaves the keyboard alone), confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), SIGQUIT, uninstall, `--purge`, and a hung Slated forced to quit whose Caps Lock mapping comes off (a stand-in `hidutil` on `PATH`). Launches the app for a few seconds. |
+| Installer scripts | `Tests/Installer/test_restore_caps_lock.py` | `make test-scripts` | `scripts/restore-caps-lock.py` against a stand-in `hidutil`, for every case in `Tests/Installer/caps-lock-cases.json`; `HIDRemapperTests` checks Slated against the same cases, so the installer and the app agree on which Caps Lock mapping is Slated's. |
 | Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~4,500 curated inputs, ~16,400 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
 | Linux engine | `linux/tests/run.mjs` (+ `harness.mjs`, `fixtures.mjs`, `unit.mjs`) | `make linux-test` | The JavaScript port of SlatedCore (`linux/gnome-extension/lib/core`) against every golden vector, plus tests for its JavaScript-only API (GNOME accelerators). Runs on Node if installed, else macOS's JavaScriptCore; `make linux-test-all` runs every runtime available (Node, GJS, JavaScriptCore). |
 | UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every settings pane, onboarding step and the menu bar panel to PNGs (light and dark) for review. |
@@ -134,7 +135,15 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Quitting Slated restores Caps Lock: `hidutil property --get UserKeyMapping` prints `(null)`.
 - [ ] After `kill -9` of Slated, relaunching it cleans up or re-applies the mapping correctly.
       With the Hyper key turned off in config.json before relaunching, Caps Lock works again.
-- [ ] Your own `hidutil` key mappings (if any) survive Slated starting and quitting.
+- [ ] Your own `hidutil` key mappings (if any) survive Slated starting and quitting. A Caps Lock
+      mapping of your own (`hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000029}]}'`,
+      Caps Lock → Escape) is back after turning the Hyper key off or quitting Slated.
+- [ ] A Caps Lock → F18 mapping made by another tool (the same command with `0x70000006D`) is still
+      there after Slated starts and quits with its own Hyper key off. The log says
+      `keyboard.caps_lock_mapped_elsewhere`.
+- [ ] `kill -9` Slated with the Hyper key on, then `./install.sh --uninstall`: Caps Lock works again
+      (only Slated's mapping is gone; `~/Library/Application Support/Slated/caps-lock-mapping.json`
+      too).
 - [ ] Running the binary from a terminal and pressing Ctrl-C or Ctrl-\ restores Caps Lock too, also
       when pressed right after launching it (before the menu bar icon appears).
 - [ ] After sleep and wake, the Hyper key still works.

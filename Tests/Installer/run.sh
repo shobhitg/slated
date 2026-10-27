@@ -15,9 +15,11 @@ APP="$SLATED_INSTALL_DIR/Slated.app"
 LOG="$SLATED_HOME/Library/Logs/Slated/slated.log"
 passed=0
 failed=0
+hung=""
 
 cleanup() {
   pkill -TERM -f "$APP/Contents/MacOS/Slated" 2>/dev/null
+  if [ -n "$hung" ]; then kill -KILL "$hung" 2>/dev/null; fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -67,6 +69,42 @@ cp "$LOG" "$WORK/slated.log" 2>/dev/null
 "$ROOT/install.sh" --uninstall --purge >/dev/null 2>&1
 check "--purge removes config and logs" test ! -e "$SLATED_HOME/.config/slated" -a ! -e "$SLATED_HOME/Library/Logs/Slated"
 mkdir -p "$(dirname "$LOG")" && cp "$WORK/slated.log" "$LOG" 2>/dev/null
+
+# A Slated that ignores SIGTERM is forced to quit, and then its Caps Lock -> F18 mapping comes off (its
+# own only, going by its record), with the user's Caps Lock -> Escape back: --uninstall never leaves
+# Caps Lock dead. The hung app is a tiny program named Slated that ignores SIGTERM (compiled here: a
+# copy of /bin/sleep would break macOS's launch constraints and be killed at once); a stand-in hidutil
+# on PATH takes the real one's place and records what would be set.
+mkdir -p "$WORK/bin" "$WORK/hung" "$SLATED_HOME/Library/Application Support/Slated"
+cat >"$WORK/bin/hidutil" <<'EOF'
+#!/bin/bash
+case "$1 $2" in
+  "property --get") printf '(\n        {\n        HIDKeyboardModifierMappingDst = 30064771181;\n        HIDKeyboardModifierMappingSrc = 30064771129;\n    }\n)\n\n' ;;
+  "property --set") printf '%s\n' "$3" >>"$(dirname "$0")/sets" ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$WORK/bin/hidutil"
+record="$SLATED_HOME/Library/Application Support/Slated/caps-lock-mapping.json"
+echo '{"replaced":{"HIDKeyboardModifierMappingSrc":30064771129,"HIDKeyboardModifierMappingDst":30064771113}}' >"$record"
+if [ "$(PATH="$WORK/bin:$PATH" command -v hidutil)" != "$WORK/bin/hidutil" ]; then
+  echo "The stand-in hidutil isn't first on PATH; not running the force-quit test." && exit 1
+fi
+printf '#include <signal.h>\n#include <unistd.h>\nint main(void) { signal(SIGTERM, SIG_IGN); sleep(60); return 0; }\n' \
+  >"$WORK/hung/hung.c"
+/usr/bin/clang -o "$WORK/hung/Slated" "$WORK/hung/hung.c"
+"$WORK/hung/Slated" &
+hung=$!
+sleep 0.5
+out="$(PATH="$WORK/bin:$PATH" "$ROOT/install.sh" --uninstall 2>&1)"; status=$?
+check "uninstall forces a Slated that won't quit" grep -q "forcing it" <<<"$out"
+grep -q "forcing it" <<<"$out" || sed 's/^/    | /' <<<"$out"
+check "the forced Slated is gone" bash -c '! kill -0 "$1" 2>/dev/null' _ "$hung"
+check "its Caps Lock mapping came off, and the user's Caps Lock -> Escape came back" grep -qxF \
+  '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":30064771129,"HIDKeyboardModifierMappingDst":30064771113}]}' \
+  "$WORK/bin/sets"
+check "Slated's record of the mapping is gone" test ! -e "$record"
+check "uninstall still succeeds" test "$status" -eq 0
 
 if [ "$failed" -gt 0 ] && [ -f "$LOG" ]; then
   echo; echo "Slated's log during the test:"
