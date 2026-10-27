@@ -230,6 +230,21 @@ cp "$FIXTURES/config-duplicates.json" "$home/.config/slated/config.json"
 out=$(smoke "$home")
 expect_output "duplicate shortcuts are flagged" "$out" "duplicate"
 expect_output "the event log lists duplicate shortcuts" "$(log_of "$home")" '"duplicates":["ctrl+alt+cmd+f13"]'
+expect_output "Settings sees the shadowed shortcut as a duplicate, not active" "$out" "ctrl+alt+cmd+f13 duplicate"
+
+# 7c. Shortcuts limited to apps are duplicates where they can both be live (an app they share), whichever
+#     app is in front; so is a binding on a built-in shortcut's keys, unless it does what that does.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-duplicates-apps.json" "$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "two bindings limited to the same app are duplicates" "$out" "ctrl+alt+cmd+f14 duplicate"
+expect_output "a binding everywhere and one limited to an app are duplicates" "$out" "ctrl+alt+cmd+f16 duplicate"
+expect_output "a binding on the stop shortcut's keys that does something else is a duplicate" "$out" \
+  "hyper+esc duplicate"
+expect_true "bindings limited to different apps aren't duplicates" bash -c '! grep -q "f15 duplicate" <<<"$1"' _ "$out"
+expect_true "a binding that opens the clipboard history on its shortcut's keys isn't a duplicate" \
+  bash -c '! grep -q "+v duplicate" <<<"$1"' _ "$out"
 
 # 7a. Two auto-repeats of different text of the same length, started without a shortcut (a sequence
 #     resuming after a wait), both run: their ids differ though the log shows only the length.

@@ -227,7 +227,8 @@ final class Engine {
       var entries: [HotkeyManager.Entry] = config.bindings.filter(\.enabled).map { binding in
         let repeats = binding.repeats ?? settings.repeatOnHoldOps.contains(binding.action.name)
         return HotkeyManager.Entry(
-          keys: binding.keys, modal: binding.modal, repeats: repeats, source: "Slated", apps: binding.onlyInApps
+          keys: binding.keys, modal: binding.modal, repeats: repeats, source: "Slated", apps: binding.onlyInApps,
+          action: binding.action
         ) {
           [weak self] in
           self?.runner.run(
@@ -264,13 +265,17 @@ final class Engine {
     var entries: [HotkeyManager.Entry] = []
     if config.clipboard.enabled, let keys = config.clipboard.shortcut {
       entries.append(
-        HotkeyManager.Entry(keys: keys, modal: nil, repeats: false, source: "Slated clipboard") { [weak self] in
+        HotkeyManager.Entry(
+          keys: keys, modal: nil, repeats: false, source: "Slated clipboard", action: .clipboardHistory, builtIn: true
+        ) { [weak self] in
           self?.runner.run(.clipboardHistory, trigger: "hotkey \(keys.string)", source: "Slated clipboard")
         })
     }
     if let keys = config.automation.stopShortcut {
       entries.append(
-        HotkeyManager.Entry(keys: keys, modal: nil, repeats: false, source: "Slated automation") { [weak self] in
+        HotkeyManager.Entry(
+          keys: keys, modal: nil, repeats: false, source: "Slated automation", action: .stopAutomations, builtIn: true
+        ) { [weak self] in
           self?.runner.run(.stopAutomations, trigger: "hotkey \(keys.string)", source: "Slated automation")
         })
     }
