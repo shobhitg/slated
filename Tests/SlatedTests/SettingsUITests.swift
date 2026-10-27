@@ -477,6 +477,34 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "renaming a layout re-points every step, hotstring and display default that applies it",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices(scenario: .empty))
+          let half = preset("left-half")
+          func steps(_ name: String) -> [Action] {
+            let layout = Action.layout(name: name)
+            return [
+              layout, .chain([layout, half]), .byOrientation(landscape: layout, portrait: half),
+              .sequence([SequenceStep(layout), SequenceStep(.wait(1))]),
+              .autoRepeat(layout, interval: 60, mode: .toggle),
+            ]
+          }
+          model.configuration.layouts = [Layout(name: "Code")]
+          model.configuration.bindings = steps("Code").enumerated().map { index, action in
+            HotkeyBinding(keys: hyper("\(index + 1)"), action: action)
+          }
+          model.configuration.hotstrings = [Hotstring(trigger: ";code", replacement: "", action: .layout(name: "Code"))]
+          model.configuration.defaults = [ScreenDefault(target: "Code", condition: .count(2))]
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          expectEqual(model.configuration.bindings.map(\.action), steps("Coding"))
+          expectEqual(model.configuration.hotstrings.map(\.action), [.layout(name: "Coding")])
+          expectEqual(model.configuration.defaults.map(\.target), ["Coding"])
+          expect(!model.issues.contains { $0.message.contains("no layout named") }, "something names the old name")
+        }
+      }
+    ),
+    (
       "the hotstrings switch survives an edit that's still waiting to be saved",
       {
         try onMain {

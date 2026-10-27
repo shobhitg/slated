@@ -305,11 +305,20 @@ extension AppModel {
     showToast("Deleted layout “\(name)”", symbol: "trash")
   }
 
-  /// Keeps `.layout(name:)` bindings pointing at a renamed layout.
+  /// Keeps what applies a renamed layout on it: shortcuts and hotstrings, in any step, and display
+  /// defaults.
   private func renameLayoutReferences(from old: String, to new: String) {
-    for index in configuration.bindings.indices where configuration.bindings[index].action == .layout(name: old) {
-      configuration.bindings[index].action = .layout(name: new)
+    var config = configuration
+    for index in config.bindings.indices {
+      config.bindings[index].action = config.bindings[index].action.renamingLayout(old, to: new)
     }
+    for index in config.hotstrings.indices {
+      config.hotstrings[index].action = config.hotstrings[index].action?.renamingLayout(old, to: new)
+    }
+    for index in config.defaults.indices where config.defaults[index].target == old {
+      config.defaults[index].target = new
+    }
+    configuration = config
   }
 
   /// Bindings (Slated and Slate) that apply the named layout.
