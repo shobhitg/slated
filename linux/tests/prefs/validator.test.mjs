@@ -154,6 +154,29 @@ export default suite('Validation', [
       'Another hotstring uses the same trigger. Only one of them will fire.']);
     expectEqual(messages('6'), ['“;br” fires as soon as it\'s typed, so this one never gets the chance.']);
   }],
+  ['hotstrings kept to different apps don\'t clash; overlapping ones do', () => {
+    // The Mac's case (SettingsUITests.swift): its matcher only considers the hotstrings available in
+    // the app in front, so each of these fires in its own app. GNOME expands none of the Mac-only ones.
+    const mail = 'com.apple.mail';
+    const messages = 'com.apple.MobileSMS';
+    const hotstrings = [
+      {id: 'mailSignature', trigger: ';sig', replacement: 'Best, S', onlyInApps: [mail]},
+      {id: 'chatSignature', trigger: ';sig', replacement: 'cheers', onlyInApps: [messages]},
+      {id: 'notInMail', trigger: ';e', replacement: 'e', exceptInApps: [mail]},
+      {id: 'mailOnlyEmail', trigger: ';email', replacement: 'a@b.c', onlyInApps: [mail]},
+    ];
+    expectEqual(validate(config({hotstrings})), []);
+    const issues = validate(config({hotstrings: [...hotstrings,
+      {id: 'everywhere', trigger: ';sig', replacement: 'S.'},
+      {id: 'chatEmail', trigger: ';email', replacement: 'a@b.c', onlyInApps: [messages]},
+    ]}));
+    const about = id => issues.filter(i => i.target === target.hotstring(id)).map(i => i.message);
+    for (const clash of ['mailSignature', 'chatSignature', 'everywhere']) {
+      expect(about(clash).some(m => m.startsWith('Another hotstring')), `${clash} clashes`);
+    }
+    expect(about('chatEmail').some(m => m.includes('“;e”')), '“;e” works in Messages, where ;email is');
+    expectEqual(about('mailOnlyEmail'), [], 'not in Mail, where “;e” isn\'t');
+  }],
   ['layout issues', () => {
     const issues = validate(config({
       layouts: [

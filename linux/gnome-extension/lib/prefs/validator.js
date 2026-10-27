@@ -228,6 +228,21 @@ export function actionProblems(action, knownLayouts = new Set()) {
 
 // --- Hotstrings ----------------------------------------------------------------------------------------
 
+/**
+ * Whether some app has both hotstrings available (Hotstring.sharesApps in ConfigValidator.swift). The
+ * Mac only considers the hotstrings available in the app in front, so two with the same trigger in
+ * different apps each fire in their own. App filters hold Mac bundle ids.
+ */
+export function hotstringsShareApps(a, b) {
+  const [onlyA, exceptA, onlyB, exceptB] = [a.onlyInApps, a.exceptInApps, b.onlyInApps, b.exceptInApps].map(list => list ?? []);
+  const mine = onlyA.filter(app => !exceptA.includes(app));
+  const theirs = onlyB.filter(app => !exceptB.includes(app));
+  if (!onlyA.length && !onlyB.length) return true;
+  if (!onlyB.length) return mine.some(app => !exceptB.includes(app));
+  if (!onlyA.length) return theirs.some(app => !exceptA.includes(app));
+  return mine.some(app => theirs.includes(app));
+}
+
 function hotstringIssues(hotstrings) {
   const issues = [];
   for (const h of hotstrings) {
@@ -244,7 +259,7 @@ function hotstringIssues(hotstrings) {
     }
     if (h.enabled === false) continue;
     for (const other of hotstrings) {
-      if (other.id === h.id || other.enabled === false || !other.trigger) continue;
+      if (other.id === h.id || other.enabled === false || !other.trigger || !hotstringsShareApps(h, other)) continue;
       const insensitive = h.caseSensitive === false || other.caseSensitive === false;
       const mine = insensitive ? trigger.toLowerCase() : trigger;
       const theirs = insensitive ? other.trigger.toLowerCase() : other.trigger;
