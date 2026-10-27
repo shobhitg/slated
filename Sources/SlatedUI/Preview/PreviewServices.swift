@@ -91,7 +91,11 @@ public final class PreviewServices: AppServices {
   }
 
   public func runtimeStatus() -> RuntimeStatus { status }
-  public func slateSources() -> [SlateSource] { sources }
+  public func slateSources() -> [SlateSource] {
+    // Like the app: with loading off, the files are listed but not loaded.
+    guard !configuration.general.loadSlateConfigs else { return sources }
+    return sources.map { SlateSource(path: $0.path, kind: $0.kind, exists: $0.exists, loaded: false) }
+  }
   public func screens() -> [ScreenInfo] { PreviewData.screens }
   public func runningApplications() -> [AppInfo] { PreviewData.runningApps }
 

@@ -212,7 +212,7 @@ final class Engine {
   /// Re-registers everything from the current configuration and Slate sources.
   func apply() {
     let config = store.configuration
-    sources.load(paths: config.general.loadSlateConfigs ? config.general.slateConfigPaths : [], runner: runner)
+    sources.load(paths: config.general.slateConfigPaths, loading: config.general.loadSlateConfigs, runner: runner)
 
     let settings = sources.settings.merging(config.settings)
     runner.settings = settings

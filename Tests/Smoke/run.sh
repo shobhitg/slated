@@ -67,6 +67,18 @@ expect_output "~/.slate.js loads all its bindings" "$out" "source: ~/.slate.js l
 expect_output "~/.slate.js bindings are registered as hotkeys" "$out" "hotkeys: 6 registered"
 expect_output "the event log records the Slate file" "$(log_of "$home")" '"bindings":4,"kind":"javascript"'
 
+# 2b. With "Load Slate config files" off, the files are still listed, as not loaded, so onboarding and
+#     Settings can offer to turn loading back on. None of their shortcuts are registered.
+home=$(new_home)
+cp "$FIXTURES/slate.js" "$home/.slate.js"
+mkdir -p "$home/.config/slated"
+echo '{ "general": { "loadSlateConfigs": false } }' >"$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "with loading off, ~/.slate.js is still listed, as not loaded" "$out" "source: ~/.slate.js not loaded 0 bindings"
+expect_output "and so is ~/.slate, which isn't there" "$out" "source: ~/.slate not loaded 0 bindings"
+expect_output "with loading off, no Slate shortcut is registered" "$out" "hotkeys: 2 registered"
+expect_output "the event log says why ~/.slate.js isn't loaded" "$(log_of "$home")" '"reason":"loading is off"'
+
 # 3. A classic ~/.slate file.
 home=$(new_home)
 cp "$FIXTURES/slate" "$home/.slate"

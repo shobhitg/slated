@@ -18,8 +18,11 @@ final class SlateSourceLoader {
   private var pollTimer: Timer?
   let javascript = JavaScriptSources()
 
-  func load(paths: [String], runner: ActionRunner) {
+  /// With `loading` off, the files are still listed (as not loaded), so onboarding and Settings can
+  /// show them and offer to turn loading back on; nothing in them runs.
+  func load(paths: [String], loading: Bool = true, runner: ActionRunner) {
     self.runner = runner
+    self.loading = loading
     sources = []
     settings = SlateSettings()
     layouts = []
@@ -34,8 +37,8 @@ final class SlateSourceLoader {
       let exists = FileManager.default.fileExists(atPath: path)
       let kind: SlateSource.Kind = path.hasSuffix(".js") ? .javascript : .classic
       modificationDates[path] = Self.modificationDate(path)
-      guard exists else {
-        sources.append(SlateSource(path: raw, kind: kind, exists: false, loaded: false))
+      guard exists, loading else {
+        sources.append(SlateSource(path: raw, kind: kind, exists: exists, loaded: false))
         continue
       }
       // The same file listed twice (`~/.slate.js` and its full path, say) loads once: a second load
@@ -61,6 +64,7 @@ final class SlateSourceLoader {
     startPolling()
   }
 
+  private var loading = true
   private var loggedSignature = ""
 
   /// One event per source when what was loaded changes (not on every settings save).
@@ -77,6 +81,7 @@ final class SlateSourceLoader {
       if !source.diagnostics.isEmpty {
         data["diagnostics"] = source.diagnostics.map { LogPrivacy.message($0.description) }
       }
+      if !loading { data["reason"] = "loading is off" }
       Log.record("slate.loaded", level: errors.isEmpty ? .info : .error, data)
     }
   }

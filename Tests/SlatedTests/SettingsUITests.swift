@@ -546,6 +546,26 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "onboarding still shows the Slate config after its switch turns loading off, so it can go back on",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .firstRun)
+          let model = AppModel(services: services)
+          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
+          model.configuration.general.loadSlateConfigs = false  // not saved yet
+          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
+          model.saveNow()
+          // Like the app: listed, but not loaded.
+          expect(model.sources.contains { $0.exists && !$0.loaded })
+          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
+          model.configuration.general.loadSlateConfigs = true  // not saved yet, so still not loaded
+          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
+          model.saveNow()
+          expectEqual(model.slateFilesFound.filter(\.loaded).map(\.displayName), ["~/.slate.js"])
+        }
+      }
+    ),
+    (
       "copies static Slate bindings into Slated",
       {
         try onMain {
