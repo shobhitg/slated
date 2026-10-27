@@ -200,6 +200,9 @@ export function decodeAction(value, path = []) {
       const d = asDouble(v);
       if (d !== null) return shortNumber(d);
     }
+    // There but neither text nor a number (`true`, a list…): say so, rather than "needs" or, for an
+    // optional parameter, silently dropping it.
+    if (v !== undefined && v !== null) throw decodingError(c.at(key), `"${op}" needs "${key}" to be text or a number`);
     return undefined;
   };
   const required = (key) => {

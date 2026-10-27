@@ -91,6 +91,26 @@ let configurationTests = Suite(
         expectThrows { _ = try SlatedConfiguration.decode(from: Data(#"{"bindings": [{"keys": "a", "modal": {}, "action": "undo"}]}"#.utf8)) }
       }
     ),
+    (
+      "an action parameter of the wrong type is an error, not missing or silently dropped",
+      {
+        func message(_ json: String) -> String? {
+          let result = Result { try JSONDecoder().decode(Action.self, from: Data(json.utf8)) }
+          guard case .failure(let error) = result else { return nil }
+          if case DecodingError.dataCorrupted(let context) = error { return context.debugDescription }
+          return "\(error)"
+        }
+        // Used to say "needs \"x\"", although x is there.
+        expectEqual(
+          message(#"{"op": "move", "x": true, "y": "0", "width": "1", "height": "1"}"#),
+          #""move" needs "x" to be text or a number"#)
+        // Used to become "+0", and the value was lost on the next save.
+        expectEqual(message(#"{"op": "resize", "width": [10]}"#), #""resize" needs "width" to be text or a number"#)
+        expectEqual(
+          try JSONDecoder().decode(Action.self, from: Data(#"{"op": "resize", "width": null, "height": 5}"#.utf8)),
+          .resize(width: "+0", height: "5", anchor: .topLeft))
+      }
+    ),
   ])
 
 let slateKeystrokeTests = Suite(
