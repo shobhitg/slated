@@ -197,8 +197,11 @@ function decodeItem(value, path) {
 // "e", "ß" is "ss" and "ﬁ" is "fi". A match starts and ends at character boundaries of the text. A
 // query character that folds to several letters is compared only against what the current text
 // character folded to; its remaining letters then skip that many letters of the text unchecked. So
-// "ß" finds "sx" but not a lone "s", and "ﬃ" finds "file" but not "ﬁle". The golden vectors in
-// fixtures/clipboard.json pin all of this to what macOS does.
+// "ß" finds "sx" but not a lone "s", and "ﬃ" finds "file" but not "ﬁle". A letter is a whole
+// character of the folded text, so "ß" also finds "s😀" and "s\r\n". A character made only of marks
+// (a combining mark at the start of the text or after a line break) has nothing to attach to and
+// is compared as it is. The golden vectors in fixtures/clipboard.json pin all of this to what macOS
+// does.
 
 const MARKS = /[\p{Mn}\p{Me}\u{1F3FB}-\u{1F3FF}]/gu;
 
@@ -211,10 +214,14 @@ function caseFold(s) {
   return out;
 }
 
-const foldCharacter = (c) => stripMarks(caseFold(stripMarks(c)));
+/** A character folded, as its letters (characters of the folded text). */
+function foldCharacter(c) {
+  const base = stripMarks(c);
+  return base === '' ? [c.normalize('NFD')] : graphemes(stripMarks(caseFold(base)));
+}
 
-/** A query word as folded characters, without those that fold to nothing (lone marks). */
-const foldPattern = (word) => graphemes(word).map(foldCharacter).filter((f) => f !== '');
+/** A query word as folded characters. */
+const foldPattern = (word) => graphemes(word).map(foldCharacter).filter((f) => f.length > 0);
 
 /** Item → {text, limit, characters}: its folded characters, kept while its text is the same. */
 const foldedItems = new WeakMap();
@@ -236,30 +243,47 @@ export function foldedContains(text, word) {
 function containsFolded(characters, pattern) {
   if (pattern.length === 0) return false;
   for (let start = 0; start < characters.length; start++) {
-    if (characters[start] !== '' && matchesAt(characters, start, pattern)) return true;
+    if (characters[start].length > 0 && matchesAt(characters, start, pattern)) return true;
   }
   return false;
 }
 
+/**
+ * Folded characters are arrays of letters; `pending` holds the letters of the current one not yet
+ * used. While a query character's extra letters are skipped, a text character the skip covers
+ * entirely is skipped unchecked if it folds to one letter but compared if it folds to several ("ﬃ"
+ * finds "fﬁ", not "fß"); one it covers only partly is skipped unchecked ("ßi" finds "sﬁ").
+ */
 function matchesAt(characters, start, pattern) {
   let next = start;
-  let pending = '';
+  let pending = [];
+  let fresh = false;
   const refill = () => {
-    while (pending === '' && next < characters.length) pending = characters[next++];
-    return pending !== '';
+    fresh = false;
+    while (pending.length === 0 && next < characters.length) {
+      pending = characters[next++];
+      fresh = true;
+    }
+    return pending.length > 0;
   };
   for (const folded of pattern) {
     if (!refill()) return false;
     const n = Math.min(folded.length, pending.length);
-    if (folded.slice(0, n) !== pending.slice(0, n)) return false;
+    for (let i = 0; i < n; i++) if (folded[i] !== pending[i]) return false;
     let skip = folded.length;
+    let first = true;
     while (skip > 0) {
       if (!refill()) return false;
       const k = Math.min(skip, pending.length);
+      if (!first && fresh && pending.length > 1 && k === pending.length) {
+        const offset = folded.length - skip;
+        for (let i = 0; i < k; i++) if (folded[offset + i] !== pending[i]) return false;
+      }
+      first = false;
       pending = pending.slice(k);
       skip -= k;
     }
   }
   // The match ends at a character boundary too: "s" doesn't match half of "ß".
-  return pending === '';
+  return pending.length === 0;
 }

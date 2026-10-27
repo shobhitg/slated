@@ -189,6 +189,12 @@ private let searchItems: [ClipboardItem] = [
   "sax", "ssx", "sx", "as", "asb", "ass", "fab", "fa", "fix", "f", "s", "xs", "ʼnx", "ʼx", "sss", "Ss", "ßa",
   "s\u{301}x",
   "s x", "s\u{301}", "sa\u{301}", "\u{915}", "👍", "q\u{20DD}", "q", "ß", "ﬆ", "ﬃ", "ŉ",
+  // A combining mark with nothing to attach to (at the start, or after a line break) is compared as
+  // it is, without case folding.
+  "\u{308}ﬁ", "x\n\u{308}y", "\u{345}x",
+  // The letters a query character skips unchecked are whole characters: an emoji, a ZWJ sequence or
+  // CR LF counts as one. A skipped character that folds to several letters must match them entirely.
+  "ſ😀x", "ſ👨‍👩‍👧x", "ſ\r\nx", "fß", "fﬁx", "fﬀ", "sﬁ", "ﬀß",
 ].enumerated().map { index, text in item(100 + index, text, at: t0 - Double(index)) }
 
 private let searchQueries: [String] = [
@@ -203,6 +209,7 @@ private let searchQueries: [String] = [
   "Σ", "\u{212A}", "\u{212B}", "k", "å", "\u{915}\u{93F}", "q\u{20DD}", "\u{301}", "sa", "se", "ssa", "ss5",
   "a\u{20DD}",
   "s", "st", "t", "fi", "ffi", "ʼn", "ʼ", "n",
+  "\u{308}", "\u{308}fi", "\u{301}e", "\u{301}", "\u{345}", "ι", "ßx", "ßi", "ﬃs", "ﬆi", "ﬃx", "\u{308}y",
 ]
 
 private func historyItemsJ(_ history: ClipboardHistory) -> J {

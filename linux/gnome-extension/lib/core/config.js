@@ -200,6 +200,9 @@ export function decodeAction(value, path = []) {
       const d = asDouble(v);
       if (d !== null) return shortNumber(d);
     }
+    // There but neither text nor a number (`true`, a list…): say so, rather than "needs" or, for an
+    // optional parameter, silently dropping it.
+    if (v !== undefined && v !== null) throw decodingError(c.at(key), `"${op}" needs "${key}" to be text or a number`);
     return undefined;
   };
   const required = (key) => {
@@ -262,7 +265,7 @@ export function decodeAction(value, path = []) {
     case 'sequence': {
       const step = (v, p) => {
         const s = new Keyed(v, p);
-        return {action: s.required('action', decodeAction), keepWindow: s.required('keepWindow', bool)};
+        return {action: s.required('action', decodeAction), keepWindow: s.optional('keepWindow', bool) ?? false};
       };
       const steps = c.optional('steps', arrayOf(step)) ?? c.required('operations', arrayOf(decodeAction)).map((a) => ({action: a, keepWindow: false}));
       return sequenceAction(steps);
@@ -550,7 +553,7 @@ function binding(v, path) {
   const keys = c.required('keys', keyCombo);
   const modal = c.optional('modal', (m, p) => {
     const k = new Keyed(m, p);
-    return {keys: k.required('keys', keyCombo), toggle: k.required('toggle', bool)};
+    return {keys: k.required('keys', keyCombo), toggle: k.optional('toggle', bool) ?? false};
   });
   const action = c.required('action', decodeAction);
   const repeats = c.optional('repeats', bool);

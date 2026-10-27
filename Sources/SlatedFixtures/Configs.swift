@@ -396,6 +396,15 @@ private let decodeCases: [(String, String)] = [
   ),
   ("binding modal without toggle", #"{"bindings": [{"keys": "a", "modal": {"keys": "ctrl+f4"}, "action": "undo"}]}"#),
   (
+    "binding modal toggle null",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000013", "keys": "a", "modal": {"keys": "ctrl+f4", "toggle": null}, "action": "undo"}]}"#
+  ),
+  ("binding modal without keys", #"{"bindings": [{"keys": "a", "modal": {"toggle": true}, "action": "undo"}]}"#),
+  (
+    "sequence steps without keepWindow",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000014", "keys": "a", "action": {"op": "sequence", "steps": [{"action": "focus right"}, {"action": "push left", "keepWindow": true}]}}]}"#
+  ),
+  (
     "binding modal invalid keys",
     #"{"bindings": [{"keys": "a", "modal": {"keys": "x+y", "toggle": true}, "action": "undo"}]}"#
   ),
@@ -555,6 +564,11 @@ private let typedInputs: [[String: SettingValue]] = [
   [
     "defaultToCurrentScreen": .string("maybe"), "orderScreensLeftToRight": .string("0"), "repeatOnHoldOps": .bool(true),
   ],
+  // undoMaxStackSize values Int() can't convert (they used to crash Slated on the next window move).
+  ["undoMaxStackSize": .number(.infinity)], ["undoMaxStackSize": .number(-.infinity)],
+  ["undoMaxStackSize": .number(.nan)], ["undoMaxStackSize": .string("inf")], ["undoMaxStackSize": .string("nan")],
+  ["undoMaxStackSize": .number(1e20)], ["undoMaxStackSize": .number(-1e20)], ["undoMaxStackSize": .number(-0.5)],
+  ["undoMaxStackSize": .number(1e15 + 0.5)], ["undoMaxStackSize": .string("12.9")],
 ]
 
 func settingsFixtures() -> FixtureFile {

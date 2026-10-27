@@ -8,11 +8,11 @@
     },
     "clipboard.json": {
       "coding": 19,
-      "search": 129,
+      "search": 141,
       "sessions": 11
     },
     "config.json": {
-      "decode": 492
+      "decode": 495
     },
     "expressions.json": {
       "closestName": 20,
@@ -37,7 +37,7 @@
       "modifierTokens": 27
     },
     "operations.json": {
-      "decode": 240,
+      "decode": 243,
       "format": 159,
       "parse": 597
     },
@@ -50,7 +50,7 @@
     "settings.json": {
       "accessors": 27,
       "fromSlate": 44,
-      "typed": 4
+      "typed": 14
     },
     "slate-config.json": {
       "parse": 34,
@@ -73,18 +73,18 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 16454,
+  "totalVectors": 16482,
   "vectors": {
     "automation.json": 103,
-    "clipboard.json": 159,
-    "config.json": 492,
+    "clipboard.json": 171,
+    "config.json": 495,
     "expressions.json": 833,
     "frames.json": 9718,
     "hotstrings.json": 846,
     "keys.json": 375,
-    "operations.json": 996,
+    "operations.json": 999,
     "screens.json": 2598,
-    "settings.json": 75,
+    "settings.json": 85,
     "slate-config.json": 56,
     "starter.json": 21,
     "tokenizer.json": 182

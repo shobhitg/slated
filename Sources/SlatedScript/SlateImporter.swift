@@ -43,7 +43,31 @@ public enum SlateImporter {
       bindings.append(
         HotkeyBinding(name: nil, keys: binding.keys, modal: binding.modal, action: action, repeats: nil))
     }
+
+    // The app turns the Slate files off after an import that skipped nothing, so everything else the
+    // script set up that doesn't become part of Slated's config is listed too; the file then keeps
+    // running it. Plain layouts and settings are imported by the app.
+    for event in ScriptEventName.allCases where loaded.events.contains(event) {
+      skipped.append(("slate.on(\"\(event.rawValue)\")", "event handlers need JavaScript"))
+    }
+    for name in engine.configFunctions.keys.sorted() {
+      skipped.append(("slate.config(\"\(name)\")", "its value comes from a JavaScript function"))
+    }
+    for layout in loaded.layouts where layout.staticLayout == nil {
+      skipped.append(("slate.layout(\"\(layout.name)\")", "has steps that run JavaScript"))
+    }
+    for entry in loaded.defaults {
+      let reason = entry.screenDefault == nil ? "runs JavaScript" : "display defaults aren't imported yet"
+      skipped.append(("slate.default(\(describe(entry.condition)))", reason))
+    }
     return Result(bindings: bindings, skipped: skipped, diagnostics: loaded.diagnostics)
+  }
+
+  private static func describe(_ condition: ScreenDefault.Condition) -> String {
+    switch condition {
+    case .count(let count): return count == 1 ? "1 screen" : "\(count) screens"
+    case .resolutions(let resolutions): return resolutions.joined(separator: ", ")
+    }
   }
 }
 

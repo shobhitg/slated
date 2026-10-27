@@ -86,6 +86,11 @@ changed in behavior), update the JavaScript port until `make linux-test` passes,
 To cover a new behavior, add inputs to `Sources/SlatedFixtures/*.swift`; the JavaScript runner refuses
 fixture files or sections it has no checks for.
 
+**Differential fuzzing.** `make fuzz [SEED=n]` writes the same files from ~120,000 seeded random inputs
+(`Sources/SlatedFixtures/Fuzz.swift`) and checks the JavaScript engine against them, in about a minute.
+It isn't part of `make check`; run it after changing either engine. A failure is a difference the golden
+vectors don't cover yet: add that input to the curated lists and fix whichever side is wrong.
+
 ## Rule: probes become tests
 
 Anything run to check a behavior while developing gets folded into the suite. That includes a

@@ -71,6 +71,48 @@ let configurationTests = Suite(
         expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
       }
     ),
+    (
+      "a modal key's toggle and a sequence step's keepWindow can be left out",
+      {
+        let json = #"""
+          {"bindings": [
+            {"keys": "a", "modal": {"keys": "ctrl+f4"}, "action": "undo"},
+            {"keys": "b", "action": {"op": "sequence", "steps": [{"action": "focus right"}, {"action": "push left", "keepWindow": true}]}}
+          ]}
+          """#
+        let config = try SlatedConfiguration.decode(from: Data(json.utf8))
+        expectEqual(config.bindings[0].modal, ModalKey(keys: KeyCombo(key: "f4", modifiers: .control), toggle: false))
+        expectEqual(
+          config.bindings[1].action,
+          .sequence([
+            SequenceStep(.focus(.right)),
+            SequenceStep(.push(direction: .left, style: .none, screen: nil), keepWindow: true),
+          ]))
+        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        let noKeys = #"{"bindings": [{"keys": "a", "modal": {}, "action": "undo"}]}"#
+        expectThrows { _ = try SlatedConfiguration.decode(from: Data(noKeys.utf8)) }
+      }
+    ),
+    (
+      "an action parameter of the wrong type is an error, not missing or silently dropped",
+      {
+        func message(_ json: String) -> String? {
+          let result = Result { try JSONDecoder().decode(Action.self, from: Data(json.utf8)) }
+          guard case .failure(let error) = result else { return nil }
+          if case DecodingError.dataCorrupted(let context) = error { return context.debugDescription }
+          return "\(error)"
+        }
+        // Used to say "needs \"x\"", although x is there.
+        expectEqual(
+          message(#"{"op": "move", "x": true, "y": "0", "width": "1", "height": "1"}"#),
+          #""move" needs "x" to be text or a number"#)
+        // Used to become "+0", and the value was lost on the next save.
+        expectEqual(message(#"{"op": "resize", "width": [10]}"#), #""resize" needs "width" to be text or a number"#)
+        expectEqual(
+          try JSONDecoder().decode(Action.self, from: Data(#"{"op": "resize", "width": null, "height": 5}"#.utf8)),
+          .resize(width: "+0", height: "5", anchor: .topLeft))
+      }
+    ),
   ])
 
 let slateKeystrokeTests = Suite(
@@ -119,7 +161,23 @@ let numericEdgeTests = Suite(
         expectEqual(SettingValue.number(1e20).stringValue, "1e+20")
         expectEqual(SettingValue.number(42).stringValue, "42")
       }
-    )
+    ),
+    (
+      "undoMaxStackSize never traps on NaN, infinite or huge values",
+      {
+        // Each of these used to crash Slated on the next undoable window operation.
+        let slate = SlateConfigParser.parse("config undoMaxStackSize inf", homeDirectory: "/tmp") { _ in nil }
+        expectEqual(slate.settings.undoMaxStackSize, 1_000_000_000_000_000)
+        let json5 = try SlatedConfiguration.decode(from: Data(#"{"settings": {"undoMaxStackSize": Infinity}}"#.utf8))
+        expectEqual(json5.settings.undoMaxStackSize, 1_000_000_000_000_000)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(1e20)]).undoMaxStackSize, 1_000_000_000_000_000)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(-1e20)]).undoMaxStackSize, -1_000_000_000_000_000)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(.nan)]).undoMaxStackSize, 10)
+        expectEqual(SlateSettings(["undoMaxStackSize": .string("nan")]).undoMaxStackSize, 10)
+        expectEqual(SlateSettings(["undoMaxStackSize": .number(20.9)]).undoMaxStackSize, 20)
+        expectEqual(SlateSettings().undoMaxStackSize, 10)
+      }
+    ),
   ])
 
 /// Bugs found by the Linux port's golden-vector comparison.

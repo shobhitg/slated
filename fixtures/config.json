@@ -968,9 +968,27 @@
       "roundTrips": true
     },
     {
-      "error": {"exact":false,"kind":"decoding"},
+      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"op\" : \"undo\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"RANDOM-UUID\",\n      \"keys\" : \"a\",\n      \"modal\" : {\n        \"keys\" : \"ctrl+f4\",\n        \"toggle\" : false\n      }\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
       "input": "{\"bindings\": [{\"keys\": \"a\", \"modal\": {\"keys\": \"ctrl+f4\"}, \"action\": \"undo\"}]}",
-      "name": "binding modal without toggle"
+      "name": "binding modal without toggle",
+      "roundTrips": true
+    },
+    {
+      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"op\" : \"undo\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-000000000013\",\n      \"keys\" : \"a\",\n      \"modal\" : {\n        \"keys\" : \"ctrl+f4\",\n        \"toggle\" : false\n      }\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-000000000013\", \"keys\": \"a\", \"modal\": {\"keys\": \"ctrl+f4\", \"toggle\": null}, \"action\": \"undo\"}]}",
+      "name": "binding modal toggle null",
+      "roundTrips": true
+    },
+    {
+      "error": {"exact":false,"kind":"decoding"},
+      "input": "{\"bindings\": [{\"keys\": \"a\", \"modal\": {\"toggle\": true}, \"action\": \"undo\"}]}",
+      "name": "binding modal without keys"
+    },
+    {
+      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"op\" : \"sequence\",\n        \"steps\" : [\n          {\n            \"action\" : {\n              \"direction\" : \"right\",\n              \"op\" : \"focus\"\n            },\n            \"keepWindow\" : false\n          },\n          {\n            \"action\" : {\n              \"direction\" : \"left\",\n              \"op\" : \"push\"\n            },\n            \"keepWindow\" : true\n          }\n        ]\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-000000000014\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-000000000014\", \"keys\": \"a\", \"action\": {\"op\": \"sequence\", \"steps\": [{\"action\": \"focus right\"}, {\"action\": \"push left\", \"keepWindow\": true}]}}]}",
+      "name": "sequence steps without keepWindow",
+      "roundTrips": true
     },
     {
       "error": {"exact":true,"kind":"decoding","message":"Invalid key combo \"x+y\". Expected e.g. \"hyper+a\" or \"ctrl+cmd+left\"."},
@@ -1092,10 +1110,9 @@
       "name": "default without target"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1f, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1f as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1f as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1108,10 +1125,9 @@
       "name": "JSON5 number 1f as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": -, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number - as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number - as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1124,10 +1140,9 @@
       "name": "JSON5 number - as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": ., \"height\": \"+1\"}}]}",
-      "name": "JSON5 number . as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number . as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1140,10 +1155,9 @@
       "name": "JSON5 number . as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1e, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1e as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1e as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1156,10 +1170,9 @@
       "name": "JSON5 number 1e as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0x, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0x as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0x as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1172,10 +1185,9 @@
       "name": "JSON5 number 0x as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1.2.3, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1.2.3 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1.2.3 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1188,10 +1200,9 @@
       "name": "JSON5 number 1.2.3 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1e5e5, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1e5e5 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1e5e5 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1204,10 +1215,9 @@
       "name": "JSON5 number 1e5e5 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1-2, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1-2 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1-2 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1220,10 +1230,9 @@
       "name": "JSON5 number 1-2 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": +-1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number +-1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number +-1 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1236,10 +1245,9 @@
       "name": "JSON5 number +-1 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0xg, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0xg as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0xg as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1252,10 +1260,9 @@
       "name": "JSON5 number 0xg as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1a, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1a as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1a as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1268,10 +1275,9 @@
       "name": "JSON5 number 1a as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1g, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1g as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1g as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1284,10 +1290,9 @@
       "name": "JSON5 number 1g as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": .e1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number .e1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number .e1 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1300,10 +1305,9 @@
       "name": "JSON5 number .e1 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0x1p4, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0x1p4 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0x1p4 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 16\n}",
@@ -1317,10 +1321,9 @@
       "name": "JSON5 number 0x1p4 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0X1P4, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0X1P4 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0X1P4 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 16\n}",
@@ -1334,10 +1337,9 @@
       "name": "JSON5 number 0X1P4 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0x1.8, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0x1.8 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0x1.8 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1350,10 +1352,9 @@
       "name": "JSON5 number 0x1.8 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0x1.8p1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0x1.8p1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0x1.8p1 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 3\n}",
@@ -1367,10 +1368,9 @@
       "name": "JSON5 number 0x1.8p1 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1p4, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1p4 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1p4 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1398,10 +1398,9 @@
       "name": "JSON5 number 1_0 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0b1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0b1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0b1 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1462,10 +1461,9 @@
       "name": "JSON5 number -Infinity as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1e400, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1e400 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1e400 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1478,10 +1476,9 @@
       "name": "JSON5 number 1e400 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1e-400, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1e-400 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1e-400 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 0\n}",
@@ -1495,10 +1492,9 @@
       "name": "JSON5 number 1e-400 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 01, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 01 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 01 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1511,10 +1507,9 @@
       "name": "JSON5 number 01 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": -01, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number -01 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number -01 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1527,10 +1522,9 @@
       "name": "JSON5 number -01 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 00, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 00 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 00 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1614,10 +1608,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0x7FFFFFFFFFFFFFFF, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0x7FFFFFFFFFFFFFFF as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0x7FFFFFFFFFFFFFFF as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 9223372036854775807\n}",
@@ -1754,10 +1747,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0xFFFFFFFFFFFFFFFFFF, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0xFFFFFFFFFFFFFFFFFF as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0xFFFFFFFFFFFFFFFFFF as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1894,10 +1886,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1x, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1x as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1x as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1910,10 +1901,9 @@
       "name": "JSON5 number 1x as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1z, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1z as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1z as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1926,10 +1916,9 @@
       "name": "JSON5 number 1z as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1Z, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1Z as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1Z as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1942,10 +1931,9 @@
       "name": "JSON5 number 1Z as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": -a, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number -a as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number -a as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1958,10 +1946,9 @@
       "name": "JSON5 number -a as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": +x, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number +x as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number +x as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1974,10 +1961,9 @@
       "name": "JSON5 number +x as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": .Z, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number .Z as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number .Z as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -1990,10 +1976,9 @@
       "name": "JSON5 number .Z as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1.x, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1.x as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1.x as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2006,10 +1991,9 @@
       "name": "JSON5 number 1.x as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": Infinityx, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number Infinityx as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number Infinityx as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2022,10 +2006,9 @@
       "name": "JSON5 number Infinityx as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": NaN1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number NaN1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number NaN1 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2086,10 +2069,9 @@
       "name": "JSON5 number +Infinity as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": Infinity1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number Infinity1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number Infinity1 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2102,10 +2084,9 @@
       "name": "JSON5 number Infinity1 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": -Inf, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number -Inf as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number -Inf as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2118,10 +2099,9 @@
       "name": "JSON5 number -Inf as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": In, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number In as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number In as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2134,10 +2114,9 @@
       "name": "JSON5 number In as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": N, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number N as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number N as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2165,10 +2144,9 @@
       "name": "JSON5 number 0x_1 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 1+, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 1+ as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 1+ as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2199,10 +2177,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": +, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number + as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number + as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2215,10 +2192,9 @@
       "name": "JSON5 number + as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": +., \"height\": \"+1\"}}]}",
-      "name": "JSON5 number +. as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number +. as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2231,10 +2207,9 @@
       "name": "JSON5 number +. as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": -., \"height\": \"+1\"}}]}",
-      "name": "JSON5 number -. as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number -. as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2313,10 +2288,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0e5, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0e5 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0e5 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 0\n}",
@@ -2330,10 +2304,9 @@
       "name": "JSON5 number 0e5 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0x0p0, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0x0p0 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0x0p0 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 0\n}",
@@ -2365,10 +2338,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0e1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0e1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0e1 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 0\n}",
@@ -2382,10 +2354,9 @@
       "name": "JSON5 number 0e1 as a Double"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0e9, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0e9 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0e9 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 0\n}",
@@ -2453,10 +2424,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 0E5, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 0E5 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 0E5 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 0\n}",
@@ -2650,10 +2620,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": 00e5, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number 00e5 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number 00e5 as an action parameter"
     },
     {
       "error": {"exact":false,"kind":"decoding"},
@@ -2720,10 +2689,9 @@
       "roundTrips": true
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n    {\n      \"action\" : {\n        \"height\" : \"+1\",\n        \"op\" : \"resize\",\n        \"width\" : \"+0\"\n      },\n      \"enabled\" : true,\n      \"id\" : \"E0000000-0000-4000-8000-0000000000AA\",\n      \"keys\" : \"a\"\n    }\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"\"resize\" needs \"width\" to be text or a number"},
       "input": "{\"bindings\": [{\"id\": \"E0000000-0000-4000-8000-0000000000AA\", \"keys\": \"a\", \"action\": {\"op\": \"resize\", \"width\": -0.0e1, \"height\": \"+1\"}}]}",
-      "name": "JSON5 number -0.0e1 as an action parameter",
-      "roundTrips": true
+      "name": "JSON5 number -0.0e1 as an action parameter"
     },
     {
       "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 0\n}",

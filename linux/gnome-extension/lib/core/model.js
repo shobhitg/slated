@@ -200,6 +200,9 @@ export function readSettings(values = {}) {
     const v = lookup(values, key);
     return v === undefined ? d : settingString(v);
   };
+  // Truncated; NaN reads as the default and the size is capped at ±1e15, as in Swift (where
+  // converting NaN, infinities or huge values to Int would trap).
+  const undo = double('undoMaxStackSize', 10);
   return {
     bool,
     double,
@@ -215,7 +218,7 @@ export function readSettings(values = {}) {
     repeatOnHoldOps: splitCharacters(string('repeatOnHoldOps', 'resize,nudge'), (c) => c === ',').map(trimWhitespace),
     secondsBeforeRepeat: double('secondsBeforeRepeat', 0.4),
     secondsBetweenRepeat: double('secondsBetweenRepeat', 0.1),
-    undoMaxStackSize: Math.trunc(double('undoMaxStackSize', 10)),
+    undoMaxStackSize: Number.isNaN(undo) ? 10 : Math.trunc(Math.min(Math.max(undo, -1e15), 1e15)) || 0,
     focusCheckWidth: double('focusCheckWidth', 100),
     focusCheckWidthMax: double('focusCheckWidthMax', 100),
     focusPreferSameApp: bool('focusPreferSameApp', true),

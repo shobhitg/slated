@@ -278,6 +278,16 @@ public struct ModalKey: Hashable, Sendable, Codable {
     self.keys = keys
     self.toggle = toggle
   }
+
+  private enum CodingKeys: String, CodingKey { case keys, toggle }
+
+  /// `toggle` may be left out of hand-edited files, like every field with a default.
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      keys: try c.decode(KeyCombo.self, forKey: .keys),
+      toggle: try c.decodeIfPresent(Bool.self, forKey: .toggle) ?? false)
+  }
 }
 
 // MARK: - Layouts
