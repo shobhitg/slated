@@ -205,7 +205,7 @@ struct SlateConfigStep: View {
   @Environment(AppModel.self) private var model
 
   var body: some View {
-    let found = model.sources.filter { $0.exists && $0.loaded }
+    let found = model.slateFilesFound
     VStack(spacing: 22) {
       ZStack {
         IconTile(
@@ -223,6 +223,12 @@ struct SlateConfigStep: View {
         StepTitle(
           title: "Start with a few great shortcuts",
           subtitle: "No ~/.slate or ~/.slate.js here — no problem. Add a starter set now and make it yours in Settings."
+        )
+      } else if !found.contains(where: \.loaded) {
+        StepTitle(
+          title: "Your Slate config is here",
+          subtitle: "Slated isn't loading it. Turn it on to run its shortcuts alongside Slated's own. "
+            + "Nothing is converted or changed."
         )
       } else {
         StepTitle(
@@ -265,7 +271,9 @@ private struct SourceSummaryRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(source.displayName).font(.system(size: 13, weight: .semibold, design: .monospaced))
         Text(
-          "\(source.bindings.count) bindings" + (source.layouts.isEmpty ? "" : " · \(source.layouts.count) layouts")
+          source.loaded
+            ? "\(source.bindings.count) bindings" + (source.layouts.isEmpty ? "" : " · \(source.layouts.count) layouts")
+            : "Not loaded"
         )
         .font(.system(size: 11.5))
         .foregroundStyle(.secondary)

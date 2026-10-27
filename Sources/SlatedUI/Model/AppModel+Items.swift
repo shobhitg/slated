@@ -202,6 +202,13 @@ extension AppModel {
 
   var sourceBindingCount: Int { sources.filter(\.loaded).reduce(0) { $0 + $1.bindings.count } }
 
+  /// The Slate config files onboarding shows, with the switch that loads them: those that loaded, and
+  /// while loading is off (as last saved, which is what the engine ran), those that are there, so the
+  /// switch stays to turn it back on.
+  var slateFilesFound: [SlateSource] {
+    sources.filter { $0.exists && ($0.loaded || !saved.general.loadSlateConfigs) }
+  }
+
   // MARK: Hotstrings
 
   func hotstring(_ id: UUID) -> Hotstring? { configuration.hotstrings.first { $0.id == id } }

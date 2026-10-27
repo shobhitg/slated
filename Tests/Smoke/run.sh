@@ -67,6 +67,18 @@ expect_output "~/.slate.js loads all its bindings" "$out" "source: ~/.slate.js l
 expect_output "~/.slate.js bindings are registered as hotkeys" "$out" "hotkeys: 6 registered"
 expect_output "the event log records the Slate file" "$(log_of "$home")" '"bindings":4,"kind":"javascript"'
 
+# 2b. With "Load Slate config files" off, the files are still listed, as not loaded, so onboarding and
+#     Settings can offer to turn loading back on. None of their shortcuts are registered.
+home=$(new_home)
+cp "$FIXTURES/slate.js" "$home/.slate.js"
+mkdir -p "$home/.config/slated"
+echo '{ "general": { "loadSlateConfigs": false } }' >"$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "with loading off, ~/.slate.js is still listed, as not loaded" "$out" "source: ~/.slate.js not loaded 0 bindings"
+expect_output "and so is ~/.slate, which isn't there" "$out" "source: ~/.slate not loaded 0 bindings"
+expect_output "with loading off, no Slate shortcut is registered" "$out" "hotkeys: 2 registered"
+expect_output "the event log says why ~/.slate.js isn't loaded" "$(log_of "$home")" '"reason":"loading is off"'
+
 # 3. A classic ~/.slate file.
 home=$(new_home)
 cp "$FIXTURES/slate" "$home/.slate"
@@ -102,6 +114,21 @@ out=$(SLATED_SMOKE_STEPS=pause smoke "$home")
 expect_output "pausing unregisters every hotkey" "$out" "paused: 0 hotkeys registered"
 expect_output "switching apps while paused doesn't bring them back" "$out" \
   "paused, after switching apps: 0 hotkeys registered"
+
+# 4c2. Recording a shortcut in Settings: no shortcut or hotstring fires, but the Hyper key keeps working
+#      (Caps Lock stays mapped, the tap adds its modifiers), so holding Caps Lock records ✦. Only Pause
+#      Slated gives Caps Lock back.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+echo '{ "keyboard": { "capsLock": "hyper" }, "hotstrings": [ { "trigger": ";sig", "replacement": "Best" } ] }' \
+  >"$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_STEPS=record-shortcut smoke "$home")
+expect_output "recording a shortcut keeps the Hyper key, with no shortcut or hotstring live" "$out" \
+  "recording a shortcut: Hyper key on, shortcuts off, hotstrings off, 0 hotkeys registered"
+expect_output "pausing while recording turns the Hyper key off too" "$out" \
+  "paused while recording: Hyper key off, shortcuts off, hotstrings off, 0 hotkeys registered"
+expect_true "everything comes back after recording" \
+  grep -qE "^after recording: Hyper key on, shortcuts on, hotstrings on, [1-9][0-9]* hotkeys registered" <<<"$out"
 
 # 4d. Notch island settings; the cheat sheet lists only Hyper shortcuts, grouped.
 home=$(new_home)
@@ -215,6 +242,21 @@ cp "$FIXTURES/config-duplicates.json" "$home/.config/slated/config.json"
 out=$(smoke "$home")
 expect_output "duplicate shortcuts are flagged" "$out" "duplicate"
 expect_output "the event log lists duplicate shortcuts" "$(log_of "$home")" '"duplicates":["ctrl+alt+cmd+f13"]'
+expect_output "Settings sees the shadowed shortcut as a duplicate, not active" "$out" "ctrl+alt+cmd+f13 duplicate"
+
+# 7c. Shortcuts limited to apps are duplicates where they can both be live (an app they share), whichever
+#     app is in front; so is a binding on a built-in shortcut's keys, unless it does what that does.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-duplicates-apps.json" "$home/.config/slated/config.json"
+out=$(smoke "$home")
+expect_output "two bindings limited to the same app are duplicates" "$out" "ctrl+alt+cmd+f14 duplicate"
+expect_output "a binding everywhere and one limited to an app are duplicates" "$out" "ctrl+alt+cmd+f16 duplicate"
+expect_output "a binding on the stop shortcut's keys that does something else is a duplicate" "$out" \
+  "hyper+esc duplicate"
+expect_true "bindings limited to different apps aren't duplicates" bash -c '! grep -q "f15 duplicate" <<<"$1"' _ "$out"
+expect_true "a binding that opens the clipboard history on its shortcut's keys isn't a duplicate" \
+  bash -c '! grep -q "+v duplicate" <<<"$1"' _ "$out"
 
 # 7a. Two auto-repeats of different text of the same length, started without a shortcut (a sequence
 #     resuming after a wait), both run: their ids differ though the log shows only the length.
@@ -222,6 +264,24 @@ home=$(new_home)
 out=$(SLATED_SMOKE_STEPS=repeat-text smoke "$home")
 expect_output "auto-repeats of different text don't stop each other" "$out" "auto-repeats running: 2"
 expect_true "the log never has their text" bash -c '! grep -q secret "$1"' _ "$home/Library/Logs/Slated/slated.log"
+
+# 7a2. A macro waiting between steps (on a wait, or on a shell command with wait) counts as a running
+#      automation, so every safety stop drops the steps it has left: the stop shortcut, switching apps,
+#      the time limit, sleep, and Pause Slated (screen lock and quit stop automations the same way).
+home=$(new_home)
+out=$(SLATED_SMOKE_SECONDS=12 SLATED_SMOKE_STEPS=macro-stops smoke "$home")
+expect_output "a macro waiting on a wait counts as running, and goes on when nothing stops it" "$out" \
+  "macro waiting on a wait, stopped by none: running, its last step ran"
+for stop in stop-shortcut app-switch time-limit sleep pause; do
+  expect_output "a macro waiting on a wait is stopped by $stop" "$out" \
+    "macro waiting on a wait, stopped by $stop: running, its last step dropped"
+done
+expect_output "a macro waiting on a shell command counts as running, and goes on once it exits" "$out" \
+  "macro waiting on a shell command, stopped by none: running, its last step ran"
+for stop in stop-shortcut app-switch; do
+  expect_output "a macro waiting on a shell command is stopped by $stop" "$out" \
+    "macro waiting on a shell command, stopped by $stop: running, its last step dropped"
+done
 
 # 7b. A modal key macOS won't register (not a key at all, or another binding's shortcut): the bindings
 #     behind it can never run, so they're failed, with why, instead of active.

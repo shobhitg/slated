@@ -48,6 +48,9 @@ final class ActionRunner {
   private var lastFailure: String?
   private var chains: [String: (next: Int, window: AXWindow?)] = [:]
   private let snapshots = SnapshotStore()
+  /// The rest of macros waiting for a shell command to exit, by id.
+  private var afterShell: [Int: () -> Void] = [:]
+  private var lastShell = 0
 
   /// Runs `action` for `trigger` (e.g. "hotkey hyper+a") and logs one event with the outcome: what
   /// ran, on which app, how long it took, and the error if it failed.
@@ -231,7 +234,8 @@ final class ActionRunner {
   }
 
   /// Runs sequence steps from `start`. A `wait` step schedules the rest instead of blocking, so
-  /// macros like "press W, wait 2 s, release W" never freeze Slated.
+  /// macros like "press W, wait 2 s, release W" never freeze Slated; after a shell step with `wait`,
+  /// the rest runs once the command exits, without blocking either.
   @discardableResult
   private func runSequence(_ steps: [SequenceStep], from start: Int, anchor: AXWindow?, chainKey: String?) -> Bool {
     // `|` steps act on whatever is focused when they run; `>` steps (keepWindow) act on the window
@@ -241,19 +245,42 @@ final class ActionRunner {
     var i = start
     while i < steps.count {
       let step = steps[i]
+      let next = i + 1
       if case .wait(let seconds) = step.action {
-        let next = i + 1
+        guard next < steps.count else { return ok }  // nothing to wait for
         let resumeAnchor = anchor
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+        let rest = continueLater { [weak self] in
           self?.runSequence(steps, from: next, anchor: resumeAnchor, chainKey: chainKey)
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { rest() }
         return ok
       }
       if i > 0 && !step.keepWindow { anchor = Accessibility.focusedWindow() }
+      if case .shell(let command, true, let path) = step.action, next < steps.count {
+        let resumeAnchor = anchor
+        let rest = continueLater { [weak self] in
+          self?.runSequence(steps, from: next, anchor: resumeAnchor, chainKey: chainKey)
+        }
+        return runShell(command, wait: true, path: path, then: rest) && ok
+      }
       ok = perform(step.action, on: anchor, chainKey: chainKey.map { "\($0)/\(i)" }) && ok
-      i += 1
+      i = next
     }
     return ok
+  }
+
+  /// Wraps the rest of a macro that waits (on a `wait`, or a shell command), to be called when the wait
+  /// is over. Until then the macro counts as a running automation, so the safety stops (the stop
+  /// shortcut, switching apps, the time limit, sleep, screen lock, pause, quit) apply to it, and the
+  /// rest is dropped if one of them stops automations meanwhile.
+  private func continueLater(_ rest: @escaping () -> Void) -> () -> Void {
+    let token = automation?.waitBegan()
+    return { [weak self] in
+      guard let self else { return }
+      if let token, automation?.isWaiting(token) != true { return }
+      rest()
+      if let token { automation?.waitEnded(token) }
+    }
   }
 
   // MARK: Geometry
@@ -414,17 +441,31 @@ final class ActionRunner {
     }
   }
 
-  private func runShell(_ command: String, wait: Bool, path: String?) -> Bool {
+  /// `then`: instead of blocking until the command exits (`wait`), run this once it has, on the main
+  /// thread (the rest of a macro). Right away if the command can't start.
+  private func runShell(_ command: String, wait: Bool, path: String?, then rest: (() -> Void)? = nil) -> Bool {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/sh")
     process.arguments = ["-c", command]
     process.currentDirectoryURL = URL(fileURLWithPath: NSString(string: path ?? "~").expandingTildeInPath)
+    var id: Int?
+    if let rest {
+      lastShell += 1
+      let shell = lastShell
+      id = shell
+      afterShell[shell] = rest
+      process.terminationHandler = { [weak self] _ in
+        DispatchQueue.main.async { MainActor.assumeIsolated { self?.afterShell.removeValue(forKey: shell)?() } }
+      }
+    }
     do {
       try process.run()
-      if wait { process.waitUntilExit() }
+      if wait && rest == nil { process.waitUntilExit() }
       return true
     } catch {
-      return fail("Couldn't run \(command): \(error.localizedDescription)")
+      let failed = fail("Couldn't run \(command): \(error.localizedDescription)")
+      if let id { afterShell.removeValue(forKey: id)?() }
+      return failed
     }
   }
 

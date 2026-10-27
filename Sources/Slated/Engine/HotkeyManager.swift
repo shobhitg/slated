@@ -16,12 +16,25 @@ final class HotkeyManager {
     var source: String = "Slated"
     /// Only registered while one of these apps is frontmost; empty means everywhere.
     var apps: [String] = []
+    /// What it runs, when known (not for a Slate script's functions), for the duplicate check.
+    var action: Action? = nil
+    /// One of Slated's own shortcuts (clipboard history, stop automations), registered after the bindings.
+    var builtIn = false
     var run: () -> Void
+
+    /// Whether `other`, on the same keys, gets in this one's way: they can be live at once (everywhere,
+    /// or in an app they share), so only the first runs. A binding on a built-in shortcut's keys that
+    /// runs what the shortcut runs doesn't: it does what the shortcut would.
+    func clashes(with other: Entry) -> Bool {
+      let sharesApps = apps.isEmpty || other.apps.isEmpty || !Set(apps).isDisjoint(with: other.apps)
+      let sameBuiltIn = (builtIn || other.builtIn) && action != nil && action == other.action
+      return sharesApps && !sameBuiltIn
+    }
   }
 
   private(set) var statuses: [String: HotkeyStatus] = [:]
-  /// Shortcuts bound more than once; only the first binding is live. (Statuses are keyed by shortcut,
-  /// so they report the live binding.)
+  /// Shortcuts bound more than once where the bindings can be live at once; only the first one runs.
+  /// Their status is `.duplicate` (statuses are keyed by shortcut), unless registering failed.
   private(set) var duplicates: [String] = []
   private var settings = SlateSettings()
   private var tokens: [UInt32] = []
@@ -52,7 +65,9 @@ final class HotkeyManager {
     var seen = Set<String>()
     var direct: [Entry] = []
     statuses = Dictionary(disabled.map { ($0, HotkeyStatus.disabled) }, uniquingKeysWith: { a, _ in a })
-    duplicates = []
+    // From every entry, not just those live for the app in front, so statuses don't change as you
+    // switch apps (and Settings, in front while you look, sees app-specific ones too).
+    duplicates = Self.duplicates(in: entries)
     // App-specific bindings are registered only while their app is in front, so a plain key in a
     // game never steals that key anywhere else. The rest count as ready.
     let live = entries.filter { $0.apps.isEmpty || frontmostApp.map($0.apps.contains) == true }
@@ -60,10 +75,7 @@ final class HotkeyManager {
       statuses[entry.id] = .active
     }
     for entry in live {
-      guard seen.insert(entry.id).inserted else {
-        duplicates.append(entry.id)
-        continue
-      }
+      guard seen.insert(entry.id).inserted else { continue }
       if let modal = entry.modal {
         modalEntries[modal.keys, default: []].append(entry)
       } else {
@@ -103,6 +115,20 @@ final class HotkeyManager {
         statuses[entry.id] = status
       }
     }
+    for id in duplicates where statuses[id] == .active { statuses[id] = .duplicate }
+  }
+
+  /// Ids of the shortcuts some entry shadows: an earlier entry on the same keys clashes with it.
+  static func duplicates(in entries: [Entry]) -> [String] {
+    var earlier: [String: [Entry]] = [:]
+    var result: [String] = []
+    for entry in entries {
+      if !result.contains(entry.id), earlier[entry.id, default: []].contains(where: { $0.clashes(with: entry) }) {
+        result.append(entry.id)
+      }
+      earlier[entry.id, default: []].append(entry)
+    }
+    return result
   }
 
   /// Non-modal combos currently bound, so the keyboard tap can catch Hyper combos itself.

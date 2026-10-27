@@ -1,0 +1,19 @@
+{
+  // Shortcuts on the same keys, limited to apps, and on a built-in shortcut's keys.
+  "general": { "loadSlateConfigs": false },
+  "bindings": [
+    // Limited to the same app: the second never runs there.
+    { "keys": "ctrl+alt+cmd+f14", "action": "push left", "onlyInApps": ["com.example.editor"] },
+    { "keys": "ctrl+alt+cmd+f14", "action": "push right", "onlyInApps": ["com.example.editor"] },
+    // Different apps: each runs in its own.
+    { "keys": "ctrl+alt+cmd+f15", "action": "push left", "onlyInApps": ["com.example.editor"] },
+    { "keys": "ctrl+alt+cmd+f15", "action": "push right", "onlyInApps": ["com.example.browser"] },
+    // Everywhere, and in one app: the second never runs.
+    { "keys": "ctrl+alt+cmd+f16", "action": "push left" },
+    { "keys": "ctrl+alt+cmd+f16", "action": "push right", "onlyInApps": ["com.example.editor"] },
+    // The clipboard history shortcut's keys, opening the clipboard history: harmless.
+    { "keys": "shift+cmd+v", "action": "clipboard-history" },
+    // The stop-automations shortcut's keys, doing something else: it never stops automations.
+    { "keys": "hyper+esc", "action": "push up" },
+  ],
+}

@@ -117,6 +117,8 @@ private struct SourceCard: View {
 
   private var summary: String {
     guard source.exists else { return "Not found — create the file to use it." }
+    // Not read at all while loading is off, so there's nothing to count.
+    if !enabled && !source.loaded { return "Not loaded while loading Slate config files is off." }
     var parts = ["\(source.bindings.count) binding\(source.bindings.count == 1 ? "" : "s")"]
     if !source.layouts.isEmpty { parts.append("\(source.layouts.count) layout\(source.layouts.count == 1 ? "" : "s")") }
     let errors = source.diagnostics.filter { $0.severity == .error }.count

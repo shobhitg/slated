@@ -32,6 +32,11 @@ final class Engine {
   /// While the settings window records a shortcut or the hotstring "try it" field has focus.
   private var suspendedForRecording = false
   private var suspended: Bool { pausedByUser || suspendedForRecording }
+  /// What runs right now: recording keeps the Hyper key but no shortcut or hotstring fires; pausing
+  /// turns everything off.
+  var liveTriggers: LiveTriggers {
+    LiveTriggers(store.configuration, paused: pausedByUser, recording: suspendedForRecording)
+  }
   private var capsLockRemapped = false
   private var observers: [NSObjectProtocol] = []
   /// Last logged keyboard state ("tap on, hyper on …"), so only changes are logged.
@@ -173,7 +178,9 @@ final class Engine {
 
   func onChange(_ handler: @escaping () -> Void) { changeHandlers.append(handler) }
 
-  /// Pauses every trigger (used while the UI records a shortcut, and by "Pause Slated").
+  /// While the UI records a shortcut (or the hotstring Try It field has focus): no shortcut or hotstring
+  /// fires, so the keys reach the field. The Hyper key keeps working, so Caps Lock + a key records as
+  /// ✦ + that key; only "Pause Slated" gives Caps Lock back.
   func setSuspended(_ value: Bool) {
     guard value != suspendedForRecording else { return }
     suspendedForRecording = value
@@ -205,7 +212,7 @@ final class Engine {
   /// Re-registers everything from the current configuration and Slate sources.
   func apply() {
     let config = store.configuration
-    sources.load(paths: config.general.loadSlateConfigs ? config.general.slateConfigPaths : [], runner: runner)
+    sources.load(paths: config.general.slateConfigPaths, loading: config.general.loadSlateConfigs, runner: runner)
 
     let settings = sources.settings.merging(config.settings)
     runner.settings = settings
@@ -213,14 +220,15 @@ final class Engine {
     for layout in sources.layouts + config.layouts { layouts[layout.name] = layout }
     runner.layouts = layouts
 
-    if suspended {
+    if !liveTriggers.shortcuts {
       hotkeys.unregisterAll()
     } else {
       // Slated's own bindings come first so they win over Slate-file duplicates.
       var entries: [HotkeyManager.Entry] = config.bindings.filter(\.enabled).map { binding in
         let repeats = binding.repeats ?? settings.repeatOnHoldOps.contains(binding.action.name)
         return HotkeyManager.Entry(
-          keys: binding.keys, modal: binding.modal, repeats: repeats, source: "Slated", apps: binding.onlyInApps
+          keys: binding.keys, modal: binding.modal, repeats: repeats, source: "Slated", apps: binding.onlyInApps,
+          action: binding.action
         ) {
           [weak self] in
           self?.runner.run(
@@ -260,13 +268,17 @@ final class Engine {
     var entries: [HotkeyManager.Entry] = []
     if config.clipboard.enabled, let keys = config.clipboard.shortcut {
       entries.append(
-        HotkeyManager.Entry(keys: keys, modal: nil, repeats: false, source: "Slated clipboard") { [weak self] in
+        HotkeyManager.Entry(
+          keys: keys, modal: nil, repeats: false, source: "Slated clipboard", action: .clipboardHistory, builtIn: true
+        ) { [weak self] in
           self?.runner.run(.clipboardHistory, trigger: "hotkey \(keys.string)", source: "Slated clipboard")
         })
     }
     if let keys = config.automation.stopShortcut {
       entries.append(
-        HotkeyManager.Entry(keys: keys, modal: nil, repeats: false, source: "Slated automation") { [weak self] in
+        HotkeyManager.Entry(
+          keys: keys, modal: nil, repeats: false, source: "Slated automation", action: .stopAutomations, builtIn: true
+        ) { [weak self] in
           self?.runner.run(.stopAutomations, trigger: "hotkey \(keys.string)", source: "Slated automation")
         })
     }
@@ -302,9 +314,12 @@ final class Engine {
     let config = store.configuration
     let trusted = Permissions.isAccessibilityTrusted
     status.accessibilityGranted = trusted
-    let wantsHyper = config.keyboard.capsLock == .hyper && !suspended
-    let wantsHotstrings = config.general.hotstringsEnabled && config.hotstrings.contains(where: \.enabled) && !suspended
-    let mouseCombos = suspended ? [] : hotkeys.boundMouseCombos
+    // While a shortcut is recorded the Hyper key stays (Caps Lock must reach the recorder as ✦), but
+    // the tap catches no shortcut and expands no hotstring.
+    let live = liveTriggers
+    let wantsHyper = live.hyperKey
+    let wantsHotstrings = live.hotstrings
+    let mouseCombos = live.shortcuts ? hotkeys.boundMouseCombos : []
 
     var tapFailed = false
     if trusted && allowsKeyboardChanges && (wantsHyper || wantsHotstrings || !mouseCombos.isEmpty) {
@@ -353,7 +368,8 @@ final class Engine {
         return KeyboardTap.MouseHotkey(button: n, modifiers: combo.modifiers.subtracting(.function))
       })
     tap.update(
-      options: options, hotstrings: config.hotstrings, hyperHotkeys: remap ? hyperCodes : [], mouseHotkeys: mouseHotkeys)
+      options: options, hotstrings: config.hotstrings, hyperHotkeys: remap && live.shortcuts ? hyperCodes : [],
+      mouseHotkeys: mouseHotkeys)
     tap.setFrontmostApp(bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
     if !remap { island.hyperUnavailable() }

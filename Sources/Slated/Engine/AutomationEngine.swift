@@ -5,7 +5,9 @@ import SlatedUI
 
 /// Runs AutoHotkey-style automation (auto-repeats and held mouse buttons or keys), with safety rails:
 /// a stop shortcut, stopping when you switch apps or after a time limit, and never leaving a button
-/// or key stuck down: pausing, sleeping, locking the screen or quitting releases everything.
+/// or key stuck down: pausing, sleeping, locking the screen or quitting releases everything. A macro
+/// waiting between steps (on a `wait`, or a shell command with `wait`) counts as running for all of
+/// these even if it holds nothing, and a stop drops the steps it has left; the indicator doesn't list it.
 final class AutomationEngine {
   var settings = AutomationSettings()
   /// Performs one repetition (wired to the action runner).
@@ -30,7 +32,14 @@ final class AutomationEngine {
   private var startedInApp: String?
   private var limitTimer: Timer?
 
+  /// Macros whose next steps wait (tokens from `waitBegan`).
+  private var waits: Set<Int> = []
+  private var lastWait = 0
+
+  /// Whether a repeat runs or an input is held: what the indicator lists.
   var isRunning: Bool { !repeaters.isEmpty || !held.isEmpty }
+  /// Whether anything runs, or a macro waits to go on: what the safety stops act on.
+  var isBusy: Bool { isRunning || !waits.isEmpty }
 
   var active: [ActiveAutomation] {
     (repeaters.values.map(\.info) + held.values).sorted { $0.startedAt < $1.startedAt }
@@ -156,20 +165,42 @@ final class AutomationEngine {
     }
   }
 
+  // MARK: Macros waiting between steps
+
+  /// A macro's next steps wait (the action runner calls this). Until they run (`waitEnded`) or a stop
+  /// drops them, the macro counts as running for the safety stops, even if it holds nothing. Returns a
+  /// token for `isWaiting` and `waitEnded`.
+  func waitBegan() -> Int {
+    lastWait += 1
+    waits.insert(lastWait)
+    starting()
+    return lastWait
+  }
+
+  /// Whether the steps after that wait may still run: no stop dropped them meanwhile.
+  func isWaiting(_ token: Int) -> Bool { waits.contains(token) }
+
+  /// The steps after the wait ran. Only now, so an input they held keeps the app the macro started in.
+  func waitEnded(_ token: Int) {
+    if waits.remove(token) != nil { idleCheck() }
+  }
+
   // MARK: Stopping
 
-  /// Stops every repeat and releases everything held.
+  /// Stops every repeat, releases everything held and drops the steps waiting macros have left.
   func stopAll(reason: String) {
-    guard isRunning else { return }
+    guard isBusy else { return }
+    waits.removeAll()
     for id in Array(repeaters.keys) { stopRepeat(id: id, reason: reason, notify: false) }
     for input in Array(held.keys) { release(input, reason: reason, notify: false) }
     Log.record("automation.stopped_all", level: .notice, ["reason": reason])
+    idleCheck()
     onChange?()
   }
 
   /// Called when the frontmost app changes.
   func frontmostAppChanged(to bundleID: String?) {
-    guard settings.stopOnAppSwitch, isRunning, let startedInApp, bundleID != startedInApp else { return }
+    guard settings.stopOnAppSwitch, isBusy, let startedInApp, bundleID != startedInApp else { return }
     // Our own windows (the switcher, settings) don't count as leaving the game.
     if bundleID == Bundle.main.bundleIdentifier { return }
     // Started while Slated's own window was in front (e.g. testing from Settings): the app you switch
@@ -181,7 +212,9 @@ final class AutomationEngine {
     stopAll(reason: "switched to another app")
   }
 
-  private func began(_ info: ActiveAutomation, extra: [String: Any]) {
+  /// Something started (it's already counted): the first remembers the app it's for, and the time
+  /// limit starts.
+  private func starting() {
     if startedInApp == nil { startedInApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
     if settings.maxRunMinutes > 0 && limitTimer == nil {
       let timer = Timer(timeInterval: settings.maxRunMinutes * 60, repeats: false) { [weak self] _ in
@@ -190,6 +223,18 @@ final class AutomationEngine {
       RunLoop.main.add(timer, forMode: .common)
       limitTimer = timer
     }
+  }
+
+  /// Nothing runs or waits any more: forget the app and the time limit.
+  private func idleCheck() {
+    guard !isBusy else { return }
+    startedInApp = nil
+    limitTimer?.invalidate()
+    limitTimer = nil
+  }
+
+  private func began(_ info: ActiveAutomation, extra: [String: Any]) {
+    starting()
     var data: [String: Any] = ["id": info.id, "title": info.title, "app": startedInApp ?? "unknown"]
     data["trigger"] = info.trigger
     Log.record("automation.started", data.merging(extra) { a, _ in a })
@@ -203,11 +248,7 @@ final class AutomationEngine {
         "id": info.id, "title": info.title, "reason": reason, "repetitions": info.repetitions,
         "seconds": Date().timeIntervalSince(info.startedAt),
       ])
-    if !isRunning {
-      startedInApp = nil
-      limitTimer?.invalidate()
-      limitTimer = nil
-    }
+    idleCheck()
     if notify { onChange?() }
   }
 

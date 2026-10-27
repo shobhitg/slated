@@ -177,7 +177,11 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       the classic menu.
 - [ ] The settings window takes keyboard focus, and Slated shows in the Dock and Cmd-Tab only while
       it's open.
-- [ ] Recording a shortcut with the real Caps Lock (Hyper) works. Global hotkeys pause while recording.
+- [ ] Recording a shortcut with the real Caps Lock (Hyper) works: holding Caps Lock and pressing K
+      records ✦K (⌃⌥⇧K with Keyboard → Meh), and whatever ✦K is bound to doesn't run. Global hotkeys,
+      Hyper combos and hotstrings pause while recording (typing a hotstring's trigger into the
+      recorder doesn't expand it). `hidutil property --get UserKeyMapping` still lists Caps Lock →
+      F18 while recording, and is empty while Slated is paused from the menu bar.
       With Caps Lock not set as the Hyper key, a real F18 key (an extended keyboard, a keyboard
       layer) records as F18.
 - [ ] Give a hotstring the trigger `x`, click into its Try It field, switch to another app and back
@@ -225,6 +229,10 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Mouse 4/5 work as triggers (after granting Accessibility).
 - [ ] Hyper+Esc stops everything. Switching apps stops automations (if enabled). Pausing, sleeping,
       locking the screen and quitting release anything held: no stuck button or key.
+- [ ] A macro `click left | wait 3 | click left` (and `shell 'sleep 3' wait | click left`): Hyper+Esc,
+      Cmd-Tab to another app, or locking the screen during the wait, and the second click never
+      comes. `scripts/logs.py --grep automation.stopped_all` shows the reason. Slated stays
+      responsive during the shell command.
 - [ ] Hold W, switch the input source (e.g. to French, where W is another key), then stop: W is
       released, in the game and in Keyboard Viewer.
 

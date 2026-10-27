@@ -91,7 +91,11 @@ public final class PreviewServices: AppServices {
   }
 
   public func runtimeStatus() -> RuntimeStatus { status }
-  public func slateSources() -> [SlateSource] { sources }
+  public func slateSources() -> [SlateSource] {
+    // Like the app: with loading off, the files are listed but not loaded.
+    guard !configuration.general.loadSlateConfigs else { return sources }
+    return sources.map { SlateSource(path: $0.path, kind: $0.kind, exists: $0.exists, loaded: false) }
+  }
   public func screens() -> [ScreenInfo] { PreviewData.screens }
   public func runningApplications() -> [AppInfo] { PreviewData.runningApps }
 
@@ -108,7 +112,7 @@ public final class PreviewServices: AppServices {
   public func revealConfigurationFile() {}
   public func revealFile(atPath path: String) {}
   public func setHotkeysSuspended(_ suspended: Bool) {
-    // Like the app: while suspended, neither the Hyper key nor hotstrings are live.
+    // Like the app: while suspended, no shortcut or hotstring is live, but the Hyper key is.
     hotkeysSuspended = suspended
     recomputeStatus()
     notify()
@@ -241,7 +245,7 @@ public final class PreviewServices: AppServices {
     }
     status.hotkeys = hotkeys
     status.hotstringsEnabled = configuration.general.hotstringsEnabled
-    status.hyperKeyActive = configuration.keyboard.capsLock == .hyper && !status.paused && !hotkeysSuspended
+    status.hyperKeyActive = configuration.keyboard.capsLock == .hyper && !status.paused
     status.hotstringsActive =
       status.hotstringsEnabled && !status.paused && !hotkeysSuspended && !configuration.hotstrings.isEmpty
   }
