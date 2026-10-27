@@ -15,6 +15,18 @@ private func hyper(_ key: String) -> KeyCombo { KeyCombo(key: key, modifiers: .h
 
 @MainActor private func preset(_ id: String) -> Action { WindowPresets.preset(id).action }
 
+/// Each hotstring's validation messages, in order; apps are named from `names` (else their id).
+@MainActor private func hotstringWarnings(_ hotstrings: [Hotstring], names: [String: String] = [:]) -> [[String]] {
+  var config = SlatedConfiguration()
+  config.hotstrings = hotstrings
+  let issues = ConfigValidator.validate(config, knownLayouts: [], appName: { names[$0] ?? $0 })
+  return hotstrings.map { hotstring in issues.filter { $0.target == .hotstring(hotstring.id) }.map(\.message) }
+}
+
+private let higherInTheList =
+  "Another hotstring with the same trigger is higher in the list, so this one never fires. "
+  + "Drag this one above it to use it."
+
 let uiActionTests = Suite(
   "UIActions",
   [
@@ -260,10 +272,110 @@ let uiValidationTests = Suite(
           let issues = ConfigValidator.validate(config, knownLayouts: [])
           expect(issues.contains { $0.target == .hotstring(separator.id) && $0.severity == .error })
           expect(issues.contains { $0.target == .hotstring(empty.id) && $0.severity == .error })
-          expect(issues.contains { $0.target == .hotstring(email.id) && $0.message.contains(";e") })
+          expectEqual(
+            issues.filter { $0.target == .hotstring(email.id) }.map(\.message),
+            ["“;e” fires as soon as it's typed, so this one never gets the chance."])
           expect(!issues.contains { $0.target == .hotstring(shadow.id) })
-          expect(issues.contains { $0.target == .hotstring(dupA.id) && $0.severity == .warning })
-          expect(issues.contains { $0.target == .hotstring(dupB.id) && $0.severity == .warning })
+          // “btw” also matches “BTW” and comes first, so only “BTW” never fires.
+          expect(!issues.contains { $0.target == .hotstring(dupA.id) })
+          expectEqual(issues.filter { $0.target == .hotstring(dupB.id) }.map(\.message), [higherInTheList])
+        }
+      }
+    ),
+    (
+      "of two hotstrings with the same trigger the first wins, only where both work",
+      {
+        try onMain {
+          let mail = "com.apple.mail"
+          let mailOnly = Hotstring(trigger: ";sig", replacement: "Best, S", onlyInApps: [mail])
+          let global = Hotstring(trigger: ";sig", replacement: "S.")
+          // A per-app override: Mail gets its own, every other app the global one.
+          expectEqual(hotstringWarnings([mailOnly, global]), [[], []])
+          // Below the global one, the Mail one never fires.
+          expectEqual(hotstringWarnings([global, mailOnly]), [[], [higherInTheList]])
+          // Each still fires somewhere: Mail gets the first, Notes the second.
+          let mailAndNotes = Hotstring(trigger: ";sig", replacement: "S", onlyInApps: [mail, "com.apple.Notes"])
+          expectEqual(hotstringWarnings([mailOnly, mailAndNotes]), [[], []])
+          expectEqual(hotstringWarnings([mailAndNotes, mailOnly]), [[], [higherInTheList]])
+          // Firing as soon as it's typed beats waiting for a delimiter, whatever the order.
+          let waits = Hotstring(trigger: ";sig", replacement: "W", fire: .afterDelimiter)
+          let firesFirst =
+            "Another hotstring with the same trigger fires as soon as it's typed, so this one never gets the chance."
+          expectEqual(hotstringWarnings([waits, global]), [[firesFirst], []])
+          expectEqual(hotstringWarnings([global, waits]), [[], [firesFirst]])
+          // A case-sensitive “BTW” first leaves “btw” and “Btw” to the other.
+          let upper = Hotstring(trigger: "BTW", replacement: "By the way")
+          let anyCase = Hotstring(trigger: "btw", replacement: "by the way", caseSensitive: false)
+          expectEqual(hotstringWarnings([upper, anyCase]), [[], []])
+          expectEqual(hotstringWarnings([anyCase, upper]), [[], [higherInTheList]])
+          // A whole-word one first leaves typing inside a word to the other.
+          let word = Hotstring(trigger: "teh", replacement: "the", wordBoundary: true)
+          let inWords = Hotstring(trigger: "teh", replacement: "the")
+          expectEqual(hotstringWarnings([word, inWords]), [[], []])
+          expectEqual(hotstringWarnings([inWords, word]), [[], [higherInTheList]])
+          // One that's off shadows nothing.
+          var off = global
+          off.enabled = false
+          expectEqual(hotstringWarnings([off, mailOnly]), [[], []])
+        }
+      }
+    ),
+    (
+      "a trigger that fires first says where, when that's only some of this one's apps",
+      {
+        try onMain {
+          let names = ["com.apple.mail": "Mail", "com.apple.TextEdit": "TextEdit"]
+          let email = Hotstring(trigger: ";email", replacement: "a@b.c")
+          // Everywhere but Mail, “;e” fires first; in Mail “;email” works.
+          let notInMail = Hotstring(trigger: ";e", replacement: "e", exceptInApps: ["com.apple.mail"])
+          expectEqual(
+            hotstringWarnings([notInMail, email], names: names),
+            [[], ["“;e” fires as soon as it's typed, so this one only works in Mail."]])
+          // Only in Mail and TextEdit does “;e” fire first.
+          let twoApps = Hotstring(
+            trigger: ";e", replacement: "e", onlyInApps: ["com.apple.TextEdit", "com.apple.mail"])
+          expectEqual(
+            hotstringWarnings([twoApps, email], names: names)[1],
+            ["In Mail and TextEdit, “;e” fires as soon as it's typed, so this one never gets the chance there."])
+          // Where “;e” works in all of “;email”'s apps, “;email” never fires.
+          let mailEmail = Hotstring(trigger: ";email", replacement: "a@b.c", onlyInApps: ["com.apple.mail"])
+          expectEqual(
+            hotstringWarnings([twoApps, mailEmail], names: names)[1],
+            ["“;e” fires as soon as it's typed, so this one never gets the chance."])
+        }
+      }
+    ),
+    (
+      "a trigger typed on the way to another one fires first",
+      {
+        try onMain {
+          let shrug = Hotstring(trigger: ";shrug", replacement: "¯\\_(ツ)_/¯")
+          @MainActor func warnings(_ other: Hotstring, _ longer: Hotstring = shrug) -> [String] {
+            hotstringWarnings([other, longer])[1]
+          }
+          let sh = "“sh” fires as soon as it's typed, so this one never gets the chance."
+          expectEqual(warnings(Hotstring(trigger: "sh", replacement: "x")), [sh])
+          expectEqual(
+            warnings(Hotstring(trigger: "SH", replacement: "x", caseSensitive: false)),
+            ["“SH” fires as soon as it's typed, so this one never gets the chance."])
+          // A whole-word trigger fires after the “;” but not after a letter.
+          expectEqual(warnings(Hotstring(trigger: "sh", replacement: "x", wordBoundary: true)), [sh])
+          expectEqual(warnings(Hotstring(trigger: "hr", replacement: "x", wordBoundary: true)), [])
+          // Waiting for a delimiter, or ending where this one does (the longer trigger wins), is fine.
+          expectEqual(warnings(Hotstring(trigger: "sh", replacement: "x", fire: .afterDelimiter)), [])
+          expectEqual(warnings(Hotstring(trigger: "rug", replacement: "x")), [])
+          // Kept to different apps, they never meet.
+          expectEqual(
+            warnings(
+              Hotstring(trigger: "sh", replacement: "x", onlyInApps: ["com.apple.mail"]),
+              Hotstring(trigger: ";shrug", replacement: "x", onlyInApps: ["com.apple.Notes"])),
+            [])
+          // The one typed first is named: “;s” fires before “hr” is complete.
+          let hr = Hotstring(trigger: "hr", replacement: "x")
+          let semicolonS = Hotstring(trigger: ";s", replacement: "x")
+          expectEqual(
+            hotstringWarnings([hr, semicolonS, shrug])[2],
+            ["“;s” fires as soon as it's typed, so this one never gets the chance."])
         }
       }
     ),
@@ -286,8 +398,9 @@ let uiValidationTests = Suite(
           let chatEmail = Hotstring(trigger: ";email", replacement: "a@b.c", onlyInApps: [messages])
           config.hotstrings += [everywhere, chatEmail]
           let issues = ConfigValidator.validate(config, knownLayouts: [])
-          for clash in [mailSignature, chatSignature, everywhere] {
-            expect(issues.contains { $0.target == .hotstring(clash.id) && $0.message.hasPrefix("Another hotstring") })
+          // Listed first, the app-limited ones win in their apps, and the global one fires everywhere else.
+          for signature in [mailSignature, chatSignature, everywhere] {
+            expect(!issues.contains { $0.target == .hotstring(signature.id) }, signature.replacement)
           }
           expect(issues.contains { $0.target == .hotstring(chatEmail.id) && $0.message.contains("“;e”") })
           expect(!issues.contains { $0.target == .hotstring(mailOnlyEmail.id) })
