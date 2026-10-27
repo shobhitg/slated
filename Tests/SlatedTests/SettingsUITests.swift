@@ -556,6 +556,69 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "pasting the original into config.json again makes a third item, not a second copy's twin",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let left = HotkeyBinding(name: "Left", keys: hyper("left"), action: preset("left-half"))
+          var right = left  // pasted in config.json, id and all
+          right.name = "Right"
+          right.keys = hyper("right")
+          let shrug = Hotstring(trigger: ";shrug", replacement: "¯\\_(ツ)_/¯")
+          var flip = shrug
+          flip.trigger = ";flip"
+          var config = SlatedConfiguration()
+          config.bindings = [left, right]
+          config.hotstrings = [shrug, flip]
+          try services.saveConfiguration(config)
+
+          let model = AppModel(services: services)
+          try require(model.bindingBinding(left.id)).wrappedValue.name = "Left Half"
+          model.saveNow()  // writes the copies' new ids
+          let rightID = model.configuration.bindings[1].id
+          let flipID = model.configuration.hotstrings[1].id
+          expectEqual(services.configuration.bindings.map(\.id), [left.id, rightID])
+          expectEqual(services.configuration.hotstrings.map(\.id), [shrug.id, flipID])
+
+          // The originals pasted again by hand: after the copy, and before it.
+          var edited = services.configuration
+          var up = left
+          up.name = "Up"
+          up.keys = hyper("up")
+          edited.bindings.append(up)
+          var sig = shrug
+          sig.trigger = ";sig"
+          edited.hotstrings.insert(sig, at: 1)
+          try services.saveConfiguration(edited)  // notifies the model, like the file watcher
+
+          let bindingIDs = model.configuration.bindings.map(\.id)
+          let hotstringIDs = model.configuration.hotstrings.map(\.id)
+          expectEqual(model.configuration.bindings.map(\.name), ["Left Half", "Right", "Up"])
+          expectEqual(Set(bindingIDs).count, 3)  // each binding is its own
+          expectEqual(bindingIDs[1], rightID)
+          expectEqual(model.configuration.hotstrings.map(\.trigger), [";shrug", ";sig", ";flip"])
+          expectEqual(Set(hotstringIDs).count, 3)  // each hotstring is its own
+          expectEqual(hotstringIDs[2], flipID)
+
+          // Edits and deletes reach the item they're meant for, and so does the save.
+          model.deleteBinding(bindingIDs[2])
+          try require(model.hotstringBinding(flipID)).wrappedValue.replacement = "(╯°□°)╯︵ ┻━┻"
+          model.configuration.bindings[1].keys = KeyCombo(key: "")  // re-recording Right: held back
+          model.saveNow()
+          expectEqual(services.configuration.bindings.map(\.name), ["Left Half", "Right"])
+          expectEqual(services.configuration.bindings.map(\.keys), [hyper("left"), hyper("right")])
+          expectEqual(services.configuration.hotstrings.map(\.trigger), [";shrug", ";sig", ";flip"])
+          expectEqual(
+            services.configuration.hotstrings.map(\.replacement), ["¯\\_(ツ)_/¯", "¯\\_(ツ)_/¯", "(╯°□°)╯︵ ┻━┻"])
+          expectEqual(Set(services.configuration.hotstrings.map(\.id)).count, 3)
+          // Read again, the ids stay put.
+          services.simulateCopy("anything")
+          expectEqual(model.configuration.hotstrings.map(\.id), hotstringIDs)
+          expectEqual(model.configuration.bindings.map(\.id), [left.id, rightID])
+        }
+      }
+    ),
+    (
       "its own saves don't count as hand edits",
       {
         try onMain {

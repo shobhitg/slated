@@ -119,14 +119,20 @@ public final class AppModel {
   private func withUniqueIDs(_ config: SlatedConfiguration) -> SlatedConfiguration {
     var config = config
     var seen: [String: Int] = [:]
+    // Every id in the file, and every id handed out below. Once a save has written a copy's new id,
+    // the file uses it; if the original is then pasted again, that paste needs an id of its own.
+    var taken = Set(config.bindings.map { "binding|\($0.id)" } + config.hotstrings.map { "hotstring|\($0.id)" })
     func unique(_ id: UUID, kind: String) -> UUID {
       let occurrence = seen["\(kind)|\(id)", default: 0]
       seen["\(kind)|\(id)"] = occurrence + 1
       guard occurrence > 0 else { return id }
       let key = "\(kind)|\(id)|\(occurrence)"
-      if let replacement = replacementIDs[key] { return replacement }
+      if let replacement = replacementIDs[key], taken.insert("\(kind)|\(replacement)").inserted {
+        return replacement
+      }
       let replacement = UUID()
       replacementIDs[key] = replacement
+      taken.insert("\(kind)|\(replacement)")
       return replacement
     }
     for index in config.bindings.indices {
