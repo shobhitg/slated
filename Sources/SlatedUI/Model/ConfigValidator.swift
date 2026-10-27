@@ -329,22 +329,30 @@ enum ConfigValidator {
   /// The configuration to write: the draft, except that items with errors fall back to their last
   /// saved version (or are left out if they were never saved). Layouts have no stable identity
   /// beyond their name, which is exactly what's being edited when a name clashes or is empty, so
-  /// any layout error keeps all layouts as last saved.
+  /// any layout error keeps all layouts as last saved. What applies a layout by a name only the
+  /// draft has (renamed or added since) then waits too, and display defaults wait with the layouts:
+  /// on disk they would apply no layout, and the rename would be lost.
   static func savable(
     _ draft: SlatedConfiguration, lastSaved: SlatedConfiguration, issues: [ValidationIssue]
   ) -> SlatedConfiguration {
     var bad = Set<ValidationIssue.Target>()
     for issue in issues where issue.severity == .error { bad.insert(issue.target) }
     guard !bad.isEmpty else { return draft }
+    let layoutsHeld = bad.contains { if case .layout = $0 { return true } else { return false } }
+    let unsaved = layoutsHeld ? Set(draft.layouts.map(\.name)).subtracting(lastSaved.layouts.map(\.name)) : []
+    func waits(_ action: Action?) -> Bool { !(action?.layoutNames.isDisjoint(with: unsaved) ?? true) }
     var result = draft
     result.bindings = draft.bindings.compactMap { binding in
-      bad.contains(.binding(binding.id)) ? lastSaved.bindings.first { $0.id == binding.id } : binding
+      bad.contains(.binding(binding.id)) || waits(binding.action)
+        ? lastSaved.bindings.first { $0.id == binding.id } : binding
     }
     result.hotstrings = draft.hotstrings.compactMap { hotstring in
-      bad.contains(.hotstring(hotstring.id)) ? lastSaved.hotstrings.first { $0.id == hotstring.id } : hotstring
+      bad.contains(.hotstring(hotstring.id)) || waits(hotstring.action)
+        ? lastSaved.hotstrings.first { $0.id == hotstring.id } : hotstring
     }
-    if bad.contains(where: { if case .layout = $0 { return true } else { return false } }) {
+    if layoutsHeld {
       result.layouts = lastSaved.layouts
+      result.defaults = lastSaved.defaults
     }
     return result
   }

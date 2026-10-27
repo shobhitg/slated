@@ -505,6 +505,65 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "a layout rename waits with its shortcuts while a layout can't be saved",
+      {
+        try onMain {
+          let good = preset("maximize")
+          let bad = Action.move(x: "screenOriginX", y: "screenOriginY", width: "", height: "screenSizeY", screen: nil)
+          @MainActor func start(chat: Action, code: [LayoutApp] = []) throws -> (AppModel, PreviewServices) {
+            let services = PreviewServices(scenario: .empty)
+            var config = SlatedConfiguration()
+            config.layouts = [
+              Layout(name: "Code", apps: code),
+              Layout(name: "Chat", apps: [LayoutApp(app: "Slack", operations: [chat])]),
+            ]
+            config.bindings = [HotkeyBinding(keys: hyper("1"), action: .layout(name: "Code"))]
+            config.hotstrings = [Hotstring(trigger: ";code", replacement: "", action: .layout(name: "Code"))]
+            config.defaults = [ScreenDefault(target: "Code", condition: .count(2))]
+            try services.saveConfiguration(config)
+            return (AppModel(services: services), services)
+          }
+          @MainActor func onDisk(_ services: PreviewServices) -> [String] {
+            let disk = services.configuration
+            return [
+              disk.layouts.map(\.name).joined(separator: ", "), ActionDescriber.title(disk.bindings[0].action),
+              disk.hotstrings[0].action.map(ActionDescriber.title) ?? "", disk.defaults[0].target,
+            ]
+          }
+          let before = ["Code, Chat", "Layout “Code”", "Layout “Code”", "Code"]
+          let after = ["Coding, Chat", "Layout “Coding”", "Layout “Coding”", "Coding"]
+
+          // An operation half-typed in another layout while this one is renamed.
+          var (model, services) = try start(chat: good)
+          model.configuration.layouts[1].apps[0].operations = [bad]
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          model.saveNow()
+          // The shortcuts keep the name config.json has.
+          expectEqual(onDisk(services), before)
+          model.configuration.layouts[1].apps[0].operations = [good]
+          model.saveNow()
+          // Fixed: the rename and its shortcuts save together.
+          expectEqual(onDisk(services), after)
+
+          // A typo already in the file, in another layout.
+          (model, services) = try start(chat: bad)
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          model.saveNow()
+          expectEqual(onDisk(services), before)
+
+          // An error in the renamed layout itself.
+          (model, services) = try start(chat: good)
+          try require(model.layoutBinding("Code")).wrappedValue.name = "Coding"
+          model.configuration.layouts[0].apps = [LayoutApp(app: "Terminal", operations: [bad])]
+          model.saveNow()
+          expectEqual(onDisk(services), before)
+          model.configuration.layouts[0].apps = []
+          model.saveNow()
+          expectEqual(onDisk(services), after)
+        }
+      }
+    ),
+    (
       "the hotstrings switch survives an edit that's still waiting to be saved",
       {
         try onMain {
