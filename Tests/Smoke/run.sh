@@ -151,6 +151,29 @@ expect_true "config.json is still a symlink after saving" test -L "$home/.config
 expect_true "the save went into the dotfiles copy" \
   /usr/bin/python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$home/dotfiles/config.json"
 
+# 5d. A config.json linking to a file that isn't there (dotfiles not cloned yet, a volume not mounted,
+#     a branch switch) is an error, not a first run: the link stays, nothing is written in its place
+#     or at its target, and saves are refused until the file is back. Absolute and relative links.
+for link in "$home/dotfiles/missing.json" "../../dotfiles/missing.json"; do
+  home=$(new_home)
+  mkdir -p "$home/.config/slated"
+  ln -s "$link" "$home/.config/slated/config.json"
+  out=$(SLATED_SMOKE_STEPS=save smoke "$home")
+  expect_true "a link to a missing file is reported ($link)" \
+    grep -qE "^config: .* config.json links to .*/dotfiles/missing.json, which doesn't exist" <<<"$out"
+  expect_output "saves are refused while it's missing ($link)" "$out" "menu save: refused: config.json links to"
+  expect_true "config.json is still the link ($link)" test -L "$home/.config/slated/config.json"
+  expect_true "nothing was written at the link's target ($link)" test ! -e "$home/dotfiles"
+done
+mkdir -p "$home/dotfiles" && cp "$FIXTURES/config-hand-edited.json" "$home/dotfiles/missing.json"
+out=$(smoke "$home")
+expect_output "once the file is there, it's what loads" "$out" "native: 1 bindings, 2 hotstrings"
+# The file goes away while Slated runs, and a save comes before the once-a-second check notices.
+out=$(SLATED_SMOKE_STEPS="move-config-away save" smoke "$home")
+expect_output "a save right after the file went away is refused" "$out" "settings save: refused: config.json links to"
+expect_true "config.json is still the link after that" test -L "$home/.config/slated/config.json"
+expect_true "and nothing was written at its target" test ! -e "$home/dotfiles/missing.json"
+
 # 6. An unknown operation names the operation and where it is.
 home=$(new_home)
 mkdir -p "$home/.config/slated"
@@ -202,6 +225,24 @@ edit_when_started "$home" bash -c 'cp "$1" "$2.new" && mv "$2.new" "$2"' _ "$FIX
   "$home/dotfiles/config.json" &
 out=$(SLATED_SMOKE_SECONDS=3 smoke "$home"); wait
 expect_output "an edit to the file config.json links to is reloaded" "$out" "native: 1 bindings, 2 hotstrings"
+
+# 9b. A hand edit saved in place just before Settings saves (before the once-a-second check has seen it)
+#     is loaded, not overwritten, and Settings then shows it. An unreadable one is left alone too.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-no-builtins.json" "$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_STEPS=hand-edit-then-save SLATED_SMOKE_EDIT="$FIXTURES/config-hand-edited.json" smoke "$home")
+expect_true "a hand edit made just before a save isn't overwritten" \
+  cmp -s "$FIXTURES/config-hand-edited.json" "$home/.config/slated/config.json"
+expect_output "Settings shows the hand edit instead of its own" "$out" \
+  "after a hand edit, Settings shows 1 bindings, 2 hotstrings"
+expect_output "the log says why it didn't save" "$(log_of "$home")" "config.json changed on disk, so Slated loaded it"
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-no-builtins.json" "$home/.config/slated/config.json"
+SLATED_SMOKE_STEPS=hand-edit-then-save SLATED_SMOKE_EDIT="$FIXTURES/config-broken.json" smoke "$home" >/dev/null
+expect_true "an unreadable hand edit made just before a save isn't overwritten" \
+  cmp -s "$FIXTURES/config-broken.json" "$home/.config/slated/config.json"
 
 # 10. A ~/.slate.js event handler runs once per event, however often the file reloads (every settings
 #     save reloads it), and not at all once Slate files stop loading.

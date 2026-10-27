@@ -159,6 +159,11 @@ final class Engine {
       try store.save(configuration)
     } catch {
       Log.error("config.save_failed", error.localizedDescription, ["path": store.fileURL.path])
+      if error is ConfigChangedOnDisk {
+        // The store loaded a hand edit instead. Settings ignores changes reported while its own save
+        // runs, so tell it again once that save has returned: it then shows the edit.
+        DispatchQueue.main.async { [weak self] in self?.notify() }
+      }
       throw error
     }
     let changes = ConfigDiff.changes(from: before, to: configuration)
