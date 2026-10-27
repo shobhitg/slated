@@ -268,6 +268,15 @@ home=$(new_home)
 cp "$FIXTURES/slate-events.js" "$home/.slate.js"
 SLATED_SMOKE_STEPS="stop-loading-slate screens-changed" smoke "$home" >/dev/null
 expect_true "a script that's no longer loaded gets no events" test "$(script_calls "$home")" -eq 0
+# The same file listed twice (as ~/.slate.js and by its full path) loads once.
+home=$(new_home)
+cp "$FIXTURES/slate-events.js" "$home/.slate.js"
+mkdir -p "$home/.config/slated"
+printf '{ "general": { "slateConfigPaths": ["~/.slate.js", "%s/.slate.js"] } }\n' "$home" >"$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_STEPS=screens-changed smoke "$home")
+expect_true "a file listed twice runs its event handler once per event" test "$(script_calls "$home")" -eq 1
+expect_output "the second listing says it's the same file" "$out" "Same file as ~/.slate.js, which is already loaded"
+expect_true "and its shortcuts aren't bound twice" bash -c '! grep -q "duplicate:" <<<"$1"' _ "$out"
 
 echo
 echo "$passed passed, $failed failed"
