@@ -98,6 +98,9 @@ enum SmokeSteps {
       } catch {
         print("import failed:", error.localizedDescription)
       }
+    case "print-hotkeys":
+      // Every shortcut's status, active ones too (the summary at the end lists only the others).
+      for (key, value) in engine.status.hotkeys.sorted(by: { $0.key < $1.key }) { print("hotkey \(key): \(value)") }
     case "move-config-away":
       // The file config.json links to goes away while Slated runs (a branch switch, an unmounted volume).
       let target = engine.store.fileURL.resolvingSymlinksInPath()

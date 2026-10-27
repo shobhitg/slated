@@ -23,8 +23,17 @@ public enum SlateImporter {
     /// skipped): a copy in Slated's settings would freeze today's value and, since Slated's own
     /// settings win, override the function for good.
     public var functionSettings: [String]
+    /// Why this import may not match what the script does on the real Mac: errors on the pretend Mac,
+    /// shell commands or window changes while loading. The app then imports nothing from the file
+    /// and keeps it loaded.
+    public var problems: [String]
+    /// Everything the pretend run reported while loading, errors and warnings.
     public var diagnostics: [Diagnostic]
   }
+
+  /// The problem reported for a script that runs `slate.shell` while loading.
+  public static let shellWhileLoading =
+    "it runs slate.shell while loading, which the import can't do, so it can't tell what the script sets up on this Mac"
 
   public static func importJavaScript(
     path: String, readFile: @escaping (String) -> String? = { try? String(contentsOfFile: $0, encoding: .utf8) }
@@ -32,7 +41,12 @@ public enum SlateImporter {
     let host = ProbeHost()
     let engine = SlateScriptEngine(host: host, readFile: readFile)
     let loaded = engine.load(path: path)
-    let loadSideEffects = host.sideEffects
+    let loadEffects = host.effects
+    var problems = loaded.diagnostics.filter { $0.severity == .error }.map { "it hit an error on a test Mac: \($0)" }
+    if loadEffects.contains(.shell) { problems.append(shellWhileLoading) }
+    if !loadEffects.subtracting([.shell]).isEmpty {
+      problems.append("it moves or focuses windows while loading, which the import can't do")
+    }
     var bindings: [HotkeyBinding] = []
     var skipped: [(String, String)] = []
 
@@ -47,7 +61,7 @@ public enum SlateImporter {
       case .action(let staticAction):
         action = staticAction
       case .callback:
-        switch probe(binding, engine: engine, host: host, loadSideEffects: loadSideEffects) {
+        switch probe(binding, engine: engine, host: host) {
         case .converted(let converted): action = converted
         case .skipped(let reason):
           skipped.append((binding.keystroke, reason))
@@ -82,7 +96,7 @@ public enum SlateImporter {
     }
     return Result(
       bindings: bindings, skipped: skipped, neverRun: neverRun, functionSettings: engine.configFunctions.keys.sorted(),
-      diagnostics: loaded.diagnostics)
+      problems: problems, diagnostics: loaded.diagnostics)
   }
 
   private enum Probe {
@@ -92,16 +106,18 @@ public enum SlateImporter {
 
   /// Runs a bound function on every pretend Mac in `ProbeSetup.orientations`; see the type's
   /// documentation.
-  private static func probe(
-    _ binding: ScriptBinding, engine: SlateScriptEngine, host: ProbeHost, loadSideEffects: Int
-  ) -> Probe {
+  private static func probe(_ binding: ScriptBinding, engine: SlateScriptEngine, host: ProbeHost) -> Probe {
     let needsScript = "uses JavaScript logic Slated can't express without a script"
     var actions: [Action] = []
     for setups in ProbeSetup.orientations {
       var first: Action?
       for setup in setups {
-        let run = host.probe(setup, engine: engine) { _ = engine.invoke(binding) }
-        guard run.actions.count == 1, run.sideEffects == 0, loadSideEffects == 0 else { return .skipped(needsScript) }
+        var outcome = ScriptRunResult(success: true)
+        let run = host.probe(setup, engine: engine) { outcome = engine.invoke(binding) }
+        if !outcome.success, let error = outcome.diagnostics.first {
+          return .skipped("stops with an error on a test Mac: \(error)")
+        }
+        guard run.actions.count == 1, run.effects.isEmpty else { return .skipped(needsScript) }
         // A compared name (`=== "Terminal"`) can't be found by trying other names.
         if run.readAppOrTitle { return .skipped(ProbeSetup.otherApp) }
         guard let expected = first else {
@@ -199,9 +215,15 @@ private final class ProbeHost: ScriptHost {
   static let focused = WindowHandle(1)
   static let other = WindowHandle(2)
 
+  /// Things a script did besides performing operations.
+  enum Effect: Hashable {
+    case shell, move, focus
+  }
+
   struct Run {
     var actions: [Action]
-    var sideEffects: Int
+    /// Such a function needs JavaScript.
+    var effects: Set<Effect>
     /// The function read the app's name or a window's title.
     var readAppOrTitle: Bool
   }
@@ -209,22 +231,23 @@ private final class ProbeHost: ScriptHost {
   /// While loading, the script sees the first landscape setup.
   private var setup = ProbeSetup.landscape[0]
   private var recorded: [Action] = []
-  /// Things a script did besides performing operations (moving, focusing, shell); such bindings need
-  /// JavaScript. Counts from the load until the first probe, then per probe.
-  private(set) var sideEffects = 0
+  /// What the script did besides performing operations: while loading until the first probe, then
+  /// in the current probe.
+  private(set) var effects: Set<Effect> = []
 
   func probe(_ setup: ProbeSetup, engine: SlateScriptEngine, _ body: () -> Void) -> Run {
     self.setup = setup
     recorded = []
-    sideEffects = 0
+    effects = []
     var read = false
     engine.nativeObserver = { name in
       if name == "appName" || name == "windowTitle" { read = true }
     }
     body()
     engine.nativeObserver = nil
-    return Run(actions: recorded, sideEffects: sideEffects, readAppOrTitle: read)
+    return Run(actions: recorded, effects: effects, readAppOrTitle: read)
   }
+
 
   func focusedWindow() -> WindowHandle? { Self.focused }
 
@@ -246,12 +269,12 @@ private final class ProbeHost: ScriptHost {
   func screens() -> [ScreenInfo] { setup.screens }
 
   func setFrame(_ frame: CGRect, of window: WindowHandle) -> Bool {
-    sideEffects += 1
+    effects.insert(.move)
     return true
   }
 
   func focus(_ window: WindowHandle) -> Bool {
-    sideEffects += 1
+    effects.insert(.focus)
     return true
   }
 
@@ -261,7 +284,7 @@ private final class ProbeHost: ScriptHost {
   }
 
   func runShell(_ command: String, wait: Bool, path: String?) -> String? {
-    sideEffects += 1
+    effects.insert(.shell)
     return nil
   }
 

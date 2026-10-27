@@ -363,6 +363,14 @@ out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
 expect_output "the import says a window event handler never runs" "$out" \
   "slate.on(\"windowOpened\"): Slated doesn't deliver window events, so this never runs"
 expect_output "and turns the file off" "$out" "loadSlateConfigs: false"
+# A script that fails on the import's pretend Mac keeps loading, and the alert says why.
+home=$(new_home)
+cp "$FIXTURES/slate-shell.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS="import-slate print-hotkeys" smoke "$home")
+expect_output "an import that hit an error says so" "$out" "it hit an error on a test Mac: .slate.js, line 4"
+expect_output "and keeps the file loading" "$out" "loadSlateConfigs: true"
+expect_output "so the binding after the error still works" "$out" "hotkey ctrl+alt+f17: active"
+expect_output "and nothing that may not match this Mac is imported" "$out" "native: 0 bindings"
 
 echo
 echo "$passed passed, $failed failed"

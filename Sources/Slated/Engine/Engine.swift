@@ -576,16 +576,37 @@ final class Engine {
     var skipped: [String]
     /// What isn't imported because it never runs in Slated ("what: why").
     var neverRun: [String] = []
+    /// Slate files imported not at all, because their test run may not match this Mac ("file: why").
+    /// They keep loading.
+    var problems: [String] = []
+    /// Everything else reading the files reported.
+    var warnings: [String] = []
+
+    /// Whether the Slate files keep loading after the import.
+    var keepsLoading: Bool { !skipped.isEmpty || !problems.isEmpty }
 
     /// The import alert's title and text.
     var title: String { "Imported \(imported) bindings" }
     var message: String {
-      var parts = [
-        skipped.isEmpty
-          ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
-          : "These need JavaScript and still run from your Slate file:\n" + skipped.joined(separator: "\n")
-      ]
+      var parts: [String] = []
+      if !keepsLoading {
+        parts.append(
+          "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
+        )
+      }
+      if !problems.isEmpty {
+        parts.append(
+          "Not imported, and still loaded, because the import's test run may not match this Mac:\n"
+            + problems.joined(separator: "\n"))
+      }
+      if !skipped.isEmpty {
+        parts.append("These need JavaScript and still run from your Slate file:\n" + skipped.joined(separator: "\n"))
+      }
       if !neverRun.isEmpty { parts.append("Not imported:\n" + neverRun.joined(separator: "\n")) }
+      if !warnings.isEmpty {
+        let more = warnings.count > 5 ? "\n…and \(warnings.count - 5) more" : ""
+        parts.append("Warnings from your Slate files:\n" + warnings.prefix(5).joined(separator: "\n") + more)
+      }
       return parts.joined(separator: "\n\n")
     }
   }
@@ -599,6 +620,8 @@ final class Engine {
     var imported = 0
     var skipped: [String] = []
     var neverRun: [String] = []
+    var problems: [String] = []
+    var warnings: [String] = []
     func add(_ binding: HotkeyBinding) {
       let id = ((binding.modal?.keys.string).map { $0 + " " } ?? "") + binding.keys.string
       guard bound.insert(id).inserted else { return }
@@ -610,6 +633,13 @@ final class Engine {
       guard FileManager.default.fileExists(atPath: path) else { continue }
       if path.hasSuffix(".js") {
         let result = SlateImporter.importJavaScript(path: path)
+        warnings += result.diagnostics.filter { $0.severity != .error }.map(\.description)
+        guard result.problems.isEmpty else {
+          // What it imported may differ from what it does here (and Slated's copy would win): take
+          // nothing from it, and keep it loading.
+          problems += result.problems.map { "\(raw): \($0)" }
+          continue
+        }
         result.bindings.forEach(add)
         skipped += result.skipped.map { "\($0.keystroke): \($0.reason)" }
         neverRun += result.neverRun.map { "\($0.keystroke): \($0.reason)" }
@@ -621,16 +651,24 @@ final class Engine {
         config.layouts += sources.javascript.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
       } else if let text = try? String(contentsOfFile: path, encoding: .utf8) {
         let file = SlateConfigParser.parse(text, path: path)
+        warnings += file.diagnostics.map(\.description)
         file.bindings.forEach(add)
         config.settings = file.settings.merging(config.settings)
         config.layouts += file.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
         config.defaults += file.defaults
       }
     }
-    if skipped.isEmpty { config.general.loadSlateConfigs = false }
+    let summary = ImportSummary(
+      imported: imported, skipped: skipped, neverRun: neverRun, problems: problems, warnings: warnings)
+    if !summary.keepsLoading { config.general.loadSlateConfigs = false }
     try save(config)
-    Log.record("slate.imported", ["imported": imported, "skipped": skipped, "neverRun": neverRun])
-    return ImportSummary(imported: imported, skipped: skipped, neverRun: neverRun)
+    Log.record(
+      "slate.imported",
+      [
+        "imported": imported, "skipped": skipped, "neverRun": neverRun, "problems": problems.map(LogPrivacy.message),
+        "warnings": warnings.count,
+      ])
+    return summary
   }
 
   // MARK: Launch at login

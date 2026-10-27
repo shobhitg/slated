@@ -139,6 +139,7 @@ func importerChecks() throws {
   guard FileManager.default.fileExists(atPath: path) else { return }
   let real = SlateImporter.importJavaScript(path: path)
   expect(real.skipped.isEmpty, "\(real.skipped)")
+  expect(real.problems.isEmpty, "\(real.problems)")
   let starter = Dictionary(uniqueKeysWithValues: SlatedConfiguration.starter.bindings.map { ($0.keys, $0.action) })
   expectEqual(Dictionary(uniqueKeysWithValues: real.bindings.map { ($0.keys, $0.action) }), starter)
 }
@@ -249,9 +250,50 @@ func importerProbesVariations() throws {
     ])
 }
 
+/// The importer runs the script on a pretend Mac, where load-time code can take another branch or stop
+/// with an error. Such an import can't be trusted to have everything, so the app keeps the file
+/// loaded; the problems say why.
+@MainActor
+func importerReportsUnreliableRuns() throws {
+  // The pretend Mac's slate.shell returns nothing, so `.trim()` throws and the rest of the script
+  // never registers.
+  let stops = """
+    slate.bind("f16:ctrl,alt", "push up");
+    var machine = slate.shell("/bin/hostname -s", true).trim();
+    slate.bind("f17:ctrl,alt", "push down");
+    """
+  let stopped = SlateImporter.importJavaScript(path: "/stops.js", readFile: { _ in stops })
+  expectEqual(stopped.bindings.count, 1)
+  expect(stopped.problems.count == 2, "\(stopped.problems)")
+  expect(stopped.problems.contains { $0.hasPrefix("it hit an error on a test Mac: stops.js, line 2:") })
+  expect(stopped.problems.contains(SlateImporter.shellWhileLoading), "\(stopped.problems)")
+
+  // Here the shell's output picks a branch: nothing fails, but this Mac may take the other one.
+  let branches = """
+    var machine = slate.shell("/bin/hostname -s", true);
+    slate.bind("f16:ctrl,alt", machine === "work\\n" ? "push left" : "push right");
+    """
+  let branched = SlateImporter.importJavaScript(path: "/branch.js", readFile: { _ in branches })
+  expectEqual(branched.bindings.count, 1)
+  expectEqual(branched.problems, [SlateImporter.shellWhileLoading])
+
+  // A function that throws on the test Macs is skipped with the error.
+  let throwing = SlateImporter.importJavaScript(
+    path: "/throws.js",
+    readFile: { _ in #"slate.bind("f16:ctrl,alt", function (win) { win.nope(); });"# })
+  expectEqual(throwing.skipped.count, 1)
+  expect(
+    throwing.skipped.first?.reason.hasPrefix("stops with an error on a test Mac: throws.js, line 1: TypeError") == true,
+    "\(throwing.skipped)")
+  expectEqual(throwing.problems, [])
+}
+
 let importerTests = Suite(
   "SlateImporter",
   [
+    (
+      "reports what makes an import unreliable", { try MainActor.assumeIsolated { try importerReportsUnreliableRuns() } }
+    ),
     ("probes functions on several pretend Macs", { try MainActor.assumeIsolated { try importerProbesVariations() } }),
     ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } }),
     ("keeps whether each binding repeats", { try MainActor.assumeIsolated { try importerKeepsRepeat() } }),
