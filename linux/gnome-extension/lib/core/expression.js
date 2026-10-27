@@ -37,6 +37,9 @@ const FUNCTIONS = [
 const AGGREGATES = new Set(['sum', 'count', 'min', 'max', 'average', 'median', 'stddev']);
 const arity = (f) => (f === 'random' ? 0 : 1);
 const MAXIMUM_DEPTH = 200;
+// A chain like `1+1+1…` builds a tree as deep as it is long, and evaluating it recurses that deep:
+// thousands of terms would overflow the stack.
+const MAXIMUM_TERMS = 1000;
 
 /**
  * Evaluates `expression` with `variables` supplying each variable it mentions.
@@ -137,6 +140,7 @@ function parse(source) {
   const tokens = lex(source);
   let position = 0;
   let depth = 0;
+  let terms = 0;
   if (tokens.length === 1) throw invalidExpression('The expression is empty');
 
   const current = () => tokens[position];
@@ -155,7 +159,14 @@ function parse(source) {
     if (token.kind === 'end') return invalidExpression(`"${source}" ends too early; expected ${expecting}`);
     return invalidExpression(`Unexpected "${tokenDisplay(token)}" at column ${token.column} in "${source}"; expected ${expecting}`);
   };
-  const tooDeep = () => invalidExpression(`"${source}" is nested too deeply`);
+  // The start of the expression, quoted: these errors are about expressions of 200 characters or more.
+  const abbreviated = () => `"${graphemes(source).slice(0, 40).join('')}…"`;
+  const tooDeep = () => invalidExpression(`${abbreviated()} is nested too deeply: an expression can nest at most 200 levels`);
+  /** Counts a number, variable or function call towards MAXIMUM_TERMS. */
+  const countTerm = () => {
+    terms++;
+    if (terms > MAXIMUM_TERMS) throw invalidExpression(`${abbreviated()} is too long: an expression can have at most 1,000 terms`);
+  };
 
   function parseExpression() {
     depth++;
@@ -211,10 +222,12 @@ function parse(source) {
   function parsePrimary() {
     const token = current();
     if (token.kind === 'number') {
+      countTerm();
       advance();
       return {kind: 'number', value: token.value};
     }
     if (token.kind === 'identifier') {
+      countTerm();
       advance();
       if (isSymbol('(')) return parseCall(token.name, token.column);
       const lowered = lowercased(token.name);

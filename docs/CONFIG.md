@@ -123,6 +123,7 @@ with `"op"` plus Slate's JavaScript parameter names. The object form is exactly 
 - Operators: `+ - * / **` and parentheses.
 - Functions: `min({a,b})`, `max`, `floor`, `ceiling`, `abs`, `sqrt`, and the rest of Slate's list.
 - Unlike Slate, spaces are fine.
+- An expression can have up to 1,000 numbers, variables and function calls, nested up to 200 levels.
 
 ## Display defaults
 

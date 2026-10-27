@@ -17,8 +17,8 @@
     "expressions.json": {
       "closestName": 20,
       "editDistance": 11,
-      "evaluate": 776,
-      "validate": 26
+      "evaluate": 816,
+      "validate": 29
     },
     "frames.json": {
       "targetFrame": 69,
@@ -73,12 +73,12 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 17124,
+  "totalVectors": 17167,
   "vectors": {
     "automation.json": 103,
     "clipboard.json": 171,
     "config.json": 633,
-    "expressions.json": 833,
+    "expressions.json": 876,
     "frames.json": 9978,
     "hotstrings.json": 846,
     "keys.json": 375,
