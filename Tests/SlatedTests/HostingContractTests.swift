@@ -193,7 +193,7 @@ let uiHostingContractTests = Suite(
             spin(0.1)
           }
           expectEqual(model.configuration.layouts.map(\.name), ["Workshop", "Home"])
-          expect(model.selectedLayout == .slated(name: "Workshop"))
+          expect(model.selectedLayout == .slated(name: "Workshop", index: 0))
         }
       }
     ),

@@ -251,36 +251,67 @@ extension AppModel {
 
   // MARK: Layouts
 
-  /// A binding to one Slated layout, found by name. Renames that would make the layout impossible to
-  /// tell apart (an empty name, or another layout's) are ignored: layouts are found by name, so the
-  /// next edit could land on the other layout and its shortcuts would follow this one.
-  func layoutBinding(_ name: String) -> Binding<WindowLayout>? {
-    guard let current = configuration.layouts.first(where: { $0.name == name }) else { return nil }
+  /// Where the Slated layout called `name` is in `layouts`: at `index` when the layout there has that
+  /// name, else the first with it. A layout copied in config.json shares its name with the original,
+  /// so the editor, the list and Delete go by position.
+  func layoutIndex(_ name: String, at index: Int? = nil) -> Int? {
+    if let index, configuration.layouts.indices.contains(index), configuration.layouts[index].name == name {
+      return index
+    }
+    return configuration.layouts.firstIndex { $0.name == name }
+  }
+
+  /// Where the selected Slated layout is in `layouts`, if one is selected.
+  var selectedLayoutIndex: Int? {
+    guard case .slated(let name, let index) = selectedLayout else { return nil }
+    return layoutIndex(name, at: index)
+  }
+
+  /// A binding to one Slated layout: the one called `name` at `index` (see `layoutIndex`). A new
+  /// name goes through `renameLayout`, which ignores names that would make the layout impossible to
+  /// tell apart.
+  func layoutBinding(_ name: String, at index: Int? = nil) -> Binding<WindowLayout>? {
+    guard let start = layoutIndex(name, at: index) else { return nil }
+    let current = configuration.layouts[start]
     var trackedName = name
+    var trackedIndex = start
     return Binding(
-      get: { [weak self] in self?.configuration.layouts.first { $0.name == trackedName } ?? current },
+      get: { [weak self] in
+        guard let self, let at = self.layoutIndex(trackedName, at: trackedIndex) else { return current }
+        return self.configuration.layouts[at]
+      },
       set: { [weak self] newValue in
-        guard let self, let index = self.configuration.layouts.firstIndex(where: { $0.name == trackedName }) else {
-          return
-        }
-        let oldName = trackedName
-        var newValue = newValue
-        if newValue.name != oldName, layoutNameProblem(newValue.name, renaming: oldName) != nil {
-          newValue.name = oldName
-        }
-        self.configuration.layouts[index] = newValue
-        if newValue.name != oldName {
-          trackedName = newValue.name
-          self.renameLayoutReferences(from: oldName, to: newValue.name)
-          self.selectedLayout = .slated(name: newValue.name)
-        }
+        guard let self, let at = self.layoutIndex(trackedName, at: trackedIndex) else { return }
+        trackedIndex = at
+        var edited = newValue
+        edited.name = trackedName
+        self.configuration.layouts[at] = edited
+        if newValue.name != trackedName { trackedName = self.renameLayout(trackedName, at: at, to: newValue.name) }
       })
   }
 
-  /// Why `name` can't become the name of the layout now called `current`, if it can't.
-  func layoutNameProblem(_ name: String, renaming current: String) -> String? {
+  /// Renames the Slated layout called `name` (the one at `index`, see `layoutIndex`) and re-points
+  /// what applies it. A name `layoutNameProblem` objects to isn't taken: shortcuts apply a layout by
+  /// its name, so they would follow this one onto the other layout. Returns the layout's name after.
+  @discardableResult
+  func renameLayout(_ name: String, at index: Int? = nil, to newName: String) -> String {
+    guard newName != name, let at = layoutIndex(name, at: index),
+      layoutNameProblem(newName, renaming: name, at: at) == nil
+    else { return name }
+    configuration.layouts[at].name = newName
+    // A copy still has the old name: what applies that name stays with it.
+    if !configuration.layouts.contains(where: { $0.name == name }) { renameLayoutReferences(from: name, to: newName) }
+    selectedLayout = .slated(name: newName, index: at)
+    return newName
+  }
+
+  /// Why `name` can't become the name of the layout now called `current` (the one at `index`, see
+  /// `layoutIndex`), if it can't.
+  func layoutNameProblem(_ name: String, renaming current: String, at index: Int? = nil) -> String? {
     if name.trimmingCharacters(in: .whitespaces).isEmpty { return "Name the layout." }
-    if name != current, configuration.layouts.contains(where: { $0.name == name }) {
+    guard name != current else { return nil }
+    let own = layoutIndex(current, at: index)
+    if configuration.layouts.indices.contains(where: { $0 != own && configuration.layouts[$0].name == name }) {
       return "Another layout already has this name."
     }
     return nil
@@ -295,13 +326,19 @@ extension AppModel {
       n += 1
     }
     configuration.layouts.append(WindowLayout(name: name))
-    selectedLayout = .slated(name: name)
+    selectedLayout = .slated(name: name, index: configuration.layouts.count - 1)
     return name
   }
 
-  func deleteLayout(_ name: String) {
-    configuration.layouts.removeAll { $0.name == name }
-    if selectedLayout == .slated(name: name) { selectedLayout = nil }
+  /// Deletes the Slated layout called `name` (the one at `index`, see `layoutIndex`). Shortcuts that
+  /// apply it stay, waiting for a layout of that name.
+  func deleteLayout(_ name: String, at index: Int? = nil) {
+    guard let at = layoutIndex(name, at: index) else { return }
+    let selected = selectedLayoutIndex
+    configuration.layouts.remove(at: at)
+    if let selected, case .slated(let selectedName, _) = selectedLayout {
+      selectedLayout = selected == at ? nil : .slated(name: selectedName, index: selected - (selected > at ? 1 : 0))
+    }
     showToast("Deleted layout “\(name)”", symbol: "trash")
   }
 

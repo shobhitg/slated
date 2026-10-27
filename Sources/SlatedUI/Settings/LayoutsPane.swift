@@ -43,12 +43,10 @@ struct LayoutsPane: View {
 
   @ViewBuilder private var detail: some View {
     switch model.selectedLayout {
-    case .slated(let name):
-      if let index = model.configuration.layouts.firstIndex(where: { $0.name == name }),
-        let layout = model.layoutBinding(name)
-      {
+    case .slated(let name, _):
+      if let index = model.selectedLayoutIndex, let layout = model.layoutBinding(name, at: index) {
         // Keyed by position, not name: renaming mustn't rebuild the editor (and drop focus) on every keystroke.
-        LayoutDetail(layout: layout, source: nil)
+        LayoutDetail(layout: layout, source: nil, index: index)
           .id("slated|\(index)")
       } else {
         noSelection
@@ -85,10 +83,10 @@ private struct LayoutList: View {
         if model.configuration.layouts.isEmpty {
           Text("None yet — click New Layout.").font(.system(size: 12)).foregroundStyle(.tertiary).selectionDisabled()
         }
-        ForEach(Array(model.configuration.layouts.enumerated()), id: \.offset) { _, layout in
-          LayoutRow(layout: layout).tag(LayoutSelection.slated(name: layout.name))
+        ForEach(Array(model.configuration.layouts.enumerated()), id: \.offset) { index, layout in
+          LayoutRow(layout: layout).tag(LayoutSelection.slated(name: layout.name, index: index))
             .contextMenu {
-              Button("Delete", role: .destructive) { model.deleteLayout(layout.name) }
+              Button("Delete", role: .destructive) { model.deleteLayout(layout.name, at: index) }
             }
         }
       } header: {
@@ -115,8 +113,16 @@ private struct LayoutList: View {
     .background(Theme.paneBackground)
   }
 
+  /// The selection as the rows are tagged: a Slated layout with its position.
   private var selection: Binding<LayoutSelection?> {
-    Binding(get: { model.selectedLayout }, set: { model.selectedLayout = $0 })
+    Binding(
+      get: {
+        guard case .slated(let name, _) = model.selectedLayout, let index = model.selectedLayoutIndex else {
+          return model.selectedLayout
+        }
+        return .slated(name: name, index: index)
+      },
+      set: { model.selectedLayout = $0 })
   }
 }
 
@@ -143,19 +149,22 @@ private struct LayoutRow: View {
   }
 }
 
-/// A layout's apps, triggers and preview. Editable when `source` is nil.
+/// A layout's apps, triggers and preview. Editable when `source` is nil; `index` is then the
+/// layout's place in `layouts`.
 private struct LayoutDetail: View {
   @Binding var layout: WindowLayout
   let source: SlateSource?
+  let index: Int?
   @Environment(AppModel.self) private var model
   @State private var confirmDelete = false
   /// The name as typed. It becomes the layout's name whenever it's usable, so typing through
   /// another layout's name ("Work 2" → "Work" → "Workshop") never renames or re-points that layout.
   @State private var nameDraft: String
 
-  init(layout: Binding<WindowLayout>, source: SlateSource?) {
+  init(layout: Binding<WindowLayout>, source: SlateSource?, index: Int? = nil) {
     _layout = layout
     self.source = source
+    self.index = index
     _nameDraft = State(initialValue: layout.wrappedValue.name)
   }
 
@@ -177,7 +186,7 @@ private struct LayoutDetail: View {
     }
     .scrollContentBackground(.hidden)
     .confirmationDialog("Delete “\(layout.name)”?", isPresented: $confirmDelete) {
-      Button("Delete", role: .destructive) { model.deleteLayout(layout.name) }
+      Button("Delete", role: .destructive) { model.deleteLayout(layout.name, at: index) }
     } message: {
       Text("Shortcuts that apply it will stop working.")
     }
@@ -192,9 +201,9 @@ private struct LayoutDetail: View {
             .textFieldStyle(.plain)
             .font(.system(size: 19, weight: .bold))
             .onChange(of: nameDraft) { _, name in
-              if model.layoutNameProblem(name, renaming: layout.name) == nil { layout.name = name }
+              if model.layoutNameProblem(name, renaming: layout.name, at: index) == nil { layout.name = name }
             }
-          if let problem = model.layoutNameProblem(nameDraft, renaming: layout.name) {
+          if let problem = model.layoutNameProblem(nameDraft, renaming: layout.name, at: index) {
             Label(problem, systemImage: "exclamationmark.circle.fill")
               .font(.system(size: 11.5))
               .foregroundStyle(Theme.critical)

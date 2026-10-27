@@ -435,7 +435,7 @@ let uiModelTests = Suite(
           layout.wrappedValue.name = "Deep Work"
           expect(model.configuration.bindings.contains { $0.action == .layout(name: "Deep Work") })
           expect(!model.configuration.bindings.contains { $0.action == .layout(name: "Coding") })
-          expect(model.selectedLayout == .slated(name: "Deep Work"))
+          expect(model.selectedLayout == .slated(name: "Deep Work", index: 0))
         }
       }
     ),
@@ -453,10 +453,12 @@ let uiModelTests = Suite(
           model.configuration.bindings = [workKey, work2Key]
           model.selectedLayout = .slated(name: "Work 2")
           // Backspacing "Work 2" to "Work", then typing on. The pane finds the layout by the
-          // selected name for every keystroke.
+          // selection for every keystroke.
           for name in ["Work ", "Work", "Wor", "Workshop"] {
-            guard case .slated(let selected) = model.selectedLayout else { throw TestFailure(description: "no layout") }
-            try require(model.layoutBinding(selected)).wrappedValue.name = name
+            guard case .slated(let selected, let index) = model.selectedLayout else {
+              throw TestFailure(description: "no layout")
+            }
+            try require(model.layoutBinding(selected, at: index)).wrappedValue.name = name
             // Saved as if the user paused after each keystroke: on disk, Work 2's shortcut never
             // applies Work.
             model.saveNow()
@@ -468,7 +470,7 @@ let uiModelTests = Suite(
           expectEqual(model.configuration.layouts.map { $0.apps.map(\.app) }, [["Mail"], ["Xcode"]])
           expectEqual(model.binding(workKey.id)?.action, .layout(name: "Work"))
           expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Workshop"))
-          expect(model.selectedLayout == .slated(name: "Workshop"))
+          expect(model.selectedLayout == .slated(name: "Workshop", index: 1))
           // What the name field shows while the typed name can't be used yet.
           expectEqual(model.layoutNameProblem("Work", renaming: "Workshop"), "Another layout already has this name.")
           expectEqual(model.layoutNameProblem(" ", renaming: "Workshop"), "Name the layout.")
@@ -560,6 +562,51 @@ let uiModelTests = Suite(
           model.configuration.layouts[0].apps = []
           model.saveNow()
           expectEqual(onDisk(services), after)
+        }
+      }
+    ),
+    (
+      "a layout copied in config.json is its own: editing or deleting the copy spares the original",
+      {
+        try onMain {
+          @MainActor func copied() throws -> (AppModel, PreviewServices) {
+            let services = PreviewServices(scenario: .empty)
+            var config = SlatedConfiguration()
+            config.layouts = ["Mail", "Xcode"].map { app in
+              Layout(name: "Work", apps: [LayoutApp(app: app, operations: [preset("maximize")])])
+            }
+            config.bindings = [HotkeyBinding(keys: hyper("1"), action: .layout(name: "Work"))]
+            try services.saveConfiguration(config)
+            return (AppModel(services: services), services)
+          }
+          func apps(_ layouts: [Layout]) -> [String] { layouts.map { "\($0.name): \($0.apps.map(\.app).joined())" } }
+          var (model, services) = try copied()
+          expectEqual(model.layoutIndex("Work", at: 1), 1)
+          expectEqual(try require(model.layoutBinding("Work", at: 1)).wrappedValue.apps.map(\.app), ["Xcode"])
+          // Renaming the copy: the original still has the name, so the shortcut stays with it.
+          try require(model.layoutBinding("Work", at: 1)).wrappedValue.name = "Work Xcode"
+          model.saveNow()
+          expectEqual(apps(services.configuration.layouts), ["Work: Mail", "Work Xcode: Xcode"])
+          expectEqual(services.configuration.bindings.map(\.action), [.layout(name: "Work")])
+          expect(model.selectedLayout == .slated(name: "Work Xcode", index: 1))
+          // Renaming the original: the copy still has the name.
+          (model, services) = try copied()
+          try require(model.layoutBinding("Work", at: 0)).wrappedValue.name = "Work Mail"
+          model.saveNow()
+          expectEqual(apps(services.configuration.layouts), ["Work Mail: Mail", "Work: Xcode"])
+          expectEqual(services.configuration.bindings.map(\.action), [.layout(name: "Work")])
+          // Deleting the copy (the one the validator flags) leaves the original.
+          (model, services) = try copied()
+          model.selectedLayout = .slated(name: "Work", index: 1)
+          model.deleteLayout("Work", at: 1)
+          model.saveNow()
+          expectEqual(apps(services.configuration.layouts), ["Work: Mail"])
+          expect(model.selectedLayout == nil)
+          // Deleting a layout before the selected one keeps the selection on it.
+          model.configuration.layouts += [Layout(name: "Home"), Layout(name: "Gym")]
+          model.selectedLayout = .slated(name: "Gym", index: 2)
+          model.deleteLayout("Home", at: 1)
+          expect(model.selectedLayout == .slated(name: "Gym", index: 1))
         }
       }
     ),
