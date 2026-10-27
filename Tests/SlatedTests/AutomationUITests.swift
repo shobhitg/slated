@@ -810,8 +810,8 @@ let uiSymbolContractTests = Suite(
           let lines = try String(contentsOf: file, encoding: .utf8).components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
           for index in lines.indices.dropLast(2) {
-            let opensLabel =
-              lines[index].hasSuffix("label: {") || (lines[index].hasPrefix("Button(action:") && lines[index].hasSuffix(") {"))
+            let line = lines[index]
+            let opensLabel = line.hasSuffix("label: {") || (line.hasPrefix("Button(action:") && line.hasSuffix(") {"))
             guard opensLabel, lines[index + 1].hasPrefix("Image(systemName:"), lines[index + 2] == "}" else { continue }
             let modifiers = lines[(index + 3)...].prefix { $0.hasPrefix(".") }
             if !modifiers.contains(where: { $0.hasPrefix(".accessibilityLabel(") }) {
