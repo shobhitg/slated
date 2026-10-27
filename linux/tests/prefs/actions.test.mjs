@@ -4,11 +4,14 @@ import {
 } from '../../gnome-extension/lib/prefs/presets.js';
 import {
   KINDS, CATEGORIES, kindOf, kindById, formFromAction, actionFromForm, convertAction, updateAction, actionTitle,
-  actionDetail, localDetail, bindingTitle, bindingSubtitle, isWindowGeometry, screenName, appsPhrase, isMacOnly,
-  uneditableExplanation,
+  actionDetail, localDetail, bindingTitle, bindingSubtitle, isWindowGeometry, screenName, appsPhrase, isAutomation,
+  containsAutomation, containsWindowGeometry, isInputStep, INPUT_STEPS, defaultForm,
 } from '../../gnome-extension/lib/prefs/actions.js';
 import {actionProblems} from '../../gnome-extension/lib/prefs/validator.js';
 import {canonicalActionLocal} from '../../gnome-extension/lib/prefs/canonical.js';
+import {canonicalAction} from '../../gnome-extension/lib/prefs/engine.js';
+
+const half = () => JSON.parse(JSON.stringify(presetById('left-half').action));
 
 /** One example of every kind, in canonical form. */
 const EXAMPLES = {
@@ -39,7 +42,17 @@ const EXAMPLES = {
   'open-url': {op: 'open-url', url: 'https://example.com/a?b'},
   shell: {op: 'shell', command: 'notify-send hi', wait: true, path: '~/src'},
   relaunch: {op: 'relaunch'},
+  'clipboard-history': {op: 'clipboard-history'},
+  click: {op: 'click', button: 'right', count: 2},
+  press: {op: 'press', input: 'key:w', phase: 'up'},
+  hold: {op: 'hold', input: 'mouse:left'},
+  repeat: {op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.05, mode: 'while-held', times: 20, jitter: 0.15},
+  wait: {op: 'wait', seconds: 1.5},
+  'stop-automations': {op: 'stop-automations'},
 };
+
+/** Kinds the engine writes differently from the editor's local forms (none: every example is canonical). */
+const ENGINE_CANONICAL = Object.keys(EXAMPLES);
 
 export default suite('Presets and actions', [
   ['presets mirror the macOS set', () => {
@@ -73,7 +86,9 @@ export default suite('Presets and actions', [
     expectEqual(presetById('maximize').title, 'Maximize');
   }],
   ['every action kind has an entry in the picker', () => {
-    expectEqual(KINDS.length, 27);
+    expectEqual(KINDS.length, 34);
+    expectEqual(CATEGORIES.map(c => c.title), ['Window', 'Combine', 'Focus', 'Apps', 'Snapshots', 'Utilities', 'Mouse & Keys']);
+    expectEqual(KINDS.filter(k => k.category === 'input').map(k => k.id), ['click', 'press', 'hold', 'repeat', 'wait', 'stop-automations']);
     for (const k of KINDS) {
       expect(CATEGORIES.some(c => c.id === k.category), `${k.id} has a category`);
       expect(k.icon.endsWith('-symbolic') && k.title && k.explanation, `${k.id} is described`);
@@ -87,6 +102,11 @@ export default suite('Presets and actions', [
   ['forms round-trip every kind', () => {
     for (const [id, action] of Object.entries(EXAMPLES)) {
       expectEqual(actionFromForm(formFromAction(action)), action, id);
+    }
+    // The examples are what the engine (Swift's Codable) writes, key order included, so an edited
+    // binding compares equal to the saved one.
+    for (const id of ENGINE_CANONICAL) {
+      expectEqual(JSON.stringify(canonicalAction(EXAMPLES[id])), JSON.stringify(EXAMPLES[id]), `${id} is canonical, in Swift's key order`);
     }
     expectEqual(actionFromForm(formFromAction('push left')), 'push left');
     expectEqual(actionFromForm(formFromAction({op: 'teleport', to: 'mars'})), {op: 'teleport', to: 'mars'});
@@ -145,24 +165,53 @@ export default suite('Presets and actions', [
     expect(!isWindowGeometry(EXAMPLES.chain) && !isWindowGeometry(EXAMPLES.undo));
     expect(!isWindowGeometry({op: 'by-orientation', landscape: {op: 'undo'}, portrait: {op: 'push', direction: 'left'}}));
   }],
-  ['the Mac app\'s automation and clipboard operations are titled and kept as they are', () => {
+  ['Mouse & Keys actions are titled like the Mac app', () => {
     expectEqual(actionTitle({op: 'click', button: 'right', count: 2}), 'Double-Click Right');
     expectEqual(actionTitle({op: 'click', count: 3}), '3× Click Left');
     expectEqual(actionTitle({op: 'press', input: 'mouse:left', phase: 'down'}), 'Press Left Button');
     expectEqual(actionTitle({op: 'press', input: 'key:shift+w', phase: 'up'}), 'Release Shift W');
     expectEqual(actionTitle({op: 'hold', input: 'key:w'}), 'Hold W');
+    expectEqual(actionTitle({op: 'hold', input: 'key:rightShift'}), 'Hold Right Shift');
     expectEqual(actionTitle({op: 'repeat', action: {op: 'click'}, interval: 0.1, mode: 'while-held'}),
       'Repeat Click Left every 100 ms while held');
+    expectEqual(actionTitle(EXAMPLES.repeat), 'Repeat Press E every 50 ms while held, 20×');
     expectEqual(actionTitle({op: 'wait', seconds: 1.5}), 'Wait 1.5 s');
     expectEqual(actionTitle({op: 'wait', seconds: 2}), 'Wait 2 s');
     expectEqual(actionTitle({op: 'stop-automations'}), 'Stop Automations');
     expectEqual(actionTitle({op: 'clipboard-history'}), 'Clipboard History');
-    expect(isMacOnly({op: 'wait', seconds: 1}) && !isMacOnly({op: 'undo'}) && !isMacOnly('wait 1'));
-    const raw = {op: 'hold', input: 'mouse:left'};
-    expectEqual(kindOf(raw), 'unknown');
-    expectEqual(actionFromForm(formFromAction(raw)), raw, 'kept unchanged');
-    expect(/Slated for Mac/.test(uneditableExplanation(raw)) && !/Slated for Mac/.test(uneditableExplanation({op: 'teleport'})));
-    expectEqual(actionProblems(raw), [{severity: 'warning', message: 'Only Slated for Mac runs this operation.'}], 'not an error');
     expectEqual(actionProblems({op: 'teleport'})[0].severity, 'error');
+    expectEqual(kindOf({op: 'teleport'}), 'unknown');
+  }],
+  ['Mouse & Keys forms keep the Mac editor\'s defaults and limits', () => {
+    const form = defaultForm();
+    expectEqual([form.mouseButton, form.clickCount, form.input, form.phase, form.interval, form.repeatMode, form.repeatTimes, form.jitter, form.seconds],
+      ['left', 1, 'mouse:right', 'down', 0.1, 'toggle', null, 0, 0.5]);
+    expectEqual(convertAction({op: 'undo'}, 'click'), {op: 'click', button: 'left'});
+    expectEqual(convertAction({op: 'undo'}, 'press'), {op: 'press', input: 'mouse:right', phase: 'down'});
+    expectEqual(convertAction({op: 'press', input: 'key:w', phase: 'up'}, 'hold'), {op: 'hold', input: 'key:w'}, 'the input carries over');
+    expectEqual(convertAction({op: 'undo'}, 'repeat'), {op: 'repeat', action: {op: 'click', button: 'left'}, interval: 0.1});
+    expectEqual(convertAction({op: 'undo'}, 'wait'), {op: 'wait', seconds: 0.5});
+    expectEqual(updateAction({op: 'click', button: 'left', count: 2}, 'clickCount', 1), {op: 'click', button: 'left'}, 'count 1 left out');
+    expectEqual(updateAction(EXAMPLES.repeat, 'interval', 0.001).interval, 0.01, 'at most 100 runs a second');
+    expectEqual(updateAction(EXAMPLES.repeat, 'jitter', 0.9).jitter, 0.5);
+    expectEqual(updateAction(EXAMPLES.repeat, 'jitter', 0).jitter, undefined, 'no jitter left out');
+    expectEqual(updateAction(EXAMPLES.repeat, 'repeatTimes', null).times, undefined, 'until stopped');
+    expectEqual(updateAction(EXAMPLES.repeat, 'repeatTimes', 0).times, 1, 'at least one run');
+    expectEqual(updateAction(EXAMPLES.repeat, 'repeatMode', 'toggle').mode, undefined, 'toggle is the default');
+    expectEqual(updateAction({op: 'wait', seconds: 1}, 'seconds', -2), {op: 'wait', seconds: 0});
+    expectEqual(localDetail(EXAMPLES.repeat), "repeat 0.05 while-held times:20 jitter:0.15 'keystroke e'");
+    expectEqual(localDetail(EXAMPLES.click), 'click right 2');
+    expectEqual(actionDetail(EXAMPLES.press), 'press key:w up');
+  }],
+  ['automation is found in steps, and macros know which steps act on windows', () => {
+    expect(isAutomation(EXAMPLES.click) && isAutomation('wait 1') && !isAutomation(EXAMPLES['clipboard-history']));
+    expect(containsAutomation({op: 'sequence', operations: [half(), EXAMPLES.wait]}));
+    expect(containsAutomation({op: 'by-orientation', landscape: {op: 'undo'}, portrait: EXAMPLES.hold}));
+    expect(!containsAutomation(EXAMPLES.chain) && !containsAutomation(EXAMPLES['insert-text']));
+    expect(containsWindowGeometry({op: 'sequence', operations: [EXAMPLES.click, half()]}));
+    expect(!containsWindowGeometry({op: 'sequence', operations: [EXAMPLES.click, EXAMPLES.wait]}));
+    expect(isInputStep(EXAMPLES.keystroke) && isInputStep(EXAMPLES.wait) && !isInputStep(half()));
+    expectEqual(INPUT_STEPS.map(s => s.action.op), ['click', 'click', 'press', 'press', 'keystroke', 'wait', 'wait']);
+    for (const step of INPUT_STEPS) expectEqual(canonicalAction(step.action), step.action, `${step.title} is canonical`);
   }],
 ]);

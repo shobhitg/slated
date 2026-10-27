@@ -2,6 +2,7 @@ import {suite, expect, expectEqual, readText} from './harness.mjs';
 import {PrefsModel} from '../../gnome-extension/lib/prefs/model.js';
 import {decodeConfiguration, implemented, starterConfiguration} from '../../gnome-extension/lib/prefs/engine.js';
 import {presetById} from '../../gnome-extension/lib/prefs/presets.js';
+import {recipeById} from '../../gnome-extension/lib/prefs/automation.js';
 
 const HOME = '/home/me';
 const CONFIG = `${HOME}/.config/slated/config.json`;
@@ -243,6 +244,45 @@ export default suite('Preferences model', [
       [false, null, 50, ['org.keepassxc.KeePassXC']], 'clipboard settings kept, null shortcut included');
     expectEqual([written.automation.stopShortcut, written.automation.maxRunMinutes], ['ctrl+alt+esc', 2.5]);
     expectEqual(decodeConfiguration(writes[writes.length - 1]), model.configuration, 'and the file decodes to what is shown');
+  }],
+  ['recipes add named automation bindings, and shared keys respect the apps they work in', () => {
+    const {model, logged, writes, tick} = harness({[CONFIG]: JSON.stringify({
+      bindings: [
+        {id: A, name: 'Minecraft', keys: 'f', action: {op: 'hold', input: 'key:w'}, onlyInApps: ['org.prismlauncher.PrismLauncher']},
+        {id: B, name: 'Clipboard too', keys: 'shift+cmd+v', action: half},
+      ],
+    })});
+    model.load();
+    const id = model.addRecipe(recipeById('click-times'), {keys: 'f', apps: ['steam_app_1']});
+    const added = model.binding(id);
+    expectEqual([added.name, added.keys, added.onlyInApps, added.action.times], ['Click 50 Times', 'f', ['steam_app_1'], 50]);
+    expectEqual(model.otherUses('f', null, id), [], 'Minecraft\'s F is another app\'s');
+    model.setBinding(id, b => {
+      b.onlyInApps = ['org.prismlauncher.PrismLauncher.desktop'];
+    });
+    expectEqual(model.otherUses('f', null, id), ['“Minecraft”'], 'the same app: they clash');
+    const waiting = model.addRecipe(recipeById('hold-w'));
+    expectEqual([model.binding(waiting).keys, model.binding(waiting).name], ['', 'Hold W (Auto-Run)'], 'no keys yet: recorded next');
+    expectEqual(logged.filter(e => e.event === 'ui.recipe_added').map(e => e.data), [
+      {recipe: 'click-times', keys: true, apps: 1}, {recipe: 'hold-w', keys: false, apps: 0}]);
+    expectEqual(model.otherUsesOfBuiltIn('clipboard'), ['“Clipboard too”']);
+    expectEqual(model.otherUsesOfBuiltIn('stopAutomations'), []);
+    tick();
+    const written = JSON.parse(writes[writes.length - 1]);
+    expectEqual(written.bindings.find(b => b.id === id).onlyInApps, ['org.prismlauncher.PrismLauncher.desktop']);
+    expectEqual(model.bindingState(model.binding(id)), {state: 'not-running'}, 'saved: no longer "saving"');
+  }],
+  ['the built-in shortcuts\' state comes from the running extension', () => {
+    const {model} = harness({[CONFIG]: '{}'});
+    model.load();
+    model.setShellInfo({state: 1, error: ''});
+    model.setStatusText(JSON.stringify({running: true, hotkeys: {'shift+cmd+v': 'failed: taken by GNOME', 'hyper+esc': 'active'}}));
+    expectEqual(model.builtInState('clipboard'), {state: 'failed', reason: 'taken by GNOME'});
+    expectEqual(model.builtInState('stopAutomations'), {state: 'active', reason: null});
+    model.update(config => {
+      config.clipboard.enabled = false;
+    });
+    expectEqual(model.builtInState('clipboard'), null, 'off: nothing to report');
   }],
   ['a config.json the engine can\'t read is never overwritten', () => {
     // E.g. a newer action from the Mac app that this engine doesn't know yet, or an id that isn't a UUID.

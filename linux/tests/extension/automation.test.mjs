@@ -7,6 +7,7 @@ import {test} from 'node:test';
 
 import {
   AutomationEngine,
+  automationShortcuts,
   indicatorText,
   inputLabel,
   repeatTitle,
@@ -269,4 +270,16 @@ test('while-held repeats are found in steps; key-sending actions are told apart'
   assert.equal(sendsKeys({op: 'hold', input: 'mouse:left'}), false);
   assert.equal(sendsKeys({op: 'sequence', operations: [click, {op: 'insert-text', text: 'x'}]}), true);
   assert.equal(sendsKeys({op: 'repeat', action: {op: 'hold', input: 'KEY:shift'}, interval: 1}), true);
+});
+
+test('status.json names the shortcuts that started running automations', () => {
+  const active = [
+    {title: 'Repeat click left every 100 ms', trigger: 'hotkey f6'},
+    {title: 'Hold W', trigger: 'hotkey ctrl+alt+f4 1'},
+    {title: 'Hold Shift', trigger: 'hotkey f6'},
+    {title: 'Hold E', trigger: 'debug'},
+    {title: 'Hold Q', trigger: null},
+  ];
+  assert.deepEqual(automationShortcuts(active), ['f6', 'ctrl+alt+f4 1']);
+  assert.deepEqual(automationShortcuts([]), []);
 });

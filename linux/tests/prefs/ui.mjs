@@ -7,7 +7,8 @@
 // reachable behind `in` checks ("new"), against a temporary home with a config, a status file, a
 // ~/.slate.js and a log. Then it uses every page the way a person would: switching sections,
 // editing and recording shortcuts, trying every action kind, presets and nested editors, hotstrings,
-// layouts, importing the Slate file, and closing the window. Any unknown GTK/libadwaita API, wrong
+// clipboard and automation settings, recipes, app pickers, layouts, importing the Slate file, and
+// closing the window. Any unknown GTK/libadwaita API, wrong
 // argument count, GTK critical (removing a non-child, double parenting), unguarded newer API, or a
 // JavaScript error in a handler fails the run. It doesn't check pixels: that's the manual checklist.
 
@@ -21,6 +22,7 @@ import {createWorld, findAll, descendants, prop, MockError} from './gi/mock.mjs'
 // Before anything imports the preferences modules: gi://, cairo and the engine go to the mocks.
 register('./gi/hooks.mjs', import.meta.url);
 const {decodeConfiguration} = await import('../../gnome-extension/lib/prefs/engine.js');
+const {kindById} = await import('../../gnome-extension/lib/prefs/actions.js');
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const api = JSON.parse(fs.readFileSync(path.join(here, 'gi/api.json'), 'utf8'));
@@ -28,7 +30,7 @@ const author = fs.readFileSync(path.join(here, 'fixtures/slate-author-like.js'),
 const UUID = 'slated@shobhit-aida.github.io';
 
 // Fixture ids: config.json ids must be UUIDs (the engine rejects anything else, as Swift does).
-const ID = Object.fromEntries(['HALF', 'CHAIN', 'ORIENT', 'LAYOUT', 'BAD', 'SYNTAX', 'OFF', 'SHRUG', 'SIG']
+const ID = Object.fromEntries(['HALF', 'CHAIN', 'ORIENT', 'LAYOUT', 'BAD', 'SYNTAX', 'OFF', 'SHRUG', 'SIG', 'CLICKER', 'MOUSE']
   .map((name, i) => [name, `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`]));
 
 // Deprecated API the preferences can't avoid: GNOME Shell hands every extension an
@@ -71,13 +73,16 @@ function makeHome() {
       {id: ID.BAD, name: 'Typo', keys: 'hyper+b', action: {op: 'move', x: 'screnOriginX', y: '0', width: '10', height: '10'}},
       {id: ID.SYNTAX, keys: 'hyper+s', action: 'push right bar-resize:screenSizeX/3'},
       {id: ID.OFF, keys: 'hyper+o', enabled: false, action: {op: 'undo'}},
+      {id: ID.CLICKER, name: 'Auto-clicker', keys: 'f', onlyInApps: ['org.prismlauncher.PrismLauncher'],
+        action: {op: 'repeat', action: {op: 'click', button: 'left'}, interval: 0.1}},
+      {id: ID.MOUSE, keys: 'mouse4', action: {op: 'hold', input: 'mouse:right'}},
     ],
     layouts: [{name: 'Coding', apps: [{app: 'Firefox', operations: [{op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX', height: 'screenSizeY'}]}]}],
     hotstrings: [
       {id: ID.SHRUG, trigger: ';s', replacement: '¯\\_(ツ)_/¯'},
       {id: ID.SIG, trigger: ';sig', replacement: 'Thanks', onlyInApps: ['org.gnome.Evolution']},
     ],
-    // Mac-only sections this window doesn't edit: they must survive every save.
+    // Hand-edited values the Clipboard and Automation pages offer as their own choices and keep.
     clipboard: {maxItems: 42, shortcut: null},
     automation: {showIndicator: false},
   };
@@ -88,7 +93,11 @@ function makeHome() {
     session: 'abcd1234', version: '0.1.0', running: true, updatedAt: new Date().toISOString(),
     hyper: {wanted: true, mode: 'xkb', active: true},
     hotstrings: {engine: 'none', espansoInstalled: false, matchFile: null, count: 0},
-    hotkeys: {'hyper+a': 'active', 'hyper+[': 'duplicate', 'hyper+f': 'failed: taken by GNOME'},
+    hotkeys: {'hyper+a': 'active', 'hyper+[': 'duplicate', 'hyper+f': 'failed: taken by GNOME', f: 'active',
+      mouse4: "failed: GNOME can't use mouse buttons as shortcuts. Map the button to a key with keyd (for example mouse1 = f13), then bind that key (F13–F20)"},
+    automation: {running: ['Repeat click left every 100 ms'], shortcuts: ['f'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
+    clipboard: {enabled: true, items: 12},
+    recentApps: [{id: 'steam_app_1086940', name: 'steam_app_1086940'}, {id: 'org.mozilla.firefox', name: 'Firefox'}],
     sources: [{path: '~/.slate.js', kind: 'javascript', exists: true, loaded: true, bindings: 21, diagnostics: ['line 3: something odd']}],
     screens: [
       {displayID: 1, name: 'Laptop', frame: {x: 0, y: 0, width: 1920, height: 1080}, visibleFrame: {x: 0, y: 32, width: 1920, height: 1048}, isMain: true, scale: 1},
@@ -113,9 +122,10 @@ async function run(mode) {
   const shell = {state: 1, calls: []};
   const world = createWorld({
     api, home: files.home, mode,
-    env: {apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'}],
+    env: {apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'},
+      {id: 'org.keepassxc.KeePassXC', name: 'KeePassXC'}],
       keyNames: {97: {name: 'a', char: 'a'}, 65307: {name: 'Escape'}, 65288: {name: 'BackSpace'}, 65505: {name: 'Shift_L'}, 49: {name: '1', char: '1'},
-        65515: {name: 'Super_L'}, 65517: {name: 'Hyper_L'}}},
+        65515: {name: 'Super_L'}, 65517: {name: 'Hyper_L'}, 65475: {name: 'F6'}, 118: {name: 'v', char: 'v'}, 32: {name: 'space', char: ' '}}},
     dbus: method => {
       shell.calls.push(method);
       if (method === 'GetExtensionInfo') return [{state: shell.state, error: ''}];
@@ -171,9 +181,17 @@ async function run(mode) {
   const buttons = (root, text) => findAll(world, root, 'Gtk.Button', (w, s) =>
     s.props.get('label') === text || world.stateOf(s.slots.child ?? null)?.props.get('label') === text);
   const pop = id => navOf(id).pop();
+  const recorderIn = row => findAll(world, row, 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-recorder'))[0];
+  const press = (keyval, state = 0) => world.emit(findAll(world, window, 'Gtk.EventControllerKey')[0], 'key-pressed', keyval, keyval, state);
+  /** Picks an operation in the editor's kind palette. */
+  const pickKind = (page, id) => {
+    const menu = findAll(world, page, 'Gtk.MenuButton', (w, s) => s.props.get('tooltip-text') === 'Choose an operation')[0];
+    menu.popup();
+    click(findAll(world, prop(world, menu, 'popover'), 'Gtk.Button').find(b => prop(world, b, 'tooltip-text') === kindById(id).explanation));
+  };
 
   await step('reads status.json, GNOME Shell\'s state, build-info.json and the running commit', async () => {
-    check(rows.length === 8, `8 sections in the sidebar, found ${rows.length}`);
+    check(rows.length === 10, `10 sections in the sidebar, found ${rows.length}`);
     check(model.status.session === 'abcd1234', 'status.json was read');
     check(model.shell.state === 'active', `shell state from D-Bus, got ${JSON.stringify(model.shell)}`);
     check(model.build?.commit === 'abc1234-dirty', 'build-info.json was read');
@@ -289,7 +307,7 @@ async function run(mode) {
       }
       await settle();
     }
-    check(kindIds.size === 27, `tried ${kindIds.size} of 27 kinds`);
+    check(kindIds.size === 34, `tried ${kindIds.size} of 34 kinds`);
     // Back to a window placement, then every preset.
     const menu = pickerMenus()[0];
     menu.popup();
@@ -327,6 +345,155 @@ async function run(mode) {
     click(presets[2]);
     check(model.binding(ID.ORIENT).action.portrait.height === 'screenSizeY/2', 'the portrait branch took the Top Half preset');
     pop('windows');
+    pop('windows');
+  });
+
+  await step('the Mouse & Keys editors: what repeats, how often, runs, humanizing, no repeat inside a repeat', async () => {
+    settings.navigate('windows', {binding: ID.CLICKER});
+    const page = visible('windows');
+    const action = () => model.binding(ID.CLICKER).action;
+    // An auto-clicker never touches a window: its editor shows no window preview.
+    const previewGroups = findAll(world, page, 'Adw.PreferencesGroup', (w, s) => findAll(world, w, 'Gtk.Overlay',
+      (o, os) => (os.props.get('css-classes') ?? []).includes('slated-preview')).length > 0);
+    check(previewGroups.length === 1 && prop(world, previewGroups[0], 'visible') === false, 'no window preview for an auto-clicker');
+    const what = titled(page, 'Adw.ComboRow', 'Repeat')[0];
+    what.set_selected(1);
+    check(action().action.op === 'keystroke' && action().action.keys === 'e', `repeats a key: ${JSON.stringify(action().action)}`);
+    what.set_selected(0);
+    check(action().action.op === 'click', 'back to a click');
+    titled(page, 'Adw.SwitchRow', 'Double-click')[0].set_active(true);
+    check(action().action.count === 2, 'double-clicks');
+    titled(page, 'Adw.SwitchRow', 'Double-click')[0].set_active(false);
+    click(buttons(page, '250 ms')[0]);
+    check(action().interval === 0.25, `quick pick: ${action().interval}`);
+    titled(page, 'Adw.SpinRow', 'Every')[0].set_value(50);
+    check(action().interval === 0.05, `every 50 ms: ${action().interval}`);
+    titled(page, 'Adw.SwitchRow', 'Stop after a number of runs')[0].set_active(true);
+    check(action().times === 10, 'ten runs to start with');
+    titled(page, 'Adw.SpinRow', 'Number of runs')[0].set_value(25);
+    check(action().times === 25, 'then 25');
+    titled(page, 'Adw.SwitchRow', 'Humanize timing')[0].set_active(true);
+    check(action().jitter === 0.15, 'humanized ±15%');
+    const runs = titled(page, 'Adw.ComboRow', 'Runs')[0];
+    runs.set_selected(1);
+    check(action().mode === 'while-held', 'while held');
+    check(/key repeat/.test(prop(world, runs, 'subtitle')), `explains GNOME's key repeat: ${prop(world, runs, 'subtitle')}`);
+    // Anything else repeats from its own page, where an auto-repeat isn't offered.
+    activate(rowsIn(page, (w, s) => s.props.get('title') === 'Something else')[0]);
+    const nested = visible('windows');
+    check(nested !== page, 'what repeats opens its own page');
+    const menu = findAll(world, nested, 'Gtk.MenuButton', (w, s) => s.props.get('tooltip-text') === 'Choose an operation')[0];
+    menu.popup();
+    const kinds = findAll(world, prop(world, menu, 'popover'), 'Gtk.Button');
+    const kindButton = id => kinds.find(b => prop(world, b, 'tooltip-text') === kindById(id).explanation);
+    check(prop(world, kindButton('repeat'), 'sensitive') === false, 'no repeat inside a repeat');
+    click(kindButton('hold'));
+    check(action().action.op === 'hold', `now holds: ${JSON.stringify(action().action)}`);
+    // Hold a key: from the menu, a modifier key on its own (the recorder can't take one).
+    const input = titled(nested, 'Adw.ComboRow', 'Hold down')[0];
+    input.set_selected(3);
+    check(action().action.input === 'key:w', `a key: ${action().action.input}`);
+    const keyMenu = findAll(world, nested, 'Gtk.MenuButton', (w, s) => String(s.props.get('tooltip-text')).startsWith('Common keys'))[0];
+    keyMenu.popup();
+    click(findAll(world, prop(world, keyMenu, 'popover'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Use Shift')[0]);
+    check(action().action.input === 'key:shift', `holds Shift: ${action().action.input}`);
+    pop('windows');
+    check(rowsIn(visible('windows'), (w, s) => s.props.get('title') === 'Hold Shift').length === 1, 'the row names what repeats');
+    model.setBinding(ID.CLICKER, b => {
+      b.action = {op: 'repeat', action: {op: 'click', button: 'left'}, interval: 0.1};
+    });
+    pop('windows');
+  });
+
+  await step('Works In: only in some apps, from the apps used lately; then a plain key records', async () => {
+    settings.navigate('windows', {binding: ID.CLICKER});
+    const page = visible('windows');
+    check(titled(page, 'Adw.ActionRow', 'org.prismlauncher.PrismLauncher').length === 1, 'the app it works in is listed');
+    const add = titled(page, 'Adw.EntryRow', 'Add an app id or window class')[0];
+    const picker = findAll(world, add, 'Gtk.MenuButton')[0];
+    picker.popup();
+    const list = findAll(world, prop(world, picker, 'popover'), 'Gtk.ListBox')[0];
+    const apps = findAll(world, list, 'Gtk.ListBoxRow', (w, s) => s.expandos._slatedApp);
+    check(world.stateOf(apps[0]).expandos._slatedApp.id === 'steam_app_1086940', 'apps used lately come first');
+    world.emit(list, 'row-activated', apps[0]);
+    check(model.binding(ID.CLICKER).onlyInApps.includes('steam_app_1086940'), 'picked from the list');
+    add.set_text('org.gnome.TextEditor.desktop');
+    world.emit(add, 'apply');
+    check(model.binding(ID.CLICKER).onlyInApps.length === 3, 'typed in by id');
+    const editorRow = titled(page, 'Adw.ActionRow', 'Text Editor')[0];
+    click(findAll(world, editorRow, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Remove')[0]);
+    check(!model.binding(ID.CLICKER).onlyInApps.includes('org.gnome.TextEditor.desktop'), 'removed again');
+    // Limited to apps, a plain key is fine.
+    const recorderButton = findAll(world, page, 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-recorder'))[0];
+    click(recorderButton);
+    world.emit(findAll(world, window, 'Gtk.EventControllerKey')[0], 'key-pressed', 97, 97, 0);
+    check(model.binding(ID.CLICKER).keys === 'a', `a plain key: ${model.binding(ID.CLICKER).keys}`);
+    titled(page, 'Adw.ComboRow', 'Works in')[0].set_selected(0);
+    check(model.binding(ID.CLICKER).onlyInApps === undefined, 'everywhere again');
+    const keysRow = titled(page, 'Adw.ActionRow', 'Keys')[0];
+    check(/takes over typing A everywhere/.test(prop(world, keysRow, 'subtitle')), `then it warns about typing: ${prop(world, keysRow, 'subtitle')}`);
+    model.setBinding(ID.CLICKER, b => {
+      b.keys = 'f';
+      b.onlyInApps = ['org.prismlauncher.PrismLauncher'];
+    });
+    click(buttons(page, 'Safety Settings')[0]);
+    check(settings.current === 'automation', 'the safety note leads to the safety settings');
+    settings.showPane('windows');
+    pop('windows');
+  });
+
+  await step('a mouse-button shortcut says GNOME can\'t use it, with the keyd hint', async () => {
+    settings.navigate('windows', {binding: ID.MOUSE});
+    const page = visible('windows');
+    check(findAll(world, page, 'Gtk.Label', (w, s) => /keyd \(for example mouse1 = f13\)/.test(String(s.props.get('label')))).length >= 1,
+      'the keyd hint is on the page');
+    pop('windows');
+  });
+
+  await step('the Mouse & Keys editors: recorded inputs, keys to repeat, waits, and where stopping is set up', async () => {
+    settings.navigate('windows', {binding: ID.MOUSE});
+    let page = visible('windows');
+    const action = () => model.binding(ID.MOUSE).action;
+    titled(page, 'Adw.ComboRow', 'Hold down')[0].set_selected(3);
+    click(recorderIn(titled(page, 'Adw.ActionRow', 'Key')[0]));
+    press(97);
+    check(action().input === 'key:a', `holds a recorded key: ${action().input}`);
+    // An auto-repeat that presses a key: recorded, or picked from the menu (which has no modifier keys).
+    pickKind(page, 'repeat');
+    titled(page, 'Adw.ComboRow', 'Repeat')[0].set_selected(1);
+    const keyRow = titled(page, 'Adw.ActionRow', 'Key')[0];
+    click(recorderIn(keyRow));
+    press(49);
+    check(action().action.keys === '1', `repeats 1: ${JSON.stringify(action().action)}`);
+    const menu = findAll(world, keyRow, 'Gtk.MenuButton')[0];
+    check(prop(world, menu, 'tooltip-text') === 'Common keys', 'a key to repeat is never a modifier on its own');
+    menu.popup();
+    click(findAll(world, prop(world, menu, 'popover'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Use Space')[0]);
+    check(action().action.keys === 'space', `repeats Space: ${JSON.stringify(action().action)}`);
+    titled(page, 'Adw.SwitchRow', 'Humanize timing')[0].set_active(true);
+    titled(page, 'Adw.SpinRow', 'Vary each interval by up to')[0].set_value(30);
+    check(action().jitter === 0.3, `±30%: ${action().jitter}`);
+    const runs = titled(page, 'Adw.ComboRow', 'Runs')[0];
+    runs.set_selected(1);
+    check(/works like a toggle/.test(prop(world, runs, 'subtitle')), `a repeat that presses keys can't be while-held on GNOME: ${prop(world, runs, 'subtitle')}`);
+    pickKind(page, 'wait');
+    titled(page, 'Adw.SpinRow', 'Seconds')[0].set_value(1.25);
+    check(action().seconds === 1.25, `waits 1.25 s: ${action().seconds}`);
+    click(buttons(page, '2 s')[0]);
+    check(action().seconds === 2, 'a quick pick');
+    check(model.issuesFor(`binding:${ID.MOUSE}`).some(i => /A wait on its own does nothing/.test(i.message)), 'a lone wait is pointless');
+    pickKind(page, 'stop-automations');
+    click(buttons(page, 'Automation Settings')[0]);
+    check(settings.current === 'automation', 'Stop Automations points at the stop shortcut\'s settings');
+    settings.navigate('windows', {binding: ID.MOUSE});
+    page = visible('windows');
+    pickKind(page, 'clipboard-history');
+    click(buttons(page, 'Clipboard Settings')[0]);
+    check(settings.current === 'clipboard', 'Clipboard History points at its settings');
+    model.setBinding(ID.MOUSE, b => {
+      b.action = {op: 'hold', input: 'mouse:right'};
+    });
+    settings.showPane('windows');
     pop('windows');
   });
 
@@ -497,6 +664,18 @@ async function run(mode) {
     check(model.configuration.bindings.length === before + 1, 'a binding from the preset');
     world.emit(findAll(world, window, 'Gtk.EventControllerKey')[0], 'key-pressed', 65307, 65307, 0);
     pop('windows');
+    // The automation recipes are presets too.
+    const recipeButtons = findAll(world, prop(world, presetMenu, 'popover'), 'Gtk.Button');
+    click(recipeButtons[recipeButtons.length - 1]);
+    const macro = model.configuration.bindings[model.configuration.bindings.length - 1];
+    check(macro.name === 'Macro: Walk, Then Click' && macro.action.op === 'sequence', `the macro recipe: ${JSON.stringify(macro)}`);
+    world.emit(findAll(world, window, 'Gtk.EventControllerKey')[0], 'key-pressed', 65307, 65307, 0);
+    check(rowsIn(visible('windows'), (w, s) => String(s.props.get('title')).startsWith('Step 2 · Wait 2 s')).length === 1, 'its steps are listed');
+    check(findAll(world, visible('windows'), 'Gtk.CheckButton', (w, s) => s.props.get('label') === 'Same window').length === 0,
+      '"same window" isn\'t offered for clicks, keys and waits');
+    pop('windows');
+    const automations = findAll(world, visible('windows'), 'Adw.PreferencesGroup', (w, s) => s.props.get('title') === 'Automation')[0];
+    check(rowsIn(automations, (w, s) => s.props.get('title') === 'Macro: Walk, Then Click').length === 1, 'listed with the automations');
   });
 
   await step('Slate Compatibility: reload, paths, loading switch', async () => {
@@ -560,6 +739,127 @@ async function run(mode) {
     click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Delete Layout')[0]);
     world.emit(world.report.dialogs[world.report.dialogs.length - 1], 'response', 'accept');
     check(!layout(), 'layout deleted');
+  });
+
+  await step('Automation: running now, your automations, recipes and the safety settings', async () => {
+    settings.showPane('automation');
+    const root = visible('automation');
+    check(rowsIn(root, (w, s) => s.props.get('title') === 'Repeat click left every 100 ms').length === 1, 'running now, from status.json');
+    const mine = rowsIn(root, (w, s) => s.props.get('title') === 'Auto-clicker')[0];
+    check(mine, 'your automations list the auto-clicker');
+    check(findAll(world, mine, 'Gtk.Label', (w, s) => s.props.get('label') === 'Running').length === 1, 'marked as running');
+    check(/Only in org\.prismlauncher\.PrismLauncher/.test(prop(world, mine, 'subtitle')), `where it works: ${prop(world, mine, 'subtitle')}`);
+    findAll(world, mine, 'Gtk.Switch')[0].set_active(false);
+    check(model.binding(ID.CLICKER).enabled === false, 'turned off from the list');
+    const again = rowsIn(visible('automation'), (w, s) => s.props.get('title') === 'Auto-clicker')[0];
+    findAll(world, again, 'Gtk.Switch')[0].set_active(true);
+    check(model.binding(ID.CLICKER).enabled === true, 'and on');
+    activate(rowsIn(visible('automation'), (w, s) => s.props.get('title') === 'Auto-clicker')[0]);
+    check(world.stateOf(visible('automation')).expandos._slatedKey === `binding:${ID.CLICKER}`, 'its editor opens in place');
+    pop('automation');
+    click(buttons(visible('automation'), 'New Automation')[0]);
+    check(findAll(world, window, 'Gtk.EventControllerKey').length === 1, 'a new automation records its shortcut');
+    press(65307);
+    pop('automation');
+    const before = model.configuration.bindings.length;
+    const sprint = rowsIn(root, (w, s) => s.props.get('title') === 'Toggle Sprint (Shift)')[0];
+    click(buttons(sprint, 'Add')[0]);
+    check(model.configuration.bindings.length === before + 1, 'the recipe added a binding');
+    const added = model.configuration.bindings[model.configuration.bindings.length - 1];
+    check(added.name === 'Toggle Sprint (Shift)' && added.action.input === 'key:shift', JSON.stringify(added));
+    const controller = findAll(world, window, 'Gtk.EventControllerKey')[0];
+    check(controller, 'its editor records the shortcut right away');
+    world.emit(controller, 'key-pressed', 65475, 65475, 0);
+    check(model.binding(added.id).keys === 'f6', `recorded ${model.binding(added.id).keys}`);
+    check(findAll(world, visible('automation'), 'Gtk.Label', (w, s) => /^✦ Esc stops everything · stops when you switch apps\./.test(String(s.props.get('label')))).length === 1,
+      'the editor shows the safety rails');
+    pop('automation');
+    const recipes = findAll(world, visible('automation'), 'Adw.PreferencesGroup', (w, s) => s.props.get('title') === 'Recipes')[0];
+    const done = rowsIn(recipes, (w, s) => s.props.get('title') === 'Toggle Sprint (Shift)')[0];
+    check(buttons(done, 'Edit').length === 1, 'a recipe already set up offers Edit');
+    const page = visible('automation');
+    titled(page, 'Adw.SwitchRow', 'Stop when you switch apps')[0].set_active(false);
+    check(model.configuration.automation.stopOnAppSwitch === false, 'stop on app switch off');
+    titled(page, 'Adw.ComboRow', 'Time limit')[0].set_selected(2);
+    check(model.configuration.automation.maxRunMinutes === 5, `time limit: ${model.configuration.automation.maxRunMinutes}`);
+    titled(page, 'Adw.SwitchRow', 'Show an indicator')[0].set_active(true);
+    check(model.configuration.automation.showIndicator === true, 'indicator on');
+    const stopRow = titled(page, 'Adw.ActionRow', 'Stop shortcut')[0];
+    click(findAll(world, stopRow, 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-recorder'))[0]);
+    world.emit(findAll(world, window, 'Gtk.EventControllerKey')[0], 'key-pressed', 65288, 65288, 0);
+    check(model.configuration.automation.stopShortcut === null, 'Backspace clears the stop shortcut');
+    check(findAll(world, page, 'Gtk.Label', (w, s) => s.props.get('label') === 'No stop shortcut').some(l => prop(world, l, 'visible') !== false),
+      'and the page says there is none');
+    click(buttons(stopRow, 'Default')[0]);
+    check(model.configuration.automation.stopShortcut === 'hyper+esc', 'the default again');
+    activate(rowsIn(page, (w, s) => s.props.get('title') === 'Build Your Own')[0]);
+    world.emit(findAll(world, window, 'Gtk.EventControllerKey')[0], 'key-pressed', 65307, 65307, 0);
+    const own = model.configuration.bindings[model.configuration.bindings.length - 1];
+    check(own.action.op === 'repeat' && !own.keys, 'build your own starts from an auto-clicker, waiting for its keys');
+    const suggestion = findAll(world, titled(visible('automation'), 'Adw.ActionRow', 'Suggested')[0], 'Gtk.Button')[0];
+    check(prop(world, suggestion, 'tooltip-text') === 'Use F7', `a free function key is suggested: ${prop(world, suggestion, 'tooltip-text')}`);
+    click(suggestion);
+    check(model.binding(own.id).keys === 'f7', 'one click takes it');
+    pop('automation');
+    await settle();
+    const saved = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    check(saved.automation.maxRunMinutes === 5 && saved.automation.stopOnAppSwitch === false, 'saved to config.json');
+  });
+
+  await step('Clipboard: the switch, the shortcut, history choices and excluded apps', async () => {
+    settings.showPane('clipboard');
+    const root = visible('clipboard');
+    check(rowsIn(root, (w, s) => s.props.get('title') === 'Saved' && /12 items/.test(String(s.props.get('subtitle')))).length === 1, 'the item count from status.json');
+    const remember = titled(root, 'Adw.ComboRow', 'Remember up to')[0];
+    const labels = world.stateOf(prop(world, remember, 'model')).items;
+    check(labels.includes('42 items'), `a hand-edited size is a choice of its own: ${labels.join(', ')}`);
+    remember.set_selected(labels.indexOf('200 items'));
+    check(model.configuration.clipboard.maxItems === 200, 'remember 200');
+    titled(root, 'Adw.ComboRow', 'Forget items after')[0].set_selected(4);
+    check(model.configuration.clipboard.retentionDays === 0, 'forever');
+    titled(root, 'Adw.SwitchRow', 'Keep history across restarts')[0].set_active(false);
+    check(model.configuration.clipboard.persist === false, 'not kept across restarts');
+    titled(root, 'Adw.SwitchRow', 'Paste after picking')[0].set_active(false);
+    check(model.configuration.clipboard.pasteAfterSelecting === false, 'only copies');
+    titled(root, 'Adw.SwitchRow', 'Ignore passwords and other secrets')[0].set_active(false);
+    check(model.configuration.clipboard.ignoreConcealed === false, 'records secrets (why would you)');
+    titled(root, 'Adw.SwitchRow', 'Ignore passwords and other secrets')[0].set_active(true);
+    const shortcutRow = titled(root, 'Adw.ActionRow', 'Open the switcher')[0];
+    click(buttons(shortcutRow, 'Default')[0]);
+    check(model.configuration.clipboard.shortcut === 'shift+cmd+v', 'the default shortcut again');
+    click(recorderIn(shortcutRow));
+    press(118, Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK);
+    check(model.configuration.clipboard.shortcut === 'ctrl+alt+v', `recorded: ${model.configuration.clipboard.shortcut}`);
+    const add = titled(root, 'Adw.EntryRow', 'Add an app id')[0];
+    const picker = findAll(world, add, 'Gtk.MenuButton')[0];
+    picker.popup();
+    const list = findAll(world, prop(world, picker, 'popover'), 'Gtk.ListBox')[0];
+    const first = findAll(world, list, 'Gtk.ListBoxRow', (w, s) => s.expandos._slatedApp)[0];
+    check(world.stateOf(first).expandos._slatedApp.id === 'org.keepassxc.KeePassXC', 'password managers come first');
+    world.emit(list, 'row-activated', first);
+    check(model.configuration.clipboard.excludedApps.includes('org.keepassxc.KeePassXC'), 'excluded');
+    add.set_text('com.example.Vault');
+    world.emit(add, 'apply');
+    check(model.configuration.clipboard.excludedApps.includes('com.example.Vault'), 'typed in by id');
+    const keepass = titled(visible('clipboard'), 'Adw.ActionRow', 'KeePassXC')[0];
+    check(keepass, 'listed by name');
+    click(findAll(world, keepass, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Remove')[0]);
+    check(!model.configuration.clipboard.excludedApps.includes('org.keepassxc.KeePassXC'), 'removed again');
+    check(titled(visible('clipboard'), 'Adw.ActionRow', 'Keychain Access (Mac)').length === 1, 'the Mac\'s password managers are named');
+    const toggle = findAll(world, root, 'Gtk.Switch', (w, s) => s.props.get('tooltip-text') === 'Turn clipboard history on or off')[0];
+    toggle.set_active(false);
+    check(model.configuration.clipboard.enabled === false, 'off');
+    settings._syncChrome();
+    const badge = findAll(world, sidebar, 'Gtk.Label', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-badge') && s.props.get('label') === 'Off');
+    check(badge.length === 1, 'the sidebar says it\'s off');
+    toggle.set_active(true);
+    await settle();
+    const saved = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    check(saved.clipboard.maxItems === 200 && saved.clipboard.persist === false && saved.clipboard.enabled, 'saved to config.json');
+    const events = fs.readFileSync(files.logFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    const changes = events.filter(e => e.event === 'config.saved').flatMap(e => e.data.changes);
+    check(changes.some(c => c.startsWith('clipboard: ')) && changes.some(c => c.startsWith('automation: ')), 'the log has the settings changes');
+    check(events.some(e => e.event === 'ui.recipe_added' && e.data.recipe === 'toggle-sprint'), 'and the recipe');
   });
 
   await step('hand edits and status changes on disk are picked up', async () => {

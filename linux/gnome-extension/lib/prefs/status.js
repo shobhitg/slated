@@ -6,7 +6,7 @@
 //
 // This module only parses and interprets them. Pure ES module.
 
-import {isObject, plural} from './util.js';
+import {isObject, plural, deepEqual} from './util.js';
 
 /** What the preferences assume when status.json is missing or unreadable. */
 export function emptyStatus() {
@@ -22,6 +22,12 @@ export function emptyStatus() {
     hotkeys: {},
     sources: [],
     screens: null,
+    // What runs now (titles as the indicator shows them), the shortcuts that started it, and whether
+    // while-held repeats stop as you let go ("key-repeat") or work like toggles ("toggle").
+    automation: {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'},
+    clipboard: {enabled: false, items: 0},
+    /** Apps used lately, newest first: [{id, name}], the ids onlyInApps takes. */
+    recentApps: [],
     lastAction: null,
     lastError: null,
   };
@@ -110,6 +116,23 @@ export function parseStatus(text) {
   if (Array.isArray(raw.screens)) {
     const screens = raw.screens.map(screenInfo).filter(Boolean);
     status.screens = screens.length ? screens : null;
+  }
+  if (isObject(raw.automation)) {
+    const a = raw.automation;
+    status.automation = {
+      running: Array.isArray(a.running) ? a.running.filter(t => typeof t === 'string') : [],
+      shortcuts: Array.isArray(a.shortcuts) ? a.shortcuts.filter(t => typeof t === 'string') : [],
+      stopShortcut: str(a.stopShortcut),
+      whileHeld: a.whileHeld === 'toggle' ? 'toggle' : 'key-repeat',
+    };
+  }
+  if (isObject(raw.clipboard)) {
+    status.clipboard = {enabled: bool(raw.clipboard.enabled), items: Math.max(0, Math.round(num(raw.clipboard.items)))};
+  }
+  if (Array.isArray(raw.recentApps)) {
+    status.recentApps = raw.recentApps
+      .filter(app => isObject(app) && typeof app.id === 'string' && app.id)
+      .map(app => ({id: app.id, name: str(app.name) || app.id}));
   }
   status.lastAction = str(raw.lastAction);
   status.lastError = str(raw.lastError);
@@ -238,7 +261,8 @@ export function bindingState({binding, key, saved, issues = [], status, running,
     if (binding.enabled === false) return {state: 'disabled'};
     const error = issues.find(i => i.severity === 'error');
     if (error) return {state: 'not-saved', message: error.message, wasSaved};
-    if (!saved || JSON.stringify(saved) !== JSON.stringify(binding)) return {state: 'saving'};
+    // Key order doesn't matter: a binding made here lists its fields in another order than config.json.
+    if (!saved || !deepEqual(saved, binding)) return {state: 'saving'};
   }
   if (!running) return {state: 'not-running'};
   const reported = status.hotkeys?.[key];

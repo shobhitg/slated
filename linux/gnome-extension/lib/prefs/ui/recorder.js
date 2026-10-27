@@ -33,11 +33,14 @@ export class ShortcutRecorder {
    * @param {boolean} [options.requiresModifier] global shortcuts need Ctrl, Alt or Super
    * @param {boolean} [options.allowClear] Backspace clears the shortcut
    * @param {(recording: boolean) => void} [options.onRecording]
+   * @param {string} [options.plainKeyHint] added when a key without Ctrl, Alt or Super is refused
    */
-  constructor({title, keys, onChange, requiresModifier = true, allowClear = false, onRecording = () => {}, subtitle = ''}) {
+  constructor({title, keys, onChange, requiresModifier = true, allowClear = false, onRecording = () => {}, subtitle = '', plainKeyHint = ''}) {
     this.keys = keys ?? '';
     this.onChange = onChange;
+    /** Global shortcuts need Ctrl, Alt or Super; one limited to some apps doesn't (settable). */
     this.requiresModifier = requiresModifier;
+    this.plainKeyHint = plainKeyHint;
     this.allowClear = allowClear;
     this.onRecording = onRecording;
     this.baseSubtitle = subtitle;
@@ -175,7 +178,7 @@ export class ShortcutRecorder {
     }
     const combo = {key, modifiers};
     if (this.requiresModifier && !isAcceptableGlobalShortcut(combo)) {
-      this._hint(`Add Ctrl, Alt or Super, or hold Caps Lock for ✦. On its own, ${keyLabel(key)} would get in the way of typing.`);
+      this._hint(`Add Ctrl, Alt or Super, or hold Caps Lock for ✦. On its own, ${keyLabel(key)} would get in the way of typing.${this.plainKeyHint ? ` ${this.plainKeyHint}` : ''}`);
       return true;
     }
     this.keys = formatKeyCombo(combo);

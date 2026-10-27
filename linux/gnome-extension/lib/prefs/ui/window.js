@@ -1,7 +1,7 @@
 // The Slated settings window, built inside the Adw.PreferencesWindow GNOME Shell hands to
 // fillPreferencesWindow().
 //
-// Slated has eight sections (as on macOS), more than a view switcher fits, so the window shows a
+// Slated has ten sections (as on macOS), more than a view switcher fits, so the window shows a
 // sidebar like GNOME Settings: an Adw.NavigationSplitView that collapses to a single column on
 // narrow widths. Each section has its own Adw.NavigationView so editors open as drill-down pages
 // with a back button. The window keeps the model in sync with config.json and status.json through
@@ -23,6 +23,8 @@ import {saveStateText} from './general.js';
 import {createOverviewPane} from './overview.js';
 import {createWindowsPane} from './windows.js';
 import {createHotstringsPane} from './hotstrings.js';
+import {createClipboardPane} from './clipboard.js';
+import {createAutomationPane} from './automation.js';
 import {createKeyboardPane} from './keyboard.js';
 import {createLayoutsPane} from './layouts.js';
 import {createSlatePane} from './slate.js';
@@ -33,6 +35,8 @@ const PANES = [
   ['overview', 'Overview', 'go-home-symbolic', createOverviewPane],
   ['windows', 'Windows', 'focus-windows-symbolic', createWindowsPane],
   ['hotstrings', 'Hotstrings', 'insert-text-symbolic', createHotstringsPane],
+  ['clipboard', 'Clipboard', 'edit-paste-symbolic', createClipboardPane],
+  ['automation', 'Automation', 'input-gaming-symbolic', createAutomationPane],
   ['keyboard', 'Keyboard', 'input-keyboard-symbolic', createKeyboardPane],
   ['layouts', 'Layouts', 'view-dual-symbolic', createLayoutsPane],
   ['slate', 'Slate Compatibility', 'text-x-generic-symbolic', createSlatePane],
@@ -280,7 +284,7 @@ export class SlatedSettings {
     if (changed) this.model.log('ui.pane', {pane: id});
   }
 
-  /** Shows a section, optionally with something in it ({binding: id}, {newBinding, action}, {newHotstring}). */
+  /** Shows a section, optionally with something in it ({binding: id}, {newBinding, action}, {newHotstring}, {recipe: id}). */
   navigate(id, options = null) {
     const pane = this.panes.get(id);
     if (!pane) return;

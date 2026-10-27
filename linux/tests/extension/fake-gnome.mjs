@@ -297,13 +297,14 @@ export class FakeShellApp {
     return new FakeActor({width: size, height: size, icon: this.id});
   }
   get_id() {
-    return `${this.id}.desktop`;
+    // GNOME names apps without a desktop file "window:<n>", after their first window.
+    return this.is_window_backed() ? this.id : `${this.id}.desktop`;
   }
   get_name() {
     return this.name;
   }
   is_window_backed() {
-    return false;
+    return String(this.id).startsWith('window:');
   }
   get_windows() {
     return this.windows;

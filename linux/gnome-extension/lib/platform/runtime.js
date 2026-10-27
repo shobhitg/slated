@@ -12,7 +12,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as Core from '../core/index.js';
 import {ActionRunner, errorMessage} from './actions.js';
-import {AutomationEngine, OWN_APPS, sendsKeys, whileHeldRepeat} from './automation.js';
+import {AutomationEngine, OWN_APPS, automationShortcuts, sendsKeys, whileHeldRepeat} from './automation.js';
 import {ClipboardService} from './clipboard.js';
 import {bindingKey, comboOf, modalOf} from './combos.js';
 import {ConfigStore, DEFAULT_SLATE_PATHS, emptyConfiguration} from './configStore.js';
@@ -568,6 +568,7 @@ export class SlatedRuntime {
       sources: this._sources?.sources ?? [],
       automation: {
         running: running ? (this._automation?.active ?? []).map((a) => a.title) : [],
+        shortcuts: running ? automationShortcuts(this._automation?.active ?? []) : [],
         stopShortcut: config.automation?.stopShortcut ?? null,
         whileHeld: this._whileHeldMode,
       },

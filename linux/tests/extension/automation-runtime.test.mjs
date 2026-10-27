@@ -100,7 +100,7 @@ test('the stop and clipboard shortcuts are registered, and status.json reports a
   assert.deepEqual(gnome.accelerators(), [`${HYPER}Escape`, `${HYPER}f`, '<Shift><Super>v']);
   const s = status();
   assert.deepEqual(s.hotkeys, {'hyper+esc': 'active', 'hyper+f': 'active', 'shift+cmd+v': 'active'});
-  assert.deepEqual(s.automation, {running: [], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'});
+  assert.deepEqual(s.automation, {running: [], shortcuts: [], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'});
   assert.deepEqual(s.clipboard, {enabled: true, items: 0});
 });
 
@@ -111,6 +111,7 @@ test('a repeat binding clicks until the stop shortcut; the indicator and status 
   gnome.loop.advance(250);
   assert.equal(clicks(), 3);
   assert.deepEqual(status().automation.running, ['Repeat click left every 100 ms']);
+  assert.deepEqual(status().automation.shortcuts, ['hyper+f'], 'Settings can tell which binding runs');
   const ui = gnome.modules['resource:///org/gnome/shell/ui/main.js'].uiGroup;
   const pill = ui.children.find((a) => a.style_class === 'slated-automation-pill');
   assert.ok(pill?.visible);
@@ -143,7 +144,8 @@ test('onlyInApps bindings are grabbed only while their app has focus', () => {
   gnome.focus(launcher);
   gnome.loop.run();
   assert.ok(gnome.accelerators().includes('f'));
-  assert.deepEqual(status().recentApps.map((a) => a.id), ['org.prismlauncher.PrismLauncher', 'window:7']);
+  // A game without a desktop file is known by its WM_CLASS: the id its onlyInApps takes.
+  assert.deepEqual(status().recentApps.map((a) => a.id), ['org.prismlauncher.PrismLauncher', 'steam_app_1086940']);
 });
 
 test('the overview counts as leaving the game: automations stop and its plain-key bindings are let go', () => {

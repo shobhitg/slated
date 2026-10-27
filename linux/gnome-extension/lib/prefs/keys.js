@@ -12,12 +12,22 @@ export const MODIFIERS = ['ctrl', 'alt', 'shift', 'cmd'];
 export const HYPER = ['ctrl', 'alt', 'shift', 'cmd'];
 export const MEH = ['ctrl', 'alt', 'shift'];
 
+/**
+ * Modifier keys as keys of their own: held by automations ("key:shift" to hold Shift for sprint),
+ * never shortcuts on their own. "cmd" is the Super key.
+ */
+export const MODIFIER_KEY_NAMES = ['shift', 'ctrl', 'alt', 'cmd', 'rightShift', 'rightCtrl', 'rightAlt', 'rightCmd'];
+
+/** Extra mouse buttons, shortcuts on the Mac only: GNOME can't grab mouse buttons. */
+export const MOUSE_BUTTON_KEYS = ['mouse3', 'mouse4', 'mouse5'];
+
 const NAMED = (() => {
   const map = new Map();
   const names = [
     'left', 'right', 'up', 'down', 'return', 'tab', 'space', 'delete', 'forwardDelete', 'esc',
     'home', 'end', 'pageUp', 'pageDown', 'help', 'caps', 'mute', 'volumeUp', 'volumeDown',
     'backslash', 'padClear', 'padEnter', 'pad=', 'pad*', 'pad+', 'pad-', 'pad.', 'pad/',
+    ...MODIFIER_KEY_NAMES, ...MOUSE_BUTTON_KEYS,
   ];
   for (const name of names) map.set(name.toLowerCase(), name);
   for (let i = 0; i <= 9; i++) map.set(`pad${i}`, `pad${i}`);
@@ -41,6 +51,16 @@ export function isValidKey(key) {
 
 export function isFunctionKey(key) {
   return /^f\d+$/.test(key);
+}
+
+/** Shift, Ctrl, Alt, Super (cmd) and their right-hand twins, as key names. */
+export function isModifierKey(key) {
+  return MODIFIER_KEY_NAMES.includes(key);
+}
+
+/** mouse3 (middle), mouse4 and mouse5. */
+export function isMouseButton(key) {
+  return MOUSE_BUTTON_KEYS.includes(key);
 }
 
 /** Parses one modifier token, returning a list (hyper and meh expand). */
@@ -165,6 +185,8 @@ const DISPLAY = {
   delete: 'Backspace', forwardDelete: 'Delete', esc: 'Esc', home: 'Home', end: 'End',
   pageUp: 'Page Up', pageDown: 'Page Down', padEnter: 'Enter', backslash: '\\', caps: 'Caps Lock',
   help: 'Help', mute: 'Mute', volumeUp: 'Volume Up', volumeDown: 'Volume Down', padClear: 'Num Lock',
+  shift: 'Shift', ctrl: 'Ctrl', alt: 'Alt', cmd: 'Super', rightShift: 'Right Shift', rightCtrl: 'Right Ctrl',
+  rightAlt: 'Right Alt', rightCmd: 'Right Super', mouse3: 'Middle Click', mouse4: 'Mouse 4', mouse5: 'Mouse 5',
 };
 
 /** How a Slate key name is labeled on a keycap on Linux: "A", "←", "Return", "F5", "Num 1". */

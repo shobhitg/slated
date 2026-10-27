@@ -1,6 +1,8 @@
 // Actions as the editor sees them: one picker entry per kind (focus is split into a direction and an
 // app, as on macOS), conversion between kinds that keeps compatible parameters (port of
 // Sources/SlatedUI/Model/ActionForm.swift) and human-readable titles (ActionDescriber.swift).
+// Automation actions (click, press, hold, repeat, wait, stop-automations) are the "Mouse & Keys"
+// category, as in the Mac app; Settings → Automation describes them in plain words (automation.js).
 //
 // Actions are plain JSON objects exactly as in config.json ({"op": "push", "direction": "left"}).
 // A bare string is Slate operation syntax; the editor shows it as text until the engine parses it.
@@ -18,7 +20,10 @@ export const CATEGORIES = [
   {id: 'focus', title: 'Focus'},
   {id: 'apps', title: 'Apps'},
   {id: 'snapshots', title: 'Snapshots'},
-  {id: 'automation', title: 'Automation'},
+  // Text, keystrokes, URLs, commands: "Utilities", named apart from Settings → Automation (which is
+  // about the Mouse & Keys actions). The id stays "automation", as in the Mac app.
+  {id: 'automation', title: 'Utilities'},
+  {id: 'input', title: 'Mouse & Keys'},
 ];
 
 const kind = (id, category, title, icon, explanation) => Object.freeze({id, category, title, icon, explanation});
@@ -59,6 +64,18 @@ export const KINDS = Object.freeze([
   kind('open-url', 'automation', 'Open URL', 'web-browser-symbolic', 'Open a link or app URL scheme.'),
   kind('shell', 'automation', 'Run Shell Command', 'utilities-terminal-symbolic', 'Run a command in the background.'),
   kind('relaunch', 'automation', 'Reload Configuration', 'view-refresh-symbolic', 'Reload config.json and your Slate files.'),
+  kind('clipboard-history', 'automation', 'Clipboard History', 'edit-paste-symbolic',
+    'Open the clipboard history to search and paste something you copied earlier.'),
+  kind('click', 'input', 'Click', 'input-mouse-symbolic', 'Click a mouse button where the pointer is.'),
+  kind('press', 'input', 'Press or Release', 'go-bottom-symbolic',
+    'Press or release a mouse button or key on its own: a building block for macros with waits.'),
+  kind('hold', 'input', 'Hold Down', 'changes-prevent-symbolic',
+    'Hold a mouse button or key down until this shortcut fires again, e.g. keep W pressed to auto-run.'),
+  kind('repeat', 'input', 'Auto-Repeat', 'media-playlist-repeat-symbolic',
+    "Repeat a click or a key on a timer: an auto-clicker or key spammer, toggled by the shortcut or while it's held."),
+  kind('wait', 'input', 'Wait', 'preferences-system-time-symbolic', 'Pause a sequence for a moment, to time the steps of a macro.'),
+  kind('stop-automations', 'input', 'Stop Automations', 'media-playback-stop-symbolic',
+    'Stop every running auto-repeat and let go of anything held down.'),
 ]);
 
 /** Pseudo-kind for Slate operation syntax the engine can't parse yet; edited as text. */
@@ -73,24 +90,6 @@ export function kindById(id) {
 
 export function kindsInCategory(categoryId) {
   return KINDS.filter(k => k.category === categoryId);
-}
-
-/**
- * Operations only the Mac app runs (automation and clipboard history, Action.swift). The editor shows
- * them and keeps them unchanged; Slated for GNOME doesn't run them.
- */
-export const MAC_ONLY_OPS = Object.freeze(['click', 'press', 'hold', 'repeat', 'wait', 'stop-automations', 'clipboard-history']);
-
-/** True for an action only the Mac app runs. */
-export function isMacOnly(action) {
-  return isObject(action) && MAC_ONLY_OPS.includes(action.op);
-}
-
-/** What the editor says about an operation it can't edit. */
-export function uneditableExplanation(action) {
-  return isMacOnly(action)
-    ? "Slated for Mac runs this operation. Slated for GNOME doesn't yet, and keeps it in config.json unchanged."
-    : UNKNOWN_KIND.explanation;
 }
 
 /** Pseudo-kind for an object whose "op" Slated doesn't know (kept unchanged until replaced). */
@@ -130,6 +129,38 @@ export function isGeometryKind(kindId) {
   return GEOMETRY.has(kindId);
 }
 
+const AUTOMATION = new Set(['click', 'press', 'hold', 'repeat', 'wait', 'stop-automations']);
+
+/** True for the Mouse & Keys actions, which click, press or hold (Action.isAutomation). */
+export function isAutomation(action) {
+  const a = resolveAction(action);
+  return Boolean(a) && AUTOMATION.has(a.op);
+}
+
+/** The steps an action runs: a chain's operations, a sequence's steps, both orientations. */
+function nested(a) {
+  switch (a?.op) {
+  case 'chain': return a.operations ?? [];
+  case 'sequence': return a.steps ? a.steps.map(step => step?.action) : (a.operations ?? []);
+  case 'by-orientation': return [a.landscape, a.portrait];
+  default: return [];
+  }
+}
+
+/** Whether running the action clicks, presses or holds, here or in any step (Action.containsAutomation). */
+export function containsAutomation(action) {
+  const a = resolveAction(action);
+  if (!a) return false;
+  return AUTOMATION.has(a.op) || nested(a).some(containsAutomation);
+}
+
+/** Whether the action moves or resizes a window, here or in any step. */
+export function containsWindowGeometry(action) {
+  const a = resolveAction(action);
+  if (!a) return false;
+  return isWindowGeometry(a) || nested(a).some(containsWindowGeometry);
+}
+
 // --- Forms: switching kinds while keeping compatible parameters ----------------------------------------
 
 const move = (x, y, width, height) => ({op: 'move', x, y, width, height});
@@ -156,6 +187,10 @@ export function defaultForm() {
     appSelector: 'current',
     command: '', wait: false, workingDirectory: '',
     text: '', method: 'auto', url: 'https://', keys: 'cmd+shift+4',
+    // Mouse & Keys, with the Mac editor's defaults (ActionForm.swift).
+    mouseButton: 'left', clickCount: 1, input: 'mouse:right', phase: 'down',
+    repeatAction: {op: 'click', button: 'left'}, interval: 0.1, repeatMode: 'toggle', repeatTimes: null, jitter: 0,
+    seconds: 0.5,
     syntax: '',
   };
 }
@@ -241,6 +276,27 @@ export function formFromAction(action) {
   case 'keystroke':
     form.keys = typeof a.keys === 'string' ? a.keys : form.keys;
     break;
+  case 'click':
+    Object.assign(form, {mouseButton: a.button ?? 'left', clickCount: Number.isInteger(a.count) ? a.count : 1});
+    break;
+  case 'press':
+    Object.assign(form, {input: a.input ?? form.input, phase: a.phase === 'up' ? 'up' : 'down'});
+    break;
+  case 'hold':
+    form.input = a.input ?? form.input;
+    break;
+  case 'repeat':
+    Object.assign(form, {
+      repeatAction: a.action ?? form.repeatAction,
+      interval: typeof a.interval === 'number' ? a.interval : form.interval,
+      repeatMode: a.mode === 'while-held' ? 'while-held' : 'toggle',
+      repeatTimes: Number.isInteger(a.times) ? a.times : null,
+      jitter: typeof a.jitter === 'number' ? a.jitter : 0,
+    });
+    break;
+  case 'wait':
+    form.seconds = typeof a.seconds === 'number' ? a.seconds : form.seconds;
+    break;
   default:
     break;
   }
@@ -324,6 +380,27 @@ export function actionFromForm(form) {
     return action;
   }
   case 'relaunch': return {op: 'relaunch'};
+  case 'clipboard-history': return {op: 'clipboard-history'};
+  case 'click': {
+    const action = {op: 'click', button: form.mouseButton || 'left'};
+    const count = Math.max(1, Math.round(Number(form.clickCount) || 1));
+    if (count !== 1) action.count = count;
+    return action;
+  }
+  case 'press': return {op: 'press', input: form.input, phase: form.phase === 'up' ? 'up' : 'down'};
+  case 'hold': return {op: 'hold', input: form.input};
+  case 'repeat': {
+    // The Mac editor's limits: at most 100 runs a second, at least one run, jitter 0–50%.
+    const interval = Number(form.interval);
+    const action = {op: 'repeat', action: form.repeatAction, interval: Number.isFinite(interval) ? Math.max(0.01, interval) : 0.1};
+    if (form.repeatMode === 'while-held') action.mode = 'while-held';
+    if (form.repeatTimes !== null && form.repeatTimes !== undefined) action.times = Math.max(1, Math.round(Number(form.repeatTimes) || 1));
+    const jitter = Math.min(Math.max(Number(form.jitter) || 0, 0), 0.5);
+    if (jitter !== 0) action.jitter = jitter;
+    return action;
+  }
+  case 'wait': return {op: 'wait', seconds: Math.max(0, Number(form.seconds) || 0)};
+  case 'stop-automations': return {op: 'stop-automations'};
   case 'syntax': return form.syntax;
   case 'unknown': return form.raw;
   default: throw new Error(`Unknown kind "${form.kind}"`);
@@ -460,7 +537,8 @@ export function actionTitle(action) {
   case 'press': return `${a.phase === 'up' ? 'Release' : 'Press'} ${inputTitle(a.input)}`;
   case 'hold': return `Hold ${inputTitle(a.input)}`;
   case 'repeat':
-    return `Repeat ${actionTitle(a.action)} every ${secondsText(a.interval)}${a.mode === 'while-held' ? ' while held' : ''}`;
+    return `Repeat ${actionTitle(a.action)} every ${secondsText(a.interval)}${a.mode === 'while-held' ? ' while held' : ''}`
+      + (Number.isInteger(a.times) ? `, ${a.times}×` : '');
   case 'wait': return `Wait ${secondsText(a.seconds)}`;
   case 'stop-automations': return 'Stop Automations';
   case 'clipboard-history': return 'Clipboard History';
@@ -471,7 +549,7 @@ export function actionTitle(action) {
 const capitalized = text => String(text).charAt(0).toUpperCase() + String(text).slice(1);
 
 /** "mouse:right" → "Right Button", "key:shift+w" → the keycap label. */
-function inputTitle(input) {
+export function inputTitle(input) {
   const text = String(input ?? '');
   if (text.toLowerCase().startsWith('mouse:')) return `${capitalized(text.slice('mouse:'.length))} Button`;
   if (text.toLowerCase().startsWith('key:')) return comboLabel(text.slice('key:'.length));
@@ -479,7 +557,7 @@ function inputTitle(input) {
 }
 
 /** "100 ms", "0.5 s", "2 s", as on the Mac. */
-function secondsText(value) {
+export function secondsText(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return '? s';
   if (n < 1) return `${Math.round(n * 1000)} ms`;
@@ -539,6 +617,15 @@ export function localDetail(a) {
   case 'insert-text': return `insert-text${a.method && a.method !== 'auto' ? ` (${a.method})` : ''} “${truncate(singleLine(a.text ?? ''), 40)}”`;
   case 'open-url': return a.url ?? '';
   case 'keystroke': return `keystroke ${a.keys}`;
+  case 'click': return `click ${a.button ?? 'left'}${Number.isInteger(a.count) && a.count !== 1 ? ` ${a.count}` : ''}`;
+  case 'press': return `press ${a.input} ${a.phase ?? 'down'}`;
+  case 'hold': return `hold ${a.input}`;
+  case 'repeat': {
+    const options = [a.mode === 'while-held' ? 'while-held' : '', Number.isInteger(a.times) ? `times:${a.times}` : '',
+      a.jitter ? `jitter:${a.jitter}` : ''].filter(Boolean).map(o => ` ${o}`).join('');
+    return `repeat ${a.interval}${options} '${localDetail(a.action)}'`;
+  }
+  case 'wait': return `wait ${a.seconds}`;
   default: return a.op ?? '';
   }
 }
@@ -558,6 +645,23 @@ export function bindingSubtitle(binding) {
   if (!k) return '';
   if (k.title !== title) return k.title;
   return CATEGORIES.find(c => c.id === k.category)?.title ?? '';
+}
+
+/** Mouse & Keys items for the "Add step" menu, for macros (as in the Mac app). */
+export const INPUT_STEPS = [
+  {title: 'Click Left', action: {op: 'click', button: 'left'}},
+  {title: 'Click Right', action: {op: 'click', button: 'right'}},
+  {title: 'Press W Down', action: {op: 'press', input: 'key:w', phase: 'down'}},
+  {title: 'Release W', action: {op: 'press', input: 'key:w', phase: 'up'}},
+  {title: 'Press a Key…', action: {op: 'keystroke', keys: 'e'}},
+  {title: 'Wait Half a Second', action: {op: 'wait', seconds: 0.5}},
+  {title: 'Wait 1 Second', action: {op: 'wait', seconds: 1}},
+];
+
+/** Steps that act on something other than a window: "same window" means nothing for them. */
+export function isInputStep(action) {
+  const a = resolveAction(action);
+  return containsAutomation(a) || ['keystroke', 'insert-text', 'open-url', 'shell', 'clipboard-history'].includes(a?.op);
 }
 
 /** Extra items for the "Add step" menu of chains and sequences, after the presets. */

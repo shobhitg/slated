@@ -182,9 +182,9 @@ Safety rails:
 - GNOME can't use mouse buttons as shortcuts, so `mouse3`–`mouse5` show as "Couldn't register". Map
   the side button to a key with keyd (e.g. `mouse1 = f13`) and bind that key (`f13`…`f20`).
 - `while-held` notices you let go through GNOME's key repeat, so it stops about 0.1 s after you let
-  go, and right away if you press another key. With key repeat off (Settings → Keyboard), or when
-  the repeated action types keys (`keystroke`, `insert-text`, `key:` inputs), it works like `toggle`:
-  press the shortcut again to stop.
+  go, and right away if you press another key. With key repeat off (GNOME Settings → Keyboard), when
+  the repeated action types keys (`keystroke`, `insert-text`, `key:` inputs), or behind a modal key,
+  it works like `toggle`: press the shortcut again to stop.
 - In `onlyInApps`, write the app's desktop file id, with or without `.desktop`
   (`org.prismlauncher.PrismLauncher`). Games without one, such as Steam/Proton games, go by their
   window's WM_CLASS (`steam_app_1086940`). `recentApps` in `~/.local/state/slated/status.json`
@@ -194,6 +194,8 @@ Safety rails:
 - `cmd` is the Super key, so the stop shortcut `hyper+esc` is Ctrl+Alt+Shift+Super+Esc. With Caps
   Lock as Hyper through GNOME's own option, Hyper often shares Super's modifier, and Super+Esc is
   GNOME's; pick another stop shortcut if it shows "Couldn't register".
+- Slated's Settings → Automation has the recipes and the safety settings, and a shortcut's **Works
+  In** picks `onlyInApps` from the apps you used lately or installed apps.
 
 ## Clipboard history
 
@@ -225,6 +227,8 @@ with Ctrl+V, or Ctrl+Shift+V in terminals.
   `x-kde-passwordManagerHint`).
 - `excludedApps` takes GNOME app ids, such as `org.keepassxc.KeePassXC` or `com.bitwarden.desktop`.
 - Only text is kept, not images or files.
+- Slated's Settings → Clipboard edits all of these and shows how many items are saved; the items
+  themselves are in the switcher.
 
 ## Hotstrings
 

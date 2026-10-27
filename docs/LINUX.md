@@ -100,13 +100,24 @@ The settings window has the same sections as the Mac app, listed in a sidebar:
 | Section | What's there |
 |---|---|
 | Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, a getting-started checklist, and tips |
-| Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, and previews where the window will land |
+| Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
 | Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
+| Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, privacy (secrets, excluded apps), and the switcher's keys. Shows how many items are saved |
+| Automation | What runs now, your automations, eleven recipes (auto-click, hold a button or key, sprint and crouch toggles, spam a key, click N times, double-click, a walk-then-click macro), the safety settings, and what GNOME does differently |
 | Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh |
 | Layouts | Arrange several apps at once. Layouts from Slate files are read-only |
 | Slate Compatibility | Your Slate files' status and problems, **Import into Slated**, and which files to load |
 | General | Turn Slated on or off, the action banner, window behavior, where the config and log are, and this build |
 | About | Version, credits, license, and debug information for bug reports |
+
+Adding a recipe makes an ordinary shortcut and opens its editor with the shortcut recorder running;
+free function keys are suggested. **Works In → Only in some apps** offers the apps you used lately
+(from `recentApps` in `status.json`, so games without a desktop file are there too, by window class)
+and your installed apps, or takes an id you type. Limited to apps, a shortcut can be a plain key like
+F. A shortcut on a mouse button (from the Mac) says GNOME can't use it and how to map the button
+with keyd. The editor has the Mouse & Keys actions: click, press or release, hold down, auto-repeat
+(what repeats, how often, toggle or while held, a number of runs, humanized timing), wait and stop
+automations.
 
 Changes save as you make them, after a short pause. Anything with an error, such as a half-typed
 expression or an empty trigger, is flagged where you edit it and isn't written to `config.json`
@@ -147,7 +158,7 @@ these to point everything at a throwaway home.
  "screens": [{"displayID": 1, "name": "Built-in display", "isMain": true, "scale": 1,
               "frame": {"x": 0, "y": 0, "width": 1920, "height": 1080},
               "visibleFrame": {"x": 0, "y": 32, "width": 1920, "height": 1048}}],
- "automation": {"running": ["Repeat click left every 100 ms"], "stopShortcut": "hyper+esc", "whileHeld": "key-repeat"},
+ "automation": {"running": ["Repeat click left every 100 ms"], "shortcuts": ["f6"], "stopShortcut": "hyper+esc", "whileHeld": "key-repeat"},
  "clipboard": {"enabled": true, "items": 12},
  "recentApps": [{"id": "steam_app_1086940", "name": "steam_app_1086940"}, {"id": "firefox", "name": "Firefox"}],
  "lastAction": "Left half · firefox", "lastError": null}
@@ -159,9 +170,10 @@ these to point everything at a throwaway home.
   displays. Otherwise they use two sample displays.
 - While the extension is running, the settings window logs under its `session`, so
   `scripts/logs.py --session last` shows events from both.
-- `automation.running` lists what runs now, as the indicator shows it. `whileHeld` is `key-repeat`
-  when `while-held` repeats stop as you let go, or `toggle` when keyboard repeat is off in GNOME
-  Settings and they need a second press.
+- `automation.running` lists what runs now, as the indicator shows it, and `shortcuts` the keys (as in
+  `hotkeys`) of the shortcuts that started it. `whileHeld` is `key-repeat` when `while-held` repeats
+  stop as you let go, or `toggle` when keyboard repeat is off in GNOME Settings and they need a
+  second press.
 - `recentApps` are the apps you used lately, newest first: the ids `onlyInApps` takes.
 
 ## Feature parity with macOS
@@ -189,6 +201,8 @@ these to point everything at a throwaway home.
 | Shortcuts only in some apps (`onlyInApps`) | Bundle ids | Desktop ids or WM_CLASS. Grabbed only while the app has focus |
 | Automation safety: stop shortcut, stop on app switch, time limit, the "running" indicator | ✓ | ✓ The overview counts as leaving the app. Disabling, locking the screen and config reloads release everything |
 | Clipboard history and its switcher | ✓ | ✓ Text only. Ctrl instead of ⌘ in the switcher |
+| Settings → Clipboard | Recent items with pin, copy and delete | Settings only, and how many items are saved. Pin, delete and clear in the switcher |
+| Settings → Automation | Running Now with Stop All | Lists what runs. Stop it with the stop shortcut |
 
 ## Limitations
 
@@ -253,7 +267,7 @@ Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
 | Command | What it covers |
 |---|---|
 | `make linux-test` | The engine under Node, held to the Swift behavior by golden vectors. `gjs -m linux/tests/run.mjs` runs the same tests under GJS |
-| `make linux-test-prefs` | The settings logic (model, validation, presets, import, status), plus the whole settings UI driven on mock GTK and libadwaita |
+| `make linux-test-prefs` | The settings logic (model, validation, presets, automation recipes, import, status), plus the whole settings UI driven on mock GTK and libadwaita |
 | `make linux-test-prefs-gjs` | The settings logic tests under GJS |
 | `make linux-test-gtk` | The settings window on real GTK 4 and libadwaita (needs `gjs gir1.2-adw-1 xvfb dbus`) |
 | `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: shortcuts, per-app grabs, automation timing and safety stops, clipboard history, status and log (Node 22.15+) |

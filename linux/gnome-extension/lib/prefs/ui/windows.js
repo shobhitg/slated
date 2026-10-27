@@ -1,11 +1,13 @@
 // Settings → Windows: Slated's own shortcuts (editable) and every Slate file's (read-only), with a
 // search field, keycaps and status badges (port of WindowsPane.swift). Selecting a shortcut opens
-// its editor on a pushed page.
+// its editor on a pushed page. Automations (shortcuts that click, press or hold) live in
+// config.bindings like any shortcut; they get their own group so they're easy to find.
 
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 
-import {bindingTitle, bindingSubtitle, actionTitle, actionDetail} from '../actions.js';
+import {bindingTitle, bindingSubtitle, actionTitle, actionDetail, containsAutomation} from '../actions.js';
+import {RECIPES} from '../automation.js';
 import {PRESETS, PRESET_GROUPS} from '../presets.js';
 import {statePresentation} from '../status.js';
 import {comboLabel, keysString} from '../keys.js';
@@ -34,7 +36,11 @@ export function createWindowsPane(ctx) {
   const slatedCount = label('', {classes: ['dim-label']});
   const slatedGroup = group({title: 'Slated', suffix: slatedCount});
   prefs.add(slatedGroup);
+  const automationCount = label('', {classes: ['dim-label']});
+  const automationGroup = group({title: 'Automation', suffix: automationCount, description: 'Mouse & keys: clicks, held keys and macros.'});
+  prefs.add(automationGroup);
   let slatedRows = [];
+  let automationRows = [];
   let sourceGroups = [];
 
   const empty = emptyState({
@@ -66,6 +72,18 @@ export function createWindowsPane(ctx) {
       });
       presetBox.append(b);
     }
+  }
+  presetBox.append(label('Automation', {classes: ['heading']}));
+  for (const recipe of RECIPES) {
+    const content = box('horizontal', 8);
+    content.append(glyph(recipe.action));
+    content.append(label(recipe.title));
+    const b = new Gtk.Button({child: content, css_classes: ['flat'], tooltip_text: recipe.detail});
+    b.connect('clicked', () => {
+      presetPopover.popdown();
+      pushBindingEditor(ctx, model.addRecipe(recipe), {autoRecord: true});
+    });
+    presetBox.append(b);
   }
   const presetMenu = new Gtk.MenuButton({label: 'From Preset', popover: presetPopover, tooltip_text: 'Start a shortcut from a preset placement'});
   const addButton = button('', () => newBinding(), {icon: 'list-add-symbolic', classes: ['suggested-action'], tooltip: 'New Shortcut'});
@@ -120,21 +138,33 @@ export function createWindowsPane(ctx) {
   function rebuild() {
     for (const row of slatedRows) slatedGroup.remove(row);
     slatedRows = [];
+    for (const row of automationRows) automationGroup.remove(row);
+    automationRows = [];
     for (const g of sourceGroups) prefs.remove(g);
     sourceGroups = [];
 
     const bindings = model.configuration.bindings;
-    const visible = bindings.filter(b => matches([bindingTitle(b), bindingSubtitle(b), actionDetail(b.action), keysString(b.keys), comboLabel(b.keys, b.modal)]));
-    slatedCount.set_label(String(bindings.length));
+    const windowBindings = bindings.filter(b => !containsAutomation(b.action));
+    const automations = bindings.filter(b => containsAutomation(b.action));
+    const shown = list => list.filter(b => matches([bindingTitle(b), bindingSubtitle(b), actionDetail(b.action), keysString(b.keys), comboLabel(b.keys, b.modal)]));
+    const visible = shown(windowBindings);
+    slatedCount.set_label(String(windowBindings.length));
     for (const b of visible) slatedRows.push(bindingRow(b));
-    if (!bindings.length) {
-      const row = new Adw.ActionRow({use_markup: false, title: 'No shortcuts of your own yet', subtitle: 'Start with a set of Hyper shortcuts for halves, maximize and more.'});
+    if (!windowBindings.length) {
+      const row = new Adw.ActionRow({use_markup: false, title: bindings.length ? 'No window shortcuts yet' : 'No shortcuts of your own yet',
+        subtitle: 'Start with a set of Hyper shortcuts for halves, maximize and more.'});
       row.add_suffix(button('Add Starter Shortcuts', () => addStarter(), {classes: ['flat']}));
       slatedRows.push(row);
     } else if (!visible.length) {
       slatedRows.push(new Adw.ActionRow({use_markup: false, title: `No matches for “${search.get_text()}”`, activatable: false}));
     }
     for (const row of slatedRows) slatedGroup.add(row);
+    automationGroup.set_visible(automations.length > 0);
+    automationCount.set_label(String(automations.length));
+    const visibleAutomations = shown(automations);
+    for (const b of visibleAutomations) automationRows.push(bindingRow(b));
+    if (automations.length && !visibleAutomations.length) automationRows.push(new Adw.ActionRow({use_markup: false, title: 'No matches', activatable: false}));
+    for (const row of automationRows) automationGroup.add(row);
 
     if (model.slateLoading) {
       for (const source of model.sources.filter(s => s.exists && s.bindings.length)) {

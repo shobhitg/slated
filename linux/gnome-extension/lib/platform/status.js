@@ -9,7 +9,8 @@
 //    "hotkeys":{"hyper+a":"active","hyper+q":"failed: <reason>","hyper+w":"duplicate","hyper+z":"disabled"},
 //    "sources":[{"path":"~/.slate.js","kind":"javascript","exists":true,"loaded":true,"bindings":21,
 //                "diagnostics":["..."]}],
-//    "automation":{"running":["Repeat click left every 100 ms"],"stopShortcut":"hyper+esc","whileHeld":"key-repeat"},
+//    "automation":{"running":["Repeat click left every 100 ms"],"shortcuts":["f6"],"stopShortcut":"hyper+esc",
+//                  "whileHeld":"key-repeat"},
 //    "clipboard":{"enabled":true,"items":12},
 //    "recentApps":[{"id":"steam_app_1086940","name":"steam_app_1086940"},{"id":"firefox","name":"Firefox"}],
 //    "lastAction":"Left half · Firefox","lastError":null}
@@ -18,7 +19,8 @@
 // ("ctrl+alt+f4 1"). "duplicate" means more than one binding uses those keys: the first one
 // (config.json before Slate files, then file order) is the one that runs.
 //
-// automation.running lists what runs now (the indicator's titles; insert-text is shown as a length).
+// automation.running lists what runs now (the indicator's titles; insert-text is shown as a length);
+// automation.shortcuts holds the hotkey keys (as in "hotkeys") of the shortcuts that started them.
 // automation.whileHeld is "key-repeat" when while-held repeats stop as the key is let go (noticed
 // through GNOME's key repeat), or "toggle" when keyboard repeat is off and they need a second press.
 // recentApps are the apps focused lately (newest first): the ids "Only in…" app lists offer, including
@@ -71,6 +73,7 @@ export function buildStatus(state) {
     sources: (state.sources ?? []).map(sourceStatus),
     automation: {
       running: (state.automation?.running ?? []).map(String),
+      shortcuts: (state.automation?.shortcuts ?? []).map(String),
       stopShortcut: typeof state.automation?.stopShortcut === 'string' ? state.automation.stopShortcut : null,
       whileHeld: state.automation?.whileHeld === 'toggle' ? 'toggle' : 'key-repeat',
     },

@@ -146,6 +146,8 @@ function fillBinding(raw, makeId) {
   if (isObject(b.modal)) out.modal = {keys: b.modal.keys ?? '', toggle: b.modal.toggle === true};
   if (typeof b.repeats === 'boolean') out.repeats = b.repeats;
   out.enabled = b.enabled !== false;
+  // Written only when the binding is limited to some apps, as Swift does.
+  if (Array.isArray(b.onlyInApps) && b.onlyInApps.length) out.onlyInApps = b.onlyInApps.map(String);
   return out;
 }
 

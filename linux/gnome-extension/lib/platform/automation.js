@@ -50,6 +50,19 @@ export function indicatorText(active) {
   return active.length === 1 ? active[0].title : `${active.length} automations running`;
 }
 
+/**
+ * The keys of the shortcuts that started running automations, as status.json's "hotkeys" names them
+ * ("hyper+r"): the runner's trigger is "hotkey <keys>". Settings marks those bindings as running.
+ */
+export function automationShortcuts(active) {
+  const keys = [];
+  for (const automation of active) {
+    const trigger = typeof automation?.trigger === 'string' ? automation.trigger : '';
+    if (trigger.startsWith('hotkey ') && !keys.includes(trigger.slice('hotkey '.length))) keys.push(trigger.slice('hotkey '.length));
+  }
+  return keys;
+}
+
 /** The parts of an action that run as steps: a sequence's steps, a chain's operations, both orientations. */
 function children(action) {
   if (!action || typeof action !== 'object') return [];

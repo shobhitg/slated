@@ -171,3 +171,10 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
 - [ ] Turning "Slated is on" off and on in General disables and enables the extension.
 - [ ] Hotstrings: with espanso running, a new hotstring appears in `~/.config/espanso/match/slated.yml`
       and expands in another app.
+- [ ] Automation: adding Auto-Click Left asks for a shortcut (F6 is suggested). Pressing it in a game
+      clicks; Running Now lists it, its row says Running, and the stop shortcut stops it.
+- [ ] Works In → Only in some apps lists the game you just played under Used Lately (a Proton game
+      by its `steam_app_…` window class). Once limited, a plain key such as F records.
+- [ ] Clipboard: the pill says Recording and the count grows as you copy. KeePassXC is offered under
+      Password Managers when installed. Clearing the shortcut (Backspace while recording) turns off
+      Super+Shift+V; Default puts it back.

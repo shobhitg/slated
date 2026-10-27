@@ -102,7 +102,7 @@ step('builds the window', () => {
 });
 
 if (settings) {
-  for (const id of ['overview', 'windows', 'hotstrings', 'keyboard', 'layouts', 'slate', 'general', 'about']) {
+  for (const id of ['overview', 'windows', 'hotstrings', 'clipboard', 'automation', 'keyboard', 'layouts', 'slate', 'general', 'about']) {
     step(`shows ${id}`, () => settings.showPane(id));
   }
   step('opens and edits a binding', () => {
@@ -126,6 +126,11 @@ if (settings) {
     settings.panes.get('windows').nav.pop();
   });
   step('opens a new hotstring', () => settings.navigate('hotstrings', {newHotstring: true}));
+  step('adds an automation recipe, whose editor records its shortcut', () => {
+    settings.navigate('automation', {recipe: 'auto-click-left'});
+    spin();
+    settings.panes.get('automation').nav.pop();
+  });
   step('narrow windows collapse to one column', () => {
     window.set_default_size(400, 700);
     spin(300);
