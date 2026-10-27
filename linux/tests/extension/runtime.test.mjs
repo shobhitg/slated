@@ -32,7 +32,9 @@ beforeEach(() => {
   homes.push(home);
   Object.assign(gnome.state, {
     home,
-    env: {},
+    env: {SLATED_KEYD_CONF: join(home, 'etc/keyd/slated.conf')}, // never this computer's keyd
+    programs: {},
+    subprocesses: undefined,
     focused: null,
     windows: [],
     apps: [],
@@ -204,6 +206,42 @@ test('stop() undoes everything: shortcuts, keyboard options, signals and timers'
   const [quit] = events('app.quit');
   assert.equal(quit.data.reason, 'disabled');
   assert.equal(quit.data.hyperRestored, true);
+});
+
+test('keyd is the Hyper key only while it runs and a keyd config maps Caps Lock, and Slated follows it live', () => {
+  Object.assign(gnome.state, {programs: {systemctl: '/usr/bin/systemctl'}, subprocesses: []});
+  const etc = join(home, 'etc/keyd');
+  mkdirSync(etc, {recursive: true});
+  writeFileSync(join(etc, 'mouse.conf'), '[ids]\nm:046d:c52b\n\n[main]\nmouse1 = f13\n'); // keyd only for the side buttons
+  writeConfig(config);
+  const runtime = startRuntime();
+  const xkb = () => gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'];
+  assert.deepEqual(gnome.state.subprocesses, [], 'no keyd config maps Caps Lock: systemd isn’t even asked');
+  assert.deepEqual([gnome.accelerators(), xkb(), status().hyper], [['<Hyper>a'], ['compose:ralt', 'caps:hyper'], {wanted: true, mode: 'xkb', active: true}]);
+
+  writeFileSync(join(etc, 'mouse.conf'), '[ids]\n*\n\n[main]\ncapslock = layer(hyper)\n'); // you map Caps Lock in keyd
+  gnome.fileChanged(etc);
+  gnome.state.subprocesses[0].exit(true); // keyd.service is active
+  gnome.loop.run();
+  assert.deepEqual(gnome.accelerators(), ['<Control><Alt><Shift><Super>a']);
+  assert.deepEqual(xkb(), ['compose:ralt', 'caps:escape'], 'caps:hyper taken out, caps:escape back');
+  assert.deepEqual(status().hyper, {wanted: true, mode: 'keyd', active: true});
+
+  gnome.systemSignal('org.freedesktop.DBus.Properties.PropertiesChanged', ['org.freedesktop.systemd1.Unit', {ActiveState: 'inactive'}, []]); // keyd stops
+  gnome.state.subprocesses[1].exit(false);
+  gnome.loop.run();
+  assert.deepEqual([gnome.accelerators(), xkb(), status().hyper], [['<Hyper>a'], ['compose:ralt', 'caps:hyper'], {wanted: true, mode: 'xkb', active: true}]);
+  runtime.stop();
+});
+
+test('a caps:hyper you set yourself stays after disable, and the last status.json says Caps Lock is still Hyper', () => {
+  gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'] = ['compose:ralt', 'caps:hyper']; // GNOME Tweaks
+  writeConfig(config);
+  const runtime = startRuntime();
+  runtime.stop();
+  assert.deepEqual(gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'], ['compose:ralt', 'caps:hyper'], 'not Slated’s to take out');
+  assert.deepEqual(status().hyper, {wanted: true, mode: 'xkb', active: true});
+  assert.equal(events('app.quit')[0].data.hyperRestored, false);
 });
 
 test('first run with ~/.slate.js starts empty and loads the Slate file', () => {

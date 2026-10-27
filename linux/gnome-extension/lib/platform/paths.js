@@ -8,7 +8,8 @@
 //   ~/.local/state/slated/clipboard.json  clipboard history (mode 0600), when clipboard.persist is on
 //
 // `SLATED_HOME` stands in for the home directory and `SLATED_CONFIG` for the config file, like on
-// macOS, so tests can point a running shell at a throwaway home.
+// macOS, so tests can point a running shell at a throwaway home. `SLATED_KEYD_CONF` moves keyd's
+// config folder, as for linux/install.sh.
 
 import GLib from 'gi://GLib';
 
@@ -56,6 +57,11 @@ export function hyperStatePath() {
 /** Clipboard history, readable only by you (0600), in the Mac app's clipboard.json format. */
 export function clipboardPath() {
   return `${stateDir()}/clipboard.json`;
+}
+
+/** The keyd config `linux/install.sh --hyper-keyd` writes; keyd's other configs are next to it. */
+export function keydConfigPath() {
+  return GLib.getenv('SLATED_KEYD_CONF') || '/etc/keyd/slated.conf';
 }
 
 export function espansoConfigDir() {

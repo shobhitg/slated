@@ -63,6 +63,12 @@ once. Until keyd is set up, Slated uses GNOME's own keyboard option (`caps:hyper
 itself and removes again when you turn the Hyper key off. The Keyboard page shows which method is
 active, and `linux/install.sh` reminds you while keyd isn't set up.
 
+Slated uses keyd only while keyd runs (systemd says `keyd` is active; without systemd, keyd's socket
+is there) and one of its configs maps Caps Lock: Slated's own `/etc/keyd/slated.conf`, or a
+`capslock =` line in the `[main]` section of another `/etc/keyd/*.conf`. A keyd that only maps a
+mouse's side buttons leaves Caps Lock to GNOME's option. Slated notices keyd starting or stopping,
+and its configs changing, without logging out.
+
 | | GNOME's keyboard option (xkb) | keyd |
 |---|---|---|
 | Setup | Nothing to install | `linux/install.sh --hyper-keyd` (installs `/etc/keyd/slated.conf`; asks for sudo) |
@@ -203,7 +209,7 @@ these to point everything at a throwaway home.
 | `repeat … while-held` | Stops on key-up | Stops about 0.1 s after you let go, noticed through key repeat. Works like `toggle` with key repeat off or for repeats that type keys |
 | Mouse buttons 3–5 as shortcuts | ✓ | Not possible in GNOME. Map them to F13–F20 with keyd |
 | Shortcuts only in some apps (`onlyInApps`) | Bundle ids | Desktop ids or WM_CLASS. Grabbed only while the app has focus |
-| Automation safety: stop shortcut, stop on app switch, time limit, the "running" indicator | ✓ | ✓ The overview counts as leaving the app. Disabling, locking the screen and config reloads release everything |
+| Automation safety: stop shortcut, stop on app switch, time limit, the "running" indicator | ✓ | ✓ The overview counts as leaving the app, and while it's open, shortcuts that would start an automation are ignored (stopping one still works). A macro waiting on a `wait` counts as running even when it holds nothing. Disabling, locking the screen, going to sleep (logind's PrepareForSleep) and config reloads release everything |
 | Clipboard history and its switcher | ✓ | ✓ Text only. Ctrl instead of ⌘ in the switcher |
 | Settings → Clipboard | Recent items with pin, copy and delete | Settings only, and how many items are saved. Pin, delete and clear in the switcher |
 | Settings → Automation | Running Now with Stop All | Lists what runs. Stop it with the stop shortcut |
@@ -231,6 +237,11 @@ these to point everything at a throwaway home.
   when the key's auto-repeat stops: about 0.1 s later, or as soon as you press or release another
   key, since GNOME repeats only the last key pressed. With key repeat turned off in GNOME Settings, or
   for repeats that type keys themselves, a second press stops it instead.
+- **An auto-repeat that types keys skips its runs while you hold a modifier** (Alt for Alt+Tab, Ctrl,
+  Shift…), and never types them later: with Alt held, they would reach GNOME's app switcher, where Q
+  quits an app. A shortcut's own keys still wait until you let go of its modifiers. Keys a macro
+  types after a `wait` wait too, but are dropped if you still hold a modifier after 1.5 s or another
+  app has focus by then.
 - **Mouse buttons can't be shortcuts in GNOME.** Bindings on `mouse3`–`mouse5` show as failed. Map
   the side buttons to keys with keyd, then bind those keys (`f13`…`f20`). In keyd the side buttons
   are usually `mouse1` and `mouse2`, and keyd only reads a mouse that its `[ids]` section lists.
@@ -307,12 +318,13 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | Settings says "A newer build is installed" | GNOME Shell is still running the previous build. Log out and back in. |
 | Settings says "This GNOME version isn't supported yet" | You're on GNOME 50 or later (see [Limitations](#limitations)). |
 | A shortcut says "Couldn't register" | GNOME or another extension already uses those keys. Pick other keys, or free them in GNOME Settings → Keyboard → Keyboard Shortcuts. |
-| Caps Lock isn't Hyper | Settings → Keyboard shows which method is active and whether it works. With keyd, check `sudo systemctl status keyd`. |
+| Caps Lock isn't Hyper | Settings → Keyboard shows which method is active and whether it works. With keyd, check `sudo systemctl status keyd`, and that a config in `/etc/keyd` maps `capslock` in its `[main]` section. |
 | Hotstrings don't expand | Settings → Hotstrings shows espanso's status. Check `espanso status` and `espanso log`. |
 | Editing `config.json` by hand changes nothing | The file must be valid JSON (comments and trailing commas are fine). Settings → Overview shows what's wrong, and `scripts/logs.py --errors` shows what the extension saw. |
 | Settings says it can't read `config.json` | The message names the spot, such as `bindings[2].id`. Ids must be UUIDs: delete a bad `"id"` line and Slated makes a new one. Settings won't save until the file reads, so nothing in it is lost. Operations from a newer Slated for Mac than the engine knows also stop it here. |
 | A `while-held` repeat keeps going after I let go | Check that Repeat Keys is on in GNOME Settings → Keyboard (`status.json` says `"whileHeld": "toggle"` otherwise). A repeat that types keys always needs a second press. `scripts/logs.py --grep automation.while_held` says which bindings work like toggles and why. |
-| An automation stops by itself | `scripts/logs.py --grep automation.stopped` gives the reason: switching apps or opening the overview (`automation.stopOnAppSwitch`), the time limit (`automation.maxRunMinutes`), the stop shortcut, or a config change. |
+| An automation stops by itself | `scripts/logs.py --grep automation.stopped` gives the reason: switching apps or opening the overview (`automation.stopOnAppSwitch`), the time limit (`automation.maxRunMinutes`), the stop shortcut, going to sleep, or a config change. |
+| An automation shortcut does nothing in the overview | By design: an auto-clicker started there would click into it. Close the overview first. `scripts/logs.py --grep automation.start_ignored` lists the presses Slated ignored. |
 | The stop or clipboard shortcut says "Couldn't register" | GNOME or another extension uses those keys (`cmd` is Super, so the clipboard's `cmd+shift+v` is Super+Shift+V). With Caps Lock as Hyper through GNOME's own option, `hyper+esc` can collide with GNOME's Super+Esc. Set `automation.stopShortcut` or `clipboard.shortcut` to other keys, such as `ctrl+alt+esc` or `ctrl+alt+v`. |
 | An `onlyInApps` shortcut never works | It's grabbed only while that app has focus. Use the id from `recentApps` in `status.json` (desktop id, or WM_CLASS for games without a desktop file). |
 | Clipboard history stays empty | `clipboard.enabled` must be on. Copies from `excludedApps` and secrets marked by password managers are skipped by design, and only text is kept. `scripts/logs.py --grep clipboard` shows what was skipped and why. |

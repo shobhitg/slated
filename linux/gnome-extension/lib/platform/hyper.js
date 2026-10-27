@@ -1,9 +1,13 @@
 // Caps Lock → Hyper on GNOME, when `keyboard.capsLock` is "hyper".
 //
-// - **keyd mode**: if keyd runs (`/run/keyd.socket` exists, or `keyd` is installed and its systemd
-//   service is active), Slated assumes keyd maps Caps Lock to Ctrl+Alt+Shift+Super, as the setup docs
-//   say, and uses plain accelerators. keyd can also make a tap send Escape. The socket is watched, so
-//   keyd started (or stopped) while Slated runs switches the mode without logging out.
+// - **keyd mode**: when a keyd config maps Caps Lock (Slated's own `/etc/keyd/slated.conf` from
+//   `linux/install.sh --hyper-keyd`, or a `capslock =` line in another config's [main]) and keyd runs,
+//   keyd sends Ctrl+Alt+Shift+Super for Caps Lock, so Slated uses plain accelerators. keyd can also
+//   make a tap send Escape. Whether keyd runs is systemd's answer (`systemctl is-active keyd`); only
+//   without systemd does its socket count, since keyd leaves `/run/keyd.socket` behind when it stops.
+//   A keyd that runs without mapping Caps Lock (for a mouse's side buttons) leaves Slated in xkb mode.
+//   Slated follows keyd's config folder, its socket and keyd.service's state over D-Bus, so setting
+//   keyd up, removing its config or stopping it switches the mode without logging out.
 // - **xkb mode** (default): Slated adds the keyboard option `caps:hyper` to
 //   `org.gnome.desktop.input-sources xkb-options`, keeping the user's other options, and removes it
 //   again when Hyper is turned off and on `disable()`. Other `caps:*` options would fight over the
@@ -17,11 +21,30 @@
 
 import Gio from 'gi://Gio';
 
-import {exists, findProgram, readText, remove, watchFile, writeTextAtomic} from './files.js';
+import {exists, findProgram, listDirectory, readText, remove, watchFile, writeTextAtomic} from './files.js';
+import {dirname} from './util.js';
 
 export const CAPS_HYPER = 'caps:hyper';
 export const KEYD_SOCKET = '/run/keyd.socket';
+/** Where `linux/install.sh --hyper-keyd` writes Slated's keyd config (paths.js `keydConfigPath`). */
+export const KEYD_CONFIG = '/etc/keyd/slated.conf';
 const INPUT_SOURCES = 'org.gnome.desktop.input-sources';
+const SYSTEMD = 'org.freedesktop.systemd1';
+const SYSTEMD_PATH = '/org/freedesktop/systemd1';
+/** keyd.service's object (D-Bus object paths spell "." as "_2e"). */
+const KEYD_UNIT_PATH = '/org/freedesktop/systemd1/unit/keyd_2eservice';
+
+/** Whether keyd config text maps Caps Lock: a `capslock = …` line in its [main] section. */
+export function mapsCapsLock(text) {
+  let main = false;
+  for (const raw of String(text ?? '').split(/\r?\n/)) {
+    const line = raw.replace(/#.*$/, '').trim();
+    const section = /^\[([^\]]*)\]$/.exec(line);
+    if (section) main = section[1].trim().toLowerCase() === 'main';
+    else if (main && /^capslock\s*=/i.test(line)) return true;
+  }
+  return false;
+}
 
 /** The options with `caps:hyper` added and conflicting `caps:*` options set aside. */
 export function withCapsHyper(options) {
@@ -55,15 +78,20 @@ export class HyperManager {
    * @param {object} options.log
    * @param {string} options.statePath  Where to remember what Slated changed (hyper.json).
    * @param {() => void} options.onDetected  Called when the asynchronous keyd check finishes, and when
-   *   keyd starts or stops later.
+   *   keyd later starts, stops, or gets or loses its Caps Lock mapping.
    * @param {string} [options.socketPath]  keyd's socket (tests point it elsewhere).
+   * @param {string} [options.keydConfigPath]  Slated's keyd config; keyd's other configs are next to it.
    */
-  constructor({log, statePath, onDetected = null, socketPath = KEYD_SOCKET}) {
+  constructor({log, statePath, onDetected = null, socketPath = KEYD_SOCKET, keydConfigPath = KEYD_CONFIG}) {
     this._log = log;
     this._statePath = statePath;
     this._onDetected = onDetected;
     this._socketPath = socketPath;
-    this._socketWatch = null;
+    this._keydConfigPath = keydConfigPath;
+    this._watches = [];
+    /** keyd.service followed over D-Bus: {bus, signal, subscribed}. */
+    this._service = null;
+    this._checks = 0;
     this._settings = null;
     this._keyd = null;
     this._cancellable = new Gio.Cancellable();
@@ -73,32 +101,43 @@ export class HyperManager {
   }
 
   /**
-   * Finds out whether keyd runs. Synchronous when its socket exists; otherwise asks systemd. Then
-   * keeps watching the socket: keyd set up while Slated runs (linux/install.sh --hyper-keyd) is
-   * picked up without logging out, and Slated falls back to GNOME's option if keyd goes away.
+   * Finds out whether keyd is the Hyper key: a keyd config maps Caps Lock, and keyd runs (systemd's
+   * answer comes asynchronously). Then follows keyd's config folder (linux/install.sh --hyper-keyd and
+   * --remove), its socket (made when keyd starts) and, with systemd, keyd.service's state (keyd
+   * leaves its socket behind when it stops), so the mode switches without logging out.
    */
   detect() {
-    this._socketWatch ??= watchFile(this._socketPath, () => {
-      const before = this._keyd;
-      this._check();
-      if (this._keyd !== null && this._keyd !== before) this._onDetected?.();
-    });
-    this._check();
+    if (this._watches.length === 0) {
+      this._watches = [
+        watchFile(this._socketPath, () => this._recheck()),
+        watchFile(dirname(this._keydConfigPath), () => this._recheck(), {directory: true}),
+      ];
+    }
+    this._recheck(true);
   }
 
-  _check() {
-    if (exists(this._socketPath)) {
-      this._keyd = true;
+  /** Asks again; `onDetected` hears about a changed answer (detect()'s first one goes without saying). */
+  _recheck(initial = false) {
+    const check = ++this._checks;
+    const settle = (keyd, later) => {
+      if (check !== this._checks) return; // a newer check is under way
+      const before = this._keyd;
+      this._keyd = keyd;
+      if (keyd !== before && (later || !initial)) this._onDetected?.();
+    };
+    if (!this._keydMapsCapsLock()) {
+      settle(false, false);
       return;
     }
-    if (!findProgram('keyd', ['/usr/local/bin', '/usr/bin', '/usr/sbin'])) {
-      this._keyd = false;
+    const systemctl = findProgram('systemctl');
+    if (!systemctl) {
+      settle(exists(this._socketPath), false);
       return;
     }
-    this._keyd = null;
+    this._followService();
     try {
       const proc = Gio.Subprocess.new(
-        ['systemctl', 'is-active', '--quiet', 'keyd'],
+        [systemctl, 'is-active', '--quiet', 'keyd'],
         Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE,
       );
       proc.wait_async(this._cancellable, (p, result) => {
@@ -109,16 +148,61 @@ export class HyperManager {
         } catch {
           return; // Cancelled by destroy().
         }
-        // keyd may have started while systemd was answering: its socket says so.
-        this._keyd = active || exists(this._socketPath);
-        this._onDetected?.();
+        settle(active, true);
       });
     } catch {
-      this._keyd = false;
+      settle(false, false);
     }
   }
 
-  /** True once keyd is known to run; null while still checking. */
+  /** Whether a keyd config maps Caps Lock: Slated's own, or another with a capslock line. */
+  _keydMapsCapsLock() {
+    if (exists(this._keydConfigPath)) return true;
+    const dir = dirname(this._keydConfigPath);
+    return listDirectory(dir).some((name) => name.endsWith('.conf') && mapsCapsLock(readText(`${dir}/${name}`)));
+  }
+
+  /** Follows keyd.service's ActiveState over D-Bus (once keyd matters): keyd stopping is noticed too. */
+  _followService() {
+    if (this._service) return;
+    this._service = {bus: null, signal: 0, subscribed: false};
+    try {
+      const bus = Gio.DBus.system;
+      this._service.bus = bus;
+      this._service.signal = bus.signal_subscribe(
+        SYSTEMD,
+        'org.freedesktop.DBus.Properties',
+        'PropertiesChanged',
+        KEYD_UNIT_PATH,
+        `${SYSTEMD}.Unit`,
+        Gio.DBusSignalFlags.NONE,
+        (_bus, _sender, _path, _iface, _signal, parameters) => {
+          let changed = {};
+          let invalidated = [];
+          try {
+            [, changed, invalidated] = parameters.deep_unpack();
+          } catch {
+            return;
+          }
+          if ('ActiveState' in changed || invalidated.includes('ActiveState')) this._recheck();
+        },
+      );
+      // systemd announces unit changes only while some client has subscribed.
+      const service = this._service;
+      bus.call(SYSTEMD, SYSTEMD_PATH, `${SYSTEMD}.Manager`, 'Subscribe', null, null, Gio.DBusCallFlags.NONE, -1, this._cancellable, (connection, result) => {
+        try {
+          connection.call_finish(result);
+          service.subscribed = true;
+        } catch {
+          // Another part of GNOME Shell subscribed first (it's one connection), or there's no systemd.
+        }
+      });
+    } catch (e) {
+      this._log?.error('keyboard.keyd_watch_failed', e?.message ?? String(e));
+    }
+  }
+
+  /** True once keyd is known to map Caps Lock and run; null while still checking. */
   get keyd() {
     return this._keyd;
   }
@@ -168,18 +252,34 @@ export class HyperManager {
     return result;
   }
 
-  /** Puts the keyboard options back the way they were (disable, or Hyper turned off). */
+  /**
+   * Puts the keyboard options back the way they were (disable, or Hyper turned off). Returns whether
+   * caps:hyper is still set afterwards, as when you had set it yourself.
+   */
   restore() {
     this._removeOption();
+    try {
+      return this._inputSources().get_strv('xkb-options').includes(CAPS_HYPER);
+    } catch {
+      return false;
+    }
   }
 
+  /** Stops watching and restores the keyboard options; returns `restore()`'s answer. */
   destroy() {
     this._cancellable.cancel();
-    this._socketWatch?.cancel();
-    this._socketWatch = null;
-    this.restore();
+    for (const watch of this._watches) watch.cancel();
+    this._watches = [];
+    const service = this._service;
+    this._service = null;
+    if (service?.bus) {
+      if (service.signal) service.bus.signal_unsubscribe(service.signal);
+      if (service.subscribed) service.bus.call(SYSTEMD, SYSTEMD_PATH, `${SYSTEMD}.Manager`, 'Unsubscribe', null, null, Gio.DBusCallFlags.NONE, -1, null, null);
+    }
+    const capsHyperLeft = this.restore();
     this._settings = null;
     this._onDetected = null;
+    return capsHyperLeft;
   }
 
   // --- xkb-options -------------------------------------------------------------------------------

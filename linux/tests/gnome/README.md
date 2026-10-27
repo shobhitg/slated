@@ -79,6 +79,9 @@ These are the things a headless shell can't show. Use GNOME 46–49 on Wayland.
      shows `caps:hyper`.
    - Disabling the extension removes it again.
    - With keyd running, Slated logs `keyboard.state` with mode `keyd` and leaves xkb alone.
+   - Without logging out: `sudo systemctl stop keyd` switches to mode `xkb` within a second or two
+     (keyd's socket stays), starting it switches back, and so do `linux/install.sh --hyper-keyd
+     --remove` and `--hyper-keyd`. A keyd config that only maps mouse buttons leaves mode `xkb`.
 7. Hotstrings: with espanso installed, `~/.config/espanso/match/slated.yml` follows the config. It
    disappears when hotstrings are turned off.
 8. Lock the screen and unlock: shortcuts work again afterwards, and Caps Lock is a plain Caps Lock on
@@ -92,7 +95,15 @@ These are the things a headless shell can't show. Use GNOME 46–49 on Wayland.
     - An `onlyInApps` binding on a plain key (F) works only in that app: F types normally elsewhere,
       and in the overview's search.
     - Switching apps, opening the overview, locking the screen and `maxRunMinutes` stop everything;
-      nothing stays pressed afterwards.
+      nothing stays pressed afterwards. So does switching apps during a macro's `wait`, even when
+      it holds nothing (`click left | wait 3 | click left`).
+    - In the overview, the auto-click shortcut does nothing (`automation.start_ignored` in the log);
+      the stop shortcut still works there.
+    - With the lock on suspend off (GNOME Settings → Privacy → Screen Lock; on Ubuntu,
+      `gsettings set org.gnome.desktop.screensaver ubuntu-lock-on-suspend false`), suspend while
+      `hold key:w` runs: W is up after waking (`automation.stopped_all`, reason `sleep`).
+    - Run `repeat 0.05 'keystroke q'` in a text editor, then hold Alt+Tab for 3 s: the switcher
+      quits nothing, and no burst of Q's follows when you let go.
 11. Clipboard history: copy a few texts, press Super+Shift+V, search, pick one with ↩ or Ctrl+2: it
     pastes into the window you were in (Ctrl+Shift+V in a terminal). A KeePassXC copy isn't recorded.
     `~/.local/state/slated/clipboard.json` is `-rw-------`.

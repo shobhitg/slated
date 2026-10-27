@@ -65,17 +65,33 @@ export function modificationTime(path) {
   }
 }
 
+/** The names of the entries in a directory ([] when it can't be read). */
+export function listDirectory(path) {
+  try {
+    const enumerator = Gio.File.new_for_path(path).enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
+    const names = [];
+    for (let info = enumerator.next_file(null); info; info = enumerator.next_file(null)) names.push(info.get_name());
+    enumerator.close(null);
+    return names;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Watches one file, including atomic saves (write a temp file, rename over) and the file appearing
- * or disappearing. GIO watches the parent directory for this. `onChange` gets no arguments; callers
+ * or disappearing. GIO watches the parent directory for this. With `directory`, watches the files in
+ * that directory instead (added, removed or changed). `onChange` gets no arguments; callers
  * debounce. Returns an object with `cancel()`.
  */
-export function watchFile(path, onChange) {
+export function watchFile(path, onChange, {directory = false} = {}) {
   const file = Gio.File.new_for_path(path);
   let monitor = null;
   let id = 0;
   try {
-    monitor = file.monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, null);
+    monitor = directory
+      ? file.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null)
+      : file.monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, null);
     id = monitor.connect('changed', (_monitor, _file, _other, eventType) => {
       // Attribute-only changes (touch -a, chmod) don't change content.
       if (eventType === Gio.FileMonitorEvent.ATTRIBUTE_CHANGED || eventType === Gio.FileMonitorEvent.PRE_UNMOUNT) return;

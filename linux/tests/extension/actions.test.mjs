@@ -534,6 +534,66 @@ test('a macro step that fails after a wait is logged; reloads and destroy drop w
   assert.equal(runner.run('wait 1', {trigger: 't'}), true, 'a wait on its own does nothing');
 });
 
+test('steps waiting on a shell command are dropped by stop-automations and reloads, like steps after a wait', async () => {
+  const {platform, runner, sent} = automationSetup();
+  const macro = {op: 'sequence', operations: [
+    {op: 'press', input: 'key:w', phase: 'down'}, {op: 'shell', command: 'sleep 1', wait: true},
+    {op: 'press', input: 'key:w', phase: 'up'}, {op: 'press', input: 'mouse:left', phase: 'down'},
+  ]};
+  runner.run(macro, {trigger: 'hotkey f6'});
+  runner.run('stop-automations', {trigger: 'hotkey hyper+esc'});
+  assert.deepEqual(sent, ['w down', 'w up'], 'the stop releases W');
+  await platform.finishShells();
+  assert.deepEqual(sent, ['w down', 'w up'], 'and the left button never goes down once the command exits');
+
+  runner.setLayouts([{name: 'work', before: [{op: 'shell', command: 'gnome-terminal', wait: true}], apps: [{app: 'Terminal', operations: [leftHalf]}]}]);
+  runner.run({op: 'layout', name: 'work'}, {trigger: 't'});
+  runner.cancelPendingSteps(); // a config reload
+  await platform.finishShells();
+  assert.equal(platform.windows[1].frame.x, 1000, 'a reload drops the arrangement waiting on its command');
+});
+
+test('keys and text say who sends them; stop-automations drops what automations left, even with nothing running', () => {
+  const {platform, runner} = automationSetup();
+  const from = [];
+  let dropped = 0;
+  platform.pressKeys = (combo, options) => from.push(`keys ${options?.from}`) && {ok: true};
+  platform.insertText = (text, method, options) => from.push(`text ${options?.from}`) && {ok: true};
+  platform.cancelPendingInput = () => dropped++;
+  const macro = {op: 'sequence', operations: [{op: 'keystroke', keys: 'e'}, {op: 'wait', seconds: 1}, {op: 'insert-text', text: 'x'}]};
+  runner.run(macro, {trigger: 'hotkey f6'});
+  platform.advance(1000);
+  runner.run({op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.1, times: 1}, {trigger: 'hotkey f7'});
+  assert.deepEqual(from, ['keys binding', 'text macro', 'keys repeat']);
+  runner.run('stop-automations', {trigger: 'hotkey hyper+esc'});
+  assert.equal(dropped, 1);
+});
+
+test('while automations can’t start, only shortcuts that would start one are ignored', () => {
+  const {runner, sent, log} = automationSetup();
+  let blocked = 'the overview is open';
+  runner.automationBlocked = () => blocked;
+  assert.equal(runner.run('click left', {trigger: 't'}), true, 'one click isn’t an automation');
+  assert.equal(runner.run('press key:w up', {trigger: 't'}), true);
+  assert.equal(runner.run('stop-automations', {trigger: 't'}), true);
+  assert.equal(runner.run('sequence click left | wait 1', {trigger: 't'}), true, 'a wait at the end holds nothing up');
+  assert.equal(runner.run({op: 'chain', operations: ['click left', 'hold key:w']}, {trigger: 't'}), false);
+  assert.equal(runner.lastFailure, "Automations don't start while the overview is open");
+  assert.equal(runner.run({op: 'by-orientation', landscape: 'click left', portrait: 'repeat 0.1 "click left"'}, {trigger: 't'}), false);
+  assert.equal(runner.run({op: 'sequence', operations: ['click left', 'wait 1', 'click left']}, {trigger: 't'}), false);
+  blocked = null;
+  runner.run('hold key:w', {trigger: 'hotkey hyper+w'});
+  blocked = 'the overview is open';
+  assert.equal(runner.run('hold key:w', {trigger: 'hotkey hyper+w'}), true, 'a second press still lets go');
+  assert.deepEqual(sent, ['w down', 'w up']);
+  assert.deepEqual(log.named('automation.start_ignored').map((e) => e.data), Array(3).fill({reason: 'the overview is open', trigger: 't', source: null}));
+  // A JavaScript layout that tries to start one: the layout itself still did its job.
+  runner.externalLayout = () => runner.run('hold key:w', {trigger: 'script'}) || true;
+  assert.equal(runner.run({op: 'layout', name: 'js'}, {trigger: 't'}), true);
+  assert.equal(runner.lastFailure, null);
+  assert.equal(log.named('action.done').at(-1).data.error, null);
+});
+
 test('clipboard-history opens the switcher, or fails with the reason', () => {
   const {runner, errors} = automationSetup();
   let result = {ok: true};

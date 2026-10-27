@@ -31,6 +31,7 @@ import {OverlayController} from './overlays.js';
 import * as Paths from './paths.js';
 import {GnomeScriptHost, ScriptEvents} from './scriptHost.js';
 import {MonitorWatcher, currentScreens} from './screens.js';
+import {SleepWatcher} from './sleep.js';
 import {SlateSources} from './slateSources.js';
 import {SnapshotStore} from './snapshots.js';
 import {StatusFile, buildStatus} from './status.js';
@@ -178,6 +179,8 @@ export class SlatedRuntime {
       };
       // Reloading re-grabs shortcuts; never do that from inside Mutter's key handling.
       this._runner.onRelaunch = () => this.scheduleReload('relaunch');
+      // An auto-clicker started from the overview would click into it.
+      this._runner.automationBlocked = () => (Main.overview?.visible ? 'the overview is open' : null);
     });
     this._step('automation', () => {
       this._automation = new AutomationEngine({
@@ -197,6 +200,8 @@ export class SlatedRuntime {
       this._indicator = new AutomationIndicator();
       if (this._runner) this._runner.automation = this._automation;
     });
+    // Without the lock on suspend, nothing else would stop automations across a sleep.
+    this._step('sleep', () => (this._sleepWatcher = new SleepWatcher(() => this._automation?.stopAll('sleep'))));
     this._step('clipboard', () => {
       this._clipboard = new ClipboardService({
         timers: this._timers,
@@ -251,6 +256,7 @@ export class SlatedRuntime {
       this._hyperManager = new HyperManager({
         log: this._log,
         statePath: Paths.hyperStatePath(),
+        keydConfigPath: Paths.keydConfigPath(),
         onDetected: () => this.scheduleApply('keyd detected'),
       });
       this._hyperManager.detect();
@@ -288,6 +294,7 @@ export class SlatedRuntime {
       this._synth?.destroy();
       this._indicator?.destroy();
     });
+    this._step('sleep', () => this._sleepWatcher?.destroy());
     this._step('debug interface', () => this._debugService?.destroy());
     this._step('displays', () => {
       this._monitors?.destroy();
@@ -302,12 +309,14 @@ export class SlatedRuntime {
     this._step('hud', () => this._hud?.destroy());
     this._step('text input', () => this._input?.destroy());
     this._step('actions', () => this._runner?.destroy());
-    this._step('hyper key', () => this._hyperManager?.destroy());
+    let capsHyperLeft = false;
+    this._step('hyper key', () => (capsHyperLeft = this._hyperManager?.destroy() === true));
     this._step('hotstrings', () => this._espanso?.destroy({keepFile: locked}));
     this._timers.clearAll();
-    // The last status says what's left: GNOME's caps:hyper option went with Slated (keyd keeps
-    // working without it), and espanso's match file too, unless the screen is only locked.
-    const hyperRestored = this._hyper.mode === 'xkb';
+    // The last status says what's left: GNOME's caps:hyper option went with Slated, unless you had set
+    // it yourself (keyd keeps working without Slated), and espanso's match file too, unless the
+    // screen is only locked.
+    const hyperRestored = this._hyper.mode === 'xkb' && !capsHyperLeft;
     if (hyperRestored) this._hyper = {...this._hyper, mode: 'off', active: false, hyperIsSuper: false};
     if (!locked) this._hotstrings = {...this._hotstrings, count: 0};
     this._step('status', () => this._writeStatus(false));
@@ -317,7 +326,7 @@ export class SlatedRuntime {
     this._debugService = this._monitors = this._screensChanged = this._store = this._sources = null;
     this._scriptEvents = this._scriptHost = this._keybindings = this._overlays = this._hud = null;
     this._input = this._platform = this._snapshots = this._runner = this._hyperManager = this._espanso = null;
-    this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = null;
+    this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = this._sleepWatcher = null;
     this._statusFile = null;
     this._timers = null;
   }
@@ -336,7 +345,7 @@ export class SlatedRuntime {
 
     // Safety: a reload re-grabs every trigger, so nothing keeps running or stays held across it.
     this._step('automation', () => {
-      if (this._automation?.isRunning) this._automation.stopAll('config reloaded');
+      if (this._automation?.isBusy) this._automation.stopAll('config reloaded');
       this._runner?.cancelPendingSteps();
       if (this._automation) this._automation.settings = {...this._automation.settings, ...(config.automation ?? {})};
     });

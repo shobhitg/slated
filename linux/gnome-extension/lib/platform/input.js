@@ -3,7 +3,8 @@
 //
 // - Slated waits until you let go of the shortcut's modifiers first, so typed keys don't combine with
 //   a still-held Hyper or Ctrl. Modifiers its own automation holds (a held Shift for sprinting) don't
-//   count: they stay down until the automation stops.
+//   count: they stay down until the automation stops. An auto-repeat never waits: while you hold a
+//   modifier, its runs type nothing (see `_whenModifiersReleased`).
 // - A virtual keyboard can only produce characters the active layout has (Mutter looks keysyms up in
 //   the current layout group and silently drops the rest). So modifiers and named keys (arrows, F-keys,
 //   Return…) are sent as Linux evdev key codes, which don't depend on the layout; character keys are
@@ -317,9 +318,17 @@ export class InputInjector {
     this.onClipboardWrite = null;
     this._waiting = [];
     this._poller = 0;
+    /** Text being typed a few keys per main-loop turn: interval id → whether an automation types it. */
+    this._typing = new Map();
+    this._skipping = false;
   }
 
-  insertText(text, method = 'auto') {
+  /**
+   * Types or pastes `text`. `from` says who sends it, which decides how it waits for your modifiers
+   * (`_whenModifiersReleased`): "binding" (a shortcut's own action), "repeat" (an auto-repeat's run)
+   * or "macro" (a macro's steps after a wait).
+   */
+  insertText(text, method = 'auto', {from = 'binding'} = {}) {
     if (!text) return {ok: true};
     const typeable = canTypeText(this._currentSource());
     const paste = shouldPaste(text, method, {typeable});
@@ -328,14 +337,15 @@ export class InputInjector {
       this._log?.record('text.paste_fallback', {reason, chars: [...text].length}, 'notice');
     }
     const keysyms = paste ? null : keysymsForText(text);
-    this._whenModifiersReleased(() => (paste ? this._paste(text) : this._type(keysyms)));
+    this._whenModifiersReleased(() => (paste ? this._paste(text) : this._type(keysyms, from !== 'binding')), from);
     return {ok: true};
   }
 
-  pressKeys(combo) {
+  /** Presses a key combo; `from` as for `insertText`. */
+  pressKeys(combo, {from = 'binding'} = {}) {
     const plan = keyPlan(combo, {latin: keymapIsLatin(this._currentSource())});
     if (!plan) return {ok: false, error: `Unknown key ${combo.key}`};
-    this._whenModifiersReleased(() => this._chord(plan));
+    this._whenModifiersReleased(() => this._chord(plan), from);
     return {ok: true};
   }
 
@@ -346,19 +356,26 @@ export class InputInjector {
   }
 
   /**
-   * Drops keys and text still waiting for modifiers to be let go (automations were stopped). An
-   * auto-repeat keeps queueing while you hold a modifier, as for Alt+Tab, and none of that may be
-   * typed into the app you switch to.
+   * Drops what automations left in progress (they were stopped): a macro's keys still waiting for
+   * modifiers to be let go, and text an automation is still typing, so none of it lands in the app
+   * you switch to. Keys your own shortcuts are waiting to send stay: they're typed once you let go.
    */
   cancelPending() {
-    this._waiting = [];
-    this._poller = this._timers.clear(this._poller);
+    this._waiting = this._waiting.filter((entry) => entry.from === 'binding');
+    if (this._waiting.length === 0) this._poller = this._timers.clear(this._poller);
+    for (const [id, automation] of [...this._typing]) {
+      if (!automation) continue;
+      this._timers.clear(id);
+      this._typing.delete(id);
+    }
   }
 
   destroy() {
     this._destroyed = true;
     this._waiting = [];
     this._poller = this._timers.clear(this._poller);
+    for (const id of this._typing.keys()) this._timers.clear(id);
+    this._typing.clear();
     // Releases anything the virtual device still holds right away (as GNOME's keyboard does).
     this._device?.run_dispose();
     this._device = null;
@@ -404,7 +421,8 @@ export class InputInjector {
     }
   }
 
-  _type(keysyms) {
+  /** Types `keysyms`; what an automation types stops with it (`cancelPending`). */
+  _type(keysyms, automation = false) {
     let i = 0;
     // A few characters per main-loop turn, so apps keep up and the shell stays responsive.
     const step = () => {
@@ -420,7 +438,13 @@ export class InputInjector {
       }
       return i < keysyms.length;
     };
-    if (step()) this._timers.interval(10, step);
+    if (!step()) return;
+    const id = this._timers.interval(10, () => {
+      const more = step();
+      if (!more) this._typing.delete(id);
+      return more;
+    });
+    this._typing.set(id, automation);
   }
 
   _pastePlan() {
@@ -445,24 +469,45 @@ export class InputInjector {
   }
 
   /**
-   * Runs `callback` once no modifier is held (at most 1.5 s after it was asked for). Callbacks that
-   * wait share one poller and run in order, so a fast auto-repeat can't pile up timers.
+   * Runs `callback` once no modifier is held. How long that may take depends on `from`:
+   * - "binding" (a shortcut's own keys) waits for you to let go of its modifiers, at most 1.5 s;
+   * - "repeat" (an auto-repeat's run) never waits: while you hold a modifier, the run types nothing.
+   *   Waiting, its keys would pile up and come out late, or with your modifier: Alt held for Alt+Tab
+   *   would send them to GNOME's switcher, where Q quits an app. A missed run is harmless;
+   * - "macro" (a macro's steps after a wait) waits like a shortcut, but isn't forced out after 1.5 s
+   *   while you still hold a modifier, nor sent once another app has focus: it's dropped then, and
+   *   when automations stop (`cancelPending`).
+   * Callbacks that wait share one poller and run in order.
    */
-  _whenModifiersReleased(callback) {
+  _whenModifiersReleased(callback, from = 'binding') {
+    if (from === 'repeat') {
+      if (this._modifiersUp()) {
+        this._skipping = false;
+        callback();
+      } else if (!this._skipping) {
+        this._skipping = true;
+        this._log?.record('text.skipped', {reason: 'a modifier is held', from}, 'debug');
+      }
+      return;
+    }
     const deadline = GLib.get_monotonic_time() + 1_500_000;
     if (this._waiting.length === 0 && this._modifiersUp()) {
       callback();
       return;
     }
-    this._waiting.push({callback, deadline});
+    this._waiting.push({callback, deadline, from, app: from === 'binding' ? null : this._focusedAppId()});
     if (this._poller) return;
     this._poller = this._timers.interval(25, () => {
       const up = this._modifiersUp();
       const now = GLib.get_monotonic_time();
       while (this._waiting.length > 0 && (up || now > this._waiting[0].deadline)) {
-        const {callback: next} = this._waiting.shift();
+        const entry = this._waiting.shift();
+        if (entry.from !== 'binding' && (!up || entry.app !== this._focusedAppId())) {
+          this._log?.record('text.dropped', {reason: up ? 'another app has focus' : 'a modifier is still held', from: entry.from}, 'notice');
+          continue;
+        }
         try {
-          next();
+          entry.callback();
         } catch (e) {
           this._log?.error('text.keys_failed', e?.message ?? String(e));
         }

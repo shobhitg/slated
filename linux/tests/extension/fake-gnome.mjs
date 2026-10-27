@@ -9,7 +9,7 @@
 //   globalThis.global = gnome.global;
 //   const {SlatedRuntime} = await import('…/runtime.js');
 
-import {existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync, accessSync, chmodSync, constants} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync, accessSync, chmodSync, constants} from 'node:fs';
 import {dirname} from 'node:path';
 
 import {screens as fixtureScreens} from './fixtures.mjs';
@@ -336,6 +336,25 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   const appSystemSignals = new Signals();
   const layoutSignals = new Signals();
   const overviewSignals = new Signals();
+  // GNOME Shell's login manager (misc/loginManager.js): re-emits logind's PrepareForSleep.
+  const loginManagerSignals = new Signals();
+  // D-Bus signals on the system bus, by "interface.member" (Gio.DBusConnection.signal_subscribe), and
+  // method calls, recorded in `state.dbusCalls` and answered on the next main-loop turn.
+  const systemBusSignals = new Signals();
+  const systemBus = {
+    signal_subscribe(sender, iface, member, path, _arg0, _flags, callback) {
+      return systemBusSignals.connect(`${iface}.${member}`, (_signals, parameters) => callback(systemBus, sender, path, iface, member, parameters));
+    },
+    signal_unsubscribe: (id) => systemBusSignals.disconnect(id),
+    call(name, path, iface, method, _parameters, _replyType, _flags, _timeout, cancellable, callback) {
+      state.dbusCalls.push(`${iface}.${method}`);
+      if (callback) loop.add(0, () => callback(systemBus, {cancellable}));
+    },
+    call_finish(result) {
+      if (result.cancellable?.cancelled) throw new Error('Operation was cancelled');
+      return null;
+    },
+  };
 
   const fileTest = (path, test) => {
     if (!existsSync(path)) return false;
@@ -370,7 +389,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       writeFileSync(path, bytes);
       return true;
     },
-    find_program_in_path: () => null,
+    find_program_in_path: (name) => state.programs?.[name] ?? null,
     get_monotonic_time: () => loop.now * 1000,
     timeout_add: (_priority, ms, callback) => loop.add(ms, callback),
     idle_add: (_priority, callback) => loop.add(0, callback),
@@ -433,6 +452,13 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     monitor_file() {
       return new FakeMonitor(this.path);
     }
+    monitor_directory() {
+      return new FakeMonitor(this.path);
+    }
+    enumerate_children() {
+      const names = readdirSync(this.path);
+      return {next_file: () => (names.length ? {get_name: () => names.shift()} : null), close: () => true};
+    }
     replace_contents(bytes, _etag, _backup, flags) {
       mkdirSync(dirname(this.path), {recursive: true});
       writeFileSync(this.path, bytes, {mode: flags & 1 ? 0o600 : 0o644});
@@ -475,9 +501,34 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       }
     },
     SettingsSchemaSource: {get_default: () => ({lookup: () => null})},
+    // Off unless a test sets `state.subprocesses = []`: then each process is recorded there and ends
+    // when the test calls its `exit(successful)`.
     Subprocess: {
-      new() {
-        throw new Error('no subprocesses in tests');
+      new(argv) {
+        if (!state.subprocesses) throw new Error('no subprocesses in tests');
+        const proc = {
+          argv,
+          cancellable: null,
+          callback: null,
+          successful: false,
+          wait_async(cancellable, callback) {
+            this.cancellable = cancellable;
+            this.callback = callback;
+          },
+          wait_finish() {
+            if (this.cancellable?.cancelled) throw new Error('Operation was cancelled');
+            return true;
+          },
+          get_successful() {
+            return this.successful;
+          },
+          exit(successful) {
+            this.successful = successful;
+            this.callback?.(this, null);
+          },
+        };
+        state.subprocesses.push(proc);
+        return proc;
       },
     },
     SubprocessFlags: {NONE: 0, STDOUT_PIPE: 1, STDOUT_SILENCE: 2, STDERR_SILENCE: 8},
@@ -500,7 +551,9 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
         };
       },
     },
-    DBus: {session: {}},
+    DBus: {session: {}, system: systemBus},
+    DBusSignalFlags: {NONE: 0},
+    DBusCallFlags: {NONE: 0},
   };
 
   const Meta = {
@@ -630,6 +683,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     }),
   };
   state.chrome = new Set();
+  state.dbusCalls = [];
   state.modal = [];
   state.typed = [];
   state.buttons = [];
@@ -712,12 +766,25 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     state,
     loop,
     global,
-    signals: {display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals, selection: selectionSignals, overview: overviewSignals},
+    signals: {
+      display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals, selection: selectionSignals,
+      overview: overviewSignals, systemBus: systemBusSignals, loginManager: loginManagerSignals,
+    },
 
     /** Opens or closes the overview, as GNOME Shell's Main.overview reports it. */
     overview(visible) {
       state.overview = visible;
       overviewSignals.emit(visible ? 'showing' : 'hidden');
+    },
+
+    /** A signal on the system bus ("interface.member") with these values (a GLib.Variant's deep_unpack). */
+    systemSignal(name, values) {
+      systemBusSignals.emit(name, {deep_unpack: () => values});
+    },
+
+    /** logind announces a suspend (true) or the wake-up after it (false), as GNOME Shell re-emits it. */
+    prepareForSleep(start) {
+      loginManagerSignals.emit('prepare-for-sleep', start);
     },
     modules: {
       'gi://GLib': GLib,
@@ -729,6 +796,12 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'resource:///org/gnome/shell/ui/main.js': Main,
       'resource:///org/gnome/shell/misc/config.js': {PACKAGE_VERSION: '47.1'},
       'resource:///org/gnome/shell/ui/status/keyboard.js': {getInputSourceManager: () => ({currentSource: state.inputSource})},
+      'resource:///org/gnome/shell/misc/loginManager.js': {
+        getLoginManager: () => ({
+          connect: (signal, callback) => loginManagerSignals.connect(signal, (_signals, ...args) => callback(loginManagerSignals, ...args)),
+          disconnect: (id) => loginManagerSignals.disconnect(id),
+        }),
+      },
     },
 
     /** Adds a window (on top of the stack) and focuses it, telling focus watchers. */

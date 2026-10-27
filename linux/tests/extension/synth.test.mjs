@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {beforeEach, test} from 'node:test';
 
 import {createFakeGnome} from './fake-gnome.mjs';
+import {MemoryLog} from './fixtures.mjs';
 
 const gnome = createFakeGnome();
 globalThis.__slatedGnomeFakes = gnome.modules;
@@ -63,6 +64,8 @@ test('heldModifierMask names the modifiers held down, so typing doesn’t wait f
   synth.key({key: 'w', modifiers: []}, true);
   assert.equal(synth.heldModifierMask(), M.SHIFT_MASK, 'W is no modifier');
   synth.key({key: 'rightAlt', modifiers: []}, true);
+  assert.equal(synth.heldModifierMask(), M.SHIFT_MASK, 'right Alt may be AltGr, whose Alt_R Mutter drops: an Alt that’s down is yours');
+  synth.key({key: 'alt', modifiers: []}, true);
   assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK);
   synth.key({key: 'f', modifiers: ['ctrl', 'cmd']}, true);
   assert.equal(synth.heldModifierMask(), M.SHIFT_MASK | M.MOD1_MASK | M.META_MASK | M.CONTROL_MASK | M.MOD4_MASK | M.SUPER_MASK | M.HYPER_MASK);
@@ -128,18 +131,72 @@ test('the paste shortcut is Ctrl+V, or Ctrl+Shift+V in terminals, once modifiers
   input.destroy();
 });
 
-test('cancelPending drops keys waiting for modifiers, so a stopped automation types nothing later', () => {
+test('cancelPending drops what a stopped automation left waiting, not your own shortcut’s keys', () => {
   const timers = new Timers();
   const input = new InputInjector({timers});
   gnome.global.get_pointer = () => [0, 0, 8]; // Alt held, as for Alt+Tab
-  input.pressKeys({key: 'e', modifiers: []});
-  input.pressKeys({key: 'e', modifiers: []});
+  input.pressKeys({key: 'e', modifiers: []}, {from: 'macro'});
+  input.pressKeys({key: 'e', modifiers: []}, {from: 'macro'});
   input.cancelPending();
   assert.equal(gnome.loop.pending, 0, 'the poller is gone');
+  input.pressKeys({key: 'c', modifiers: ['ctrl']});
+  input.pressKeys({key: 'e', modifiers: []}, {from: 'macro'});
+  input.cancelPending();
   gnome.global.get_pointer = () => [0, 0, 0];
   gnome.loop.advance(2000);
-  assert.deepEqual(gnome.state.typed, [], 'nothing typed once Alt is let go');
-  input.pressKeys({key: 'e', modifiers: []});
-  assert.equal(gnome.state.typed.length, 2, 'later keys still work');
+  assert.deepEqual(gnome.state.typed.map((t) => t.code ?? t.keysym), [29, 0x63, 0x63, 29], 'only the shortcut’s Ctrl+C, once Alt is let go');
+  input.pressKeys({key: 'e', modifiers: []}, {from: 'macro'});
+  assert.equal(gnome.state.typed.length, 6, 'later keys still work');
   input.destroy();
+});
+
+test('an auto-repeat’s keys never wait for your modifiers: a run while you hold one types nothing', () => {
+  const timers = new Timers();
+  const log = new MemoryLog();
+  const input = new InputInjector({timers, log});
+  let mods = 1; // Shift held
+  gnome.global.get_pointer = () => [0, 0, mods];
+  input.pressKeys({key: 'e', modifiers: []}, {from: 'repeat'});
+  input.insertText('abc', 'type', {from: 'repeat'});
+  assert.deepEqual([gnome.state.typed.length, gnome.loop.pending], [0, 0], 'nothing typed, nothing queued');
+  assert.equal(log.named('text.skipped').length, 1, 'logged once, not per run');
+  mods = 0;
+  input.pressKeys({key: 'e', modifiers: []}, {from: 'repeat'});
+  assert.equal(gnome.state.typed.length, 2, 'typed right away once you let go');
+  input.destroy();
+});
+
+test('a macro’s keys wait like a shortcut’s, but are dropped rather than forced out with a modifier or into another app', () => {
+  const timers = new Timers();
+  const log = new MemoryLog();
+  let app = 'org.prismlauncher.PrismLauncher';
+  const input = new InputInjector({timers, log, focusedAppId: () => app});
+  let mods = 8; // Alt held for 2 s
+  gnome.global.get_pointer = () => [0, 0, mods];
+  input.pressKeys({key: 'q', modifiers: []}, {from: 'macro'});
+  input.pressKeys({key: 'w', modifiers: []});
+  gnome.loop.advance(1600);
+  assert.deepEqual(gnome.state.typed.map((t) => t.keysym), [0x77, 0x77], 'the shortcut’s W goes out after 1.5 s, as before; the macro’s Q doesn’t');
+  input.pressKeys({key: 'e', modifiers: []}, {from: 'macro'});
+  app = 'firefox';
+  mods = 0;
+  gnome.loop.advance(100);
+  assert.equal(gnome.state.typed.length, 2, 'nor once another app has focus');
+  assert.deepEqual(log.named('text.dropped').map((e) => e.data.reason), ['a modifier is still held', 'another app has focus']);
+  input.destroy();
+});
+
+test('cancelPending ends text an automation is still typing; text from a shortcut goes on', () => {
+  const timers = new Timers();
+  const input = new InputInjector({timers});
+  input.insertText('x'.repeat(100), 'type', {from: 'repeat'});
+  input.insertText('y'.repeat(100), 'type');
+  gnome.loop.advance(20);
+  input.cancelPending();
+  gnome.loop.advance(1000);
+  const typed = gnome.state.typed.filter((t) => t.pressed);
+  assert.equal(typed.filter((t) => t.keysym === 0x79).length, 100, 'all of the shortcut’s text');
+  assert.ok(typed.filter((t) => t.keysym === 0x78).length < 100, 'the automation’s text stopped');
+  input.destroy();
+  assert.equal(gnome.loop.pending, 0);
 });

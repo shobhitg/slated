@@ -9,7 +9,8 @@
 //   picks). Chrome and other Chromium browsers mark copied passwords on macOS but not on Linux, so
 //   with `ignoreConcealed` on, a copy from one of them that looks like a password is skipped too.
 // - Saving: `$XDG_STATE_HOME/slated/clipboard.json`, mode 0600, in the Mac app's format, a second
-//   after the last change; deleted when `persist` is turned off.
+//   after the last change; deleted when `persist` is turned off. Unpinned items older than
+//   `retentionDays` are forgotten when settings are applied and with every new copy.
 // - The log records counts, lengths and app ids, never the text.
 
 import Meta from 'gi://Meta';
@@ -211,7 +212,11 @@ export class ClipboardService {
       this._log?.record('clipboard.skipped', {reason: 'looks like a password', app: app.id}, 'debug');
       return;
     }
-    if (!this.history.add(text, {app: app?.id ?? null, at: Core.referenceSeconds(this._now()), limit: this.settings.maxItems})) return;
+    const at = Core.referenceSeconds(this._now());
+    if (!this.history.add(text, {app: app?.id ?? null, at, limit: this.settings.maxItems})) return;
+    // GNOME Shell runs for the whole session: forget what's past retentionDays now, not only when
+    // settings change.
+    this.history.prune(this.settings.retentionDays, at);
     this._log?.record('clipboard.captured', {chars: [...text].length, lines: lineCount(text), app: app?.id ?? 'unknown', items: this.count});
     this._changed();
   }
