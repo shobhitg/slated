@@ -165,3 +165,21 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 - **No notch island on GNOME yet.** Running automations show as a pill at the top of the primary
   display, like the Mac's classic indicator.
 
+
+## macOS runtime review (2026-10-27)
+
+15. **Window titles in saved snapshots.** `snapshot name save` keeps the snapshot across restarts in
+    `~/Library/Application Support/Slated/snapshots.json`, and snapshots find windows again by title,
+    so that file holds the title of every window open at the time (document names, page titles, mail
+    subjects). The log never contains titles; this file does. Slated could store a hash of each title
+    instead (windows are matched the same way, nothing readable on disk), or keep saved snapshots in
+    memory only. *Assumption:* unchanged until you say.
+16. **Universal Clipboard.** A long hotstring replacement is pasted through the clipboard for a
+    quarter second, and so is a clipboard history pick. With Handoff on, your other Apple devices can
+    receive those. Slated could mark its own temporary paste as this-Mac-only. *Assumption:*
+    unchanged.
+17. **Importing a `~/.slate.js` with `slate.on` handlers.** "Import Slate Config into Slated…"
+    converts the bindings and, when none are skipped, stops loading the file. Event handlers
+    (`slate.on("appActivated", …)`) can't be converted but aren't listed as skipped, so they stop
+    with it, unannounced. (Your `~/.slate.js` has none.) Should the import keep loading a file that
+    has handlers, and say why? *Assumption:* unchanged; the importer is in SlatedScript.
