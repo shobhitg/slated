@@ -116,9 +116,19 @@ final class Engine {
     hotkeys.setFrontmostApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
     observeSystem()
-    // A mapping left over from a crash would leave Caps Lock dead; adopt it so `applyKeyboard`
-    // removes it when Hyper is off (or keeps it when on).
-    capsLockRemapped = allowsKeyboardChanges && HIDRemapper.isCapsLockRemapped
+    if allowsKeyboardChanges {
+      switch HIDRemapper.capsLockOwner(record: SlatedPaths.capsLockRecordURL) {
+      case .slated:
+        // Left over from a run that didn't quit cleanly: Caps Lock would stay dead. Adopt it, so
+        // `applyKeyboard` removes it when Hyper is off (or keeps it when on).
+        capsLockRemapped = true
+      case .otherTool:
+        // Another tool's (a Hammerspoon setup, say): left as it is, or put back after Slated's Hyper.
+        Log.record("keyboard.caps_lock_mapped_elsewhere", level: .notice)
+      case .nobody:
+        break
+      }
+    }
     apply()
     // Permission can be granted or revoked at any time in System Settings; react within a second.
     permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -132,7 +142,7 @@ final class Engine {
     clipboard.stop()
     Log.record("app.quit", level: .notice, ["capsLockRestored": capsLockRemapped])
     tap.stop()
-    if capsLockRemapped { HIDRemapper.setCapsLockRemapped(false) }
+    if capsLockRemapped { HIDRemapper.setCapsLockRemapped(false, record: SlatedPaths.capsLockRecordURL) }
     capsLockRemapped = false
     hotkeys.unregisterAll()
   }
@@ -301,7 +311,11 @@ final class Engine {
     let remap = wantsHyper && tapRunning
     var remapFailed = false
     if remap != capsLockRemapped {
-      if HIDRemapper.setCapsLockRemapped(remap) { capsLockRemapped = remap } else { remapFailed = true }
+      if HIDRemapper.setCapsLockRemapped(remap, record: SlatedPaths.capsLockRecordURL) {
+        capsLockRemapped = remap
+      } else {
+        remapFailed = true
+      }
     }
     let state =
       "tap \(tapRunning ? "on" : "off"), hyper \(remap ? "on" : "off"), hotstrings \(wantsHotstrings && tapRunning ? "on" : "off")"
