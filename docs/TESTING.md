@@ -157,7 +157,10 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 **Hotstrings** (try TextEdit, Safari, Notes, Terminal, Slack)
 - [ ] `;shrug` expands immediately; `afterDelimiter` triggers wait for space or punctuation and keep it.
 - [ ] Long replacements paste, and the previous clipboard comes back. They never show up in
-      clipboard history, even with "Ignore passwords and other concealed items" turned off.
+      clipboard history, even with "Ignore passwords and other concealed items" turned off, and the
+      previous clipboard isn't added to it again either (copy in Keychain Access, then expand one).
+- [ ] With Handoff on, expand a long hotstring, then paste on your iPhone or iPad: you get what you
+      copied before, never the replacement (Slated's temporary paste stays on this Mac).
 - [ ] Nothing expands in a password field (Secure Input).
 - [ ] `onlyInApps` / `exceptInApps` filters work.
 
