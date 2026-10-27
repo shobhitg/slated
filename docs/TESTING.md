@@ -229,6 +229,10 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Mouse 4/5 work as triggers (after granting Accessibility).
 - [ ] Hyper+Esc stops everything. Switching apps stops automations (if enabled). Pausing, sleeping,
       locking the screen and quitting release anything held: no stuck button or key.
+- [ ] A macro `click left | wait 3 | click left` (and `shell 'sleep 3' wait | click left`): Hyper+Esc,
+      Cmd-Tab to another app, or locking the screen during the wait, and the second click never
+      comes. `scripts/logs.py --grep automation.stopped_all` shows the reason. Slated stays
+      responsive during the shell command.
 - [ ] Hold W, switch the input source (e.g. to French, where W is another key), then stop: W is
       released, in the game and in Keyboard Viewer.
 

@@ -1,4 +1,5 @@
 import AppKit
+import SlatedCore
 import SlatedSystem
 import SlatedUI
 
@@ -27,14 +28,7 @@ enum SmokeSteps {
       // "Pause Slated", then another app becomes active.
       engine.setPaused(true)
       print("paused: \(HotKeyCenter.shared.registrationCount) hotkeys registered")
-      let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-      if let other = NSWorkspace.shared.runningApplications.first(where: {
-        $0.bundleIdentifier != nil && $0.bundleIdentifier != front
-      }) {
-        NSWorkspace.shared.notificationCenter.post(
-          name: NSWorkspace.didActivateApplicationNotification, object: NSWorkspace.shared,
-          userInfo: [NSWorkspace.applicationUserInfoKey: other])
-      }
+      activateAnotherApp()
     case "record-shortcut":
       // Settings records a shortcut: nothing bound may fire, but the Hyper key keeps working, so Caps
       // Lock + a key reaches the recorder as ✦ + that key. Pause Slated turns the Hyper key off too.
@@ -82,6 +76,11 @@ enum SmokeSteps {
       }
       print("auto-repeats running: \(engine.automation.active.count)")
       engine.automation.stopAll(reason: "smoke test")
+    case "macro-stops":
+      // A macro waiting between steps, on a wait or on a shell command with wait, counts as a running
+      // automation: each safety stop drops the steps it has left. One stop after another.
+      let stops = ["none", "stop-shortcut", "app-switch", "time-limit", "sleep", "pause"]
+      macroStops(engine, stops.map { ("wait", $0) } + ["none", "stop-shortcut", "app-switch"].map { ("shell", $0) })
     case "copy-a-day-later":
       // A copy recorded a day after launch: what expired meanwhile goes. Recorded directly; the real
       // clipboard isn't touched.
@@ -114,6 +113,49 @@ enum SmokeSteps {
     let live = engine.liveTriggers
     return "Hyper key \(live.hyperKey ? "on" : "off"), shortcuts \(live.shortcuts ? "on" : "off"), "
       + "hotstrings \(live.hotstrings ? "on" : "off"), \(HotKeyCenter.shared.registrationCount) hotkeys registered"
+  }
+
+  /// Runs `scenarios` one after another: a macro whose last step (touching a file) waits 0.2 s, on a
+  /// `wait` or on a shell command with `wait`, stopped as a safety stop would. "none" stops nothing.
+  private static func macroStops(_ engine: Engine, _ scenarios: [(pause: String, stop: String)]) {
+    guard let (pause, stop) = scenarios.first else { return }
+    let marker = URL(fileURLWithPath: SlatedPaths.home).appendingPathComponent("macro-\(pause)-\(stop)").path
+    let first: Action = pause == "shell" ? .shell(command: "sleep 0.2", wait: true, path: nil) : .wait(0.2)
+    let macro = Action.sequence([
+      SequenceStep(first), SequenceStep(.shell(command: "touch '\(marker)'", wait: false, path: nil)),
+    ])
+    if stop == "time-limit" { engine.automation.settings.maxRunMinutes = 0.05 / 60 }
+    engine.runner.run(macro, trigger: "smoke macro")
+    let running = engine.automation.isBusy
+    switch stop {
+    case "stop-shortcut": engine.runner.run(.stopAutomations, trigger: "smoke stop shortcut")
+    case "app-switch": activateAnotherApp()
+    case "sleep": NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.willSleepNotification, object: nil)
+    case "pause":
+      engine.setPaused(true)
+      engine.setPaused(false)
+    default: break
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+      engine.automation.settings = engine.configuration.automation
+      let ran = FileManager.default.fileExists(atPath: marker)
+      print(
+        "macro waiting on \(pause == "shell" ? "a shell command" : "a wait"), stopped by \(stop): "
+          + "\(running ? "running" : "not running"), its last step \(ran ? "ran" : "dropped")")
+      macroStops(engine, Array(scenarios.dropFirst()))
+    }
+  }
+
+  /// As when another app comes to the front.
+  private static func activateAnotherApp() {
+    let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    if let other = NSWorkspace.shared.runningApplications.first(where: {
+      $0.bundleIdentifier != nil && $0.bundleIdentifier != front
+    }) {
+      NSWorkspace.shared.notificationCenter.post(
+        name: NSWorkspace.didActivateApplicationNotification, object: NSWorkspace.shared,
+        userInfo: [NSWorkspace.applicationUserInfoKey: other])
+    }
   }
 
   /// Printed with the summary at the end of the run.

@@ -265,6 +265,24 @@ out=$(SLATED_SMOKE_STEPS=repeat-text smoke "$home")
 expect_output "auto-repeats of different text don't stop each other" "$out" "auto-repeats running: 2"
 expect_true "the log never has their text" bash -c '! grep -q secret "$1"' _ "$home/Library/Logs/Slated/slated.log"
 
+# 7a2. A macro waiting between steps (on a wait, or on a shell command with wait) counts as a running
+#      automation, so every safety stop drops the steps it has left: the stop shortcut, switching apps,
+#      the time limit, sleep, and Pause Slated (screen lock and quit stop automations the same way).
+home=$(new_home)
+out=$(SLATED_SMOKE_SECONDS=12 SLATED_SMOKE_STEPS=macro-stops smoke "$home")
+expect_output "a macro waiting on a wait counts as running, and goes on when nothing stops it" "$out" \
+  "macro waiting on a wait, stopped by none: running, its last step ran"
+for stop in stop-shortcut app-switch time-limit sleep pause; do
+  expect_output "a macro waiting on a wait is stopped by $stop" "$out" \
+    "macro waiting on a wait, stopped by $stop: running, its last step dropped"
+done
+expect_output "a macro waiting on a shell command counts as running, and goes on once it exits" "$out" \
+  "macro waiting on a shell command, stopped by none: running, its last step ran"
+for stop in stop-shortcut app-switch; do
+  expect_output "a macro waiting on a shell command is stopped by $stop" "$out" \
+    "macro waiting on a shell command, stopped by $stop: running, its last step dropped"
+done
+
 # 7b. A modal key macOS won't register (not a key at all, or another binding's shortcut): the bindings
 #     behind it can never run, so they're failed, with why, instead of active.
 home=$(new_home)

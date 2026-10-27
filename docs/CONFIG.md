@@ -198,6 +198,9 @@ Find a game's bundle identifier with `osascript -e 'id of app "Minecraft"'`.
 Safety rails:
 - Slated never leaves a button or key held down. Pausing Slated, sleep, locking the screen and
   quitting all release everything.
+- A macro waiting between steps (a `wait`, or a `shell` step with `wait`) counts as running even if
+  it holds nothing: the stop shortcut, leaving its app, the time limit, pausing, sleep, locking the
+  screen and quitting drop the steps it has left. The indicator doesn't list it.
 - Many games accept synthesized input, but online games with anti-cheat may block it or forbid it in
   their terms.
 
