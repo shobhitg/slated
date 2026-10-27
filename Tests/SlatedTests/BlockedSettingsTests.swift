@@ -131,4 +131,26 @@ let blockedSettingsTests = Suite(
         }
       }
     ),
+    (
+      "the hotstrings switch changes nothing while config.json can't be read, and says why",
+      {
+        try onMain {
+          // Like the app, these services don't write the switch while the file can't be read.
+          let services = BreakableServices()
+          let model = AppModel(services: services)
+          // Broken before the app has reported it: flipping the switch finds out.
+          services.broken = true
+          model.setHotstringsEnabled(false)
+          expect(model.loadError != nil, "the banner needs the error")
+          expect(model.saveState == .blocked)
+          expect(model.toast?.message.contains("Fix config.json first") ?? false)
+          expect(model.configuration.general.hotstringsEnabled)
+          // Already read-only: the same.
+          model.toast = nil
+          model.setHotstringsEnabled(false)
+          expect(model.toast?.message.contains("Fix config.json first") ?? false)
+          expect(model.configuration.general.hotstringsEnabled)
+        }
+      }
+    ),
   ])

@@ -42,6 +42,15 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
   return nil
 }
 
+/// The first view of type `T` in `view`'s hierarchy, `view` included.
+@MainActor private func firstView<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
+  if let match = view as? T { return match }
+  for subview in view.subviews {
+    if let found = firstView(type, in: subview) { return found }
+  }
+  return nil
+}
+
 /// Every label, title and string value in the accessibility tree under `root`: what VoiceOver can
 /// read, and a way to check a view's text without pixels.
 @MainActor private func accessibilityTexts(in root: NSView) -> [String] {
@@ -171,6 +180,52 @@ let uiHostingContractTests = Suite(
           window.close()
           spin()
           expect(!services.hotkeysSuspended, "closing Settings resumes the engine")
+        }
+      }
+    ),
+    (
+      "the hotstring Try It field takes the hotkeys again when you come back to it, before you type",
+      {
+        try onMain {
+          // A trigger that the first keystroke completes would otherwise expand for real in the field.
+          let services = PreviewServices()
+          let model = AppModel(services: services)
+          let hotstring = Hotstring(trigger: "x", replacement: "expanded")
+          let window = hostingWindow(TryItField(hotstring: hotstring).environment(model).frame(width: 420))
+          let field = try require(textInput(in: try require(window.contentView)))
+          window.makeFirstResponder(field)
+          spin()
+          expect(services.hotkeysSuspended, "focusing Try It suspends the real engine")
+
+          // Switching to another app and back: the field still has focus.
+          NotificationCenter.default.post(name: NSApplication.didResignActiveNotification, object: NSApp)
+          NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+          spin()
+          expect(!services.hotkeysSuspended, "switching apps resumes the engine")
+          NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+          NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: window)
+          spin()
+          expect(services.hotkeysSuspended, "back in Slated, Try It suspends the engine again")
+
+          // Closing Settings, another window coming forward meanwhile, then reopening Settings.
+          window.close()
+          spin()
+          expect(!services.hotkeysSuspended, "closing Settings resumes the engine")
+          let other = NSWindow(
+            contentRect: NSRect(x: -20_000, y: -20_000, width: 100, height: 100), styleMask: [.titled],
+            backing: .buffered, defer: true)
+          other.isReleasedWhenClosed = false
+          NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: other)
+          spin()
+          expect(!services.hotkeysSuspended, "another window isn't Settings")
+          window.makeKeyAndOrderFront(nil)
+          NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: window)
+          spin()
+          expect(window.firstResponder is NSText, "Try It still has the focus")
+          expect(services.hotkeysSuspended, "reopening Settings at Try It suspends the engine again")
+          window.close()
+          spin()
+          expect(!services.hotkeysSuspended)
         }
       }
     ),
@@ -335,6 +390,54 @@ let uiHostingContractTests = Suite(
             // What the Hyper key will send for Caps Lock + ←, so the shortcut fires.
             expectEqual(box.combo, KeyCombo(key: "left", modifiers: hyperModifiers))
             expect(!services.hotkeysSuspended, "recording stops once a shortcut is accepted")
+            window.close()
+          }
+        }
+      }
+    ),
+    (
+      "the shortcut recorder records F18 as F18 when Caps Lock isn't the Hyper key",
+      {
+        try onMain {
+          // Nothing remaps Caps Lock then, so F18 is a real F18 key (an extended keyboard, a layer).
+          for requiresModifier in [true, false] {
+            let services = PreviewServices()
+            let model = AppModel(services: services)
+            model.configuration.keyboard.capsLock = .off
+            let box = ComboBox()
+            let recorder = ShortcutRecorder(combo: box.binding, requiresModifier: requiresModifier, autoStart: true)
+            let window = hostingWindow(recorder.environment(model).frame(width: 420))
+            NSApp.sendEvent(try require(keyDown(KeyEventMapping.hyperKeyCode, in: window)))  // F18
+            spin()
+            expectEqual(box.combo, KeyCombo(key: "f18"))
+            expect(!services.hotkeysSuspended, "recording stops once a shortcut is accepted")
+            window.close()
+          }
+        }
+      }
+    ),
+    (
+      "Settings → General shows any undo history size config.json can hold",
+      {
+        try onMain {
+          // Int(_:) traps on most of these, and showing the pane used to. A hand edit can hold them, and
+          // so can config.json after importing a Slate config (`config undoMaxStackSize 1e20`).
+          // The stepper works from 1 to 50, so one click from any of them lands in that range.
+          let clicks: [(value: SettingValue, up: Bool, then: Double)] = [
+            (.number(1e20), false, 49), (.number(.infinity), false, 49), (.string("inf"), false, 49),
+            (.number(100), false, 49), (.number(.nan), true, 11), (.number(20.9), true, 21),
+            (.number(-.infinity), true, 2), (.number(-1e20), true, 2),
+          ]
+          for click in clicks {
+            let model = AppModel(services: PreviewServices(scenario: .empty))
+            model.configuration.settings["undoMaxStackSize"] = click.value
+            let window = hostingWindow(GeneralPane().environment(model).frame(width: 760, height: 1400))
+            // SwiftUI's Stepper is an NSStepper that reports each click as a step from 0.
+            let stepper = try require(firstView(NSStepper.self, in: try require(window.contentView)), "no stepper")
+            stepper.doubleValue += click.up ? stepper.increment : -stepper.increment
+            expect(stepper.sendAction(stepper.action, to: stepper.target))
+            spin(0.1)
+            expectEqual(model.configuration.settings["undoMaxStackSize"], .number(click.then))
             window.close()
           }
         }

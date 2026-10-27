@@ -15,6 +15,43 @@ private func hyper(_ key: String) -> KeyCombo { KeyCombo(key: key, modifiers: .h
 
 @MainActor private func preset(_ id: String) -> Action { WindowPresets.preset(id).action }
 
+/// The sample services, as the app reports itself when the keyboard event tap won't start: permission
+/// granted, the hotstrings switch on, not paused, and yet no hotstrings running.
+@MainActor private final class TapFailedServices: AppServices {
+  let base = PreviewServices()
+
+  var configurationFileURL: URL { base.configurationFileURL }
+  func loadConfiguration() throws -> SlatedConfiguration { try base.loadConfiguration() }
+  func saveConfiguration(_ configuration: SlatedConfiguration) throws { try base.saveConfiguration(configuration) }
+  func runtimeStatus() -> RuntimeStatus {
+    var status = base.runtimeStatus()
+    status.hotstringsActive = false
+    return status
+  }
+  func slateSources() -> [SlateSource] { base.slateSources() }
+  func screens() -> [ScreenInfo] { base.screens() }
+  func runningApplications() -> [AppInfo] { base.runningApplications() }
+  func requestAccessibilityPermission() {}
+  func openAccessibilitySettings() {}
+  func reload() {}
+  func revealConfigurationFile() {}
+  func revealFile(atPath path: String) {}
+  func setHotkeysSuspended(_ suspended: Bool) { base.setHotkeysSuspended(suspended) }
+  func setPaused(_ paused: Bool) { base.setPaused(paused) }
+  func setHotstringsEnabled(_ enabled: Bool) { base.setHotstringsEnabled(enabled) }
+  func setLaunchAtLogin(_ enabled: Bool) throws {}
+  func onChange(_ handler: @escaping @MainActor () -> Void) { base.onChange(handler) }
+  func clipboardItems() -> [ClipboardItem] { [] }
+  func pasteClipboardItem(id: UUID) {}
+  func copyClipboardItem(id: UUID) {}
+  func deleteClipboardItem(id: UUID) {}
+  func togglePinClipboardItem(id: UUID) {}
+  func clearClipboardHistory() {}
+  func showClipboardHistory() {}
+  func activeAutomations() -> [ActiveAutomation] { [] }
+  func stopAutomations() {}
+}
+
 let uiActionTests = Suite(
   "UIActions",
   [
@@ -708,6 +745,37 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "the hotstrings switch keeps items that aren't finished yet",
+      {
+        try onMain {
+          // PreviewServices writes the switch to config.json and reports it before returning, as the
+          // app does. Nothing is waiting for the debounce here.
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          let bindingID = model.addBinding()
+          try require(model.bindingBinding(bindingID)).wrappedValue.name = "My sequence"
+          let hotstringID = model.addHotstring()
+          try require(model.hotstringBinding(hotstringID)).wrappedValue.replacement = "no trigger yet"
+          model.saveNow()  // both held back: no keys, no trigger
+          model.setHotstringsEnabled(false)
+          expectEqual(model.configuration.bindings.map(\.name), ["My sequence"])
+          expectEqual(model.configuration.hotstrings.map(\.replacement), ["no trigger yet"])
+          expect(!services.configuration.general.hotstringsEnabled)
+          expect(!model.runtimeStatus.hotstringsEnabled)
+          expect(!model.configuration.general.hotstringsEnabled, "the draft has the switch too")
+
+          // Finished, they save with the switch as it is now.
+          try require(model.bindingBinding(bindingID)).wrappedValue.keys = hyper("m")
+          try require(model.hotstringBinding(hotstringID)).wrappedValue.trigger = ";nt"
+          model.saveNow()
+          expectEqual(services.configuration.bindings.map(\.name), ["My sequence"])
+          expectEqual(services.configuration.hotstrings.map(\.trigger), [";nt"])
+          expect(!services.configuration.general.hotstringsEnabled, "the switch stays off")
+          expectEqual(model.saveState, .saved)
+        }
+      }
+    ),
+    (
       "a hotstring stays Active while Try It pauses expansion; only missing permission waits",
       {
         try onMain {
@@ -725,6 +793,29 @@ let uiModelTests = Suite(
           expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .waitingForPermission)
           firstRun.configuration.hotstrings[0].trigger = ""
           expect(firstRun.state(for: firstRun.configuration.hotstrings[0]) == .notSaved)
+        }
+      }
+    ),
+    (
+      "a hotstring isn't Active when hotstrings don't run despite permission",
+      {
+        try onMain {
+          let model = AppModel(services: TapFailedServices())
+          let hotstring = try require(model.configuration.hotstrings.first { $0.enabled })
+          expect(model.state(for: hotstring) == .notRunning, "nothing expands")
+          model.beginHotkeySuspension()  // the Try It field has focus: expansion pauses on purpose
+          expect(model.state(for: hotstring) == .active)
+          model.endHotkeySuspension()
+
+          // The first hotstring runs once it's saved; the engine has none to run until then.
+          let services = PreviewServices(scenario: .empty)
+          let empty = AppModel(services: services)
+          empty.configuration.hotstrings = [Hotstring(trigger: ";a", replacement: "b")]
+          expect(!empty.runtimeStatus.hotstringsActive)
+          expect(empty.state(for: empty.configuration.hotstrings[0]) == .active, "not “Not running” meanwhile")
+          empty.saveNow()
+          expect(empty.runtimeStatus.hotstringsActive)
+          expect(empty.state(for: empty.configuration.hotstrings[0]) == .active)
         }
       }
     ),
@@ -768,6 +859,69 @@ let uiModelTests = Suite(
           expectEqual(services.configuration.bindings.map(\.id), bindingIDs)
           expectEqual(services.configuration.bindings.map(\.name), ["Left", "Right Half"])
           expectEqual(services.configuration.hotstrings.map(\.trigger), [";shrug"])
+        }
+      }
+    ),
+    (
+      "pasting the original into config.json again makes a third item, not a second copy's twin",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let left = HotkeyBinding(name: "Left", keys: hyper("left"), action: preset("left-half"))
+          var right = left  // pasted in config.json, id and all
+          right.name = "Right"
+          right.keys = hyper("right")
+          let shrug = Hotstring(trigger: ";shrug", replacement: "¯\\_(ツ)_/¯")
+          var flip = shrug
+          flip.trigger = ";flip"
+          var config = SlatedConfiguration()
+          config.bindings = [left, right]
+          config.hotstrings = [shrug, flip]
+          try services.saveConfiguration(config)
+
+          let model = AppModel(services: services)
+          try require(model.bindingBinding(left.id)).wrappedValue.name = "Left Half"
+          model.saveNow()  // writes the copies' new ids
+          let rightID = model.configuration.bindings[1].id
+          let flipID = model.configuration.hotstrings[1].id
+          expectEqual(services.configuration.bindings.map(\.id), [left.id, rightID])
+          expectEqual(services.configuration.hotstrings.map(\.id), [shrug.id, flipID])
+
+          // The originals pasted again by hand: after the copy, and before it.
+          var edited = services.configuration
+          var up = left
+          up.name = "Up"
+          up.keys = hyper("up")
+          edited.bindings.append(up)
+          var sig = shrug
+          sig.trigger = ";sig"
+          edited.hotstrings.insert(sig, at: 1)
+          try services.saveConfiguration(edited)  // notifies the model, like the file watcher
+
+          let bindingIDs = model.configuration.bindings.map(\.id)
+          let hotstringIDs = model.configuration.hotstrings.map(\.id)
+          expectEqual(model.configuration.bindings.map(\.name), ["Left Half", "Right", "Up"])
+          expectEqual(Set(bindingIDs).count, 3)  // each binding is its own
+          expectEqual(bindingIDs[1], rightID)
+          expectEqual(model.configuration.hotstrings.map(\.trigger), [";shrug", ";sig", ";flip"])
+          expectEqual(Set(hotstringIDs).count, 3)  // each hotstring is its own
+          expectEqual(hotstringIDs[2], flipID)
+
+          // Edits and deletes reach the item they're meant for, and so does the save.
+          model.deleteBinding(bindingIDs[2])
+          try require(model.hotstringBinding(flipID)).wrappedValue.replacement = "(╯°□°)╯︵ ┻━┻"
+          model.configuration.bindings[1].keys = KeyCombo(key: "")  // re-recording Right: held back
+          model.saveNow()
+          expectEqual(services.configuration.bindings.map(\.name), ["Left Half", "Right"])
+          expectEqual(services.configuration.bindings.map(\.keys), [hyper("left"), hyper("right")])
+          expectEqual(services.configuration.hotstrings.map(\.trigger), [";shrug", ";sig", ";flip"])
+          expectEqual(
+            services.configuration.hotstrings.map(\.replacement), ["¯\\_(ツ)_/¯", "¯\\_(ツ)_/¯", "(╯°□°)╯︵ ┻━┻"])
+          expectEqual(Set(services.configuration.hotstrings.map(\.id)).count, 3)
+          // Read again, the ids stay put.
+          services.simulateCopy("anything")
+          expectEqual(model.configuration.hotstrings.map(\.id), hotstringIDs)
+          expectEqual(model.configuration.bindings.map(\.id), [left.id, rightID])
         }
       }
     ),

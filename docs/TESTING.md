@@ -175,6 +175,12 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] The settings window takes keyboard focus, and Slated shows in the Dock and Cmd-Tab only while
       it's open.
 - [ ] Recording a shortcut with the real Caps Lock (Hyper) works. Global hotkeys pause while recording.
+      With Caps Lock not set as the Hyper key, a real F18 key (an extended keyboard, a keyboard
+      layer) records as F18.
+- [ ] Give a hotstring the trigger `x`, click into its Try It field, switch to another app and back
+      (Cmd-Tab), then type `x` right away: the field says "Expanded", and
+      `scripts/logs.py --grep hotstring.expanded` shows no real expansion. The same after closing and
+      reopening Settings.
 - [ ] Editing a binding takes effect within about half a second, with no Save button.
       `scripts/logs.py --grep config.saved` shows the change.
 - [ ] Break config.json by hand (delete a comma) with Settings open: the banner appears and says where

@@ -78,6 +78,7 @@ struct HotstringEditor: View {
     case .paused: return ("Paused", Theme.neutral, "pause.fill")
     case .active: return ("Active", Theme.positive, nil)
     case .waitingForPermission: return ("Waiting for permission", Theme.caution, nil)
+    case .notRunning: return ("Not running", Theme.caution, nil)
     }
   }
 
@@ -230,6 +231,7 @@ struct TryItField: View {
   @State private var text = ""
   @State private var expanded = false
   @State private var suspended = false
+  @State private var fieldWindow = WindowReader.Found()
   @FocusState private var focused: Bool
 
   var body: some View {
@@ -270,6 +272,18 @@ struct TryItField: View {
           // The window whose text has focus; a closing tooltip or input-method window isn't ours.
           if (notification.object as? NSWindow)?.firstResponder is NSText { setSuspended(false) }
         }
+        // Coming back to it (switching back to Slated, reopening Settings) leaves it focused too, and
+        // the first keystroke may already complete a trigger: suspend again as its window becomes key,
+        // not when the text first changes.
+        .background(WindowReader(window: fieldWindow))
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+          if focused, let window = fieldWindow.window, notification.object as? NSWindow === window {
+            setSuspended(true)
+          }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+          if focused, fieldWindow.window?.isKeyWindow == true { setSuspended(true) }
+        }
       HStack(spacing: 6) {
         if expanded {
           Label("Expanded", systemImage: "sparkles")
@@ -303,5 +317,37 @@ struct TryItField: View {
     guard value != suspended else { return }
     suspended = value
     if value { model.beginHotkeySuspension() } else { model.endHotkeySuspension() }
+  }
+}
+
+/// Finds the window a view is in, so the view can tell its own window's notifications from others'.
+private struct WindowReader: NSViewRepresentable {
+  /// Where the window goes. A reference, so finding the window doesn't redraw anything.
+  final class Found {
+    weak var window: NSWindow?
+  }
+
+  let window: Found
+
+  func makeNSView(context: Context) -> NSView { Reader(found: window) }
+  func updateNSView(_ nsView: NSView, context: Context) {}
+
+  private final class Reader: NSView {
+    let found: Found
+
+    init(found: Found) {
+      self.found = found
+      super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      found.window = window
+    }
+
+    // Only here to find the window: clicks go to whatever is behind it.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
   }
 }

@@ -148,7 +148,9 @@ struct ShortcutRecorder: View {
   }
 
   private func record(_ event: NSEvent) -> NSEvent? {
-    if event.keyCode == KeyEventMapping.hyperKeyCode {
+    // F18 is Caps Lock only while Caps Lock is the Hyper key (`hidutil` remaps it then). Otherwise it's
+    // a real F18 key, say on an extended keyboard or a keyboard layer, and records as itself.
+    if event.keyCode == KeyEventMapping.hyperKeyCode, model.hyperKeyEnabled {
       hyperHeld = true
       return nil
     }

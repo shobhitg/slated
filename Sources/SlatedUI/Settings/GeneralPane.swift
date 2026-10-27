@@ -177,12 +177,21 @@ private struct WindowBehaviorCard: View {
         symbol: "arrow.uturn.backward",
         tint: Color(hex: 0x14A89A)
       ) {
-        let value = number("undoMaxStackSize", default: 10)
-        Stepper("\(Int(value.wrappedValue)) moves", value: value, in: 1...50)
+        // What Undo keeps, as the engine reads the setting. Not `Int(_:)` of the raw number, which traps
+        // on what a hand edit or an imported Slate config can put there: 1e20, Infinity, NaN.
+        let moves = max(model.configuration.settings.undoMaxStackSize, 1)
+        Stepper("\(moves) moves", value: undoMaxStackSize, in: 1...50)
           .font(.system(size: 12.5).monospacedDigit())
           .fixedSize()
       }
     }
+  }
+
+  /// The undo history stepper's value: a whole number in its range, whatever config.json holds.
+  private var undoMaxStackSize: Binding<Double> {
+    Binding(
+      get: { Double(min(max(model.configuration.settings.undoMaxStackSize, 1), 50)) },
+      set: { model.configuration.settings["undoMaxStackSize"] = .number($0) })
   }
 
   private func bool(_ key: String, default value: Bool) -> Binding<Bool> {

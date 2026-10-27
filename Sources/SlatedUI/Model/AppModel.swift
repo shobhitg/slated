@@ -81,8 +81,8 @@ public final class AppModel {
   @ObservationIgnored private var saveTask: Task<Void, Never>?
   @ObservationIgnored private var toastTask: Task<Void, Never>?
   @ObservationIgnored private var suspensions = 0
-  /// True while `saveConfiguration` runs. The app may report the change it causes through
-  /// `onChange` before the call returns; that's our own write, not a hand edit to adopt.
+  /// True while `saveConfiguration` or `setHotstringsEnabled` runs. The app may report the change it
+  /// causes through `onChange` before the call returns; that's our own write, not a hand edit to adopt.
   @ObservationIgnored private var isSaving = false
   /// Ids given to copied items (see `withUniqueIDs`), by kind, original id and occurrence.
   @ObservationIgnored private var replacementIDs: [String: UUID] = [:]
@@ -119,14 +119,20 @@ public final class AppModel {
   private func withUniqueIDs(_ config: SlatedConfiguration) -> SlatedConfiguration {
     var config = config
     var seen: [String: Int] = [:]
+    // Every id in the file, and every id handed out below. Once a save has written a copy's new id,
+    // the file uses it; if the original is then pasted again, that paste needs an id of its own.
+    var taken = Set(config.bindings.map { "binding|\($0.id)" } + config.hotstrings.map { "hotstring|\($0.id)" })
     func unique(_ id: UUID, kind: String) -> UUID {
       let occurrence = seen["\(kind)|\(id)", default: 0]
       seen["\(kind)|\(id)"] = occurrence + 1
       guard occurrence > 0 else { return id }
       let key = "\(kind)|\(id)|\(occurrence)"
-      if let replacement = replacementIDs[key] { return replacement }
+      if let replacement = replacementIDs[key], taken.insert("\(kind)|\(replacement)").inserted {
+        return replacement
+      }
       let replacement = UUID()
       replacementIDs[key] = replacement
+      taken.insert("\(kind)|\(replacement)")
       return replacement
     }
     for index in config.bindings.indices {
@@ -272,10 +278,23 @@ public final class AppModel {
   }
 
   func setHotstringsEnabled(_ enabled: Bool) {
+    // The app writes the switch to config.json itself, and may report that before returning. It's our
+    // own write, not a hand edit: adopting the file would drop the items held back from saving (a new
+    // shortcut still waiting for its keys, a hotstring with no trigger yet). Take only the switch from
+    // it, into the saved copy and the draft; without the draft, the save of an edit still waiting for
+    // its debounce would write the old value back.
+    isSaving = true
     services.setHotstringsEnabled(enabled)
-    // The app writes the switch to config.json itself. Keep the draft in step, or the save of an
-    // edit still waiting for its debounce would write the old value back.
-    configuration.general.hotstringsEnabled = enabled
+    isSaving = false
+    if loadError == nil, let written = try? services.loadConfiguration().general.hotstringsEnabled {
+      saved.general.hotstringsEnabled = written
+      draft.general.hotstringsEnabled = written
+    } else {
+      // config.json can't be read, so the app couldn't write the switch either. Show that (it may
+      // have just broken), and Settings refuses the change with a toast saying why.
+      if loadError == nil { syncFromDisk() }
+      configuration.general.hotstringsEnabled = enabled
+    }
     refresh()
   }
 
@@ -305,6 +324,9 @@ public final class AppModel {
     suspensions -= 1
     if suspensions == 0 { services.setHotkeysSuspended(false) }
   }
+
+  /// A recorder or the Try It field has the hotkeys, Hyper key and hotstrings suspended right now.
+  var isSuspendingHotkeys: Bool { suspensions > 0 }
 
   func showToast(_ message: String, symbol: String = "checkmark.circle.fill", style: Toast.Style = .success) {
     toast = Toast(message: message, symbol: symbol, style: style)

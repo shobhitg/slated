@@ -265,7 +265,17 @@ enum AutomationLimits {
     case 0: return "No limit"
     case 60: return "1 hour"
     default:
-      let value = minutes == minutes.rounded() ? "\(Int(minutes))" : String(format: "%.1f", minutes)
+      // Not `Int(minutes)`, which traps on what config.json can hold: 1e300, or JSON5 Infinity.
+      let value: String
+      if let whole = Int(exactly: minutes) {
+        value = "\(whole)"
+      } else if minutes.isInfinite {
+        value = minutes < 0 ? "-∞" : "∞"
+      } else if minutes == minutes.rounded() {
+        value = String(format: "%g", minutes)  // too big for Int: 1e+300
+      } else {
+        value = String(format: "%.1f", minutes)
+      }
       return "\(value) min"
     }
   }
