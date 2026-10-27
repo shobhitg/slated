@@ -336,6 +336,14 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   const appSystemSignals = new Signals();
   const layoutSignals = new Signals();
   const overviewSignals = new Signals();
+  // D-Bus signals on the system bus, by "interface.member" (Gio.DBusConnection.signal_subscribe).
+  const systemBusSignals = new Signals();
+  const systemBus = {
+    signal_subscribe(sender, iface, member, path, _arg0, _flags, callback) {
+      return systemBusSignals.connect(`${iface}.${member}`, (_signals, parameters) => callback(systemBus, sender, path, iface, member, parameters));
+    },
+    signal_unsubscribe: (id) => systemBusSignals.disconnect(id),
+  };
 
   const fileTest = (path, test) => {
     if (!existsSync(path)) return false;
@@ -500,7 +508,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
         };
       },
     },
-    DBus: {session: {}},
+    DBus: {session: {}, system: systemBus},
+    DBusSignalFlags: {NONE: 0},
   };
 
   const Meta = {
@@ -712,12 +721,20 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     state,
     loop,
     global,
-    signals: {display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals, selection: selectionSignals, overview: overviewSignals},
+    signals: {
+      display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals, selection: selectionSignals,
+      overview: overviewSignals, systemBus: systemBusSignals,
+    },
 
     /** Opens or closes the overview, as GNOME Shell's Main.overview reports it. */
     overview(visible) {
       state.overview = visible;
       overviewSignals.emit(visible ? 'showing' : 'hidden');
+    },
+
+    /** logind announces a suspend (true) or the wake-up after it (false): PrepareForSleep(b). */
+    prepareForSleep(start) {
+      systemBusSignals.emit('org.freedesktop.login1.Manager.PrepareForSleep', {deep_unpack: () => [start]});
     },
     modules: {
       'gi://GLib': GLib,

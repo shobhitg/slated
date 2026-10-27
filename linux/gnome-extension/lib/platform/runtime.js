@@ -31,6 +31,7 @@ import {OverlayController} from './overlays.js';
 import * as Paths from './paths.js';
 import {GnomeScriptHost, ScriptEvents} from './scriptHost.js';
 import {MonitorWatcher, currentScreens} from './screens.js';
+import {SleepWatcher} from './sleep.js';
 import {SlateSources} from './slateSources.js';
 import {SnapshotStore} from './snapshots.js';
 import {StatusFile, buildStatus} from './status.js';
@@ -199,6 +200,8 @@ export class SlatedRuntime {
       this._indicator = new AutomationIndicator();
       if (this._runner) this._runner.automation = this._automation;
     });
+    // Without the lock on suspend, nothing else would stop automations across a sleep.
+    this._step('sleep', () => (this._sleepWatcher = new SleepWatcher(() => this._automation?.stopAll('sleep'))));
     this._step('clipboard', () => {
       this._clipboard = new ClipboardService({
         timers: this._timers,
@@ -290,6 +293,7 @@ export class SlatedRuntime {
       this._synth?.destroy();
       this._indicator?.destroy();
     });
+    this._step('sleep', () => this._sleepWatcher?.destroy());
     this._step('debug interface', () => this._debugService?.destroy());
     this._step('displays', () => {
       this._monitors?.destroy();
@@ -319,7 +323,7 @@ export class SlatedRuntime {
     this._debugService = this._monitors = this._screensChanged = this._store = this._sources = null;
     this._scriptEvents = this._scriptHost = this._keybindings = this._overlays = this._hud = null;
     this._input = this._platform = this._snapshots = this._runner = this._hyperManager = this._espanso = null;
-    this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = null;
+    this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = this._sleepWatcher = null;
     this._statusFile = null;
     this._timers = null;
   }
