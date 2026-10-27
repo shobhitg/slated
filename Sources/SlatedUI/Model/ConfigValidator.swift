@@ -24,11 +24,14 @@ struct ValidationIssue: Identifiable, Hashable {
 /// Errors keep an item from being written (the last saved version of that item is kept instead, so
 /// a half-typed edit never deletes anything on disk). Warnings are advisory.
 enum ConfigValidator {
-  static func validate(_ config: SlatedConfiguration, knownLayouts: Set<String>) -> [ValidationIssue] {
+  static func validate(
+    _ config: SlatedConfiguration, knownLayouts: Set<String>,
+    appName: (String) -> String = { AppIcons.displayName(bundleID: $0, running: []) }
+  ) -> [ValidationIssue] {
     var issues: [ValidationIssue] = []
     let builtIns = BuiltInShortcut.allCases.compactMap { builtIn in builtIn.keys(in: config).map { (builtIn, $0) } }
     issues += bindingIssues(config.bindings, knownLayouts: knownLayouts, builtIns: builtIns)
-    issues += hotstringIssues(config.hotstrings)
+    issues += hotstringIssues(config.hotstrings, appName: appName)
     issues += layoutIssues(config.layouts, knownLayouts: knownLayouts)
     return issues
   }
@@ -255,9 +258,9 @@ enum ConfigValidator {
 
   // MARK: Hotstrings
 
-  private static func hotstringIssues(_ hotstrings: [Hotstring]) -> [ValidationIssue] {
+  private static func hotstringIssues(_ hotstrings: [Hotstring], appName: (String) -> String) -> [ValidationIssue] {
     var issues: [ValidationIssue] = []
-    for hotstring in hotstrings {
+    for (index, hotstring) in hotstrings.enumerated() {
       let target = ValidationIssue.Target.hotstring(hotstring.id)
       let trigger = hotstring.trigger
       if trigger.isEmpty {
@@ -275,28 +278,99 @@ enum ConfigValidator {
             message: "The replacement is empty, so the trigger will just be deleted."))
       }
       guard hotstring.enabled else { continue }
-      for other in hotstrings
-      where other.id != hotstring.id && other.enabled && !other.trigger.isEmpty && hotstring.sharesApps(with: other) {
-        let caseInsensitive = !hotstring.caseSensitive || !other.caseSensitive
-        let mine = caseInsensitive ? trigger.lowercased() : trigger
-        let theirs = caseInsensitive ? other.trigger.lowercased() : other.trigger
-        if mine == theirs {
-          issues.append(
-            .init(
-              severity: .warning, target: target, field: .trigger,
-              message: "Another hotstring uses the same trigger. Only one of them will fire."))
-          break
-        }
-        if other.fire == .immediately, mine.hasPrefix(theirs), !other.wordBoundary || hotstring.wordBoundary {
-          issues.append(
-            .init(
-              severity: .warning, target: target, field: .trigger,
-              message: "“\(other.trigger)” fires as soon as it's typed, so this one never gets the chance."))
-          break
-        }
+      let others = hotstrings.indices.filter {
+        $0 != index && hotstrings[$0].enabled && !hotstrings[$0].trigger.isEmpty
+          && hotstring.sharesApps(with: hotstrings[$0])
+      }
+      if let message = sameTriggerWarning(hotstring, at: index, others: others.map { ($0, hotstrings[$0]) })
+        ?? firesOnTheWayWarning(hotstring, others: others.map { hotstrings[$0] }, appName: appName)
+      {
+        issues.append(.init(severity: .warning, target: target, field: .trigger, message: message))
       }
     }
     return issues
+  }
+
+  /// When hotstrings with the same trigger make this one never fire. Where both are available, the
+  /// matcher picks the first in the list, but one that fires as soon as it's typed beats one that
+  /// waits for a delimiter. A first one limited to some apps is a per-app override, not a problem:
+  /// this one still fires everywhere else.
+  private static func sameTriggerWarning(_ hotstring: Hotstring, at index: Int, others: [(Int, Hotstring)]) -> String? {
+    let mine = HotstringApps(hotstring)
+    var shadowed = HotstringApps.none
+    var shadowedByFiringFirst = HotstringApps.none
+    for (otherIndex, other) in others where alwaysMatchesFirst(other, hotstring) {
+      let firesFirst = other.fire == .immediately && hotstring.fire == .afterDelimiter
+      guard firesFirst || (other.fire == hotstring.fire && otherIndex < index) else { continue }
+      let apps = HotstringApps(other).intersection(mine)
+      shadowed = shadowed.union(apps)
+      if firesFirst { shadowedByFiringFirst = shadowedByFiringFirst.union(apps) }
+    }
+    guard !mine.isEmpty, mine.subtracting(shadowed).isEmpty else { return nil }
+    if mine.subtracting(shadowedByFiringFirst).isEmpty {
+      return "Another hotstring with the same trigger fires as soon as it's typed, so this one never gets the chance."
+    }
+    return "Another hotstring with the same trigger is higher in the list, so this one never fires. "
+      + "Drag this one above it to use it."
+  }
+
+  /// Whether `other` matches wherever `hotstring` would: the same trigger in every case `hotstring`
+  /// accepts, and no word-boundary condition `hotstring` doesn't have.
+  private static func alwaysMatchesFirst(_ other: Hotstring, _ hotstring: Hotstring) -> Bool {
+    let sameTrigger =
+      other.caseSensitive
+      ? hotstring.caseSensitive && other.trigger == hotstring.trigger
+      : other.trigger.lowercased() == hotstring.trigger.lowercased()
+    return sameTrigger && (!other.wordBoundary || hotstring.wordBoundary)
+  }
+
+  /// When typing this trigger completes another one that fires as soon as it's typed ("sh" inside
+  /// ";shrug"), so this one never gets the chance where that one is available. Names the one typed
+  /// first, and the apps when it's only available in some of this one's.
+  private static func firesOnTheWayWarning(
+    _ hotstring: Hotstring, others: [Hotstring], appName: (String) -> String
+  ) -> String? {
+    var first: (end: Int, other: Hotstring)?
+    for other in others where other.fire == .immediately {
+      guard let end = completesOnTheWay(other, hotstring) else { continue }
+      // The matcher prefers the longer of two triggers completed by the same character.
+      if let best = first, best.end < end || (best.end == end && best.other.trigger.count >= other.trigger.count) {
+        continue
+      }
+      first = (end, other)
+    }
+    guard let other = first?.other else { return nil }
+    let mine = HotstringApps(hotstring)
+    let theirs = HotstringApps(other)
+    let fires = "“\(other.trigger)” fires as soon as it's typed"
+    let unaffected = mine.subtracting(theirs)
+    if unaffected.isEmpty { return "\(fires), so this one never gets the chance." }
+    func names(_ apps: Set<String>) -> String {
+      ListFormatter.localizedString(
+        byJoining: apps.map(appName).sorted { $0.localizedStandardCompare($1) == .orderedAscending })
+    }
+    let affected = mine.intersection(theirs)
+    if !affected.allBut { return "In \(names(affected.apps)), \(fires), so this one never gets the chance there." }
+    return "\(fires), so this one only works in \(names(unaffected.apps))."
+  }
+
+  /// How many characters of `hotstring`'s trigger are typed when `other`'s first completes inside
+  /// it, if that's before the end: "sh" completes after 3 characters of ";shrug".
+  private static func completesOnTheWay(_ other: Hotstring, _ hotstring: Hotstring) -> Int? {
+    let caseInsensitive = !hotstring.caseSensitive || !other.caseSensitive
+    let mine = Array(caseInsensitive ? hotstring.trigger.lowercased() : hotstring.trigger)
+    let theirs = Array(caseInsensitive ? other.trigger.lowercased() : other.trigger)
+    guard !theirs.isEmpty, theirs.count < mine.count else { return nil }
+    for start in 0..<(mine.count - theirs.count) where mine[start..<start + theirs.count].elementsEqual(theirs) {
+      if other.wordBoundary {
+        // At the start, what comes before is whatever precedes this trigger, a delimiter only if
+        // this one also needs one.
+        let boundary = start == 0 ? hotstring.wordBoundary : HotstringMatcher.isDelimiter(mine[start - 1])
+        if !boundary { continue }
+      }
+      return start + theirs.count
+    }
+    return nil
   }
 
   // MARK: Layouts
@@ -379,6 +453,43 @@ extension Hotstring {
     case (false, false): return !mine.isDisjoint(with: theirs)
     }
   }
+}
+
+/// The apps a hotstring can fire in, as a set of bundle identifiers: the ones listed, or (`allBut`)
+/// every app except the ones listed. An app that isn't known counts as one of the "every app".
+struct HotstringApps: Hashable {
+  var apps: Set<String>
+  var allBut: Bool
+
+  static let none = HotstringApps(apps: [], allBut: false)
+
+  init(apps: Set<String>, allBut: Bool) {
+    self.apps = apps
+    self.allBut = allBut
+  }
+
+  init(_ hotstring: Hotstring) {
+    if hotstring.onlyInApps.isEmpty {
+      self.init(apps: Set(hotstring.exceptInApps), allBut: true)
+    } else {
+      self.init(apps: Set(hotstring.onlyInApps).subtracting(hotstring.exceptInApps), allBut: false)
+    }
+  }
+
+  var isEmpty: Bool { !allBut && apps.isEmpty }
+  var complement: HotstringApps { HotstringApps(apps: apps, allBut: !allBut) }
+
+  func intersection(_ other: HotstringApps) -> HotstringApps {
+    switch (allBut, other.allBut) {
+    case (false, false): return HotstringApps(apps: apps.intersection(other.apps), allBut: false)
+    case (false, true): return HotstringApps(apps: apps.subtracting(other.apps), allBut: false)
+    case (true, false): return HotstringApps(apps: other.apps.subtracting(apps), allBut: false)
+    case (true, true): return HotstringApps(apps: apps.union(other.apps), allBut: true)
+    }
+  }
+
+  func union(_ other: HotstringApps) -> HotstringApps { complement.intersection(other.complement).complement }
+  func subtracting(_ other: HotstringApps) -> HotstringApps { intersection(other.complement) }
 }
 
 /// Keys of `RuntimeStatus.hotkeys`: the combo string, prefixed with the modal key and a space.

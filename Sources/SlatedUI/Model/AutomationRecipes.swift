@@ -47,7 +47,7 @@ struct AutomationRecipe: Identifiable, Hashable {
       return "Hold \(combo.display())"
     case ("toggle-sprint", .hold(.key(let combo))), ("toggle-crouch", .hold(.key(let combo))):
       // The key in brackets follows the one picked: "Toggle Sprint (Option)".
-      guard action != self.action, let purpose = title.components(separatedBy: " (").first else { return title }
+      guard action != self.action else { return title }
       return "\(purpose) (\(AutomationDescriber.inputName(.key(combo))))"
     default:
       return title
@@ -72,6 +72,22 @@ struct AutomationRecipe: Identifiable, Hashable {
     default: return action == self.action
     }
   }
+
+  /// Whether `binding` is this recipe, adjusted or not. Sprint and crouch both hold a modifier key,
+  /// and the add sheet offers every modifier for either, so the name the sheet gave says which one
+  /// a binding is ("Toggle Sprint (Control)" is sprint). A renamed one goes by its key, as above.
+  func matches(_ binding: HotkeyBinding) -> Bool {
+    let modifierHolds = ["toggle-sprint", "toggle-crouch"]
+    guard modifierHolds.contains(id), case .hold(.key(let combo)) = binding.action, KeyNames.isModifierKey(combo.key)
+    else { return matches(binding.action) }
+    let named = AutomationRecipes.all.first {
+      modifierHolds.contains($0.id) && binding.name?.hasPrefix($0.purpose) == true
+    }
+    return named.map { $0.id == id } ?? matches(binding.action)
+  }
+
+  /// The title without the key in brackets: "Toggle Sprint".
+  private var purpose: String { title.components(separatedBy: " (").first ?? title }
 }
 
 enum AutomationRecipes {
@@ -132,7 +148,7 @@ enum AutomationRecipes {
       art: .holdKey("shift"),
       action: .hold(.key(KeyCombo(key: "shift"))), options: [.modifierKey]),
     AutomationRecipe(
-      id: "toggle-crouch", title: "Toggle Crouch (Ctrl)",
+      id: "toggle-crouch", title: "Toggle Crouch (Control)",
       summary: "Holds Control for you, so you stay crouched.",
       detail:
         "Presses Control and keeps it down until you press the shortcut again, for games that only crouch while it's held.",

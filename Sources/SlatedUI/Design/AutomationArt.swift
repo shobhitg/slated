@@ -372,11 +372,23 @@ struct RateRuler: View {
 
 // MARK: - Indicator preview
 
-/// A miniature of the "running" pill the app shows at the top of the screen.
+/// A miniature of what the app shows while automations run: the notch island, or, with the island
+/// off, the "running" pill at the top of the screen.
 struct AutomationIndicatorPreview: View {
+  /// What "Show an indicator" does. The island is on by default.
+  static let settingSubtitle =
+    "Shows what's running and how to stop it: in the notch island, or in a small pill at the top of the screen "
+    + "when the island is off."
+
   var title = "Auto-Click Left"
   var stop: KeyCombo?
   var isOn = true
+  /// Drawn as the island (black, light text) rather than the pill.
+  var inIsland = false
+  @Environment(\.colorScheme) private var colorScheme
+
+  /// The island's concave top corners.
+  private let flare: CGFloat = 6
 
   var body: some View {
     HStack(spacing: 7) {
@@ -387,10 +399,19 @@ struct AutomationIndicatorPreview: View {
         Text("\(stop.display()) to stop").font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
       }
     }
-    .padding(.horizontal, 11)
+    .padding(.horizontal, inIsland ? 11 + flare : 11)
     .padding(.vertical, 6)
-    .background(Theme.cardBackground, in: Capsule())
-    .overlay(Capsule().strokeBorder(Theme.critical.opacity(0.35)))
+    .background {
+      if inIsland {
+        IslandShape(topRadius: flare, bottomRadius: 11).fill(Color.black)
+      } else {
+        Capsule().fill(Theme.cardBackground)
+      }
+    }
+    .overlay {
+      if !inIsland { Capsule().strokeBorder(Theme.critical.opacity(0.35)) }
+    }
+    .environment(\.colorScheme, inIsland ? .dark : colorScheme)
     .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
     .opacity(isOn ? 1 : 0.35)
     .scaleEffect(isOn ? 1 : 0.94)

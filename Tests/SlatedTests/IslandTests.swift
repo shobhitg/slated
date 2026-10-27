@@ -186,6 +186,14 @@ let uiCheatSheetTests = Suite(
           // A macro sits with the automations, as in Settings; other sequences go by their first step.
           expectEqual(group(try require(AutomationRecipes.recipe("macro")).action), "Automation")
           expectEqual(group(.sequence(WindowPresets.defaultSequence)), "Displays")
+          // Settings lists anything that clicks or presses under Automation, whatever its shape.
+          let leftHalf = WindowPresets.preset("left-half").action
+          let click = Action.click(.left, count: 1)
+          expectEqual(group(.chain([leftHalf, click])), "Automation")
+          expectEqual(group(.byOrientation(landscape: leftHalf, portrait: click)), "Automation")
+          expectEqual(group(.byOrientation(landscape: click, portrait: leftHalf)), "Automation")
+          expectEqual(group(.sequence([SequenceStep(leftHalf), SequenceStep(click)])), "Automation")
+          expectEqual(group(.chain([leftHalf])), "Windows")
           expectEqual(group(.sequence([SequenceStep(.insertText("hi", method: .auto))])), "Utilities")
           expectEqual(group(.sequence([])), "Utilities")
           expectEqual(group(nil), "Scripts")

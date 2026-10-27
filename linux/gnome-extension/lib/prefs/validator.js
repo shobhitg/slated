@@ -17,7 +17,7 @@ import {
   BUILT_IN_SHORTCUTS, GNOME_NOTES, sharesApps, unreleasedPresses, inputName, parseInput, clipboardSettings,
   automationSettings,
 } from './automation.js';
-import {parseOperation, isNotImplemented, describeError} from './engine.js';
+import {parseOperation, isNotImplemented, describeError, isHotstringDelimiter} from './engine.js';
 
 /** Issue targets are strings: "binding:<id>", "hotstring:<id>", "layout:<name>". */
 export const target = {
@@ -283,9 +283,116 @@ export function hotstringsShareApps(a, b) {
   return mine.some(app => theirs.includes(app));
 }
 
+/**
+ * The apps a hotstring can fire in (HotstringApps in ConfigValidator.swift): {apps, allBut}, the
+ * bundle ids listed, or every app but those.
+ */
+function hotstringApps(h) {
+  const only = h.onlyInApps ?? [];
+  const except = h.exceptInApps ?? [];
+  return only.length ? {apps: new Set(only.filter(app => !except.includes(app))), allBut: false}
+    : {apps: new Set(except), allBut: true};
+}
+
+const NO_APPS = {apps: new Set(), allBut: false};
+const noApps = s => !s.allBut && s.apps.size === 0;
+const otherApps = s => ({apps: s.apps, allBut: !s.allBut});
+
+function appsIntersection(a, b) {
+  if (!a.allBut && !b.allBut) return {apps: new Set([...a.apps].filter(app => b.apps.has(app))), allBut: false};
+  if (!a.allBut) return {apps: new Set([...a.apps].filter(app => !b.apps.has(app))), allBut: false};
+  if (!b.allBut) return {apps: new Set([...b.apps].filter(app => !a.apps.has(app))), allBut: false};
+  return {apps: new Set([...a.apps, ...b.apps]), allBut: true};
+}
+
+const appsUnion = (a, b) => otherApps(appsIntersection(otherApps(a), otherApps(b)));
+const appsSubtracting = (a, b) => appsIntersection(a, otherApps(b));
+const fireMode = h => h.fire ?? 'immediately';
+
+/**
+ * When hotstrings with the same trigger make `h` never fire (sameTriggerWarning in
+ * ConfigValidator.swift). Where both are available, the Mac's matcher picks the first in the list, but
+ * one that fires as soon as it's typed beats one waiting for a delimiter. A first one limited to some
+ * apps is a per-app override: `h` still fires everywhere else.
+ */
+function sameTriggerWarning(h, index, others) {
+  const mine = hotstringApps(h);
+  let shadowed = NO_APPS;
+  let shadowedByFiringFirst = NO_APPS;
+  for (const [otherIndex, other] of others) {
+    if (!alwaysMatchesFirst(other, h)) continue;
+    const firesFirst = fireMode(other) === 'immediately' && fireMode(h) === 'afterDelimiter';
+    if (!firesFirst && !(fireMode(other) === fireMode(h) && otherIndex < index)) continue;
+    const apps = appsIntersection(hotstringApps(other), mine);
+    shadowed = appsUnion(shadowed, apps);
+    if (firesFirst) shadowedByFiringFirst = appsUnion(shadowedByFiringFirst, apps);
+  }
+  if (noApps(mine) || !noApps(appsSubtracting(mine, shadowed))) return null;
+  if (noApps(appsSubtracting(mine, shadowedByFiringFirst))) {
+    return 'Another hotstring with the same trigger fires as soon as it\'s typed, so this one never gets the chance.';
+  }
+  // The Mac adds "Drag this one above it to use it."; this list can't be reordered.
+  return 'Another hotstring with the same trigger is higher in the list, so this one never fires.';
+}
+
+/** Whether `other` matches wherever `h` would: the same trigger in every case `h` accepts, and no extra word boundary. */
+function alwaysMatchesFirst(other, h) {
+  const sameTrigger = other.caseSensitive === false
+    ? other.trigger.toLowerCase() === h.trigger.toLowerCase()
+    : h.caseSensitive !== false && other.trigger === h.trigger;
+  return sameTrigger && (!other.wordBoundary || Boolean(h.wordBoundary));
+}
+
+/**
+ * When typing `h`'s trigger completes another one that fires as soon as it's typed ("sh" inside
+ * ";shrug"), so `h` never gets the chance where that one is available (firesOnTheWayWarning in
+ * ConfigValidator.swift). Names the one typed first, and the apps (Mac bundle ids, shown as they are)
+ * when it's only available in some of `h`'s.
+ */
+function firesOnTheWayWarning(h, others) {
+  let first = null;
+  for (const other of others) {
+    if (fireMode(other) !== 'immediately') continue;
+    const end = completesOnTheWay(other, h);
+    if (end === null) continue;
+    // The matcher prefers the longer of two triggers completed by the same character.
+    if (first && (first.end < end || (first.end === end && [...first.other.trigger].length >= [...other.trigger].length))) continue;
+    first = {end, other};
+  }
+  if (!first) return null;
+  const mine = hotstringApps(h);
+  const theirs = hotstringApps(first.other);
+  const fires = `“${first.other.trigger}” fires as soon as it's typed`;
+  const unaffected = appsSubtracting(mine, theirs);
+  if (noApps(unaffected)) return `${fires}, so this one never gets the chance.`;
+  const names = apps => formatList([...apps].sort());
+  const affected = appsIntersection(mine, theirs);
+  if (!affected.allBut) return `In ${names(affected.apps)}, ${fires}, so this one never gets the chance there.`;
+  return `${fires}, so this one only works in ${names(unaffected.apps)}.`;
+}
+
+/**
+ * How many characters of `h`'s trigger are typed when `other`'s first completes inside it, if that's
+ * before the end: "sh" completes after 3 characters of ";shrug". Null otherwise.
+ */
+function completesOnTheWay(other, h) {
+  const insensitive = h.caseSensitive === false || other.caseSensitive === false;
+  const mine = [...(insensitive ? h.trigger.toLowerCase() : h.trigger)];
+  const theirs = [...(insensitive ? other.trigger.toLowerCase() : other.trigger)];
+  if (!theirs.length || theirs.length >= mine.length) return null;
+  for (let start = 0; start < mine.length - theirs.length; start++) {
+    if (!theirs.every((c, k) => mine[start + k] === c)) continue;
+    // At the start, what comes before is whatever precedes `h`'s trigger: a delimiter only if `h`
+    // needs one too.
+    if (other.wordBoundary && !(start === 0 ? Boolean(h.wordBoundary) : isHotstringDelimiter(mine[start - 1]))) continue;
+    return start + theirs.length;
+  }
+  return null;
+}
+
 function hotstringIssues(hotstrings) {
   const issues = [];
-  for (const h of hotstrings) {
+  for (const [index, h] of hotstrings.entries()) {
     const t = target.hotstring(h.id);
     const trigger = h.trigger ?? '';
     if (!trigger) {
@@ -298,20 +405,10 @@ function hotstringIssues(hotstrings) {
       issues.push(issue('warning', t, 'replacement', 'The replacement is empty, so the trigger will just be deleted.'));
     }
     if (h.enabled === false) continue;
-    for (const other of hotstrings) {
-      if (other.id === h.id || other.enabled === false || !other.trigger || !hotstringsShareApps(h, other)) continue;
-      const insensitive = h.caseSensitive === false || other.caseSensitive === false;
-      const mine = insensitive ? trigger.toLowerCase() : trigger;
-      const theirs = insensitive ? other.trigger.toLowerCase() : other.trigger;
-      if (mine === theirs) {
-        issues.push(issue('warning', t, 'trigger', 'Another hotstring uses the same trigger. Only one of them will fire.'));
-        break;
-      }
-      if ((other.fire ?? 'immediately') === 'immediately' && mine.startsWith(theirs) && (!other.wordBoundary || h.wordBoundary)) {
-        issues.push(issue('warning', t, 'trigger', `“${other.trigger}” fires as soon as it's typed, so this one never gets the chance.`));
-        break;
-      }
-    }
+    const others = [...hotstrings.entries()]
+      .filter(([i, other]) => i !== index && other.enabled !== false && other.trigger && hotstringsShareApps(h, other));
+    const message = sameTriggerWarning(h, index, others) ?? firesOnTheWayWarning(h, others.map(([, other]) => other));
+    if (message) issues.push(issue('warning', t, 'trigger', message));
   }
   return issues;
 }

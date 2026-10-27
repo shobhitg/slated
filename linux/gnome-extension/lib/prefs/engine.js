@@ -122,6 +122,13 @@ export function parseSlateConfig(text, options) {
   return core.parseSlateConfig(text, options);
 }
 
+// --- Hotstrings ---------------------------------------------------------------------------------------
+
+/** Whether `c` ends a word for the hotstring matcher: whitespace, punctuation but `_`, and symbols. */
+export function isHotstringDelimiter(c) {
+  return core.HotstringMatcher.isDelimiter(c);
+}
+
 // --- Expressions and window math ----------------------------------------------------------------------
 
 /** Evaluates a Slate expression. Throws SlatedError (also notImplemented). */

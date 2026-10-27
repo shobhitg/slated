@@ -338,12 +338,12 @@ private struct SafetyCard: View {
       }
       CardDivider(inset: 54)
       SettingRow(
-        title: "Show an indicator",
-        subtitle: "A small pill at the top of the screen while anything runs, with the stop shortcut.",
+        title: "Show an indicator", subtitle: AutomationIndicatorPreview.settingSubtitle,
         symbol: "record.circle", tint: Color(hex: 0xE5484D)
       ) {
         HStack(spacing: 14) {
-          AutomationIndicatorPreview(stop: settings.stopShortcut, isOn: settings.showIndicator)
+          AutomationIndicatorPreview(
+            stop: settings.stopShortcut, isOn: settings.showIndicator, inIsland: model.configuration.island.enabled)
           Toggle("Show an indicator", isOn: $model.configuration.automation.showIndicator)
             .labelsHidden()
             .toggleStyle(.switch)

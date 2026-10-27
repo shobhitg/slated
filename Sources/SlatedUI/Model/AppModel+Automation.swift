@@ -51,7 +51,7 @@ extension AppModel {
 
   /// A binding already set up from a recipe (adjusted or not), if there is one.
   func binding(for recipe: AutomationRecipe) -> HotkeyBinding? {
-    configuration.bindings.first { recipe.matches($0.action) }
+    configuration.bindings.first { recipe.matches($0) }
   }
 
   /// Adds a binding that runs the recipe (`action` is the recipe's action as adjusted in the add
