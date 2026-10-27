@@ -248,8 +248,10 @@ with Ctrl+V, or Ctrl+Shift+V in terminals.
 - The default shortcut `cmd+shift+v` is Super+Shift+V.
 - History is kept in `~/.local/state/slated/clipboard.json`, readable only by you, in the same format
   as on the Mac.
-- `ignoreConcealed` skips copies that password managers mark as secret (KeePassXC and others add
-  `x-kde-passwordManagerHint`).
+- `ignoreConcealed` skips copies that password managers mark as secret (KeePassXC, Firefox and
+  others add `x-kde-passwordManagerHint`). Chrome and other Chromium browsers don't mark copied
+  passwords on Linux, so from those it also skips anything that looks like a password: one word with
+  upper- and lowercase letters plus a digit or symbol. On the Mac, Chrome and Firefox mark them.
 - `excludedApps` takes GNOME app ids, such as `org.keepassxc.KeePassXC` or `com.bitwarden.desktop`.
 - Only text is kept, not images or files.
 - Slated's Settings → Clipboard edits all of these and shows how many items are saved; the items

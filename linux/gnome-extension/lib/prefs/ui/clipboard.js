@@ -113,7 +113,7 @@ export function createClipboardPane(ctx) {
     description: "Clipboard history never leaves this computer. Slated's log notes how long a copy was, never what it said."});
   const concealed = switchRow({
     title: 'Ignore passwords and other secrets',
-    subtitle: 'Password managers such as KeePassXC mark what they copy as secret. Slated skips those, so passwords never land in your history.',
+    subtitle: 'Password managers such as KeePassXC, and Firefox, mark what they copy as secret, and Slated skips those. Chrome and other Chromium browsers don’t, so what you copy there that looks like a password is skipped too.',
     active: settings0.ignoreConcealed,
     onChange: on => setClipboard(c => {
       c.ignoreConcealed = on;

@@ -314,6 +314,26 @@ sys.exit(0 if tokens and not any(t in with_super for t in tokens) else 1)
 PY
 }
 keyd_sends() { if config_wants_meh; then echo "Ctrl+Alt+Shift"; else echo "Ctrl+Alt+Shift+Super"; fi; }
+# Caps Lock as Hyper is wanted, or will be: a first run without a Slate config starts with it on.
+config_wants_hyper() {
+  [ -f "$CONFIG_DIR/config.json" ] || return 0
+  grep -q '"capsLock"[[:space:]]*:[[:space:]]*"hyper"' "$CONFIG_DIR/config.json"
+}
+
+# keyd is the recommended way to get the Hyper key on GNOME (docs/LINUX.md). Setting it up asks for
+# sudo, so it stays its own step (--hyper-keyd); a normal install only points at it.
+keyd_hints() {
+  if [ -f "$KEYD_CONF" ]; then
+    ok "keyd makes Caps Lock the Hyper key ($KEYD_CONF)"
+  elif config_wants_hyper; then
+    if have keyd; then
+      note "Recommended: let keyd make Caps Lock the Hyper key, exactly like the Mac's: linux/install.sh --hyper-keyd"
+    else
+      note "Recommended for the Hyper key: install keyd (apt, dnf or pacman install keyd, or https://github.com/rvaiya/keyd),"
+      note "then run linux/install.sh --hyper-keyd. Until then Slated uses GNOME's own Caps Lock option."
+    fi
+  fi
+}
 
 keyd_config() {
   local action="layer(hyper)" mods="C-A-S-M"
@@ -483,6 +503,7 @@ if ! report_running; then
 fi
 
 espanso_hints
+keyd_hints
 echo
 echo "  Settings: gnome-extensions prefs $UUID     Logs: scripts/logs.py --session last"
 echo "  Again: linux/install.sh   ·   Remove: linux/install.sh --uninstall"

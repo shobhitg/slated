@@ -587,10 +587,13 @@ async function run(mode) {
     const statusText = fs.readFileSync(files.statusFile, 'utf8');
     const withHyperMode = mode => model.setStatusText(JSON.stringify({...JSON.parse(statusText), hyper: {wanted: true, mode, active: true}}));
     const escapeRow = () => titled(visible('keyboard'), 'Adw.SwitchRow', 'Tap Caps Lock alone for Escape')[0];
+    const pills = text => findAll(world, visible('keyboard'), 'Gtk.Label', (w, s) => s.props.get('label') === text).length;
     withHyperMode('keyd');
     check(/linux\/install\.sh --hyper-keyd again/.test(prop(world, escapeRow(), 'subtitle')), `keyd: ${prop(world, escapeRow(), 'subtitle')}`);
+    check(pills('Recommended') === 0 && pills('In use') === 1, 'keyd in use: no "Recommended" pill');
     withHyperMode('xkb');
     check(/Needs keyd/.test(prop(world, escapeRow(), 'subtitle')), `xkb: ${prop(world, escapeRow(), 'subtitle')}`);
+    check(pills('Recommended') === 1, 'with GNOME\'s option in use, keyd is marked recommended');
     const sends = titled(visible('keyboard'), 'Adw.ComboRow', 'Hyper key sends')[0];
     check(/always sends the Hyper modifier/.test(prop(world, sends, 'subtitle')), `xkb: ${prop(world, sends, 'subtitle')}`);
     model.setStatusText(statusText);

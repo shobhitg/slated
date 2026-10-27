@@ -2,10 +2,11 @@
 // KeyboardPane.swift). On GNOME there are two ways to get there, and the extension reports which
 // one is active in status.json ("hyper.mode"):
 //
-// - xkb: GNOME's own keyboard option (caps:hyper). No extra software; Caps Lock becomes the Hyper
-//   modifier. Some layouts share it with Super, and tapping it alone can't send Escape.
-// - keyd: a small system daemon maps Caps Lock to Ctrl+Alt+Shift+Super, exactly like the macOS
-//   Hyper key, and can send Escape on a tap. Set up once with `linux/install.sh --hyper-keyd`.
+// - keyd (recommended, the author's choice): a small system daemon maps Caps Lock to
+//   Ctrl+Alt+Shift+Super, exactly like the macOS Hyper key, and can send Escape on a tap. Set up once
+//   with `linux/install.sh --hyper-keyd`.
+// - xkb, the fallback: GNOME's own keyboard option (caps:hyper). No extra software; Caps Lock becomes
+//   the Hyper modifier. Some layouts share it with Super, and tapping it alone can't send Escape.
 //
 // keyd's configuration is a root-owned file, so the extension can't change it: the installer writes
 // it from config.json's capsLockAlone and hyperModifiers, and this page says to run it again after
@@ -85,16 +86,7 @@ export function createKeyboardPane(ctx) {
 
   // Modes
   const modes = group({title: 'How Slated Does It',
-    description: 'Wayland lets no app remap keys, so the Hyper key comes from GNOME itself or from keyd. Slated uses whichever is set up.'});
-  const xkbRow = new Adw.ActionRow({
-    use_markup: false,
-    title: 'GNOME keyboard option (xkb)',
-    subtitle: 'Built in, nothing to install: GNOME turns Caps Lock into the Hyper modifier (caps:hyper). In many keyboard layouts Hyper shares a modifier with Super, so GNOME takes ✦A and Super+A for the same shortcut. Tapping Caps Lock alone does nothing.',
-  });
-  xkbRow.set_subtitle_lines(0);
-  const xkbBadge = box('horizontal', 0);
-  xkbRow.add_suffix(xkbBadge);
-  modes.add(xkbRow);
+    description: 'Wayland lets no app remap keys, so the Hyper key comes from keyd or from GNOME itself. keyd is recommended: it works exactly like the Mac. Until it’s set up, Slated uses GNOME’s option.'});
   const keydRow = new Adw.ActionRow({
     use_markup: false,
     title: 'keyd',
@@ -105,6 +97,15 @@ export function createKeyboardPane(ctx) {
   keydRow.add_suffix(keydBadge);
   modes.add(keydRow);
   modes.add(commandRow('Set up keyd (asks for your password)', 'linux/install.sh --hyper-keyd', ctx.toast));
+  const xkbRow = new Adw.ActionRow({
+    use_markup: false,
+    title: 'GNOME keyboard option (xkb)',
+    subtitle: 'Built in, nothing to install: GNOME turns Caps Lock into the Hyper modifier (caps:hyper). In many keyboard layouts Hyper shares a modifier with Super, so GNOME takes ✦A and Super+A for the same shortcut. Tapping Caps Lock alone does nothing.',
+  });
+  xkbRow.set_subtitle_lines(0);
+  const xkbBadge = box('horizontal', 0);
+  xkbRow.add_suffix(xkbBadge);
+  modes.add(xkbRow);
   prefs.add(modes);
 
   // Options
@@ -172,6 +173,7 @@ export function createKeyboardPane(ctx) {
     for (const [holder, mode] of [[xkbBadge, 'xkb'], [keydBadge, 'keyd']]) {
       holder.get_first_child() && holder.remove(holder.get_first_child());
       if (model.running && hyper.mode === mode) holder.append(pill({label: hyper.active ? 'In use' : 'Selected', style: hyper.active ? 'success' : 'warning'}));
+      else if (mode === 'keyd') holder.append(pill({label: 'Recommended', style: 'accent'}));
     }
     const keyd = model.running && hyper.mode === 'keyd';
     const rerun = 'keyd applies it: run linux/install.sh --hyper-keyd again after changing this.';

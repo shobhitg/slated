@@ -26,6 +26,7 @@ You need GNOME 46–51, `git`, `python3` and `gnome-extensions` (it comes with G
 ```sh
 git clone https://github.com/shobhit-aida/slated && cd slated
 linux/install.sh
+linux/install.sh --hyper-keyd     # once: the recommended Hyper key (needs keyd; asks for your password)
 ```
 
 You can run `linux/install.sh` as often as you like. Each run:
@@ -55,9 +56,12 @@ Below, "Settings" means Slated's settings window, and "GNOME Settings" means GNO
 
 ### The Hyper key
 
-Turn on **Use Caps Lock as Hyper** in **Settings → Keyboard**. Slated then uses keyd if it's
-running. Otherwise it uses GNOME's own keyboard option (`caps:hyper`), which it sets itself and
-removes again when you turn the Hyper key off. The Keyboard page shows which method is active.
+Turn on **Use Caps Lock as Hyper** in **Settings → Keyboard**. **keyd is the recommended way:**
+Caps Lock then works exactly like the Mac's Hyper key. Install keyd from your distribution (or
+[github.com/rvaiya/keyd](https://github.com/rvaiya/keyd)) and run `linux/install.sh --hyper-keyd`
+once. Until keyd is set up, Slated uses GNOME's own keyboard option (`caps:hyper`), which it sets
+itself and removes again when you turn the Hyper key off. The Keyboard page shows which method is
+active, and `linux/install.sh` reminds you while keyd isn't set up.
 
 | | GNOME's keyboard option (xkb) | keyd |
 |---|---|---|

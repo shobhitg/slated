@@ -88,6 +88,7 @@ enabled() { python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).
 check "marks it enabled for the next login" contains "$(enabled)" "'$UUID'"
 check "explains that Wayland needs a new login" contains "$out" "Log out and back in"
 check "offers the nested shell for GNOME 47" contains "$out" "gnome-shell --nested --wayland"
+check "a first install recommends keyd for the Hyper key, and how to get it" contains "$out" "install keyd"
 
 # 2. Again: safe to repeat. (In an Xorg session, GNOME 46-48, GNOME Shell can restart in place.)
 out="$(STUB_ENABLE_FAILS=1 XDG_SESSION_TYPE=x11 install_sh "$GE_BIN")"
@@ -162,6 +163,16 @@ install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --remove --yes >/dev/null
 check "--hyper-keyd --remove removes it" test ! -e "$SLATED_KEYD_CONF"
 out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd)"
 check "without --yes and a terminal, nothing is installed" test ! -e "$SLATED_KEYD_CONF"
+echo '{ "keyboard": { "capsLock": "hyper" } }' >"$HOME/.config/slated/config.json"
+out="$(install_sh "$GE_BIN:$KEYD_BIN")"
+check "with keyd installed but not set up, an install recommends --hyper-keyd" contains "$out" "Recommended: let keyd make Caps Lock the Hyper key"
+install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
+out="$(install_sh "$GE_BIN:$KEYD_BIN")"
+check "once keyd is set up, an install says so" contains "$out" "keyd makes Caps Lock the Hyper key"
+install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --remove --yes >/dev/null
+echo '{ "keyboard": { "capsLock": "off" } }' >"$HOME/.config/slated/config.json"
+out="$(install_sh "$GE_BIN:$KEYD_BIN")"
+check "with Caps Lock as Hyper off, no keyd hint" bash -c '! grep -q keyd <<<"$1"' _ "$out"
 
 # 6. Uninstall, then purge.
 out="$(install_sh "$GE_BIN" --uninstall)"

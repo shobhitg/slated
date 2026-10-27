@@ -136,16 +136,19 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
     generates espanso's config from your hotstrings (espanso is a mature open-source text expander
     that works on GNOME). OK to depend on it, or do you want a native engine (which needs keyboard
     device permissions: the `input` group and a udev rule)?
-12. **Hyper key on Linux.** Slated uses keyd when it's running (`linux/install.sh --hyper-keyd`, asks
-    for sudo): Caps Lock then sends Ctrl+Alt+Shift+Super exactly like the Mac, and can tap for
-    Escape. Without keyd it falls back to GNOME's own "Caps Lock as Hyper" option, which needs no
-    admin rights, but in many layouts GNOME then treats ✦A and Super+A as the same shortcut.
-    *Assumption:* recommend keyd. OK to ask for sudo once, or should the GNOME option be the default?
-14. **Games and app ids on Linux.** Per-app automations name apps by desktop id, or by WM_CLASS for
-    games without one (Steam/Proton games are `steam_app_<id>`). Which games do you play on Linux,
-    so I can check their ids? And which password manager, so clipboard history skips it (KeePassXC,
-    Bitwarden, 1Password, GNOME Secrets and Seahorse are preset, with ids I couldn't check on a real
-    install)?
+12. ~~**Hyper key on Linux.**~~ **Answered (2026-10-27): keyd, as recommended.** Settings → Keyboard
+    lists keyd first and marks it Recommended, and `linux/install.sh` points at
+    `--hyper-keyd` (sudo, once) while it isn't set up. GNOME's own option stays as the fallback.
+14. ~~**Games and app ids on Linux.**~~ **Answered (2026-10-27):** mostly Factorio, and no password
+    manager: passwords live in the browsers' own managers.
+    - Factorio is a native Linux game, so a per-game shortcut goes by its window class. Run it once
+      and pick it from Recent Apps under "Works In" (older Factorio versions set no window class;
+      tell me if it doesn't show up there). It has no anti-cheat, so synthesized input is fine.
+    - On the Mac, Chrome and Firefox mark copied passwords as secret, and clipboard history skips
+      them; Safari fills passwords without the clipboard, and Apple's Passwords app is excluded.
+      On Linux, Firefox marks them but Chrome reportedly doesn't, so GNOME's clipboard history now
+      also skips anything from a Chromium browser that looks like a password (one word with upper-
+      and lowercase letters plus a digit or symbol).
 
 ### Linux decisions (tell me if you disagree)
 

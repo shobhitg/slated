@@ -14,7 +14,7 @@ import {MemoryLog} from './fixtures.mjs';
 const gnome = createFakeGnome();
 globalThis.__slatedGnomeFakes = gnome.modules;
 globalThis.global = gnome.global;
-const {ClipboardService, lineCount} = await import('../../gnome-extension/lib/platform/clipboard.js');
+const {ClipboardService, lineCount, looksLikePassword} = await import('../../gnome-extension/lib/platform/clipboard.js');
 const {ClipboardSwitcher, SwitcherModel, itemPreview, lengthDescription, relativeTime, switcherKey} = await import(
   '../../gnome-extension/lib/platform/clipboardSwitcher.js'
 );
@@ -133,6 +133,42 @@ test('password managers’ concealed copies and excluded apps are skipped before
   gnome.copy('hunter2', ['text/plain;charset=utf-8', 'x-kde-passwordManagerHint']);
   assert.deepEqual(texts(s), ['hunter2'], 'kept once ignoreConcealed is off');
   s.stop();
+});
+
+test('a password-like copy from Chrome is skipped: Chromium doesn’t mark passwords on Linux', () => {
+  const s = service();
+  world.app = appIdentity('google-chrome', ['google-chrome']);
+  gnome.copy('8VXdsiXkqQ5D3P9');
+  gnome.copy('Rt7!kw-Pq2');
+  assert.equal(s.count, 0, 'generated passwords stay out of the history');
+  assert.deepEqual(world.log.named('clipboard.skipped').map((e) => e.data.reason), ['looks like a password', 'looks like a password']);
+  assert.ok(!JSON.stringify(world.log.events).includes('8VXdsiXkqQ5D3P9'), 'the log never has the text');
+  gnome.copy('Meet at 5pm in Room B2');
+  gnome.copy('https://example.com/Docs?Page=2');
+  gnome.copy('factorio-2.0.32');
+  assert.deepEqual(
+    texts(s), ['factorio-2.0.32', 'https://example.com/Docs?Page=2', 'Meet at 5pm in Room B2'], 'everything else is kept');
+  world.app = appIdentity('org.gnome.TextEditor', ['org.gnome.texteditor']);
+  gnome.copy('8VXdsiXkqQ5D3P9');
+  assert.equal(texts(s)[0], '8VXdsiXkqQ5D3P9', 'other apps aren’t second-guessed');
+  world.app = appIdentity('window:7', ['com.brave.Browser']);
+  s.apply({ignoreConcealed: false, excludedApps: []});
+  gnome.copy('Zq9vLm4TxB2w');
+  assert.equal(texts(s)[0], 'Zq9vLm4TxB2w', 'kept once ignoreConcealed is off');
+  s.stop();
+});
+
+test('what looks like a password', () => {
+  for (const text of ['8VXdsiXkqQ5D3P9', 'Rt7!kw-Pq2', 'hunter2!X', 'pässWört123', 'a1B2c3D4', 'Summer2024']) {
+    assert.equal(looksLikePassword(text), true, text);
+  }
+  for (const text of [
+    'short1A', 'all lowercase words', 'nouppercase123', 'NOLOWER123', 'factorio-2.0.32', 'user_name2', 'OnlyLetters',
+    'With Spaces 123!', 'https://Example.com/a1', 'www.Example1.com', 'Name.Surname1@example.com', 'x'.repeat(129) + 'A1',
+    '', null,
+  ]) {
+    assert.equal(looksLikePassword(text), false, String(text));
+  }
 });
 
 test('Slated’s own writes aren’t recorded, and expire', () => {

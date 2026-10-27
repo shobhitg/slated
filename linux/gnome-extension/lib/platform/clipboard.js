@@ -3,9 +3,11 @@
 // (Sources/Slated/Engine/ClipboardService.swift); the history itself is the core's ClipboardHistory.
 //
 // - Copies: GNOME Shell's Meta.Selection reports every new clipboard owner; the text is read through
-//   St.Clipboard. Skipped: copies whose MIME types include `x-kde-passwordManagerHint` (KeePassXC and
-//   other password managers mark secrets that way) when `ignoreConcealed` is on, copies made in
-//   `excludedApps`, and Slated's own writes (insert-text's temporary paste, the switcher's picks).
+//   St.Clipboard. Skipped: copies whose MIME types include `x-kde-passwordManagerHint` (KeePassXC,
+//   Firefox and other password managers mark secrets that way) when `ignoreConcealed` is on, copies
+//   made in `excludedApps`, and Slated's own writes (insert-text's temporary paste, the switcher's
+//   picks). Chrome and other Chromium browsers mark copied passwords on macOS but not on Linux, so
+//   with `ignoreConcealed` on, a copy from one of them that looks like a password is skipped too.
 // - Saving: `$XDG_STATE_HOME/slated/clipboard.json`, mode 0600, in the Mac app's format, a second
 //   after the last change; deleted when `persist` is turned off.
 // - The log records counts, lengths and app ids, never the text.
@@ -22,6 +24,33 @@ import {appMatchesAny} from './util.js';
 
 /** What password managers put on the clipboard alongside a secret (KDE's convention, used by KeePassXC). */
 export const CONCEALED_MIME_TYPES = Object.freeze(['x-kde-passwordManagerHint']);
+
+/**
+ * Browsers whose password managers copy passwords without that hint on Linux: Chrome and the other
+ * Chromium browsers, as native packages and Flatpaks (desktop ids or WM_CLASS).
+ */
+export const UNMARKED_PASSWORD_APPS = Object.freeze([
+  'google-chrome', 'google-chrome-beta', 'google-chrome-unstable', 'com.google.Chrome', 'chromium',
+  'chromium-browser', 'chromium_chromium', 'org.chromium.Chromium', 'brave-browser', 'com.brave.Browser',
+  'microsoft-edge', 'com.microsoft.Edge', 'vivaldi-stable', 'com.vivaldi.Vivaldi', 'opera', 'com.opera.Opera',
+]);
+
+/**
+ * Whether `text` looks like a password rather than something you'd want in your history: one word
+ * of 8–128 characters with both lowercase and uppercase letters plus a digit or symbol (as every
+ * browser-generated password has), and not a link or an email address. Lowercase-only technical text
+ * ("factorio-2.0.32", "user_name2") doesn't count. Used only for copies from
+ * `UNMARKED_PASSWORD_APPS`, where a false alarm just leaves an item out of the history (pasting it
+ * still works).
+ */
+export function looksLikePassword(text) {
+  const s = String(text ?? '');
+  const length = [...s].length;
+  if (length < 8 || length > 128 || /\s/u.test(s)) return false;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) || /^www\./i.test(s)) return false;
+  if (/^[^@]+@[^@]+\.[a-z]{2,}$/i.test(s)) return false;
+  return /\p{Ll}/u.test(s) && /\p{Lu}/u.test(s) && /[^\p{L}]/u.test(s);
+}
 
 /** How long Slated waits for the window it re-focuses before pressing Ctrl+V. */
 const PASTE_DELAY_MS = 150;
@@ -178,6 +207,10 @@ export class ClipboardService {
   _record(text, app) {
     if (this._stopped || !this.settings.enabled || typeof text !== 'string') return;
     if (this._takeOwnWrite(text)) return;
+    if (this.settings.ignoreConcealed && app && appMatchesAny(app, UNMARKED_PASSWORD_APPS) && looksLikePassword(text)) {
+      this._log?.record('clipboard.skipped', {reason: 'looks like a password', app: app.id}, 'debug');
+      return;
+    }
     if (!this.history.add(text, {app: app?.id ?? null, at: Core.referenceSeconds(this._now()), limit: this.settings.maxItems})) return;
     this._log?.record('clipboard.captured', {chars: [...text].length, lines: lineCount(text), app: app?.id ?? 'unknown', items: this.count});
     this._changed();
