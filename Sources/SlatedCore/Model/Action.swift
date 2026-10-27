@@ -224,6 +224,15 @@ public struct SequenceStep: Hashable, Sendable, Codable {
     self.action = action
     self.keepWindow = keepWindow
   }
+
+  private enum CodingKeys: String, CodingKey { case action, keepWindow }
+
+  /// `keepWindow` may be left out of hand-edited files, like every field with a default.
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      try c.decode(Action.self, forKey: .action), keepWindow: try c.decodeIfPresent(Bool.self, forKey: .keepWindow) ?? false)
+  }
 }
 
 /// Everything a trigger can do: all of Slate's operations plus Slated's own actions.

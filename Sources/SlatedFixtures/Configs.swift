@@ -396,6 +396,15 @@ private let decodeCases: [(String, String)] = [
   ),
   ("binding modal without toggle", #"{"bindings": [{"keys": "a", "modal": {"keys": "ctrl+f4"}, "action": "undo"}]}"#),
   (
+    "binding modal toggle null",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000013", "keys": "a", "modal": {"keys": "ctrl+f4", "toggle": null}, "action": "undo"}]}"#
+  ),
+  ("binding modal without keys", #"{"bindings": [{"keys": "a", "modal": {"toggle": true}, "action": "undo"}]}"#),
+  (
+    "sequence steps without keepWindow",
+    #"{"bindings": [{"id": "E0000000-0000-4000-8000-000000000014", "keys": "a", "action": {"op": "sequence", "steps": [{"action": "focus right"}, {"action": "push left", "keepWindow": true}]}}]}"#
+  ),
+  (
     "binding modal invalid keys",
     #"{"bindings": [{"keys": "a", "modal": {"keys": "x+y", "toggle": true}, "action": "undo"}]}"#
   ),

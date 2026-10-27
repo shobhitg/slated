@@ -71,6 +71,26 @@ let configurationTests = Suite(
         expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
       }
     ),
+    (
+      "a modal key's toggle and a sequence step's keepWindow can be left out",
+      {
+        let json = #"""
+          {"bindings": [
+            {"keys": "a", "modal": {"keys": "ctrl+f4"}, "action": "undo"},
+            {"keys": "b", "action": {"op": "sequence", "steps": [{"action": "focus right"}, {"action": "push left", "keepWindow": true}]}}
+          ]}
+          """#
+        let config = try SlatedConfiguration.decode(from: Data(json.utf8))
+        expectEqual(config.bindings[0].modal, ModalKey(keys: KeyCombo(key: "f4", modifiers: .control), toggle: false))
+        expectEqual(
+          config.bindings[1].action,
+          .sequence([
+            SequenceStep(.focus(.right)), SequenceStep(.push(direction: .left, style: .none, screen: nil), keepWindow: true),
+          ]))
+        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        expectThrows { _ = try SlatedConfiguration.decode(from: Data(#"{"bindings": [{"keys": "a", "modal": {}, "action": "undo"}]}"#.utf8)) }
+      }
+    ),
   ])
 
 let slateKeystrokeTests = Suite(
