@@ -396,6 +396,12 @@ export class PrefsModel extends Emitter {
     return this.draft.general?.loadSlateConfigs !== false;
   }
 
+  /** Whether a Slate file's binding was imported while the file kept loading, so it's ignored. */
+  isImportedSlateShortcut(sourceBinding) {
+    const imported = this.draft.general?.importedSlateShortcuts;
+    return Array.isArray(imported) && imported.includes(sourceBinding.statusKey);
+  }
+
   sourceBindingCount() {
     return this.sources.filter(s => s.exists).reduce((n, s) => n + s.bindings.length, 0);
   }
@@ -422,7 +428,7 @@ export class PrefsModel extends Emitter {
   sourceBindingState(sourceBinding) {
     return bindingState({
       binding: sourceBinding, key: sourceBinding.statusKey, status: this.status, running: this.running,
-      slateLoading: this.slateLoading, isSource: true,
+      slateLoading: this.slateLoading, isSource: true, imported: this.isImportedSlateShortcut(sourceBinding),
     });
   }
 
@@ -518,7 +524,7 @@ export class PrefsModel extends Emitter {
     if (this.slateLoading) {
       for (const source of this.sources.filter(s => s.exists)) {
         for (const b of source.bindings) {
-          if (b.statusKey === key) uses.push(`“${b.summary ?? b.keys}” in ${source.displayPath}`);
+          if (b.statusKey === key && !this.isImportedSlateShortcut(b)) uses.push(`“${b.summary ?? b.keys}” in ${source.displayPath}`);
         }
       }
     }
@@ -714,12 +720,8 @@ export class PrefsModel extends Emitter {
           ? "the Slated engine can't read classic .slate files yet" : describeError(error)});
       }
     }
-    const plan = planImport(this.draft, results);
     // A source that couldn't be read at all means Slate files must keep loading.
-    if (errors.length) {
-      plan.config.general.loadSlateConfigs = this.draft.general.loadSlateConfigs;
-      plan.stopsLoading = false;
-    }
+    const plan = planImport(this.draft, results, {keepLoading: errors.length > 0});
     return {...plan, errors};
   }
 
@@ -729,6 +731,7 @@ export class PrefsModel extends Emitter {
     this.log('slate.imported', {
       imported: plan.added.length,
       skipped: plan.skipped.map(s => `${s.keystroke}: ${s.reason}`),
+      neverRun: plan.neverRun.map(s => `${s.keystroke}: ${s.reason}`),
       source: 'prefs',
     });
   }

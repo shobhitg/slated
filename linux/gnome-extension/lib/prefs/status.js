@@ -250,9 +250,11 @@ export function runningSummary({status, shell, build = null, runningCommit = nul
  * @param {object} args.status parsed status.json
  * @param {boolean} args.running whether the extension is running
  */
-export function bindingState({binding, key, saved, issues = [], status, running, slateLoading = true, isSource = false}) {
+export function bindingState({binding, key, saved, issues = [], status, running, slateLoading = true, isSource = false, imported = false}) {
   if (isSource) {
     if (!slateLoading) return {state: 'slate-off'};
+    // In general.importedSlateShortcuts: Slated's copy runs instead.
+    if (imported) return {state: 'imported'};
   } else {
     const wasSaved = Boolean(saved);
     const keys = binding.keys;
@@ -282,6 +284,7 @@ export function statePresentation(state) {
   case 'saving': return {label: 'Saving…', style: 'dim', icon: null, row: null};
   case 'not-running': return {label: 'Not running', style: 'dim', icon: null, row: null};
   case 'slate-off': return {label: 'Not loaded', style: 'dim', icon: null, row: 'Slate files off'};
+  case 'imported': return {label: 'Imported', style: 'dim', icon: null, row: 'Imported'};
   default: return {label: 'Not registered', style: 'dim', icon: null, row: null};
   }
 }
@@ -298,6 +301,7 @@ export function stateExplanation(state) {
       ? `${state.message} Until then, the last saved version of this shortcut stays in effect.`
       : `${state.message} The shortcut is saved as soon as that's fixed.`;
   case 'slate-off': return 'Loading Slate files is turned off in Slate Compatibility.';
+  case 'imported': return "Imported into Slated's own shortcuts, where you can change it. Slated ignores this copy in your Slate file.";
   case 'not-running': return "Slated isn't running, so this shortcut does nothing right now. See Overview.";
   default: return null;
   }
