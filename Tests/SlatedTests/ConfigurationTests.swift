@@ -223,4 +223,26 @@ let crossPlatformBugTests = Suite(
         expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
       }
     ),
+    (
+      "an unknown Hyper modifier is an error that says which and where, not dropped",
+      {
+        let input = #"{"keyboard":{"capsLock":"hyper","hyperModifiers":["ctrl","alt","bogus","cmd"]}}"#
+        do {
+          _ = try SlatedConfiguration.decode(from: Data(input.utf8))
+          expect(false, "decoded \(input)")
+        } catch DecodingError.dataCorrupted(let context) {
+          expectEqual(context.debugDescription, #"Unknown modifier "bogus". Use ctrl, alt, shift, cmd, fn, hyper or meh."#)
+          expectEqual(
+            context.codingPath.map { $0.intValue.map(String.init) ?? $0.stringValue }, ["keyboard", "hyperModifiers", "2"])
+        }
+        // Every alias still reads.
+        let aliases = #"["Control","⌃","opt","option","⌥","shift","⇧","Command","⌘","fn","function"]"#
+        let all = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":\#(aliases)}}"#.utf8))
+        expectEqual(all.keyboard.hyperModifiers, [.control, .option, .shift, .command, .function])
+        let hyper = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":["✦"]}}"#.utf8))
+        expectEqual(hyper.keyboard.hyperModifiers, .hyper)
+        let meh = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":["MEH"]}}"#.utf8))
+        expectEqual(meh.keyboard.hyperModifiers, .meh)
+      }
+    ),
   ])

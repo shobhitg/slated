@@ -886,9 +886,40 @@
       "name": "keyboard invalid capsLock"
     },
     {
-      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"ctrl\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "error": {"exact":true,"kind":"decoding","message":"Unknown modifier \"bogus\". Use ctrl, alt, shift, cmd, fn, hyper or meh."},
       "input": "{\"keyboard\": {\"hyperModifiers\": [\"ctrl\", \"bogus\"]}}",
-      "name": "keyboard unknown modifier tokens are skipped",
+      "name": "keyboard unknown modifier token is an error"
+    },
+    {
+      "error": {"exact":true,"kind":"decoding","message":"Unknown modifier \"\". Use ctrl, alt, shift, cmd, fn, hyper or meh."},
+      "input": "{\"keyboard\": {\"hyperModifiers\": [\"\"]}}",
+      "name": "keyboard empty modifier token"
+    },
+    {
+      "error": {"exact":true,"kind":"decoding","message":"Unknown modifier \" alt\". Use ctrl, alt, shift, cmd, fn, hyper or meh."},
+      "input": "{\"keyboard\": {\"hyperModifiers\": [\"ctrl\", \" alt\"]}}",
+      "name": "keyboard modifier token with spaces"
+    },
+    {
+      "error": {"exact":true,"kind":"decoding","message":"Unknown modifier \"super\". Use ctrl, alt, shift, cmd, fn, hyper or meh."},
+      "input": "{\"keyboard\": {\"hyperModifiers\": [\"super\", \"ctrl\"]}}",
+      "name": "keyboard super is not a modifier"
+    },
+    {
+      "error": {"exact":false,"kind":"decoding"},
+      "input": "{\"keyboard\": {\"hyperModifiers\": [\"bogus\", 5]}}",
+      "name": "keyboard unknown modifier before a number"
+    },
+    {
+      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"fn\",\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "input": "{\"keyboard\": {\"hyperModifiers\": [\"CTRL\", \"⌃\", \"Option\", \"⌥\", \"SHIFT\", \"⇧\", \"Command\", \"⌘\", \"Function\"]}}",
+      "name": "keyboard every alias",
+      "roundTrips": true
+    },
+    {
+      "encoded": "{\n  \"automation\" : {\n    \"maxRunMinutes\" : 0,\n    \"showIndicator\" : true,\n    \"stopOnAppSwitch\" : true,\n    \"stopShortcut\" : \"hyper+esc\"\n  },\n  \"bindings\" : [\n\n  ],\n  \"clipboard\" : {\n    \"enabled\" : true,\n    \"excludedApps\" : [\n      \"com.1password.1password\",\n      \"com.agilebits.onepassword7\",\n      \"com.bitwarden.desktop\",\n      \"com.apple.keychainaccess\",\n      \"com.apple.Passwords\",\n      \"com.lastpass.LastPass\",\n      \"com.dashlane.dashlanephonefinal\"\n    ],\n    \"ignoreConcealed\" : true,\n    \"maxItems\" : 200,\n    \"pasteAfterSelecting\" : true,\n    \"persist\" : true,\n    \"retentionDays\" : 30,\n    \"shortcut\" : \"shift+cmd+v\"\n  },\n  \"defaults\" : [\n\n  ],\n  \"general\" : {\n    \"hotstringsEnabled\" : true,\n    \"launchAtLogin\" : false,\n    \"loadSlateConfigs\" : true,\n    \"showActionHUD\" : false,\n    \"slateConfigPaths\" : [\n      \"~/.slate.js\",\n      \"~/.slate\"\n    ]\n  },\n  \"hotstrings\" : [\n\n  ],\n  \"island\" : {\n    \"cheatSheet\" : true,\n    \"cheatSheetDelay\" : 0.5,\n    \"enabled\" : true,\n    \"showFailures\" : true\n  },\n  \"keyboard\" : {\n    \"capsLock\" : \"off\",\n    \"capsLockAlone\" : \"nothing\",\n    \"hyperModifiers\" : [\n      \"fn\",\n      \"ctrl\",\n      \"alt\",\n      \"shift\",\n      \"cmd\"\n    ]\n  },\n  \"layouts\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"version\" : 1\n}",
+      "input": "{\"keyboard\": {\"hyperModifiers\": [\"✦\", \"fn\"]}}",
+      "name": "keyboard hyper glyph",
       "roundTrips": true
     },
     {

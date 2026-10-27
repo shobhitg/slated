@@ -68,7 +68,8 @@ If both define the same shortcut, Slated's own binding wins and the other is mar
 `keys` is modifiers plus a key joined with `+`: `hyper+a`, `ctrl+cmd+left`, `cmd+shift+'`.
 
 - **Modifiers:** `ctrl`, `alt` (or `opt`), `shift`, `cmd`, `fn`, plus the shorthands `hyper`
-  (all four) and `meh` (all but `cmd`).
+  (all four) and `meh` (all but `cmd`). `keyboard.hyperModifiers` takes the same names; an unknown
+  one is an error, so Slated never guesses what Caps Lock should send.
 - **Keys:** use Slate's names:
   - letters, digits and punctuation;
   - `left` `right` `up` `down` `return` `tab` `space` `delete` `esc` `home` `end` `pageUp` `pageDown`;

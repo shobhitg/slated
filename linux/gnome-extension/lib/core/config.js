@@ -535,7 +535,18 @@ function keyboard(v, path) {
   const c = new Keyed(v, path);
   let mask = 15;
   const tokens = c.optional('hyperModifiers', arrayOf(str));
-  if (tokens !== undefined) mask = tokens.reduce((m, t) => m | (modifierMask(t) ?? 0), 0);
+  if (tokens !== undefined) {
+    // An unknown name is an error rather than skipped: skipping it would change what Caps Lock sends,
+    // and the next save would drop it from the file.
+    mask = 0;
+    tokens.forEach((token, i) => {
+      const m = modifierMask(token);
+      if (m === null) {
+        throw decodingError([...c.at('hyperModifiers'), i], `Unknown modifier "${token}". Use ctrl, alt, shift, cmd, fn, hyper or meh.`);
+      }
+      mask |= m;
+    });
+  }
   const hyperModifiers = [['fn', 16], ['ctrl', 1], ['alt', 2], ['shift', 4], ['cmd', 8]]
     .filter(([, bit]) => mask & bit)
     .map(([n]) => n);

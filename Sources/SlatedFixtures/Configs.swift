@@ -369,7 +369,16 @@ private let decodeCases: [(String, String)] = [
   ("island null", #"{"island": null}"#),
   // keyboard
   ("keyboard invalid capsLock", #"{"keyboard": {"capsLock": "on"}}"#),
-  ("keyboard unknown modifier tokens are skipped", #"{"keyboard": {"hyperModifiers": ["ctrl", "bogus"]}}"#),
+  ("keyboard unknown modifier token is an error", #"{"keyboard": {"hyperModifiers": ["ctrl", "bogus"]}}"#),
+  ("keyboard empty modifier token", #"{"keyboard": {"hyperModifiers": [""]}}"#),
+  ("keyboard modifier token with spaces", #"{"keyboard": {"hyperModifiers": ["ctrl", " alt"]}}"#),
+  ("keyboard super is not a modifier", #"{"keyboard": {"hyperModifiers": ["super", "ctrl"]}}"#),
+  ("keyboard unknown modifier before a number", #"{"keyboard": {"hyperModifiers": ["bogus", 5]}}"#),
+  (
+    "keyboard every alias",
+    #"{"keyboard": {"hyperModifiers": ["CTRL", "⌃", "Option", "⌥", "SHIFT", "⇧", "Command", "⌘", "Function"]}}"#
+  ),
+  ("keyboard hyper glyph", #"{"keyboard": {"hyperModifiers": ["✦", "fn"]}}"#),
   ("keyboard empty modifiers", #"{"keyboard": {"hyperModifiers": []}}"#),
   ("keyboard hyper token", #"{"keyboard": {"hyperModifiers": ["hyper"]}}"#),
   ("keyboard fn is dropped on output", #"{"keyboard": {"hyperModifiers": ["fn", "ctrl"]}}"#),

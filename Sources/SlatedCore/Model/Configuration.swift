@@ -178,7 +178,18 @@ extension KeyboardSettings: Codable {
     let d = KeyboardSettings()
     var mods = d.hyperModifiers
     if let tokens = try c.decodeIfPresent([String].self, forKey: .hyperModifiers) {
-      mods = tokens.compactMap(Modifiers.token).reduce(into: Modifiers()) { $0.formUnion($1) }
+      mods = []
+      for (index, token) in tokens.enumerated() {
+        // An unknown name is an error rather than skipped: skipping it would change what Caps Lock
+        // sends, and the next save would drop it from the file.
+        guard let modifier = Modifiers.token(token) else {
+          throw DecodingError.dataCorrupted(
+            .init(
+              codingPath: c.codingPath + [Key.hyperModifiers, IndexKey(intValue: index)],
+              debugDescription: "Unknown modifier \"\(token)\". Use ctrl, alt, shift, cmd, fn, hyper or meh."))
+        }
+        mods.formUnion(modifier)
+      }
     }
     self.init(
       capsLock: try c.decodeIfPresent(CapsLockMode.self, forKey: .capsLock) ?? d.capsLock,
@@ -198,6 +209,14 @@ extension KeyboardSettings: Codable {
     if hyperModifiers.contains(.command) { tokens.append("cmd") }
     try c.encode(tokens, forKey: .hyperModifiers)
   }
+}
+
+/// A position in a list, for decoding errors' coding paths (`keyboard.hyperModifiers[2]`).
+private struct IndexKey: CodingKey {
+  var intValue: Int?
+  var stringValue: String { "Index \(intValue ?? 0)" }
+  init(intValue: Int) { self.intValue = intValue }
+  init?(stringValue: String) { nil }
 }
 
 // MARK: - Bindings

@@ -218,6 +218,8 @@ export function registerUnitTests({root, readText}) {
     expect(error instanceof SlatedError && error.kind === 'invalidConfiguration', `got ${error}`);
     const bad = expectThrows(() => core.decodeConfiguration('{"bindings": [{"keys": "x+y", "action": "undo"}]}'));
     expectEqual(bad?.codingPath, ['bindings', 0, 'keys']);
+    const modifier = expectThrows(() => core.decodeConfiguration('{"keyboard": {"hyperModifiers": ["ctrl", "alt", "bogus", "cmd"]}}'));
+    expectEqual([modifier?.message, modifier?.codingPath], ['Unknown modifier "bogus". Use ctrl, alt, shift, cmd, fn, hyper or meh.', ['keyboard', 'hyperModifiers', 2]]);
     const broken = expectThrows(() => core.decodeConfiguration('{"bindings": ['));
     expect(broken instanceof SlatedError && broken.kind === 'invalidConfiguration', `broken JSON: ${broken}`);
   });
