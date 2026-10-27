@@ -53,6 +53,12 @@ check "reinstall quit the old copy cleanly" test "$(count app.quit)" -ge 1
 check "reinstall started a new session" test "$(count app.start)" -ge 2
 check "no crash was recorded" test "$(count app.previous_run_crashed)" -eq 0
 
+# Ctrl-\ in a terminal running Slated (SIGQUIT) quits through the normal path, which restores Caps Lock.
+quits_before="$(count app.quit)"
+pkill -QUIT -f "$APP/Contents/MacOS/Slated"
+for _ in $(seq 1 50); do pgrep -f "$APP/Contents/MacOS/Slated" >/dev/null || break; sleep 0.1; done
+check "SIGQUIT quits cleanly" test "$(count app.sigquit)" -ge 1 -a "$(count app.quit)" -gt "$quits_before"
+
 out="$("$ROOT/install.sh" --uninstall 2>&1)"; status=$?
 check "uninstall succeeds" test "$status" -eq 0
 check "the app is gone" test ! -e "$APP"

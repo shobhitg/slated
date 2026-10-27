@@ -135,7 +135,8 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] After `kill -9` of Slated, relaunching it cleans up or re-applies the mapping correctly.
       With the Hyper key turned off in config.json before relaunching, Caps Lock works again.
 - [ ] Your own `hidutil` key mappings (if any) survive Slated starting and quitting.
-- [ ] Running the binary from a terminal and pressing Ctrl-C restores Caps Lock too.
+- [ ] Running the binary from a terminal and pressing Ctrl-C or Ctrl-\ restores Caps Lock too, also
+      when pressed right after launching it (before the menu bar icon appears).
 - [ ] After sleep and wake, the Hyper key still works.
 - [ ] Hold Caps Lock while a password field takes focus (a Hyper shortcut that opens a login
       prompt, say), let go there, then type in another app: keys arrive without ⌃⌥⇧⌘.

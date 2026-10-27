@@ -22,6 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var isTestRun: Bool { ProcessInfo.processInfo.environment["SLATED_HOME"] != nil }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    // First, before `engine.start()` remaps Caps Lock: a signal from now on quits through
+    // `applicationWillTerminate`, which restores it. Its handler runs on the main queue, so only once
+    // launching has finished.
+    handleTerminationSignals()
     if isTestRun {
       engine.allowsKeyboardChanges = false
       engine.mode = "test"
@@ -39,7 +43,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       self?.modalActive = modal != nil
       self?.refreshStatusIcon()
     }
-    handleTerminationSignals()
     observeSettingsNavigation()
 
     let onboarded = UserDefaults.standard.bool(forKey: Self.onboardingDoneKey)
@@ -63,10 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   /// `install.sh`, `make run` and logout send SIGTERM, and a terminal running Slated sends SIGINT
-  /// (Ctrl-C) or SIGHUP (closed); route them through normal termination so Caps Lock is restored
-  /// instead of staying remapped until reboot.
+  /// (Ctrl-C), SIGQUIT (Ctrl-\) or SIGHUP (closed); route them through normal termination so Caps Lock
+  /// is restored instead of staying remapped until reboot.
   private func handleTerminationSignals() {
-    for (number, name) in [(SIGTERM, "sigterm"), (SIGINT, "sigint"), (SIGHUP, "sighup")] {
+    for (number, name) in [(SIGTERM, "sigterm"), (SIGINT, "sigint"), (SIGQUIT, "sigquit"), (SIGHUP, "sighup")] {
       signal(number, SIG_IGN)
       let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
       source.setEventHandler {
