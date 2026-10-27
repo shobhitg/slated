@@ -113,6 +113,20 @@ enum SmokeSteps {
       } catch {
         print("save failed:", error.localizedDescription)
       }
+    case "edit-then-import":
+      // In Settings, an edit still waiting for its debounce; then "Import Slate Config into Slated…".
+      let model = AppModel(services: LiveServices(engine: engine))
+      model.configuration.general.showActionHUD.toggle()
+      do {
+        let summary = try model.importSlateConfigs(engine)
+        print("import alert:", summary.title)
+      } catch {
+        print("import failed:", error.localizedDescription)
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        let config = model.configuration
+        print("after the debounce, Settings shows \(config.bindings.count) bindings, HUD \(config.general.showActionHUD)")
+      }
     case "print-hotkeys":
       // Every shortcut's status, active ones too (the summary at the end lists only the others).
       for (key, value) in engine.status.hotkeys.sorted(by: { $0.key < $1.key }) { print("hotkey \(key): \(value)") }

@@ -397,6 +397,17 @@ assert config["defaults"] == [{"target": "coding", "count": 2}], config["default
 assert [layout["name"] for layout in config["layouts"]] == ["coding"], config["layouts"]
 ' "$home/.config/slated/config.json"
 expect_output "so nothing keeps the file loaded" "$out" "loadSlateConfigs: false"
+# An edit in Settings still waiting to be saved neither undoes the import nor is lost to it.
+home=$(new_home)
+cp "$FIXTURES/slate-defaults.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_SECONDS=3 SLATED_SMOKE_STEPS=edit-then-import smoke "$home")
+expect_output "the import survives a pending Settings save" "$out" "loadSlateConfigs: false"
+expect_output "and Settings shows it, with the edit" "$out" "after the debounce, Settings shows 1 bindings, HUD true"
+expect_true "config.json has both" /usr/bin/python3 -I -c '
+import json, sys
+config = json.load(open(sys.argv[1]))
+assert len(config["bindings"]) == 1 and config["general"]["showActionHUD"] is True, config
+' "$home/.config/slated/config.json"
 # Slated's own display default wins over a Slate file's for the same displays, as its bindings do.
 home=$(new_home)
 cp "$FIXTURES/slate-default-everywhere.js" "$home/.slate.js"

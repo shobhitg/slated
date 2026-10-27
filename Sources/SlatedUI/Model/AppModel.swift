@@ -252,6 +252,14 @@ public final class AppModel {
     }
   }
 
+  /// Shows config.json as the app just wrote it itself (an import from the menu bar), along with the
+  /// Slate sources and status. Call `saveNow()` before such a write: an edit still waiting to be saved
+  /// keeps Settings on its draft, and its save would then write over the app's change.
+  public func showSavedConfiguration() {
+    refresh()
+    syncFromDisk()
+  }
+
   /// Saves pending edits, then asks the app to reload config.json and the Slate files.
   public func reload() {
     if hasUnsavedChanges { saveNow() }

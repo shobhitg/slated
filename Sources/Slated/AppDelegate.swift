@@ -287,7 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     Log.record("menu.import_slate")
     let alert = NSAlert()
     do {
-      let summary = try engine.importSlateConfigs()
+      let summary = try model.importSlateConfigs(engine)
       alert.messageText = summary.title
       alert.informativeText = summary.message
     } catch {
