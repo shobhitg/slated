@@ -54,21 +54,24 @@ struct FixtureFile {
   }
 }
 
-let files: [FixtureFile] = [
-  expressionFixtures(),
-  tokenizerFixtures(),
-  operationFixtures(),
-  keyFixtures(),
-  screenFixtures(),
-  frameFixtures(),
-  slateConfigFixtures(),
-  configurationFixtures(),
-  starterFixtures(),
-  settingsFixtures(),
-  hotstringFixtures(),
-  automationFixtures(),
-  clipboardFixtures(),
-]
+// SLATED_FUZZ=<seed> writes seeded random cases instead (`make fuzz`, see Fuzz.swift).
+let fuzzSeed = ProcessInfo.processInfo.environment["SLATED_FUZZ"].flatMap { UInt64($0) }
+let files: [FixtureFile] =
+  fuzzSeed.map(fuzzFiles) ?? [
+    expressionFixtures(),
+    tokenizerFixtures(),
+    operationFixtures(),
+    keyFixtures(),
+    screenFixtures(),
+    frameFixtures(),
+    slateConfigFixtures(),
+    configurationFixtures(),
+    starterFixtures(),
+    settingsFixtures(),
+    hotstringFixtures(),
+    automationFixtures(),
+    clipboardFixtures(),
+  ]
 
 do {
   try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)

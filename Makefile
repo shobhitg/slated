@@ -12,7 +12,7 @@ APP           := build/$(APP_NAME).app
 
 JSC           := /System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
 
-.PHONY: all build app run stop install uninstall test smoke test-install snapshots check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean fixtures check-fixtures linux-test linux-test-all
+.PHONY: all build app run stop install uninstall test smoke test-install snapshots check check-swift-testing fmt lint icon dev-cert reset-permissions logs log-summary syslog clean fixtures check-fixtures fuzz linux-test linux-test-all
 
 all: app
 
@@ -63,6 +63,15 @@ fixtures:
 # Fails when fixtures/ is stale (or the generator isn't deterministic).
 check-fixtures:
 	scripts/check-fixtures.sh
+
+# Differential fuzzing: ~120,000 seeded random inputs through SlatedCore and the JavaScript port,
+# compared like the golden vectors (Sources/SlatedFixtures/Fuzz.swift). Not part of `check`; run it
+# after changing either engine. `make fuzz SEED=7` tries other inputs. Needs Node.
+fuzz:
+	@dir="$$(mktemp -d "$${TMPDIR:-/tmp}/slated-fuzz.XXXXXX")"; \
+	swift build --product SlatedFixtures >/dev/null && \
+	SLATED_FUZZ=$(or $(SEED),1) "$$(swift build --show-bin-path)/SlatedFixtures" "$$dir" >/dev/null && \
+	node linux/tests/run.mjs --fixtures "$$dir"; status=$$?; rm -rf "$$dir"; exit $$status
 
 # The JavaScript engine (linux/gnome-extension/lib/core) against every golden vector, plus its own
 # tests: on Node when installed, else macOS's JavaScriptCore. `make linux-test FILTER=frames`.
