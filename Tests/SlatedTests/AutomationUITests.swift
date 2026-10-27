@@ -424,6 +424,15 @@ let uiClipboardSwitcherTests = Suite(
           expect(!switcher.items.contains { $0.id == target.id })
           expectEqual(switcher.selectedID, switcher.results[min(index, switcher.results.count - 1)].id)
 
+          // Deleting another row from its context menu keeps the selection, so ↩ still pastes it.
+          let selected = try require(switcher.selectedID)
+          let other = try require(switcher.results.last { $0.id != selected })
+          switcher.delete(other.id)
+          expect(!switcher.items.contains { $0.id == other.id })
+          expectEqual(switcher.selectedID, selected)
+          switcher.paste()
+          expectEqual(services.pastedClipboardItems.last, selected)
+
           var config = services.configuration
           config.clipboard.pasteAfterSelecting = false
           try services.saveConfiguration(config)
