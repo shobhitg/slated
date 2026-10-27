@@ -151,6 +151,18 @@ let uiActionTests = Suite(
         }
       }
     ),
+    (
+      "grid rows name their display by index or by resolution",
+      {
+        try onMain {
+          // Slate configs key grid sizes by resolution as well as by index.
+          expectEqual(["0", "2", "1680x1050"].map(GridEditor.displayTitle), ["Display 1", "Display 3", "1680×1050"])
+          // VoiceOver tells every row apart.
+          let phrases = ["0", "1", "1680x1050", "1920x1080"].map(GridEditor.displayPhrase)
+          expectEqual(phrases, ["display 1", "display 2", "the 1680×1050 display", "the 1920×1080 display"])
+        }
+      }
+    ),
   ])
 
 let uiValidationTests = Suite(

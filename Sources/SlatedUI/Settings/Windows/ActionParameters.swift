@@ -608,7 +608,7 @@ struct GridEditor: View {
       }
       ForEach(Array(grids.enumerated()), id: \.offset) { index, grid in
         HStack(spacing: 10) {
-          Text("Display \((Int(grid.screen) ?? 0) + 1)")
+          Text(Self.displayTitle(grid.screen))
             .font(.system(size: 12.5))
             .frame(width: 72, alignment: .leading)
           Stepper("\(grid.width) wide", value: size(index, \.width), in: 1...24).fixedSize()
@@ -621,7 +621,7 @@ struct GridEditor: View {
           }
           .buttonStyle(.plain)
           .help("Use Slate's default grid on this display")
-          .accessibilityLabel("Remove the grid size for display \((Int(grid.screen) ?? 0) + 1)")
+          .accessibilityLabel("Remove the grid size for \(Self.displayPhrase(grid.screen))")
         }
         .font(.system(size: 12.5).monospacedDigit())
       }
@@ -647,6 +647,25 @@ struct GridEditor: View {
     Binding(
       get: { grids.indices.contains(index) ? grids[index][keyPath: keyPath] : 1 },
       set: { if grids.indices.contains(index) { grids[index][keyPath: keyPath] = $0 } })
+  }
+
+  /// A row's display: "Display 2" for an index, "1680×1050" for a resolution (Slate configs key
+  /// grid sizes either way).
+  static func displayTitle(_ screen: String) -> String {
+    switch ScreenRef(slate: screen) {
+    case .index(let i): return "Display \(i + 1)"
+    case .resolution(let width, let height): return "\(width)×\(height)"
+    default: return screen
+    }
+  }
+
+  /// The same for VoiceOver, inside a sentence: "display 2", "the 1680×1050 display".
+  static func displayPhrase(_ screen: String) -> String {
+    switch ScreenRef(slate: screen) {
+    case .index(let i): return "display \(i + 1)"
+    case .resolution(let width, let height): return "the \(width)×\(height) display"
+    default: return "display “\(screen)”"
+    }
   }
 }
 
