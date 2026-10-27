@@ -9,6 +9,13 @@ Slated reads two kinds of configuration and uses both at once:
 
 If both define the same shortcut, Slated's own binding wins and the other is marked as a duplicate.
 
+**Importing.** "Import Slate Config into Slated…" copies what it can into `config.json`. When
+everything converts, Slate files stop loading. When something can't (a function that needs the
+script, say), they keep loading for it, and the shortcuts that were imported are listed in
+`general.importedSlateShortcuts` (`"ctrl+alt+f16"`, or `"ctrl+alt+f6 x"` behind a modal key). Slated
+ignores the Slate files' own bindings on those keys, so the imported copies are yours to change or
+delete in Settings.
+
 **Sections Slated doesn't know**, such as ones a newer version added, are kept as they are when
 Slated saves `config.json`. Unknown fields inside a section it does know (say, a typo in `general`)
 are ignored, and the next save drops them.

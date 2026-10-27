@@ -51,6 +51,10 @@ function importDialog(ctx) {
   if (plan.added.length) lines.push(`${plural(plan.added.length, 'shortcut')} will be copied into Slated, where you can edit them.`);
   if (plan.duplicates.length) lines.push(`${plural(plan.duplicates.length, 'shortcut')} Slated already has will be left alone.`);
   if (plan.skipped.length) lines.push(`${plural(plan.skipped.length, 'item')} need JavaScript and stay in your Slate file, which keeps loading.`);
+  if (!plan.stopsLoading && plan.added.length) {
+    lines.push("Your Slate file's own copies of the imported shortcuts will be ignored, so you can change or delete them here.");
+  }
+  if (plan.neverRun.length) lines.push(`${plural(plan.neverRun.length, 'event handler')} won't be imported: GNOME never runs them.`);
   if (plan.errors.length) lines.push(...plan.errors.map(e => `${e.path}: ${e.message}.`));
   if (plan.stopsLoading && plan.added.length) lines.push('Everything converts, so Slated will stop loading your Slate files.');
 
@@ -58,9 +62,9 @@ function importDialog(ctx) {
     heading: plan.added.length ? `Import ${plural(plan.added.length, 'shortcut')}?` : 'Nothing new to import',
     body: lines.join('\n\n') || 'Your Slate files have no bindings Slated can import.',
   });
-  if (plan.skipped.length) {
+  if (plan.skipped.length || plan.neverRun.length) {
     const details = box('vertical', 4);
-    for (const s of plan.skipped) {
+    for (const s of [...plan.skipped, ...plan.neverRun]) {
       const item = label(`${s.keystroke}: ${s.reason}`, {wrap: true, selectable: true, classes: ['caption']});
       details.append(item);
     }

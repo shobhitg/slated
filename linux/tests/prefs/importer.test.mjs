@@ -1,11 +1,11 @@
 import {suite, expect, expectEqual, readText} from './harness.mjs';
 import {
-  loadSlateScript, importSlateScript, planImport, parseKeystrokeLocal, keystrokeToConfig,
+  loadSlateScript, importSlateScript, planImport, parseKeystrokeLocal, keystrokeToConfig, PROBE_SETUPS, DELIVERED_EVENTS,
 } from '../../gnome-extension/lib/prefs/importer.js';
 import {implemented, starterConfiguration} from '../../gnome-extension/lib/prefs/engine.js';
 import {matchingPreset} from '../../gnome-extension/lib/prefs/presets.js';
 import {fillDefaults} from '../../gnome-extension/lib/prefs/config.js';
-import {keysString} from '../../gnome-extension/lib/prefs/keys.js';
+import {keysString, statusKey} from '../../gnome-extension/lib/prefs/keys.js';
 
 const author = await readText('./fixtures/slate-author-like.js', import.meta.url);
 const edges = await readText('./fixtures/slate-edge-cases.js', import.meta.url);
@@ -86,6 +86,16 @@ export default suite('Slate importer', [
       expectEqual(result.bindings.length, 15);
     }
   }],
+  ["the author's own ~/.slate.js, when there is one, imports completely (so the file turns off)", async () => {
+    if (!globalThis.process?.versions?.node || !implemented('parseOperation')) return;
+    const fs = await import('node:fs');
+    const path = `${process.env.HOME}/.slate.js`;
+    if (!fs.existsSync(path)) return;
+    const result = importSlateScript(fs.readFileSync(path, 'utf8'), {makeId: ids()});
+    expectEqual(result.skipped, []);
+    const plan = planImport(fillDefaults({}), [{path: '~/.slate.js', result}]);
+    expect(plan.stopsLoading && plan.added.length === result.bindings.length && result.bindings.length > 0);
+  }],
   ['the author-like config imports into exactly the starter bindings (when the engine has them)', () => {
     if (!implemented('parseOperation') || !starterConfiguration()) return;
     const starter = starterConfiguration();
@@ -110,7 +120,7 @@ export default suite('Slate importer', [
     expectEqual(coding.apps.map(a => a.app), ['Firefox', 'Terminal']);
     expectEqual(coding.apps[0].options.ignoreFail && coding.apps[0].options.repeat, true);
     expectEqual(coding.apps[1].options.titleOrder, ['one', 'two']);
-    expectEqual(loaded.defaults, [{target: 'coding', condition: {count: {_0: 2}}}]);
+    expectEqual(loaded.defaults, [{target: 'coding', count: 2}], "config.json's shape");
   }],
   ['edge cases: mistakes are reported with their lines and the rest still loads', () => {
     const loaded = loadSlateScript(edges, {path: '/home/me/.slate.js'});
@@ -145,15 +155,105 @@ export default suite('Slate importer', [
     expect(reasons['0:ctrl,alt'].includes('boom'), reasons['0:ctrl,alt']);
     expect(reasons['f1:ctrl'].includes('slate.shell'), reasons['f1:ctrl']);
     expect(reasons['layout "scripted"'].includes('JavaScript'));
+    expectEqual(reasons['slate.config("nudgePercentOf")'], 'its value comes from a JavaScript function');
+    expectEqual(result.settings.nudgePercentOf, undefined, 'a setting a function computes stays in the script');
     expectEqual(result.layouts.map(l => l.name), ['coding']);
-    expectEqual(result.defaults, [], 'display defaults stay in the script, as on macOS');
+    expectEqual(result.defaults, [{target: 'coding', count: 2}]);
   }],
   ['the fake slate API answers window, screen, app and underscore queries like Slate', () => {
     const files = {'/home/me/.slate.extra.js': EXTRA};
     const loaded = loadSlateScript(surface, {path: '/home/me/.slate.js', home: '/home/me', readFile: p => files[p] ?? null});
-    const probe = loaded.probe(loaded.bindings[0]);
-    expectEqual(probe.reason, undefined, `the probe ran cleanly: ${probe.reason}`);
-    expectEqual(probe.action, {op: 'by-orientation', landscape: move(X, Y, `${W}/3`, H), portrait: move(X, Y, `${W}/2`, H)});
+    const [binding] = loaded.bindings;
+    const landscape = loaded.runOn(binding, PROBE_SETUPS.landscape[0]);
+    const portrait = loaded.runOn(binding, PROBE_SETUPS.portrait[0]);
+    expectEqual(landscape.error, undefined, `the run went cleanly: ${landscape.error}`);
+    expectEqual(landscape.actions, [move(X, Y, `${W}/3`, H)]);
+    expectEqual(portrait.actions, [move(X, Y, `${W}/2`, H)]);
+    // It checks the window's title and the app's name, which a probe can't vary its way around.
+    expectEqual(loaded.probe(binding).reason, 'depends on the focused app or window title');
+  }],
+  ['a bound function converts only when it does the same on every pretend desktop of an orientation', () => {
+    const script = `
+      var big = false;
+      slate.bind("1:ctrl,alt", function (win) { big = !big; win.doOperation(big ? "push up" : "push down"); });
+      slate.bind("2:ctrl,alt", function (win) {
+        win.doOperation(win.app().name() === "Terminal" ? "push left" : "push right");
+      });
+      slate.bind("3:ctrl,alt", function (win) { win.doOperation(slate.screenCount() > 1 ? "throw next" : "push up"); });
+      slate.bind("4:ctrl,alt", function (win) {
+        var r = win.screen().visibleRect();
+        win.doOperation("move", {"x": r.x, "y": r.y, "width": r.width / 2, "height": r.height});
+      });
+      slate.bind("5:ctrl,alt", function (win) {
+        win.doOperation(win.rect().width >= win.screen().visibleRect().width ? "push down" : "push up");
+      });
+      slate.bind("6:ctrl,alt", function (win) { win.doOperation(win.title() === "Inbox" ? "push left" : "push up"); });
+      slate.bind("7:ctrl,alt", function (win) {
+        var r = slate.screen().rect();
+        win.doOperation(r.width > r.height ? "push left" : "push up");
+      });`;
+    const result = importSlateScript(script, {makeId: ids()});
+    expectEqual(result.skipped.map(s => `${s.keystroke}: ${s.reason}`), [
+      '1:ctrl,alt: does something different each time it runs',
+      '2:ctrl,alt: depends on the focused app or window title',
+      '3:ctrl,alt: depends on how many displays there are, or their sizes',
+      '4:ctrl,alt: depends on how many displays there are, or their sizes',
+      "5:ctrl,alt: depends on the focused window's position or size",
+      '6:ctrl,alt: depends on the focused app or window title',
+    ]);
+    expectEqual(result.bindings.map(b => b.action), [
+      {op: 'by-orientation', landscape: {op: 'push', direction: 'left'}, portrait: {op: 'push', direction: 'up'}},
+    ]);
+  }],
+  ['imported bindings keep whether they repeat', () => {
+    const nudge = x => `slate.operation("nudge", {"x": "${x}", "y": "+0"})`;
+    const script = `
+      slate.bind("right:ctrl,alt", ${nudge('+10%')}, false);
+      slate.bind("up:ctrl,alt", "push up", true);
+      slate.bind("left:ctrl,alt", ${nudge('-10%')});
+      slate.bind("down:ctrl,alt", function (win) { win.doOperation(slate.operation("resize", {"width": "+10%", "height": "+0"})); });
+      slate.bind("pageup:ctrl,alt", function (win) { win.doOperation("push up"); }, true);`;
+    const result = importSlateScript(script, {makeId: ids()});
+    expectEqual(result.skipped, []);
+    // An explicit repeat carries over; a static operation keeps following repeatOnHoldOps; a function
+    // doesn't repeat unless asked, as in Slate.
+    expectEqual(result.bindings.map(b => `${b.keys} ${b.repeats ?? 'setting'}`), [
+      'ctrl+alt+right false', 'ctrl+alt+up true', 'ctrl+alt+left setting', 'ctrl+alt+down false', 'ctrl+alt+pageUp true',
+    ]);
+  }],
+  ['slate.on handlers stay in the script, except for events GNOME never delivers', () => {
+    const script = `
+      slate.bind("a:ctrl", "push left");
+      slate.on("appActivated", function () {});
+      slate.on("windowOpened", function () {});
+      slate.on("appHidden", function () {});`;
+    const result = importSlateScript(script, {makeId: ids()});
+    expectEqual(result.skipped.map(s => `${s.keystroke}: ${s.reason}`), [
+      'slate.on("windowOpened"): event handlers need JavaScript', 'slate.on("appActivated"): event handlers need JavaScript',
+    ]);
+    expectEqual(result.neverRun.map(s => `${s.keystroke}: ${s.reason}`), [
+      'slate.on("appHidden"): GNOME doesn\'t hide apps, so this never runs',
+    ]);
+  }],
+  ["the events the importer counts as delivered are the extension's", async () => {
+    const host = await readText('../../gnome-extension/lib/platform/scriptHost.js', import.meta.url);
+    const listed = host.match(/SUPPORTED_EVENTS = new Set\(\[([^\]]*)\]/)[1].match(/'(\w+)'/g).map(s => s.slice(1, -1));
+    expectEqual([...DELIVERED_EVENTS].sort(), listed.sort());
+  }],
+  ['display defaults naming a layout import in config.json\'s shape; ones running a function stay', () => {
+    const script = `
+      slate.layout("coding", {"_before_": {"operations": ["push up"]}});
+      slate.default(2, "coding");
+      slate.default(["1920x1080", "1440x900"], "coding");
+      slate.default("3", slate.operation("layout", {"name": "coding"}));
+      slate.default(4, function () {});`;
+    const result = importSlateScript(script, {makeId: ids()});
+    expectEqual(result.defaults, [
+      {target: 'coding', count: 2}, {target: 'coding', resolutions: ['1440x900', '1920x1080']}, {target: 'coding', count: 3},
+    ]);
+    expectEqual(result.skipped.map(s => `${s.keystroke}: ${s.reason}`), ['slate.default(4 screens): runs JavaScript']);
+    const plan = planImport(fillDefaults({defaults: [{target: 'coding', count: 2}]}), [{path: '~/.slate.js', result}]);
+    expectEqual(plan.config.defaults.length, 3, 'one already in config.json is not added twice');
   }],
   ['loading-time side effects are reported, and slate.source reads other files', () => {
     const files = {'/home/me/.slate.extra.js': EXTRA};
@@ -175,10 +275,14 @@ export default suite('Slate importer', [
     expect(plan.duplicates.includes('ctrl+alt+1'), 'existing keys win');
     expectEqual(plan.config.bindings[0].id, 'mine');
     expectEqual(plan.config.settings.orderScreensLeftToRight, false, "config.json's settings win");
-    expectEqual(plan.config.settings.nudgePercentOf, 'screenSize', 'script settings fill the gaps');
+    expectEqual(plan.config.settings.defaultToCurrentScreen, true, 'script settings fill the gaps');
+    expectEqual(plan.config.settings.nudgePercentOf, undefined, "a function's value isn't frozen into config.json");
     expectEqual(plan.config.layouts.map(l => l.name), ['coding']);
     expect(!plan.stopsLoading && plan.config.general.loadSlateConfigs, 'something was skipped: keep loading the script');
+    // The script keeps loading, so its copies of the imported shortcuts are ignored from now on.
+    expectEqual(plan.config.general.importedSlateShortcuts, plan.added.map(b => statusKey(b.keys, b.modal)).sort());
     const clean = planImport(fillDefaults({}), [{path: '~/.slate.js', result: {...result, skipped: []}}]);
     expect(clean.stopsLoading && clean.config.general.loadSlateConfigs === false, 'everything converted: stop loading');
+    expectEqual(clean.config.general.importedSlateShortcuts, undefined);
   }],
 ]);

@@ -120,6 +120,11 @@ public struct GeneralSettings: Hashable, Sendable {
   public var loadSlateConfigs: Bool
   /// Slate config files to load, in order. `~` is expanded.
   public var slateConfigPaths: [String]
+  /// Shortcuts imported from the Slate files while the files kept loading (for what couldn't be
+  /// imported), as `"ctrl+alt+f16"` or, behind a modal key, `"ctrl+alt+f6 x"`. The files' own
+  /// bindings on these keys are ignored, so the imported copies can be changed or deleted in
+  /// Settings. Written only when there are some.
+  public var importedSlateShortcuts: [String]
   /// Show a small HUD when an operation runs.
   public var showActionHUD: Bool
   /// Master switch for text expansion; each hotstring's own `enabled` flag is kept as is.
@@ -129,19 +134,23 @@ public struct GeneralSettings: Hashable, Sendable {
     launchAtLogin: Bool = false,
     loadSlateConfigs: Bool = true,
     slateConfigPaths: [String] = ["~/.slate.js", "~/.slate"],
+    importedSlateShortcuts: [String] = [],
     showActionHUD: Bool = false,
     hotstringsEnabled: Bool = true
   ) {
     self.launchAtLogin = launchAtLogin
     self.loadSlateConfigs = loadSlateConfigs
     self.slateConfigPaths = slateConfigPaths
+    self.importedSlateShortcuts = importedSlateShortcuts
     self.showActionHUD = showActionHUD
     self.hotstringsEnabled = hotstringsEnabled
   }
 }
 
 extension GeneralSettings: Codable {
-  private enum Key: String, CodingKey { case launchAtLogin, loadSlateConfigs, slateConfigPaths, showActionHUD, hotstringsEnabled }
+  private enum Key: String, CodingKey {
+    case launchAtLogin, loadSlateConfigs, slateConfigPaths, importedSlateShortcuts, showActionHUD, hotstringsEnabled
+  }
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: Key.self)
@@ -150,8 +159,19 @@ extension GeneralSettings: Codable {
       launchAtLogin: try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin,
       loadSlateConfigs: try c.decodeIfPresent(Bool.self, forKey: .loadSlateConfigs) ?? d.loadSlateConfigs,
       slateConfigPaths: try c.decodeIfPresent([String].self, forKey: .slateConfigPaths) ?? d.slateConfigPaths,
+      importedSlateShortcuts: try c.decodeIfPresent([String].self, forKey: .importedSlateShortcuts) ?? [],
       showActionHUD: try c.decodeIfPresent(Bool.self, forKey: .showActionHUD) ?? d.showActionHUD,
       hotstringsEnabled: try c.decodeIfPresent(Bool.self, forKey: .hotstringsEnabled) ?? d.hotstringsEnabled)
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: Key.self)
+    try c.encode(launchAtLogin, forKey: .launchAtLogin)
+    try c.encode(loadSlateConfigs, forKey: .loadSlateConfigs)
+    try c.encode(slateConfigPaths, forKey: .slateConfigPaths)
+    if !importedSlateShortcuts.isEmpty { try c.encode(importedSlateShortcuts, forKey: .importedSlateShortcuts) }
+    try c.encode(showActionHUD, forKey: .showActionHUD)
+    try c.encode(hotstringsEnabled, forKey: .hotstringsEnabled)
   }
 }
 

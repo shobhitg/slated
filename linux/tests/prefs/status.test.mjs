@@ -109,6 +109,10 @@ export default suite('Status and placement', [
     expectEqual(bindingState({...base, saved: {...binding, keys: 'hyper+w'}}).state, 'saving');
     expectEqual(bindingState({binding, key: 'hyper+w', status, running: true, isSource: true}).state, 'duplicate');
     expectEqual(bindingState({binding, key: 'hyper+w', status, running: true, isSource: true, slateLoading: false}).state, 'slate-off');
+    // Imported while the file keeps loading: Slated's copy runs, this one is ignored.
+    expectEqual(bindingState({binding, key: 'hyper+w', status, running: true, isSource: true, imported: true}).state, 'imported');
+    expectEqual(statePresentation({state: 'imported'}).label, 'Imported');
+    expect(stateExplanation({state: 'imported'}).includes('ignores this copy'));
     expectEqual(statePresentation({state: 'failed'}).row, "Couldn't register");
     expect(stateExplanation({state: 'not-saved', message: 'Bad.', wasSaved: true}).includes('last saved version'));
     expectEqual(stateExplanation({state: 'active'}), null);

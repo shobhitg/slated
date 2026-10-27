@@ -16,6 +16,9 @@ enum BindingState: Equatable {
   case paused
   /// Slate config loading is switched off.
   case slateOff
+  /// A Slate file's binding that was imported (`general.importedSlateShortcuts`): Slated's copy runs
+  /// instead.
+  case imported
   /// Not (yet) reported by the engine.
   case inactive
 }
@@ -135,6 +138,7 @@ extension AppModel {
 
   func state(for source: SourceBinding) -> BindingState {
     if !configuration.general.loadSlateConfigs { return .slateOff }
+    if configuration.general.importedSlateShortcuts.contains(source.id) { return .imported }
     if runtimeStatus.paused { return .paused }
     return state(forKey: source.id)
   }
@@ -165,7 +169,8 @@ extension AppModel {
       .map { "“\(BindingTitle.title(for: $0))”" }
     if configuration.general.loadSlateConfigs {
       for source in sources where source.loaded {
-        for binding in source.bindings where binding.id == key {
+        for binding in source.bindings
+        where binding.id == key && !configuration.general.importedSlateShortcuts.contains(binding.id) {
           uses.append("“\(binding.summary)” in \(source.displayName)")
         }
       }

@@ -342,6 +342,84 @@ expect_true "it holds their SHA-256 instead, which restoring matches windows by"
   grep -q "\"titleHash\":\"$(printf %s "$title" | shasum -a 256 | cut -d' ' -f1)\"" "$snapshots"
 expect_true "the snapshot is still there" grep -q '"work"' "$snapshots"
 
+# 13. "Import Slate Config into Slated…" with a Slate file that converts only in part, so it keeps loading.
+setting_of() {  # home, name: the setting in config.json, or "none"
+  /usr/bin/python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("settings", {}).get(sys.argv[2], "none"))' \
+    "$1/.config/slated/config.json" "$2"
+}
+home=$(new_home)
+cp "$FIXTURES/slate-import.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+expect_output "the import says what stays in the Slate file" "$out" \
+  'slate.config("windowHintsCharacters"): its value comes from a JavaScript function'
+expect_true "a static setting is copied into config.json" test "$(setting_of "$home" nudgePercentOf)" = screenSize
+expect_true "a setting a function computes isn't copied, so the script keeps setting it" \
+  test "$(setting_of "$home" windowHintsCharacters)" = none
+expect_output "a file with something left in it keeps loading" "$out" "loadSlateConfigs: true"
+expect_output "Slated's copies replace the file's" "$out" "the Slate file's own copies of them are ignored"
+# Then the imported shortcuts are Settings' to change: deleting or moving one doesn't bring back the
+# Slate file's copy, which stays loaded for what wasn't imported.
+home=$(new_home)
+cp "$FIXTURES/slate-import.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS="import-slate edit-imported print-hotkeys" smoke "$home")
+expect_true "a deleted imported shortcut stays deleted" bash -c '! grep -q "hotkey ctrl+alt+f16:" <<<"$1"' _ "$out"
+expect_true "a moved one leaves its old keys free" bash -c '! grep -q "hotkey ctrl+alt+f18:" <<<"$1"' _ "$out"
+expect_output "and works on its new keys" "$out" "hotkey ctrl+alt+f19: active"
+expect_output "what wasn't imported still runs from the file" "$out" "hotkey ctrl+alt+f17: active"
+expect_true "config.json lists the imported shortcuts" /usr/bin/python3 -I -c '
+import json, sys
+general = json.load(open(sys.argv[1]))["general"]
+assert general["importedSlateShortcuts"] == ["ctrl+alt+f16", "ctrl+alt+f18"], general
+' "$home/.config/slated/config.json"
+# A window event handler never runs in Slated, so it doesn't keep the file loaded, and the alert says so.
+home=$(new_home)
+cp "$FIXTURES/slate-window-events.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+expect_output "the import says a window event handler never runs" "$out" \
+  "slate.on(\"windowOpened\"): Slated doesn't deliver window events, so this never runs"
+expect_output "and turns the file off" "$out" "loadSlateConfigs: false"
+# A script that fails on the import's pretend Mac keeps loading, and the alert says why.
+home=$(new_home)
+cp "$FIXTURES/slate-shell.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS="import-slate print-hotkeys" smoke "$home")
+expect_output "an import that hit an error says so" "$out" "it hit an error on a test Mac: .slate.js, line 4"
+expect_output "and keeps the file loading" "$out" "loadSlateConfigs: true"
+expect_output "so the binding after the error still works" "$out" "hotkey ctrl+alt+f17: active"
+expect_output "and nothing that may not match this Mac is imported" "$out" "native: 0 bindings"
+# A display default naming a layout is imported in config.json's shape, so the file can turn off.
+home=$(new_home)
+cp "$FIXTURES/slate-defaults.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+expect_true "a display default is imported" /usr/bin/python3 -I -c '
+import json, sys
+config = json.load(open(sys.argv[1]))
+assert config["defaults"] == [{"target": "coding", "count": 2}], config["defaults"]
+assert [layout["name"] for layout in config["layouts"]] == ["coding"], config["layouts"]
+' "$home/.config/slated/config.json"
+expect_output "so nothing keeps the file loaded" "$out" "loadSlateConfigs: false"
+# An edit in Settings still waiting to be saved neither undoes the import nor is lost to it.
+home=$(new_home)
+cp "$FIXTURES/slate-defaults.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_SECONDS=3 SLATED_SMOKE_STEPS=edit-then-import smoke "$home")
+expect_output "the import survives a pending Settings save" "$out" "loadSlateConfigs: false"
+expect_output "and Settings shows it, with the edit" "$out" "after the debounce, Settings shows 1 bindings, HUD true"
+expect_true "config.json has both" /usr/bin/python3 -I -c '
+import json, sys
+config = json.load(open(sys.argv[1]))
+assert len(config["bindings"]) == 1 and config["general"]["showActionHUD"] is True, config
+' "$home/.config/slated/config.json"
+# Slated's own display default wins over a Slate file's for the same displays, as its bindings do.
+home=$(new_home)
+cp "$FIXTURES/slate-default-everywhere.js" "$home/.slate.js"
+mkdir -p "$home/.config/slated"
+printf '{ "layouts": [{ "name": "native" }], "defaults": [%s] }\n' \
+  "$(for n in 1 2 3 4 5 6; do printf '{ "target": "native", "count": %s }' "$n"; [ "$n" -lt 6 ] && printf ', '; done)" \
+  >"$home/.config/slated/config.json"
+SLATED_SMOKE_STEPS=screens-changed smoke "$home" >/dev/null
+expect_true "config.json's display default wins over the Slate file's" \
+  bash -c 'grep -q "\"action\":\"layout native\"" "$1" && ! grep -q "\"action\":\"layout file\"" "$1"' _ \
+  "$home/Library/Logs/Slated/slated.log"
+
 echo
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]

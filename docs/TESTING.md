@@ -252,6 +252,12 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 **Slate compatibility**
 - [ ] `~/.slate.js` loads (the menu shows 21 hotkeys). Editing and saving it reloads within 2 seconds.
 - [ ] "Import Slate Config into Slated…" converts all bindings and stops loading the file.
+- [ ] With Settings open, change something and import within half a second: Settings then shows the
+      imported bindings, and the change is still there after reopening Settings.
+- [ ] Add a binding whose function moves the window (`win.move(...)`) to a copy of `~/.slate.js` and
+      import: the alert lists it as staying in the file and says the file's copies of the imported
+      shortcuts are ignored. In Settings → Slate Compatibility the imported ones show "Imported";
+      deleting one in Windows leaves its keys doing nothing, and the moving one still works.
 
 **Displays**
 - [ ] Plugging in or removing a display applies a matching `default` layout.
@@ -279,6 +285,9 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
       and its status badge turns Active, or Couldn't register for a key GNOME owns (Super+A).
 - [ ] The preview shows your real displays once the extension writes `screens` to `status.json`.
 - [ ] Import into Slated on your real `~/.slate.js` converts every binding and stops loading the file.
+- [ ] Importing a `~/.slate.js` with a binding that moves the window itself keeps the file loading;
+      the imported bindings show "Imported" in the Slate list, and deleting one in Shortcuts frees its
+      keys (the extension no longer registers the file's copy).
 - [ ] Turning "Slated is on" off and on in General disables and enables the extension.
 - [ ] Hotstrings: with espanso running, a new hotstring appears in `~/.config/espanso/match/slated.yml`
       and expands in another app.

@@ -1,4 +1,5 @@
 import AppKit
+import SlatedCore
 import SlatedSystem
 import SlatedUI
 
@@ -89,6 +90,47 @@ enum SmokeSteps {
       // What the clipboard switcher says Return does, with the services the app gives it.
       let model = ClipboardSwitcherModel(services: LiveServices.forClipboardSwitcher(engine))
       print("switcher: Return \(model.pasteAfterSelecting ? "pastes" : "copies")")
+    case "import-slate":
+      // "Import Slate Config into Slated…" in the menu bar; prints what its alert says.
+      do {
+        let summary = try engine.importSlateConfigs()
+        print("import alert:", summary.title)
+        print(summary.message)
+      } catch {
+        print("import failed:", error.localizedDescription)
+      }
+    case "edit-imported":
+      // In Settings: delete the binding on ⌃⌥F16 and move the one on ⌃⌥F18 to ⌃⌥F19.
+      var config = engine.configuration
+      config.bindings.removeAll { $0.keys.string == "ctrl+alt+f16" }
+      if let index = config.bindings.firstIndex(where: { $0.keys.string == "ctrl+alt+f18" }),
+        let keys = KeyCombo(string: "ctrl+alt+f19")
+      {
+        config.bindings[index].keys = keys
+      }
+      do {
+        try LiveServices(engine: engine).saveConfiguration(config)
+      } catch {
+        print("save failed:", error.localizedDescription)
+      }
+    case "edit-then-import":
+      // In Settings, an edit still waiting for its debounce; then "Import Slate Config into Slated…".
+      let model = AppModel(services: LiveServices(engine: engine))
+      model.configuration.general.showActionHUD.toggle()
+      do {
+        let summary = try model.importSlateConfigs(engine)
+        print("import alert:", summary.title)
+      } catch {
+        print("import failed:", error.localizedDescription)
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        let config = model.configuration
+        let (bindings, hud) = (config.bindings.count, config.general.showActionHUD)
+        print("after the debounce, Settings shows \(bindings) bindings, HUD \(hud)")
+      }
+    case "print-hotkeys":
+      // Every shortcut's status, active ones too (the summary at the end lists only the others).
+      for (key, value) in engine.status.hotkeys.sorted(by: { $0.key < $1.key }) { print("hotkey \(key): \(value)") }
     case "move-config-away":
       // The file config.json links to goes away while Slated runs (a branch switch, an unmounted volume).
       let target = engine.store.fileURL.resolvingSymlinksInPath()

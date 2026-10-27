@@ -190,7 +190,9 @@ final class JavaScriptSources {
       }
       observers.append((NotificationCenter.default, token))
     }
-    let unsupported = events.subtracting(Set(workspace.map(\.0)) + [.screenConfigurationChanged])
+    // What the import tells the user never runs (SlateImporter): keep the two in step.
+    assert(Set(workspace.map(\.0)).union([.screenConfigurationChanged]) == ScriptEventName.delivered)
+    let unsupported = events.subtracting(ScriptEventName.delivered)
     if !unsupported.isEmpty {
       Log.record("script.unsupported_events", level: .notice, ["events": unsupported.map(\.rawValue).sorted()])
     }

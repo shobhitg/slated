@@ -175,10 +175,21 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 16. ~~**Universal Clipboard.**~~ **Decided (2026-10-27): this Mac only.** Slated's temporary paste of a
     hotstring replacement or insert-text is written as this-Mac-only, so your other devices never get
     it. Real copies and clipboard history picks are left alone.
-17. ~~**Importing a `~/.slate.js` with `slate.on` handlers.**~~ **Decided (2026-10-27):** anything
-    the importer can't convert (event handlers, JavaScript layouts, config values computed by a
-    function, callbacks whose result depends on state or the screen) is listed as skipped, and the
-    file keeps loading. Your `~/.slate.js` still imports completely.
+17. **Importing a `~/.slate.js` with `slate.on` handlers.** *Now:* handlers for events Slated
+    delivers (app events, display changes) are listed as staying in the file, which keeps loading.
+    Window-event handlers, which Slated never runs, are reported as such and don't keep it loading
+    (on GNOME the same for `appHidden`/`appUnhidden`). (Your `~/.slate.js` has none.)
+18. **Partial imports (2026-10-27).** When a Slate file keeps loading after an import (something in it
+    needs JavaScript), the shortcuts that were imported are listed in
+    `general.importedSlateShortcuts` and the file's own copies are ignored, so Settings owns them; a
+    later full import or turning Slate files off makes the list moot. Questions: is the name right
+    (it's in config.json for good, shared with GNOME), and should "Load Slate configs" turned back on
+    later bring the file's copies back? *Assumption:* the list stays and keeps them ignored.
+19. **Imports that may not match this Mac.** The importer runs the script on pretend Macs. If loading
+    it there hits an error, or the script runs `slate.shell` (or moves windows) while loading, nothing
+    is imported from that file and it keeps loading; the alert says why. *Assumption:* safer than
+    importing what it could, since an imported copy would win over the file's real one. A bound
+    function that reads the app's name or a window's title is likewise left in the file.
 
 ## End-to-end review (2026-10-27): decisions
 

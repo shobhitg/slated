@@ -143,6 +143,12 @@ public enum ScriptEventName: String, CaseIterable, Hashable, Sendable {
   case windowOpened, windowClosed, windowMoved, windowResized, windowFocused, windowTitleChanged
   case appOpened, appClosed, appHidden, appUnhidden, appActivated, appDeactivated
   case screenConfigurationChanged
+
+  /// The events the app delivers to `slate.on` handlers (JavaScriptSources). Slated doesn't watch
+  /// windows, so handlers for window events never run.
+  public static let delivered: Set<ScriptEventName> = [
+    .appOpened, .appClosed, .appHidden, .appUnhidden, .appActivated, .appDeactivated, .screenConfigurationChanged,
+  ]
 }
 
 /// Something that happened, for `SlateScriptEngine.dispatch(event:)`.

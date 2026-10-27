@@ -139,6 +139,7 @@ func importerChecks() throws {
   guard FileManager.default.fileExists(atPath: path) else { return }
   let real = SlateImporter.importJavaScript(path: path)
   expect(real.skipped.isEmpty, "\(real.skipped)")
+  expect(real.problems.isEmpty, "\(real.problems)")
   let starter = Dictionary(uniqueKeysWithValues: SlatedConfiguration.starter.bindings.map { ($0.keys, $0.action) })
   expectEqual(Dictionary(uniqueKeysWithValues: real.bindings.map { ($0.keys, $0.action) }), starter)
 }
@@ -161,12 +162,21 @@ func importerReportsWhatItLeavesBehind() throws {
     """
   let result = SlateImporter.importJavaScript(path: "/events.js", readFile: { _ in script })
   expectEqual(result.bindings.count, 1)
+  // So the app doesn't copy its value into Slated's settings, where it would override the function.
+  expectEqual(result.functionSettings, ["defaultToCurrentScreen"])
   expectEqual(
     result.skipped.map(\.keystroke),
     [
-      #"slate.on("windowOpened")"#, #"slate.on("appActivated")"#, #"slate.config("defaultToCurrentScreen")"#,
-      #"slate.layout("js")"#, "slate.default(2 screens)", "slate.default(1440x900, 1920x1080)",
+      #"slate.on("appActivated")"#, #"slate.config("defaultToCurrentScreen")"#,
+      #"slate.layout("js")"#, "slate.default(2 screens)",
     ])
+  // A display default naming a layout or snapshot is plain data: it becomes one of Slated's own.
+  expectEqual(result.defaults, [ScreenDefault(target: "plain", condition: .resolutions(["1440x900", "1920x1080"]))])
+  // Slated never delivers window events, so these handlers don't run with or without the import, and
+  // don't keep the file loaded.
+  expectEqual(
+    result.neverRun.map { "\($0.keystroke): \($0.reason)" },
+    [#"slate.on("windowOpened"): Slated doesn't deliver window events, so this never runs"#])
 
   // A config with only bindings and plain layouts leaves nothing behind.
   let plain = SlateImporter.importJavaScript(
@@ -177,10 +187,120 @@ func importerReportsWhatItLeavesBehind() throws {
   expect(plain.skipped.isEmpty, "\(plain.skipped)")
 }
 
+/// Imported bindings repeat while held as the script's do: an explicit `repeat` argument carries over,
+/// a static operation keeps following `repeatOnHoldOps`, and a bound function doesn't repeat unless
+/// asked (Slate's rule), whatever operation it turns into.
+@MainActor
+func importerKeepsRepeat() throws {
+  let script = """
+    slate.bind("right:ctrl,alt", "nudge +10% +0", false);
+    slate.bind("up:ctrl,alt", "push up", true);
+    slate.bind("left:ctrl,alt", "nudge -10% +0");
+    slate.bind("down:ctrl,alt", function (win) { win.doOperation("resize +10% +0"); });
+    slate.bind("pageup:ctrl,alt", function (win) { win.doOperation("push up"); }, true);
+    """
+  let result = SlateImporter.importJavaScript(path: "/repeat.js", readFile: { _ in script })
+  expectEqual(result.skipped.map(\.keystroke), [])
+  expectEqual(
+    result.bindings.map { "\($0.keys.string) \($0.repeats.map(String.init) ?? "setting")" },
+    [
+      "ctrl+alt+right false", "ctrl+alt+up true", "ctrl+alt+left setting", "ctrl+alt+down false",
+      "ctrl+alt+pageUp true",
+    ])
+}
+
+/// A bound function converts only when it does the same on every pretend Mac of an orientation:
+/// called twice, with another app and window, and with other display counts and sizes.
+@MainActor
+func importerProbesVariations() throws {
+  let script = """
+    var big = false;
+    slate.bind("1:ctrl,alt", function (win) { big = !big; win.doOperation(big ? "push up" : "push down"); });
+    slate.bind("2:ctrl,alt", function (win) {
+      win.doOperation(win.app().name() === "Terminal" ? "push left" : "push right");
+    });
+    slate.bind("3:ctrl,alt", function (win) { win.doOperation(slate.screenCount() > 1 ? "throw next" : "push up"); });
+    slate.bind("4:ctrl,alt", function (win) {
+      var r = win.screen().visibleRect();
+      win.doOperation("move", {"x": r.x, "y": r.y, "width": r.width / 2, "height": r.height});
+    });
+    slate.bind("5:ctrl,alt", function (win) {
+      win.doOperation(win.rect().width >= win.screen().visibleRect().width ? "push down" : "push up");
+    });
+    slate.bind("6:ctrl,alt", function (win) { win.doOperation(win.title() === "Inbox" ? "push left" : "push up"); });
+    slate.bind("7:ctrl,alt", function (win) {
+      var r = slate.screen().rect();
+      win.doOperation(r.width > r.height ? "push left" : "push up");
+    });
+    """
+  let result = SlateImporter.importJavaScript(path: "/logic.js", readFile: { _ in script })
+  expectEqual(
+    result.skipped.map { "\($0.keystroke): \($0.reason)" },
+    [
+      "1:ctrl,alt: does something different each time it runs",
+      "2:ctrl,alt: depends on the focused app or window title",
+      "3:ctrl,alt: depends on how many displays there are, or their sizes",
+      "4:ctrl,alt: depends on how many displays there are, or their sizes",
+      "5:ctrl,alt: depends on the focused window's position or size",
+      "6:ctrl,alt: depends on the focused app or window title",
+    ])
+  expectEqual(
+    result.bindings.map(\.action),
+    [
+      .byOrientation(
+        landscape: .push(direction: .left, style: .none, screen: nil),
+        portrait: .push(direction: .up, style: .none, screen: nil))
+    ])
+}
+
+/// The importer runs the script on a pretend Mac, where load-time code can take another branch or stop
+/// with an error. Such an import can't be trusted to have everything, so the app keeps the file
+/// loaded; the problems say why.
+@MainActor
+func importerReportsUnreliableRuns() throws {
+  // The pretend Mac's slate.shell returns nothing, so `.trim()` throws and the rest of the script
+  // never registers.
+  let stops = """
+    slate.bind("f16:ctrl,alt", "push up");
+    var machine = slate.shell("/bin/hostname -s", true).trim();
+    slate.bind("f17:ctrl,alt", "push down");
+    """
+  let stopped = SlateImporter.importJavaScript(path: "/stops.js", readFile: { _ in stops })
+  expectEqual(stopped.bindings.count, 1)
+  expect(stopped.problems.count == 2, "\(stopped.problems)")
+  expect(stopped.problems.contains { $0.hasPrefix("it hit an error on a test Mac: stops.js, line 2:") })
+  expect(stopped.problems.contains(SlateImporter.shellWhileLoading), "\(stopped.problems)")
+
+  // Here the shell's output picks a branch: nothing fails, but this Mac may take the other one.
+  let branches = """
+    var machine = slate.shell("/bin/hostname -s", true);
+    slate.bind("f16:ctrl,alt", machine === "work\\n" ? "push left" : "push right");
+    """
+  let branched = SlateImporter.importJavaScript(path: "/branch.js", readFile: { _ in branches })
+  expectEqual(branched.bindings.count, 1)
+  expectEqual(branched.problems, [SlateImporter.shellWhileLoading])
+
+  // A function that throws on the test Macs is skipped with the error.
+  let throwing = SlateImporter.importJavaScript(
+    path: "/throws.js",
+    readFile: { _ in #"slate.bind("f16:ctrl,alt", function (win) { win.nope(); });"# })
+  expectEqual(throwing.skipped.count, 1)
+  expect(
+    throwing.skipped.first?.reason.hasPrefix("stops with an error on a test Mac: throws.js, line 1: TypeError") == true,
+    "\(throwing.skipped)")
+  expectEqual(throwing.problems, [])
+}
+
 let importerTests = Suite(
   "SlateImporter",
   [
+    (
+      "reports what makes an import unreliable",
+      { try MainActor.assumeIsolated { try importerReportsUnreliableRuns() } }
+    ),
+    ("probes functions on several pretend Macs", { try MainActor.assumeIsolated { try importerProbesVariations() } }),
     ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } }),
+    ("keeps whether each binding repeats", { try MainActor.assumeIsolated { try importerKeepsRepeat() } }),
     (
       "lists event handlers, JavaScript layouts and defaults as skipped",
       { try MainActor.assumeIsolated { try importerReportsWhatItLeavesBehind() } }

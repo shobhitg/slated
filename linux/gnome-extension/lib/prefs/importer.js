@@ -3,11 +3,13 @@
 // and Engine.importSlateConfigs, ported to plain JavaScript).
 //
 // ~/.slate.js runs against a fake `slate` API that records what the script registers instead of
-// doing anything. Static operations convert directly. A bound function is run against a pretend
-// desktop twice: once with the focused window on a landscape screen and once on a portrait screen.
-// If each run performs exactly one operation and nothing else, the binding becomes that operation,
-// or a `by-orientation` pair when the two differ. Anything else genuinely needs JavaScript and is
-// skipped, with the reason. Classic ~/.slate files go through the engine's parseSlateConfig.
+// doing anything. Static operations convert directly. A bound function is run on pretend desktops
+// (PROBE_SETUPS): for each orientation of the focused window's screen, twice in a row, with another
+// app and window title, with the window filling the screen, and with other display counts and sizes.
+// If every run of an orientation performs the same single operation and nothing else, the binding
+// becomes that operation, or a `by-orientation` pair when the orientations differ. Anything else
+// genuinely needs JavaScript and is skipped, with the reason. Classic ~/.slate files go through the
+// engine's parseSlateConfig.
 //
 // Pure ES module: no gi:// imports. File access is injected (`readFile`).
 
@@ -49,18 +51,61 @@ export const OPERATION_PARAMETERS = {
   keystroke: ['keys'],
 };
 
-/** The pretend desktop the probes run on (the same as the macOS importer's). */
-export const PROBE_SCREENS = Object.freeze([
-  {displayID: 1, name: 'Landscape', isMain: true, scale: 1,
-    frame: {x: 0, y: 0, width: 1920, height: 1080}, visibleFrame: {x: 0, y: 25, width: 1920, height: 1055}},
-  {displayID: 2, name: 'Portrait', isMain: false, scale: 1,
-    frame: {x: 1920, y: 0, width: 1080, height: 1920}, visibleFrame: {x: 1920, y: 0, width: 1080, height: 1920}},
+/** The main display loses its top 25 pixels to the top bar. */
+const display = (displayID, frame, main = false) => Object.freeze({
+  displayID, name: `Display ${displayID}`, isMain: main, scale: 1, frame: Object.freeze(frame),
+  visibleFrame: Object.freeze(main ? {x: frame.x, y: frame.y + 25, width: frame.width, height: frame.height - 25} : {...frame}),
+});
+/** A landscape main display and a portrait one to its right. */
+const PAIR = Object.freeze([display(1, {x: 0, y: 0, width: 1920, height: 1080}, true), display(2, {x: 1920, y: 0, width: 1080, height: 1920})]);
+/** A small landscape main display, a portrait one and a wide one. */
+const THREE = Object.freeze([
+  display(1, {x: 0, y: 0, width: 1440, height: 900}, true), display(2, {x: 1440, y: 0, width: 1200, height: 1920}),
+  display(3, {x: 2640, y: 0, width: 3440, height: 1440}),
+]);
+const AGAIN = 'does something different each time it runs';
+const OTHER_APP = 'depends on the focused app or window title';
+const OTHER_FRAME = "depends on the focused window's position or size";
+const OTHER_DISPLAYS = 'depends on how many displays there are, or their sizes';
+const setup = (screens, window, extra = {}) => Object.freeze({screens, window: Object.freeze(window), app: 'App', title: 'Window', change: '', ...extra});
+
+/**
+ * The pretend desktops a bound function runs on while importing (the macOS importer's ProbeSetup): its
+ * displays, and the focused window's frame, app and title. In each orientation the first is the
+ * reference and the others change one thing each; `change` is the reason a binding that does
+ * something different there is skipped.
+ */
+export const PROBE_SETUPS = Object.freeze({
+  landscape: Object.freeze([
+    setup(PAIR, {x: 200, y: 200, width: 800, height: 600}),
+    setup(PAIR, {x: 200, y: 200, width: 800, height: 600}, {change: AGAIN}),
+    setup(PAIR, {x: 200, y: 200, width: 800, height: 600}, {app: 'Other', title: 'Document', change: OTHER_APP}),
+    setup(PAIR, {...PAIR[0].visibleFrame}, {change: OTHER_FRAME}),
+    setup([display(1, {x: 0, y: 0, width: 2560, height: 1440}, true)], {x: 200, y: 200, width: 800, height: 600}, {change: OTHER_DISPLAYS}),
+    setup(THREE, {x: 2840, y: 200, width: 800, height: 600}, {change: OTHER_DISPLAYS}),
+  ]),
+  portrait: Object.freeze([
+    setup(PAIR, {x: 2100, y: 300, width: 700, height: 900}),
+    setup(PAIR, {x: 2100, y: 300, width: 700, height: 900}, {change: AGAIN}),
+    setup(PAIR, {x: 2100, y: 300, width: 700, height: 900}, {app: 'Other', title: 'Document', change: OTHER_APP}),
+    setup(PAIR, {...PAIR[1].visibleFrame}, {change: OTHER_FRAME}),
+    setup([display(1, {x: 0, y: 0, width: 1440, height: 2560}, true)], {x: 100, y: 300, width: 700, height: 900}, {change: OTHER_DISPLAYS}),
+    setup(THREE, {x: 1640, y: 300, width: 700, height: 900}, {change: OTHER_DISPLAYS}),
+  ]),
+});
+
+/** `slate.on` events, in Slate's order (platform/slateScript.js EVENT_NAMES). */
+const EVENT_NAMES = Object.freeze([
+  'windowOpened', 'windowClosed', 'windowMoved', 'windowResized', 'windowFocused', 'windowTitleChanged',
+  'appOpened', 'appClosed', 'appHidden', 'appUnhidden', 'appActivated', 'appDeactivated', 'screenConfigurationChanged',
 ]);
 
-const PROBE_WINDOWS = {
-  1: {frame: {x: 200, y: 200, width: 800, height: 600}, screen: 0},
-  2: {frame: {x: 2100, y: 300, width: 700, height: 900}, screen: 1},
-};
+/**
+ * The events the extension delivers to `slate.on` handlers (platform/scriptHost.js SUPPORTED_EVENTS,
+ * which this module can't import: it uses gi://). GNOME has no hidden apps, so appHidden and
+ * appUnhidden never fire.
+ */
+export const DELIVERED_EVENTS = Object.freeze(new Set(EVENT_NAMES.filter(name => name !== 'appHidden' && name !== 'appUnhidden')));
 
 class ProbeError extends Error {}
 
@@ -270,11 +315,21 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
   const defaults = [];
   const settings = {};
   const configFunctions = {};
+  const events = new Set();
+  /** Conditions of `slate.default`s that run a function. */
+  const scriptDefaults = [];
   const sourced = new Set();
   let loading = true;
 
-  // Probe state: what the current run did.
-  const probe = {active: false, focused: 1, recorded: [], sideEffects: [], chainPositions: new Map()};
+  // Probe state: the pretend desktop (while loading, the first landscape one) and what the current run did.
+  const probe = {
+    active: false, focused: 1, setup: PROBE_SETUPS.landscape[0], recorded: [], sideEffects: [], readAppOrTitle: false,
+    chainPositions: new Map(),
+  };
+  /** The script read the app's name or a window's title: a compared name can't be found by trying others. */
+  const readIdentity = () => {
+    probe.readAppOrTitle = true;
+  };
 
   const report = (severity, message, line = null) => diagnostics.push({severity, message, line, file: path});
   const callerLine = () => scriptLine(new Error().stack, offset);
@@ -507,11 +562,22 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
 
   // --- Screens, windows, apps ---
 
+  const screenList = () => probe.setup.screens;
+
   const orderedScreens = () => {
-    const ordered = settings.orderScreensLeftToRight === false ? [...PROBE_SCREENS]
-      : [...PROBE_SCREENS].sort((a, b) => a.frame.x - b.frame.x || b.frame.y - a.frame.y);
+    const ordered = settings.orderScreensLeftToRight === false ? [...screenList()]
+      : [...screenList()].sort((a, b) => a.frame.x - b.frame.x || b.frame.y - a.frame.y);
     return ordered;
   };
+
+  /** The focused window (1) and another window of its app (2), on the first display. */
+  const windowFrame = handle => {
+    if (handle === 1) return probe.setup.window;
+    if (handle !== 2) return undefined;
+    const screen = screenList()[0].visibleFrame;
+    return {x: screen.x + 40, y: screen.y + 40, width: 400, height: 300};
+  };
+  const contains = (r, point) => point?.x >= r.x && point.x < r.x + r.width && point.y >= r.y && point.y < r.y + r.height;
 
   const screenObject = index => {
     const screens = orderedScreens();
@@ -529,30 +595,41 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
     return object;
   };
 
+  /** The display holding the window's center, else the main one. */
   const screenIndexForWindow = handle => {
-    const screen = PROBE_SCREENS[PROBE_WINDOWS[handle]?.screen ?? 0];
+    const frame = windowFrame(handle);
+    const center = frame && {x: frame.x + frame.width / 2, y: frame.y + frame.height / 2};
+    const screen = screenList().find(s => frame && contains(s.frame, center)) ?? screenList().find(s => s.isMain) ?? screenList()[0];
     return orderedScreens().indexOf(screen);
   };
 
+  const appName = () => {
+    readIdentity();
+    return probe.setup.app;
+  };
   const app = {
     pid: () => 1,
-    name: () => 'App',
+    name: appName,
     eachWindow: () => sideEffect('app.eachWindow'),
     mainWindow: () => windowObject(currentWindow()),
-    toString: () => 'App',
+    toString: appName,
   };
   defineAliases(app, {ewindow: 'eachWindow', mwindow: 'mainWindow'});
-  Object.defineProperty(app, HIDDEN, {value: {type: 'app', name: 'App'}});
+  Object.defineProperty(app, HIDDEN, {value: {type: 'app', get name() {
+    return appName();
+  }}});
 
   const windowObject = handle => {
-    const info = PROBE_WINDOWS[handle];
-    if (!info) return undefined;
-    const frame = info.frame;
+    if (!windowFrame(handle)) return undefined;
+    const frame = () => windowFrame(handle);
     const object = {
-      title: () => 'Window',
-      topLeft: () => ({x: frame.x, y: frame.y}),
-      size: () => ({width: frame.width, height: frame.height}),
-      rect: () => ({...frame}),
+      title: () => {
+        readIdentity();
+        return probe.setup.title;
+      },
+      topLeft: () => ({x: frame().x, y: frame().y}),
+      size: () => ({width: frame().width, height: frame().height}),
+      rect: () => ({...frame()}),
       pid: () => 1,
       focus: () => sideEffect('win.focus'),
       isMinimizedOrHidden: () => false,
@@ -585,7 +662,7 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
     return operationObject(value, caller);
   };
 
-  const pointOnScreen = point => PROBE_SCREENS.some(s => point.x >= s.frame.x && point.x <= s.frame.x + s.frame.width &&
+  const pointOnScreen = point => screenList().some(s => point.x >= s.frame.x && point.x <= s.frame.x + s.frame.width &&
     point.y >= s.frame.y && point.y <= s.frame.y + s.frame.height);
 
   const info = {
@@ -596,11 +673,8 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
       if (typeof callback === 'function') callback(app);
     },
     windowUnderPoint: point => {
-      for (const [handle, w] of Object.entries(PROBE_WINDOWS)) {
-        const f = w.frame;
-        if (point?.x >= f.x && point.x < f.x + f.width && point.y >= f.y && point.y < f.y + f.height) return windowObject(Number(handle));
-      }
-      return undefined;
+      const handle = [1, 2].find(h => contains(windowFrame(h), point));
+      return handle ? windowObject(handle) : undefined;
     },
     screenUnderPoint: point => {
       const index = orderedScreens().findIndex(s => point?.x >= s.frame.x && point.x <= s.frame.x + s.frame.width &&
@@ -619,7 +693,7 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
       if (text === 'previous' || text === 'prev' || text === 'left') return screenObject((current - 1 + screens.length) % screens.length);
       return undefined;
     },
-    screenCount: () => PROBE_SCREENS.length,
+    screenCount: () => screenList().length,
     eachScreen: callback => {
       if (typeof callback !== 'function') return;
       orderedScreens().forEach((_, index) => callback(screenObject(index)));
@@ -788,25 +862,29 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
       return name;
     },
     default: (screens, target) => {
+      // In config.json's shape: {"target", "count"} or {"target", "resolutions"}.
       let condition = null;
-      if (typeof screens === 'number') condition = {count: {_0: Math.trunc(screens)}};
+      if (typeof screens === 'number') condition = {count: Math.trunc(screens)};
       else if (typeof screens === 'string' && screens.trim()) {
-        condition = /^\d+$/.test(screens.trim()) ? {count: {_0: parseInt(screens, 10)}}
-          : {resolutions: {_0: screens.split(/[;,]/).map(s => s.trim()).filter(Boolean).sort()}};
-      } else if (Array.isArray(screens)) condition = {resolutions: {_0: screens.filter(s => typeof s === 'string').sort()}};
+        condition = /^\d+$/.test(screens.trim()) ? {count: parseInt(screens, 10)}
+          : {resolutions: screens.split(/[;,]/).map(s => s.trim()).filter(Boolean).sort()};
+      } else if (Array.isArray(screens)) condition = {resolutions: screens.filter(s => typeof s === 'string').sort()};
       if (!condition) {
         report('error', 'slate.default needs a screen count or an array of resolutions like ["1920x1080"].', callerLine());
         return;
       }
-      if (typeof target === 'string') defaults.push({target, condition});
-      else if (isOperation(target) && target[HIDDEN].action?.op === 'layout') defaults.push({target: target[HIDDEN].action.name, condition});
-      else report('warning', 'Only slate.default with a layout name can be imported.', callerLine());
+      if (typeof target === 'string') defaults.push({target, ...condition});
+      else if (isOperation(target) && target[HIDDEN].action?.op === 'layout') defaults.push({target: target[HIDDEN].action.name, ...condition});
+      else if (typeof target === 'function' || isOperation(target)) scriptDefaults.push(condition);
+      else report('warning', 'slate.default needs a layout name or a function.', callerLine());
     },
     shell: () => {
       sideEffect('slate.shell');
       return null;
     },
-    on: () => undefined,
+    on: name => {
+      if (EVENT_NAMES.includes(name)) events.add(name);
+    },
     info,
     ...info,
   };
@@ -868,46 +946,76 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
     }
   }
 
-  /** Runs a binding on the pretend desktop: {action} when it converts, else {reason}. */
+  /**
+   * Runs a binding once on a pretend desktop (one of PROBE_SETUPS): the operations it recorded, what it
+   * did besides (`effects`), whether it read the app's name or a window's title, and the reason it
+   * failed, if it did.
+   */
+  const runOn = (binding, setup) => {
+    probe.active = true;
+    probe.setup = setup;
+    probe.focused = 1;
+    probe.recorded = [];
+    probe.sideEffects = [];
+    probe.readAppOrTitle = false;
+    let error;
+    try {
+      runOperation(binding.operation, 1);
+    } catch (thrown) {
+      error = thrown instanceof ProbeError ? thrown.message : `throws an error when it runs: ${describeError(thrown)}`;
+    }
+    probe.active = false;
+    const run = {actions: probe.recorded, effects: [...new Set(probe.sideEffects)], readAppOrTitle: probe.readAppOrTitle, error};
+    probe.setup = PROBE_SETUPS.landscape[0];
+    return run;
+  };
+
+  /**
+   * Runs a binding on every pretend desktop: {action} when every run of an orientation records the same
+   * single operation (a `by-orientation` pair when the orientations differ), else {reason}.
+   */
   const probeBinding = binding => {
     if (binding.action) return {action: binding.action};
     const kind = binding.operation[HIDDEN].kind;
     if (kind === 'syntax') return {reason: `uses Slate syntax that needs a newer Slated engine to read: "${binding.operation[HIDDEN].text}"`};
     if (kind === 'chain' || kind === 'sequence') return {reason: `has a ${kind} with JavaScript steps, which needs the script`};
-    const runs = [];
-    for (const handle of [1, 2]) {
-      probe.active = true;
-      probe.focused = handle;
-      probe.recorded = [];
-      probe.sideEffects = [];
-      try {
-        runOperation(binding.operation, handle);
-      } catch (error) {
-        probe.active = false;
-        if (error instanceof ProbeError) return {reason: error.message};
-        return {reason: `throws an error when it runs: ${describeError(error)}`};
+    const actions = [];
+    for (const setups of [PROBE_SETUPS.landscape, PROBE_SETUPS.portrait]) {
+      let first = null;
+      for (const setup of setups) {
+        const run = runOn(binding, setup);
+        if (run.error) return {reason: run.error};
+        if (run.effects.length) return {reason: `uses ${run.effects.join(', ')}, which needs the script`};
+        if (!run.actions.length) return {reason: "doesn't run an operation on a test window"};
+        if (run.actions.length > 1) return {reason: 'runs several operations at once, which needs the script'};
+        // A compared name (`=== "Terminal"`) can't be found by trying other names.
+        if (run.readAppOrTitle) return {reason: OTHER_APP};
+        if (first === null) first = run.actions[0];
+        else if (!deepEqual(run.actions[0], first)) return {reason: setup.change};
       }
-      probe.active = false;
-      if (probe.sideEffects.length) {
-        return {reason: `uses ${[...new Set(probe.sideEffects)].join(', ')}, which needs the script`};
-      }
-      runs.push(probe.recorded);
+      actions.push(first);
     }
-    const [landscape, portrait] = runs;
-    if (!landscape.length || !portrait.length) return {reason: "doesn't run an operation on a test window"};
-    if (landscape.length > 1 || portrait.length > 1) return {reason: 'runs several operations at once, which needs the script'};
-    if (deepEqual(landscape[0], portrait[0])) return {action: landscape[0]};
-    return {action: {op: 'by-orientation', landscape: landscape[0], portrait: portrait[0]}};
+    const [landscape, portrait] = actions;
+    if (deepEqual(landscape, portrait)) return {action: landscape};
+    return {action: {op: 'by-orientation', landscape, portrait}};
   };
 
-  return {bindings, layouts, defaults, settings, diagnostics, probe: probeBinding};
+  return {
+    bindings, layouts, defaults, scriptDefaults, settings, functionSettings: Object.keys(configFunctions).sort(),
+    events: EVENT_NAMES.filter(name => events.has(name)), diagnostics, probe: probeBinding, runOn,
+  };
 }
+
 
 /**
  * Converts a Slate JavaScript config into Slated bindings.
  *
- * @returns {{bindings: Array, skipped: Array<{keystroke, reason}>, layouts: Array, settings: object,
- *   diagnostics: Array}}
+ * `skipped` stays in the script, which then keeps loading; `neverRun` (handlers for events GNOME never
+ * delivers) isn't imported and doesn't keep it loading. `settings` leaves out the ones a function
+ * computes, and `defaults` are the display defaults naming a layout, in config.json's shape.
+ *
+ * @returns {{bindings: Array, skipped: Array<{keystroke, reason}>, neverRun: Array<{keystroke, reason}>,
+ *   layouts: Array, settings: object, defaults: Array, diagnostics: Array}}
  */
 export function importSlateScript(source, options = {}) {
   const makeId = options.makeId ?? newId;
@@ -922,15 +1030,35 @@ export function importSlateScript(source, options = {}) {
     }
     const out = {id: makeId(), keys: binding.keys, action: result.action, enabled: true};
     if (binding.modal) out.modal = binding.modal;
+    // An explicit `repeat` argument carries over. Without one, a static operation keeps following
+    // repeatOnHoldOps, and a bound function keeps Slate's rule: no repeat unless asked.
+    if (binding.repeats !== null) out.repeats = binding.repeats;
+    else if (binding.operation[HIDDEN].kind === 'function') out.repeats = false;
     bindings.push(out);
   }
+  // Slate files stop loading after an import that skipped nothing, so everything else the script set
+  // up that doesn't become part of config.json is listed too; the file then keeps running it.
+  const neverRun = [];
+  for (const event of loaded.events) {
+    const handler = `slate.on("${event}")`;
+    if (DELIVERED_EVENTS.has(event)) skipped.push({keystroke: handler, reason: 'event handlers need JavaScript'});
+    else neverRun.push({keystroke: handler, reason: "GNOME doesn't hide apps, so this never runs"});
+  }
+  // A copy of a function's value in config.json would freeze it, and override the function for good.
+  for (const name of loaded.functionSettings) {
+    skipped.push({keystroke: `slate.config("${name}")`, reason: 'its value comes from a JavaScript function'});
+  }
+  const settings = Object.fromEntries(Object.entries(loaded.settings).filter(([name]) => !loaded.functionSettings.includes(name)));
   for (const layout of loaded.layouts) {
     if (layout.javascript) skipped.push({keystroke: `layout "${layout.name}"`, reason: 'has operations that run JavaScript'});
   }
   const layouts = loaded.layouts.filter(l => !l.javascript).map(({javascript, ...rest}) => rest);
-  // Like the macOS importer, display defaults (`slate.default`) stay in the script: only classic
-  // .slate files contribute them.
-  return {bindings, skipped, layouts, settings: loaded.settings, defaults: [], diagnostics: loaded.diagnostics};
+  for (const condition of loaded.scriptDefaults) {
+    const displays = condition.count !== undefined ? (condition.count === 1 ? '1 screen' : `${condition.count} screens`)
+      : condition.resolutions.join(', ');
+    skipped.push({keystroke: `slate.default(${displays})`, reason: 'runs JavaScript'});
+  }
+  return {bindings, skipped, neverRun, layouts, settings, defaults: loaded.defaults, diagnostics: loaded.diagnostics};
 }
 
 /** A classic ~/.slate file through the engine: {bindings, layouts, settings, defaults, diagnostics}. */
@@ -955,17 +1083,23 @@ export function importClassic(text, {path, home = '/home/user', readFile = () =>
 /**
  * The configuration after importing the given sources (port of Engine.importSlateConfigs):
  * bindings whose keys Slated already uses are left out, the scripts' settings fill in what
- * config.json doesn't set, layouts are added by name, and when everything converted, Slate files
- * stop loading (they would only duplicate the imported bindings).
+ * config.json doesn't set, layouts and display defaults are added once, and when everything converted,
+ * Slate files stop loading (they would only duplicate the imported bindings). When they keep loading,
+ * the imported shortcuts go into general.importedSlateShortcuts, so the files' own copies are ignored
+ * and the imported ones can be changed or deleted here.
  *
  * @param {object} config the current configuration
  * @param {Array<{path: string, result: object}>} results importSlateScript/importClassic results
+ * @param {object} [options]
+ * @param {boolean} [options.keepLoading] keep Slate files loading even if nothing was skipped (a file
+ *   couldn't be read)
  */
-export function planImport(config, results) {
+export function planImport(config, results, {keepLoading = false} = {}) {
   const next = JSON.parse(JSON.stringify(config));
   const bound = new Set(next.bindings.map(b => statusKey(b.keys, b.modal)));
   const added = [];
   const skipped = [];
+  const neverRun = [];
   const duplicates = [];
   for (const {path, result} of results) {
     for (const binding of result.bindings) {
@@ -979,12 +1113,22 @@ export function planImport(config, results) {
       added.push(binding);
     }
     skipped.push(...result.skipped.map(s => ({path, keystroke: s.keystroke, reason: s.reason})));
+    neverRun.push(...(result.neverRun ?? []).map(s => ({path, keystroke: s.keystroke, reason: s.reason})));
     next.settings = {...(result.settings ?? {}), ...next.settings};
     for (const layout of result.layouts ?? []) {
       if (!next.layouts.some(l => l.name === layout.name)) next.layouts.push(layout);
     }
-    next.defaults = [...(next.defaults ?? []), ...(result.defaults ?? [])];
+    next.defaults = next.defaults ?? [];
+    for (const entry of result.defaults ?? []) {
+      if (!next.defaults.some(d => deepEqual(d, entry))) next.defaults.push(entry);
+    }
   }
-  if (!skipped.length) next.general = {...next.general, loadSlateConfigs: false};
-  return {config: next, added, skipped, duplicates, stopsLoading: !skipped.length};
+  const stopsLoading = !skipped.length && !keepLoading;
+  if (stopsLoading) {
+    next.general = {...next.general, loadSlateConfigs: false};
+  } else if (added.length) {
+    const imported = [...(next.general.importedSlateShortcuts ?? []), ...added.map(b => statusKey(b.keys, b.modal))];
+    next.general = {...next.general, importedSlateShortcuts: [...new Set(imported)].sort()};
+  }
+  return {config: next, added, skipped, neverRun, duplicates, stopsLoading};
 }

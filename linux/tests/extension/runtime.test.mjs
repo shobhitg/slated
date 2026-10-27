@@ -268,6 +268,28 @@ test('first run with ~/.slate.js starts empty and loads the Slate file', () => {
   runtime.stop();
 });
 
+test("shortcuts imported from a Slate file that keeps loading replace the file's copies", () => {
+  writeFileSync(join(home, '.slate.js'), readFileSync(join(repo, 'Tests/Smoke/fixtures/slate.js')));
+  // Imported, then deleted (hyper+a) and moved to ctrl+alt+x (hyper+w) in the settings window.
+  writeConfig({general: {importedSlateShortcuts: ['hyper+a', 'hyper+w']}, bindings: [{keys: 'ctrl+alt+x', action: leftHalf}]});
+  const runtime = startRuntime();
+  assert.deepEqual(status().hotkeys, {'ctrl+alt+x': 'active', 'hyper+f': 'active', 'hyper+tab': 'active'});
+  runtime.stop();
+});
+
+test("config.json's display default wins over a Slate file's for the same displays, as its bindings do", () => {
+  writeFileSync(join(home, '.slate.js'), readFileSync(join(repo, 'Tests/Smoke/fixtures/slate-default-everywhere.js')));
+  const counts = [1, 2, 3, 4, 5, 6];
+  writeConfig({
+    settings: {checkDefaultsOnLoad: true},
+    layouts: [{name: 'native'}],
+    defaults: counts.map((count) => ({target: 'native', count})),
+  });
+  const runtime = startRuntime();
+  assert.deepEqual(events('action.done').map((e) => e.data.action), ['layout native']);
+  runtime.stop();
+});
+
 test('first run without a Slate config writes the starter bindings', () => {
   const runtime = startRuntime();
   assert.equal(events('config.created')[0].data.from, 'starter bindings');

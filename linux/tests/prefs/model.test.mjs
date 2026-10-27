@@ -218,6 +218,12 @@ export default suite('Preferences model', [
     expectEqual(model.binding(id).action, half, 'functions are copied as their probed operation');
     expect(model.isCopied(source));
     expectEqual(model.otherUses('hyper+a', null, null), ['“Left Half”', '“JavaScript function” in ~/.slate.js']);
+    // Once imported from a file that keeps loading, the file's copy is ignored: not another use.
+    model.update(config => {
+      config.general.importedSlateShortcuts = ['hyper+a'];
+    });
+    expectEqual(model.otherUses('hyper+a', null, null), ['“Left Half”']);
+    expectEqual(model.sourceBindingState(source).state, 'imported');
   }],
   ['renaming a layout keeps the shortcuts that apply it', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({

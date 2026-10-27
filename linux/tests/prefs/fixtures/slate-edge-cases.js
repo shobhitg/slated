@@ -49,7 +49,10 @@ S.bnd("f1:ctrl", function (win) { slate.shell("/usr/bin/true", false); });
 // Functions that do exactly one thing convert.
 S.bnd("f2:ctrl", function (win) { win.doop("focus", {"direction": "left"}); });
 S.bnd("f3:ctrl", function () { slate.doOperation(full); });
-S.bnd("f4:ctrl", (win) => win.doOperation(S.window().screen().rect().height > 1200 ? right : left));
+S.bnd("f4:ctrl", (win) => {
+  var r = S.window().screen().rect();
+  win.doOperation(r.height > r.width ? right : left);
+});
 
 // Modal keys: press ctrl+alt+f6, then the key.
 S.bnd("m:f6,ctrl,alt", left);

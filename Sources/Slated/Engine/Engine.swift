@@ -228,7 +228,10 @@ final class Engine {
             trigger: "hotkey \((binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string)", source: "Slated")
         }
       }
-      entries += sources.entries(settings: settings)
+      // Shortcuts imported from a Slate file that keeps loading are Settings' now: the file's copies
+      // would come back as soon as one is deleted or moved there.
+      let imported = Set(config.general.importedSlateShortcuts)
+      entries += sources.entries(settings: settings).filter { !imported.contains($0.id) }
       entries += builtInEntries(config)
       let disabled = config.bindings.filter { !$0.enabled }.map { binding in
         (binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string
@@ -456,8 +459,10 @@ final class Engine {
       CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, name: $0.name, action: $0.action)
     }
     if config.general.loadSlateConfigs {
+      // Imported shortcuts are already listed as Slated's own (see apply).
+      let imported = Set(config.general.importedSlateShortcuts)
       for source in sources.sources where source.loaded {
-        result += source.bindings.map {
+        result += source.bindings.filter { !imported.contains($0.id) }.map {
           CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, action: $0.action, summary: $0.summary)
         }
       }
@@ -542,7 +547,9 @@ final class Engine {
     let screens = Screens.current()
     let resolutions = screens.map(\.resolution).sorted()
     Log.record("display.changed", ["screens": screens.count, "resolutions": resolutions])
-    for entry in sources.defaults + store.configuration.defaults {
+    // Slated's own come first, as with bindings: an imported default edited in Settings wins over
+    // the copy still in a Slate file that keeps loading.
+    for entry in store.configuration.defaults + sources.defaults {
       let matches: Bool
       switch entry.condition {
       case .count(let n): matches = screens.count == n
@@ -572,7 +579,48 @@ final class Engine {
 
   struct ImportSummary {
     var imported: Int
+    /// What stays in the Slate files, which keep loading for it ("what: why").
     var skipped: [String]
+    /// What isn't imported because it never runs in Slated ("what: why").
+    var neverRun: [String] = []
+    /// Slate files imported not at all, because their test run may not match this Mac ("file: why").
+    /// They keep loading.
+    var problems: [String] = []
+    /// Everything else reading the files reported.
+    var warnings: [String] = []
+
+    /// Whether the Slate files keep loading after the import.
+    var keepsLoading: Bool { !skipped.isEmpty || !problems.isEmpty }
+
+    /// The import alert's title and text.
+    var title: String { "Imported \(imported) bindings" }
+    var message: String {
+      var parts: [String] = []
+      if !keepsLoading {
+        parts.append(
+          "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
+        )
+      }
+      if keepsLoading && imported > 0 {
+        parts.append(
+          "The imported shortcuts now run from Slated's configuration, where you can edit them in Settings; the Slate file's own copies of them are ignored."
+        )
+      }
+      if !problems.isEmpty {
+        parts.append(
+          "Not imported, and still loaded, because the import's test run may not match this Mac:\n"
+            + problems.joined(separator: "\n"))
+      }
+      if !skipped.isEmpty {
+        parts.append("These need JavaScript and still run from your Slate file:\n" + skipped.joined(separator: "\n"))
+      }
+      if !neverRun.isEmpty { parts.append("Not imported:\n" + neverRun.joined(separator: "\n")) }
+      if !warnings.isEmpty {
+        let more = warnings.count > 5 ? "\n…and \(warnings.count - 5) more" : ""
+        parts.append("Warnings from your Slate files:\n" + warnings.prefix(5).joined(separator: "\n") + more)
+      }
+      return parts.joined(separator: "\n\n")
+    }
   }
 
   /// Copies the bindings from the Slate config files into Slated's own configuration, so they can be
@@ -583,10 +631,15 @@ final class Engine {
     var bound = Set(config.bindings.map { (($0.modal?.keys.string).map { $0 + " " } ?? "") + $0.keys.string })
     var imported = 0
     var skipped: [String] = []
+    var neverRun: [String] = []
+    var problems: [String] = []
+    var warnings: [String] = []
+    var importedIDs: [String] = []
     func add(_ binding: HotkeyBinding) {
       let id = ((binding.modal?.keys.string).map { $0 + " " } ?? "") + binding.keys.string
       guard bound.insert(id).inserted else { return }
       config.bindings.append(binding)
+      importedIDs.append(id)
       imported += 1
     }
     for raw in config.general.slateConfigPaths {
@@ -594,23 +647,48 @@ final class Engine {
       guard FileManager.default.fileExists(atPath: path) else { continue }
       if path.hasSuffix(".js") {
         let result = SlateImporter.importJavaScript(path: path)
+        warnings += result.diagnostics.filter { $0.severity != .error }.map(\.description)
+        guard result.problems.isEmpty else {
+          // What it imported may differ from what it does here (and Slated's copy would win): take
+          // nothing from it, and keep it loading.
+          problems += result.problems.map { "\(raw): \($0)" }
+          continue
+        }
         result.bindings.forEach(add)
         skipped += result.skipped.map { "\($0.keystroke): \($0.reason)" }
-        // Settings the script set, without overriding ones already in Slated's config.
-        config.settings = sources.javascript.settings.merging(config.settings)
+        neverRun += result.neverRun.map { "\($0.keystroke): \($0.reason)" }
+        // Settings the script set, without overriding ones already in Slated's config. Those a
+        // function computes keep coming from the script (see SlateImporter.Result.functionSettings).
+        var settings = sources.javascript.settings
+        for name in result.functionSettings { settings[name] = nil }
+        config.settings = settings.merging(config.settings)
         config.layouts += sources.javascript.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
+        config.defaults += result.defaults.filter { !config.defaults.contains($0) }
       } else if let text = try? String(contentsOfFile: path, encoding: .utf8) {
         let file = SlateConfigParser.parse(text, path: path)
+        warnings += file.diagnostics.map(\.description)
         file.bindings.forEach(add)
         config.settings = file.settings.merging(config.settings)
         config.layouts += file.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
-        config.defaults += file.defaults
+        config.defaults += file.defaults.filter { !config.defaults.contains($0) }
       }
     }
-    if skipped.isEmpty { config.general.loadSlateConfigs = false }
+    let summary = ImportSummary(
+      imported: imported, skipped: skipped, neverRun: neverRun, problems: problems, warnings: warnings)
+    if summary.keepsLoading {
+      // The files still bind these keys; from now on Slated's copies are the only ones (see apply).
+      config.general.importedSlateShortcuts = Set(config.general.importedSlateShortcuts + importedIDs).sorted()
+    } else {
+      config.general.loadSlateConfigs = false
+    }
     try save(config)
-    Log.record("slate.imported", ["imported": imported, "skipped": skipped])
-    return ImportSummary(imported: imported, skipped: skipped)
+    Log.record(
+      "slate.imported",
+      [
+        "imported": imported, "skipped": skipped, "neverRun": neverRun, "problems": problems.map(LogPrivacy.message),
+        "warnings": warnings.count,
+      ])
+    return summary
   }
 
   // MARK: Launch at login
