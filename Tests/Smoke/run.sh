@@ -355,6 +355,14 @@ expect_output "the import says what stays in the Slate file" "$out" \
 expect_true "a static setting is copied into config.json" test "$(setting_of "$home" nudgePercentOf)" = screenSize
 expect_true "a setting a function computes isn't copied, so the script keeps setting it" \
   test "$(setting_of "$home" windowHintsCharacters)" = none
+expect_output "a file with something left in it keeps loading" "$out" "loadSlateConfigs: true"
+# A window event handler never runs in Slated, so it doesn't keep the file loaded, and the alert says so.
+home=$(new_home)
+cp "$FIXTURES/slate-window-events.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+expect_output "the import says a window event handler never runs" "$out" \
+  "slate.on(\"windowOpened\"): Slated doesn't deliver window events, so this never runs"
+expect_output "and turns the file off" "$out" "loadSlateConfigs: false"
 
 echo
 echo "$passed passed, $failed failed"

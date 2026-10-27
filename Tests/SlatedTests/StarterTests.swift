@@ -166,9 +166,14 @@ func importerReportsWhatItLeavesBehind() throws {
   expectEqual(
     result.skipped.map(\.keystroke),
     [
-      #"slate.on("windowOpened")"#, #"slate.on("appActivated")"#, #"slate.config("defaultToCurrentScreen")"#,
+      #"slate.on("appActivated")"#, #"slate.config("defaultToCurrentScreen")"#,
       #"slate.layout("js")"#, "slate.default(2 screens)", "slate.default(1440x900, 1920x1080)",
     ])
+  // Slated never delivers window events, so these handlers don't run with or without the import, and
+  // don't keep the file loaded.
+  expectEqual(
+    result.neverRun.map { "\($0.keystroke): \($0.reason)" },
+    [#"slate.on("windowOpened"): Slated doesn't deliver window events, so this never runs"#])
 
   // A config with only bindings and plain layouts leaves nothing behind.
   let plain = SlateImporter.importJavaScript(

@@ -16,6 +16,9 @@ public enum SlateImporter {
     public var bindings: [HotkeyBinding]
     /// Keystrokes that couldn't be converted, with the reason.
     public var skipped: [(keystroke: String, reason: String)]
+    /// What the import leaves out because it never runs in Slated anyway (handlers for window
+    /// events), with the reason. Unlike `skipped`, these don't need the file to stay loaded.
+    public var neverRun: [(keystroke: String, reason: String)]
     /// `slate.config` names whose value comes from a function. They stay in the script (and are
     /// skipped): a copy in Slated's settings would freeze today's value and, since Slated's own
     /// settings win, override the function for good.
@@ -58,8 +61,14 @@ public enum SlateImporter {
     // The app turns the Slate files off after an import that skipped nothing, so everything else the
     // script set up that doesn't become part of Slated's config is listed too; the file then keeps
     // running it. Plain layouts and settings are imported by the app.
+    var neverRun: [(String, String)] = []
     for event in ScriptEventName.allCases where loaded.events.contains(event) {
-      skipped.append(("slate.on(\"\(event.rawValue)\")", "event handlers need JavaScript"))
+      let handler = "slate.on(\"\(event.rawValue)\")"
+      if ScriptEventName.delivered.contains(event) {
+        skipped.append((handler, "event handlers need JavaScript"))
+      } else {
+        neverRun.append((handler, "Slated doesn't deliver window events, so this never runs"))
+      }
     }
     for name in engine.configFunctions.keys.sorted() {
       skipped.append(("slate.config(\"\(name)\")", "its value comes from a JavaScript function"))
@@ -72,7 +81,7 @@ public enum SlateImporter {
       skipped.append(("slate.default(\(describe(entry.condition)))", reason))
     }
     return Result(
-      bindings: bindings, skipped: skipped, functionSettings: engine.configFunctions.keys.sorted(),
+      bindings: bindings, skipped: skipped, neverRun: neverRun, functionSettings: engine.configFunctions.keys.sorted(),
       diagnostics: loaded.diagnostics)
   }
 

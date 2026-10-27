@@ -572,14 +572,21 @@ final class Engine {
 
   struct ImportSummary {
     var imported: Int
+    /// What stays in the Slate files, which keep loading for it ("what: why").
     var skipped: [String]
+    /// What isn't imported because it never runs in Slated ("what: why").
+    var neverRun: [String] = []
 
     /// The import alert's title and text.
     var title: String { "Imported \(imported) bindings" }
     var message: String {
-      skipped.isEmpty
-        ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
-        : "These need JavaScript and still run from your Slate file:\n" + skipped.joined(separator: "\n")
+      var parts = [
+        skipped.isEmpty
+          ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
+          : "These need JavaScript and still run from your Slate file:\n" + skipped.joined(separator: "\n")
+      ]
+      if !neverRun.isEmpty { parts.append("Not imported:\n" + neverRun.joined(separator: "\n")) }
+      return parts.joined(separator: "\n\n")
     }
   }
 
@@ -591,6 +598,7 @@ final class Engine {
     var bound = Set(config.bindings.map { (($0.modal?.keys.string).map { $0 + " " } ?? "") + $0.keys.string })
     var imported = 0
     var skipped: [String] = []
+    var neverRun: [String] = []
     func add(_ binding: HotkeyBinding) {
       let id = ((binding.modal?.keys.string).map { $0 + " " } ?? "") + binding.keys.string
       guard bound.insert(id).inserted else { return }
@@ -604,6 +612,7 @@ final class Engine {
         let result = SlateImporter.importJavaScript(path: path)
         result.bindings.forEach(add)
         skipped += result.skipped.map { "\($0.keystroke): \($0.reason)" }
+        neverRun += result.neverRun.map { "\($0.keystroke): \($0.reason)" }
         // Settings the script set, without overriding ones already in Slated's config. Those a
         // function computes keep coming from the script (see SlateImporter.Result.functionSettings).
         var settings = sources.javascript.settings
@@ -620,8 +629,8 @@ final class Engine {
     }
     if skipped.isEmpty { config.general.loadSlateConfigs = false }
     try save(config)
-    Log.record("slate.imported", ["imported": imported, "skipped": skipped])
-    return ImportSummary(imported: imported, skipped: skipped)
+    Log.record("slate.imported", ["imported": imported, "skipped": skipped, "neverRun": neverRun])
+    return ImportSummary(imported: imported, skipped: skipped, neverRun: neverRun)
   }
 
   // MARK: Launch at login
