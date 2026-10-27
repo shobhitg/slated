@@ -120,6 +120,15 @@ expect_output "a broken config.json is reported" "$out" "Couldn't read"
 expect_true "a broken config.json doesn't crash Slated" test "$status" -eq 0
 expect_output "the event log records the config error" "$(log_of "$home")" '"event":"config.error","level":"error"'
 
+# 5a. A syntax error says where it is, in the message Settings shows too (what loadConfiguration
+#     throws), not just "The given data was not valid JSON."
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+cp "$FIXTURES/config-syntax-error.json" "$home/.config/slated/config.json"
+out=$(SLATED_SMOKE_STEPS=save smoke "$home")
+expect_true "a syntax error in config.json says where it is" \
+  grep -qE "^settings save: refused: Couldn't read .*config.json: .*around line 4, column 25" <<<"$out"
+
 # 5b. Saving never replaces a config.json Slated couldn't read: it may only need a small fix.
 home=$(new_home)
 mkdir -p "$home/.config/slated"

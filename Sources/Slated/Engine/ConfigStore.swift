@@ -128,7 +128,10 @@ final class ConfigStore {
   static func describe(_ error: Error) -> String {
     switch error {
     case DecodingError.dataCorrupted(let context):
-      return context.debugDescription + Self.path(context.codingPath)
+      // A syntax error says where it is only in the underlying error ("Unexpected character '}' in
+      // object around line 6, column 1."); its own description is just "not valid JSON".
+      let underlying = (context.underlyingError as NSError?)?.userInfo[NSDebugDescriptionErrorKey] as? String
+      return (underlying ?? context.debugDescription) + Self.path(context.codingPath)
     case DecodingError.keyNotFound(let key, let context):
       return "missing \"\(key.stringValue)\"" + Self.path(context.codingPath)
     case DecodingError.typeMismatch(_, let context), DecodingError.valueNotFound(_, let context):
