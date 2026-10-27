@@ -208,8 +208,11 @@ export function actionProblems(action, knownLayouts = new Set()) {
   case 'insert-text': return !a.text ? err('Enter the text to insert.') : [];
   case 'open-url': {
     const url = String(a.url ?? '');
-    const m = /^([a-zA-Z][a-zA-Z0-9+.-]*):(.*)$/.exec(url);
-    if (!m || !m[2] || url.endsWith('://') || /\s/.test(url)) return err('Enter a full URL, like https://example.com.');
+    const m = /^([a-zA-Z][a-zA-Z0-9+.-]*):(.*)$/s.exec(url);
+    // As the Mac's URL(string:) has it: whitespace in a path or query is percent-encoded, so
+    // "…/search?q=a b" is fine, but not in the host or port.
+    const host = m && m[2].startsWith('//') ? m[2].slice(2).split(/[/?#]/)[0].split('@').pop() : '';
+    if (!m || !m[2] || url.endsWith('://') || /\s/.test(host)) return err('Enter a full URL, like https://example.com.');
     return [];
   }
   case 'keystroke': {
@@ -234,7 +237,8 @@ function hotstringIssues(hotstrings) {
       issues.push(issue('error', t, 'trigger', 'Type a trigger.'));
       continue;
     }
-    if (/[\r\n]/.test(trigger)) issues.push(issue('error', t, 'trigger', "A trigger can't contain a line break."));
+    // Every character Swift's Character.isNewline takes for one.
+    if (/[\n\v\f\r\u0085\u2028\u2029]/.test(trigger)) issues.push(issue('error', t, 'trigger', "A trigger can't contain a line break."));
     if (!h.replacement && h.action === undefined) {
       issues.push(issue('warning', t, 'replacement', 'The replacement is empty, so the trigger will just be deleted.'));
     }
@@ -337,7 +341,8 @@ export function configChanges(oldConfig, newConfig) {
   }
   if (!deepEqual(oldConfig.general, newConfig.general)) {
     const g = newConfig.general ?? {};
-    changes.push(`general: launchAtLogin ${g.launchAtLogin}, loadSlateConfigs ${g.loadSlateConfigs}, showActionHUD ${g.showActionHUD}`);
+    changes.push(`general: launchAtLogin ${g.launchAtLogin}, loadSlateConfigs ${g.loadSlateConfigs}, showActionHUD ${g.showActionHUD}, `
+      + `hotstringsEnabled ${g.hotstringsEnabled}`);
   }
   const oldSettings = oldConfig.settings ?? {};
   const newSettings = newConfig.settings ?? {};
