@@ -178,6 +178,8 @@ export class SlatedRuntime {
       };
       // Reloading re-grabs shortcuts; never do that from inside Mutter's key handling.
       this._runner.onRelaunch = () => this.scheduleReload('relaunch');
+      // An auto-clicker started from the overview would click into it.
+      this._runner.automationBlocked = () => (Main.overview?.visible ? 'the overview is open' : null);
     });
     this._step('automation', () => {
       this._automation = new AutomationEngine({

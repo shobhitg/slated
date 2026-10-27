@@ -569,6 +569,26 @@ test('keys and text say who sends them; stop-automations drops what automations 
   assert.equal(dropped, 1);
 });
 
+test('while automations can’t start, only shortcuts that would start one are ignored', () => {
+  const {runner, sent, log} = automationSetup();
+  let blocked = 'the overview is open';
+  runner.automationBlocked = () => blocked;
+  assert.equal(runner.run('click left', {trigger: 't'}), true, 'one click isn’t an automation');
+  assert.equal(runner.run('press key:w up', {trigger: 't'}), true);
+  assert.equal(runner.run('stop-automations', {trigger: 't'}), true);
+  assert.equal(runner.run('sequence click left | wait 1', {trigger: 't'}), true, 'a wait at the end holds nothing up');
+  assert.equal(runner.run({op: 'chain', operations: ['click left', 'hold key:w']}, {trigger: 't'}), false);
+  assert.equal(runner.lastFailure, "Automations don't start while the overview is open");
+  assert.equal(runner.run({op: 'by-orientation', landscape: 'click left', portrait: 'repeat 0.1 "click left"'}, {trigger: 't'}), false);
+  assert.equal(runner.run({op: 'sequence', operations: ['click left', 'wait 1', 'click left']}, {trigger: 't'}), false);
+  blocked = null;
+  runner.run('hold key:w', {trigger: 'hotkey hyper+w'});
+  blocked = 'the overview is open';
+  assert.equal(runner.run('hold key:w', {trigger: 'hotkey hyper+w'}), true, 'a second press still lets go');
+  assert.deepEqual(sent, ['w down', 'w up']);
+  assert.deepEqual(log.named('automation.start_ignored').map((e) => e.data), Array(3).fill({reason: 'the overview is open', trigger: 't', source: null}));
+});
+
 test('clipboard-history opens the switcher, or fails with the reason', () => {
   const {runner, errors} = automationSetup();
   let result = {ok: true};

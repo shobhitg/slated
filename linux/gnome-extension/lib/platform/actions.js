@@ -86,6 +86,11 @@ export class ActionRunner {
     this.externalLayout = null;
     /** Auto-repeats and held inputs (automation.js `AutomationEngine`). */
     this.automation = null;
+    /**
+     * Why automations can't start right now ("the overview is open"), or null. A shortcut that would
+     * start one is then ignored; one that stops or toggles one off still runs.
+     */
+    this.automationBlocked = null;
     /** Clipboard history (clipboard.js `ClipboardService`). */
     this.clipboard = null;
 
@@ -118,6 +123,12 @@ export class ActionRunner {
    * on which app, how long it took, and the error if it failed.
    */
   run(action, {window = null, label = null, chainKey = null, trigger = 'unknown', source = null} = {}) {
+    const blocked = this.automationBlocked?.() ?? null;
+    if (blocked && this._startsAutomation(action, trigger)) {
+      this.log?.record('automation.start_ignored', {reason: blocked, trigger, source}, 'notice');
+      this._lastFailure = `Automations don't start while ${blocked}`;
+      return false;
+    }
     return this._logged(
       {trigger, source, label},
       () => this.describe(redactForLog(action)),
@@ -259,6 +270,48 @@ export class ActionRunner {
       this._context = outer.context;
       this._lastFailure = outer.failure;
       this._lastApp = outer.app;
+    }
+  }
+
+  /**
+   * Whether running `action` for `trigger` would start an automation rather than stop one: an
+   * auto-repeat this trigger doesn't run yet, holding or pressing down an input that isn't held, or a
+   * macro with one of those or with steps after a `wait` (it then counts as running).
+   */
+  _startsAutomation(action, trigger) {
+    if (typeof action === 'string') {
+      try {
+        action = this.core.parseOperation(action);
+      } catch {
+        return false;
+      }
+    }
+    if (!action || typeof action !== 'object') return false;
+    switch (action.op) {
+      case 'repeat':
+        return !this.automation?.isRepeating(trigger);
+      case 'hold':
+        return !this.automation?.isHeld(action.input);
+      case 'press':
+        return action.phase !== 'up' && !this.automation?.isHeld(action.input);
+      case 'sequence': {
+        const steps = sequenceSteps(action);
+        return steps.some((step, i) => {
+          let parsed = step.action;
+          try {
+            if (typeof parsed === 'string') parsed = this.core.parseOperation(parsed);
+          } catch {
+            return false;
+          }
+          return (parsed?.op === 'wait' && i + 1 < steps.length) || this._startsAutomation(parsed, trigger);
+        });
+      }
+      case 'chain':
+        return (action.operations ?? []).some((operation) => this._startsAutomation(operation, trigger));
+      case 'by-orientation':
+        return [action.landscape, action.portrait].some((operation) => this._startsAutomation(operation, trigger));
+      default:
+        return false;
     }
   }
 

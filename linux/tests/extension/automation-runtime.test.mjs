@@ -164,6 +164,41 @@ test('the overview counts as leaving the game: automations stop and its plain-ke
   assert.ok(gnome.accelerators().includes('f'), 'back in the game');
 });
 
+test('in the overview, shortcuts that would start an automation are ignored; stopping one still works', () => {
+  start({bindings: [
+    {keys: 'hyper+f', action: autoClick},
+    {keys: 'hyper+w', action: 'hold key:w'},
+    {keys: 'f6', action: 'sequence press key:w down | wait 2 | press key:w up | click left'},
+    {keys: 'f7', action: 'sequence click left | wait 1 | click left'},
+  ], automation: {stopOnAppSwitch: false}});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.overview(true);
+  for (const accelerator of [`${HYPER}f`, `${HYPER}w`, 'F6', 'F7']) assert.ok(gnome.press(accelerator));
+  gnome.loop.advance(3000);
+  assert.deepEqual([clicks(), gnome.state.typed.length], [0, 0], 'nothing clicks or presses into the overview');
+  assert.deepEqual(events('automation.start_ignored').map((e) => [e.data.trigger, e.data.reason]), [
+    ['hotkey hyper+f', 'the overview is open'], ['hotkey hyper+w', 'the overview is open'],
+    ['hotkey f6', 'the overview is open'], ['hotkey f7', 'the overview is open'],
+  ]);
+  assert.equal(events('action.done').length, 0);
+  gnome.overview(false);
+
+  // Started in the game, they go on in the overview here (stopOnAppSwitch is off): a second press
+  // and the stop shortcut still stop them there.
+  gnome.press(`${HYPER}f`);
+  gnome.press(`${HYPER}w`);
+  gnome.overview(true);
+  gnome.press(`${HYPER}w`);
+  assert.deepEqual(gnome.state.typed.at(-1), {keysym: 0x77, pressed: false}, 'W toggled off');
+  gnome.press(`${HYPER}Escape`);
+  const atStop = clicks();
+  gnome.loop.advance(1000);
+  assert.equal(clicks(), atStop);
+  assert.equal(events('automation.stopped_all').at(-1).data.reason, 'stop shortcut');
+  assert.equal(events('automation.start_ignored').length, 4);
+  gnome.overview(false);
+});
+
 test('mouse button triggers fail with the keyd hint', () => {
   start({bindings: [{keys: 'mouse4', action: 'hold mouse:right'}, {keys: 'ctrl+mouse5', action: 'click'}]});
   const s = status();
