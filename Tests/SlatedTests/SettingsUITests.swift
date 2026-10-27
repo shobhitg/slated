@@ -231,6 +231,33 @@ let uiValidationTests = Suite(
       }
     ),
     (
+      "hotstrings kept to different apps don't clash; overlapping ones do",
+      {
+        try onMain {
+          let mail = "com.apple.mail"
+          let messages = "com.apple.MobileSMS"
+          var config = SlatedConfiguration()
+          let mailSignature = Hotstring(trigger: ";sig", replacement: "Best, S", onlyInApps: [mail])
+          let chatSignature = Hotstring(trigger: ";sig", replacement: "cheers", onlyInApps: [messages])
+          let notInMail = Hotstring(trigger: ";e", replacement: "e", exceptInApps: [mail])
+          let mailOnlyEmail = Hotstring(trigger: ";email", replacement: "a@b.c", onlyInApps: [mail])
+          config.hotstrings = [mailSignature, chatSignature, notInMail, mailOnlyEmail]
+          // The matcher only considers hotstrings available in the app in front: each one fires there.
+          expect(ConfigValidator.validate(config, knownLayouts: []).isEmpty)
+
+          let everywhere = Hotstring(trigger: ";sig", replacement: "S.")
+          let chatEmail = Hotstring(trigger: ";email", replacement: "a@b.c", onlyInApps: [messages])
+          config.hotstrings += [everywhere, chatEmail]
+          let issues = ConfigValidator.validate(config, knownLayouts: [])
+          for clash in [mailSignature, chatSignature, everywhere] {
+            expect(issues.contains { $0.target == .hotstring(clash.id) && $0.message.hasPrefix("Another hotstring") })
+          }
+          expect(issues.contains { $0.target == .hotstring(chatEmail.id) && $0.message.contains("“;e”") })
+          expect(!issues.contains { $0.target == .hotstring(mailOnlyEmail.id) })
+        }
+      }
+    ),
+    (
       "saving keeps the last good version of an item with errors",
       {
         try onMain {
