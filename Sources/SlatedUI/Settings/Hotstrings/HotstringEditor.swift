@@ -1,3 +1,4 @@
+import AppKit
 import SlatedCore
 import SwiftUI
 
@@ -246,6 +247,8 @@ struct TryItField: View {
               lineWidth: expanded ? 1.5 : 1)
         )
         .onChange(of: text) { old, new in
+          // Typing here again after switching apps or reopening Settings suspends the engine again.
+          if focused { setSuspended(true) }
           guard let result = HotstringTester.expand(previous: old, current: new, hotstring: hotstring) else { return }
           text = result
           withAnimation(Theme.snappy) { expanded = true }
@@ -256,6 +259,16 @@ struct TryItField: View {
         }
         .onChange(of: focused) { _, isFocused in setSuspended(isFocused) }
         .onDisappear { setSuspended(false) }
+        // Switching apps or closing Settings leaves this field focused: SwiftUI neither clears
+        // @FocusState nor calls onDisappear then (UIHostingContract). Without these, every hotkey,
+        // the Hyper key and hotstrings would stay off until Settings came back.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+          setSuspended(false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+          // The window whose text has focus; a closing tooltip or input-method window isn't ours.
+          if (notification.object as? NSWindow)?.firstResponder is NSText { setSuspended(false) }
+        }
       HStack(spacing: 6) {
         if expanded {
           Label("Expanded", systemImage: "sparkles")
