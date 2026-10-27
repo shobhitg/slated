@@ -153,6 +153,10 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       search, ⌘P pin and ⌘⌫ delete work.
 - [ ] Opening the switcher from the menu bar panel or Settings still pastes into the last app you used,
       not into Slated.
+- [ ] ⇧⌘V, Esc, ⇧⌘V again right away, then pick an item a second later: it pastes into your app.
+- [ ] Esc closes the switcher and typing goes straight back to the app you were in.
+- [ ] Quit the app you were in while the switcher is open, then pick an item: nothing is pasted
+      anywhere (`clipboard.paste_skipped` in the log), and the item is on the clipboard.
 - [ ] After a restart the history is still there (with "Keep across restarts" on).
       `~/Library/Application Support/Slated/clipboard.json` is readable only by you (`-rw-------`).
 

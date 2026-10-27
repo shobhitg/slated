@@ -20,6 +20,7 @@ final class ClipboardService {
   /// The app that was frontmost when the switcher opened; a picked item is pasted there. Cleared
   /// shortly after the switcher closes, so Copy elsewhere (Settings) never jumps to a stale app.
   private var previousApp: NSRunningApplication?
+  private var forgetPreviousApp: DispatchWorkItem?
   /// The last app in front that wasn't Slated: the target when the switcher opens from Slated's own
   /// windows (Settings, the menu bar panel).
   private var lastExternalApp: NSRunningApplication?
@@ -94,6 +95,8 @@ final class ClipboardService {
       Log.record("clipboard.switcher_unavailable", level: .notice, ["reason": "clipboard history is off"])
       return
     }
+    // Closed and reopened within half a second: that close mustn't forget this target.
+    forgetPreviousApp?.cancel()
     let front = NSWorkspace.shared.frontmostApplication
     previousApp = front?.bundleIdentifier == Bundle.main.bundleIdentifier ? lastExternalApp : front
     Log.record(
@@ -107,16 +110,34 @@ final class ClipboardService {
     put(item)
     let target = previousApp
     previousApp = nil
-    guard settings.pasteAfterSelecting else {
-      target?.activate()
+    target?.activate()
+    guard settings.pasteAfterSelecting else { return }
+    guard let target else {
+      // ⌘V would land in whatever is in front, possibly a text field in Slated's own settings.
+      Log.record(
+        "clipboard.paste_skipped", level: .notice, ["reason": "no app to paste into", "chars": item.text.count])
       return
     }
-    target?.activate()
     // Give the app a moment to become active before ⌘V.
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-      InputSynth.tap(9, modifiers: .command)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+      self?.pasteOnceInFront(target, chars: item.text.count, triesLeft: 20)
     }
-    Log.record("clipboard.pasted", ["chars": item.text.count, "app": target?.bundleIdentifier ?? "unknown"])
+  }
+
+  /// Sends ⌘V once `target` is the frontmost app (activating is asynchronous), checking every 50 ms
+  /// for a second. If it never comes to the front, the item stays on the clipboard, unpasted.
+  private func pasteOnceInFront(_ target: NSRunningApplication, chars: Int, triesLeft: Int) {
+    let app = target.bundleIdentifier ?? "unknown"
+    if NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier {
+      InputSynth.tap(9, modifiers: .command)
+      Log.record("clipboard.pasted", ["chars": chars, "app": app])
+    } else if triesLeft > 0 && !target.isTerminated {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+        self?.pasteOnceInFront(target, chars: chars, triesLeft: triesLeft - 1)
+      }
+    } else {
+      Log.record("clipboard.paste_skipped", level: .notice, ["reason": "the app didn't come to the front", "app": app])
+    }
   }
 
   func copy(id: UUID) {
@@ -131,7 +152,10 @@ final class ClipboardService {
   /// The switcher closed. A paste or copy it triggered runs right after, so forget the target a
   /// moment later rather than immediately.
   func switcherClosed() {
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.previousApp = nil }
+    forgetPreviousApp?.cancel()
+    let work = DispatchWorkItem { [weak self] in self?.previousApp = nil }
+    forgetPreviousApp = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
   }
 
   func delete(id: UUID) {
