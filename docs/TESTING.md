@@ -126,6 +126,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] The grid (Hyper+Tab): drag across cells places the window. Escape and clicking outside cancel.
 - [ ] Undo puts the window back.
 - [ ] A window with a minimum size (e.g. System Settings) still ends up flush with the screen edge.
+- [ ] Bind `snapshot work save` and `activate-snapshot work`. Take it, quit and relaunch Slated, move
+      some windows, then activate it: they go back, each to its own place even within one app.
+      `~/Library/Application Support/Slated/snapshots.json` holds `titleHash`es, no window titles.
 
 **Hyper key**
 - [ ] Holding Caps Lock + a bound key runs Slated's binding.

@@ -320,6 +320,19 @@ out=$(SLATED_SMOKE_STEPS=copy-a-day-later smoke "$home")
 expect_output "a copy a day later drops what expired meanwhile, and keeps pinned items" "$out" \
   "clipboard after a copy a day later: 0 expired, 1 pinned"
 
+# 12. Saved snapshots (`snapshot … save`) keep a SHA-256 of each window title, never the title. A file
+#     saved before that, with titles, is read and rewritten at launch.
+home=$(new_home)
+mkdir -p "$home/Library/Application Support/Slated"
+snapshots="$home/Library/Application Support/Slated/snapshots.json"
+title="SECRET-TITLE Quarterly report.numbers"
+printf '{"work":[[{"app":"Finder","title":"%s","frame":[[0,0],[800,600]]}]]}' "$title" >"$snapshots"
+smoke "$home" >/dev/null
+expect_true "a snapshots.json with window titles no longer holds them" bash -c '! grep -q SECRET "$1"' _ "$snapshots"
+expect_true "it holds their SHA-256 instead, which restoring matches windows by" \
+  grep -q "\"titleHash\":\"$(printf %s "$title" | shasum -a 256 | cut -d' ' -f1)\"" "$snapshots"
+expect_true "the snapshot is still there" grep -q '"work"' "$snapshots"
+
 echo
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]
