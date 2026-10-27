@@ -237,6 +237,40 @@ test('switching to another app stops everything; the same app and Slated’s set
   engine.stopAll('test');
 });
 
+test('a macro waiting on a wait counts for the safety stops, though the indicator doesn’t list it', () => {
+  const {engine, timers, log, state} = setup();
+  const dropped = [];
+  engine.onStopAll = (reason) => dropped.push(reason);
+  const first = engine.waitBegan();
+  assert.deepEqual([engine.isRunning, engine.isBusy, engine.active], [false, true, []]);
+  engine.focusChanged(appIdentity('org.prismlauncher.PrismLauncher'));
+  engine.focusChanged(appIdentity('firefox'));
+  assert.deepEqual(dropped, ['switched to another app'], 'leaving the app drops its steps');
+  assert.equal(engine.isBusy, false);
+  engine.waitEnded(first);
+
+  // The steps after the wait run while Slated's settings window is in front: what they hold still
+  // belongs to the game, so switching to Firefox stops it.
+  const second = engine.waitBegan();
+  state.focused = appIdentity('org.gnome.Shell.Extensions');
+  engine.focusChanged(state.focused);
+  engine.press('key:w', 'down');
+  engine.waitEnded(second);
+  assert.equal(log.named('automation.started')[0].data.app, 'org.prismlauncher.PrismLauncher');
+  engine.focusChanged(appIdentity('firefox'));
+  assert.equal(engine.isHeld('key:w'), false);
+  assert.deepEqual(dropped, ['switched to another app', 'switched to another app']);
+
+  state.focused = appIdentity('org.prismlauncher.PrismLauncher');
+  engine.settings.maxRunMinutes = 0.01;
+  engine.waitBegan();
+  timers.advance(1000);
+  assert.equal(dropped.at(-1), 'time limit reached');
+  engine.waitBegan();
+  engine.dropWaits();
+  assert.deepEqual([engine.isBusy, timers.pending], [false, 0], 'dropped: no time limit left running');
+});
+
 test('maxRunMinutes stops everything after the limit, counted from the first start', () => {
   const {timers, engine, log} = setup();
   engine.settings.maxRunMinutes = 0.5;

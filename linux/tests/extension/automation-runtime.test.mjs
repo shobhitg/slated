@@ -281,6 +281,45 @@ test('switching apps or the overview mid-macro drops the rest of it: nothing cli
   gnome.overview(false);
 });
 
+test('a macro that holds nothing during its wait still stops when you switch apps or open the overview', () => {
+  start({bindings: [
+    {keys: 'f6', action: {op: 'sequence', operations: [{op: 'click', button: 'left'}, {op: 'wait', seconds: 2}, {op: 'click', button: 'left'}]}},
+    {keys: 'f7', action: {op: 'sequence', operations: [{op: 'wait', seconds: 2}, {op: 'hold', input: 'key:w'}]}},
+  ]});
+  const launcher = gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F6');
+  gnome.loop.run();
+  assert.equal(clicks(), 1);
+  const other = gnome.addWindow({id: 2, app: firefox, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.loop.advance(3000);
+  assert.equal(clicks(), 1, 'the click after the wait never lands in Firefox');
+
+  gnome.focus(launcher);
+  gnome.press('F6');
+  gnome.overview(true);
+  gnome.loop.advance(3000);
+  assert.equal(clicks(), 2, 'nor in the overview');
+  gnome.overview(false);
+
+  gnome.focus(launcher);
+  gnome.press('F7');
+  gnome.focus(other);
+  gnome.loop.advance(60_000);
+  assert.deepEqual(gnome.state.typed, [], 'W is never held down in Firefox');
+  assert.deepEqual(status().automation.running, []);
+  assert.deepEqual(events('automation.stopped_all').map((e) => e.data.reason), ['switched to another app', 'left the app', 'switched to another app']);
+  assert.equal(events('automation.started').length, 0, 'a waiting macro isn’t listed as running');
+});
+
+test('the time limit drops a waiting macro as well', () => {
+  start({bindings: [{keys: 'f6', action: 'sequence wait 60 | click left'}], automation: {maxRunMinutes: 0.5}});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F6');
+  gnome.loop.advance(61_000);
+  assert.equal(clicks(), 0);
+  assert.equal(events('automation.stopped_all')[0].data.reason, 'time limit reached');
+});
+
 test('the time limit drops the rest of a macro too', () => {
   start({bindings: [{keys: 'f6', action: walkThenClick}], automation: {maxRunMinutes: 0.01}});
   gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});

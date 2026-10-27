@@ -9,8 +9,10 @@
 // - Safety: the stop shortcut (`stopAll`), stopping when you switch away from the app an automation
 //   started in, a time limit (`maxRunMinutes`), and releasing everything on disable, screen lock and
 //   config reload (the runtime calls `stopAll`). A stop also drops what's still pending, such as the
-//   rest of a macro after a `wait` (`onStopAll`). Every start and stop is logged; the log never holds
-//   typed text (insert-text is redacted, like action.done).
+//   rest of a macro after a `wait` (`onStopAll`). A macro waiting on a `wait` counts as running for
+//   these stops even when it holds nothing (`waitBegan`), though the indicator doesn't list it. Every
+//   start and stop is logged; the log never holds typed text (insert-text is redacted, like
+//   action.done).
 //
 // No GNOME imports: timers, the synthesizer, the clock and the focused app are passed in, so the
 // Node tests drive it with fakes.
@@ -141,6 +143,9 @@ export class AutomationEngine {
     this.onStopAll = null;
     this._repeaters = new Map();
     this._held = new Map();
+    /** Macros whose next steps wait on a `wait` (tokens from `waitBegan`). */
+    this._waits = new Set();
+    this._nextWait = 1;
     /**
      * The app in front when the first automation started (for stopOnAppSwitch). Null while nothing
      * runs, and while something runs that started with no app (or Slated's own window) in front: then
@@ -150,8 +155,14 @@ export class AutomationEngine {
     this._limitTimer = 0;
   }
 
+  /** Whether a repeat runs or an input is held: what the indicator lists. */
   get isRunning() {
     return this._repeaters.size > 0 || this._held.size > 0;
+  }
+
+  /** Whether anything runs, or a macro waits to go on: what the safety stops act on. */
+  get isBusy() {
+    return this.isRunning || this._waits.size > 0;
   }
 
   /** Running automations, oldest first: {id, title, trigger, startedAt, repetitions}. */
@@ -293,11 +304,39 @@ export class AutomationEngine {
     return true;
   }
 
+  // --- Macros waiting on a `wait` ------------------------------------------------------------------
+
+  /**
+   * A macro's next steps wait on a `wait` step (the action runner calls this). Until they run
+   * (`waitEnded`) or are dropped (`dropWaits`), the macro counts as running for the safety stops, even
+   * when it holds nothing: switching apps, the overview, the time limit and sleep stop it, and
+   * `onStopAll` drops its steps. The indicator doesn't list it. Returns a token for `waitEnded`.
+   */
+  waitBegan() {
+    const token = this._nextWait++;
+    this._waits.add(token);
+    this._starting();
+    return token;
+  }
+
+  /** The steps after a wait ran (anything they pressed is running by now). */
+  waitEnded(token) {
+    if (this._waits.delete(token)) this._idleCheck();
+  }
+
+  /** Forgets every waiting macro (its steps were dropped: stop-automations, a reload). */
+  dropWaits() {
+    if (this._waits.size === 0) return;
+    this._waits.clear();
+    this._idleCheck();
+  }
+
   // --- Stopping ------------------------------------------------------------------------------------
 
-  /** Stops every repeat and releases everything held. */
+  /** Stops every repeat, releases everything held and drops waiting macros. */
   stopAll(reason) {
-    if (!this.isRunning) return;
+    if (!this.isBusy) return;
+    this._waits.clear();
     for (const id of [...this._repeaters.keys()]) this._stopRepeat(id, reason, false);
     for (const input of [...this._held.keys()]) this._release(input, reason, false);
     this._log?.record('automation.stopped_all', {reason}, 'notice');
@@ -306,6 +345,7 @@ export class AutomationEngine {
     } catch (e) {
       this._log?.error('automation.stop_failed', e?.message ?? String(e), {reason});
     }
+    this._idleCheck();
     this.onChange?.();
   }
 
@@ -314,7 +354,7 @@ export class AutomationEngine {
    * everything when you leave the app an automation started in, so clicks don't land elsewhere.
    */
   focusChanged(app) {
-    if (!this.settings.stopOnAppSwitch || !this.isRunning) return;
+    if (!this.settings.stopOnAppSwitch || !this.isBusy) return;
     if (app && appMatchesAny(app, OWN_APPS)) return; // Slated's own settings window doesn't count
     if (this._startedIn === null) {
       this._startedIn = app;
@@ -330,9 +370,9 @@ export class AutomationEngine {
     this.perform = this.onChange = this.onStopAll = null;
   }
 
-  _began(info, extra) {
-    // The first automation (it's already counted) remembers the app it's for.
-    if (this._repeaters.size + this._held.size === 1) {
+  /** Something started (it's already counted): the first remembers the app it's for, and the time limit starts. */
+  _starting() {
+    if (this._repeaters.size + this._held.size + this._waits.size === 1) {
       const app = this._focusedApp();
       this._startedIn = app && !appMatchesAny(app, OWN_APPS) ? app : null;
     }
@@ -343,6 +383,17 @@ export class AutomationEngine {
         this.stopAll('time limit reached');
       });
     }
+  }
+
+  /** Nothing runs or waits any more: forget the app and the time limit. */
+  _idleCheck() {
+    if (this.isBusy) return;
+    this._startedIn = null;
+    this._limitTimer = this._timers.clear(this._limitTimer);
+  }
+
+  _began(info, extra) {
+    this._starting();
     const data = {id: info.id, title: info.title, app: this._startedIn?.id ?? 'unknown', ...extra};
     if (info.trigger) data.trigger = info.trigger;
     this._log?.record('automation.started', data);
@@ -353,10 +404,7 @@ export class AutomationEngine {
     const data = {id: info.id, title: info.title, reason, repetitions: info.repetitions, seconds: (this._now() - info.startedAt) / 1000};
     if (info.failures) data.failures = info.failures;
     this._log?.record('automation.stopped', data);
-    if (!this.isRunning) {
-      this._startedIn = null;
-      this._limitTimer = this._timers.clear(this._limitTimer);
-    }
+    this._idleCheck();
     if (notify) this.onChange?.();
   }
 }

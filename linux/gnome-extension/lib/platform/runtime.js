@@ -336,7 +336,7 @@ export class SlatedRuntime {
 
     // Safety: a reload re-grabs every trigger, so nothing keeps running or stays held across it.
     this._step('automation', () => {
-      if (this._automation?.isRunning) this._automation.stopAll('config reloaded');
+      if (this._automation?.isBusy) this._automation.stopAll('config reloaded');
       this._runner?.cancelPendingSteps();
       if (this._automation) this._automation.settings = {...this._automation.settings, ...(config.automation ?? {})};
     });

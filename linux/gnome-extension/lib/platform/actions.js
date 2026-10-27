@@ -193,10 +193,13 @@ export class ActionRunner {
    * Runs the rest of a macro `ms` from now (a `wait` step), without blocking GNOME Shell. Unlike a
    * shell wait it isn't logged when it works (an auto-repeated macro would flood the log), only when
    * it fails; it's dropped if automations are stopped, Slated reloads or it's turned off meanwhile.
+   * Until then the macro counts as a running automation for the safety stops (switching apps, the
+   * overview, the time limit), even if it holds nothing.
    */
   _resumeAfter(ms, body) {
     const generation = this._generation;
     const context = this._context;
+    const wait = this.automation?.waitBegan() ?? null;
     this.platform.after(ms, () => {
       if (this._destroyed || generation !== this._generation) return;
       const outer = {context: this._context, failure: this._lastFailure, app: this._lastApp};
@@ -215,12 +218,15 @@ export class ActionRunner {
       this._context = outer.context;
       this._lastFailure = outer.failure;
       this._lastApp = outer.app;
+      // Only now: an input the steps held keeps the app the macro started in.
+      if (wait !== null) this.automation?.waitEnded(wait);
     });
   }
 
   /** Drops macro steps that are waiting to run (stop-automations, reloads). */
   cancelPendingSteps() {
     this._generation += 1;
+    this.automation?.dropWaits();
   }
 
   /**
