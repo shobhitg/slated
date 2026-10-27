@@ -63,8 +63,9 @@ public final class TextInjector: @unchecked Sendable {
       }
       pasteboard.clearContents()
       pasteboard.setString(text, forType: .string)
-      // Mark it transient so clipboard histories (Slated's included) skip this temporary paste.
+      // Mark it transient so clipboard histories skip this temporary paste; Slated's own always does.
       pasteboard.setString("", forType: PasteboardWatcher.transientType)
+      pasteboard.setString("", forType: PasteboardWatcher.slatedPasteType)
       return items
     }
     key(9, flags: .maskCommand)  // ⌘V

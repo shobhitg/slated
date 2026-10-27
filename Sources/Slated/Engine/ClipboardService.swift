@@ -71,7 +71,8 @@ final class ClipboardService {
       ignoreNextCopy = false
       return
     }
-    guard settings.enabled, let text = copy.text else { return }
+    // A hotstring replacement Slated is pasting: never history, whatever the concealed-items setting.
+    guard settings.enabled, !copy.isSlatedPaste, let text = copy.text else { return }
     if settings.ignoreConcealed && copy.isConcealed {
       Log.record("clipboard.skipped", level: .debug, ["reason": "concealed", "app": copy.sourceApp ?? "unknown"])
       return

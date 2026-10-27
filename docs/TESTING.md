@@ -132,7 +132,8 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 
 **Hotstrings** (try TextEdit, Safari, Notes, Terminal, Slack)
 - [ ] `;shrug` expands immediately; `afterDelimiter` triggers wait for space or punctuation and keep it.
-- [ ] Long replacements paste, and the previous clipboard comes back.
+- [ ] Long replacements paste, and the previous clipboard comes back. They never show up in
+      clipboard history, even with "Ignore passwords and other concealed items" turned off.
 - [ ] Nothing expands in a password field (Secure Input).
 - [ ] `onlyInApps` / `exceptInApps` filters work.
 
