@@ -8,7 +8,7 @@
     },
     "clipboard.json": {
       "coding": 19,
-      "search": 129,
+      "search": 141,
       "sessions": 11
     },
     "config.json": {
@@ -73,10 +73,10 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 16464,
+  "totalVectors": 16476,
   "vectors": {
     "automation.json": 103,
-    "clipboard.json": 159,
+    "clipboard.json": 171,
     "config.json": 492,
     "expressions.json": 833,
     "frames.json": 9718,
