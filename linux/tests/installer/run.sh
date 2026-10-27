@@ -217,6 +217,12 @@ for removed in '"caps:escape"' 'null' '{"caps": "escape"}'; do
   check "removedOptions $removed: caps:hyper comes out, nothing else goes in" test "$(xkb_options)" = "['compose:ralt']"
   check "removedOptions $removed: no Python traceback" bash -c '! grep -q Traceback <<<"$1"' _ "$out"
 done
+# How the uninstall tells that the restore stuck: the lists gsettings prints, compared in order.
+eval "$(sed -n '/^same_options() {/,/^}/p' "$ROOT/linux/install.sh")"
+check "same_options: empty lists match however gsettings spells them" same_options "@as []" "[]"
+check "same_options: the same options in the same order match" same_options "['a', 'b']" "['a', 'b']"
+check "same_options: order counts" bash -c "$(declare -f same_options); ! same_options \"['b', 'a']\" \"['a', 'b']\""
+check "same_options: a failed read (no output) matches nothing, not even []" bash -c "$(declare -f same_options); ! same_options '' '[]'"
 # Another user's record (sudo -E keeps HOME, so gsettings would change root's settings): left alone.
 if [ "$(id -u)" != 0 ]; then
   install_sh "$GE_BIN" >/dev/null

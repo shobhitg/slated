@@ -406,12 +406,15 @@ hyper_keyd() {
 # --- Uninstall ------------------------------------------------------------------------------------------
 
 # Whether two gsettings string lists ("['a', 'b']", "@as []") hold the same options in the same order.
+# Nothing at all (a failed `gsettings get`) matches nothing.
 same_options() {
   python3 -I - "$1" "$2" <<'PY'
 import ast, sys
 def parse(raw):
     raw = raw.strip()
-    return ast.literal_eval(raw[3:].strip() if raw.startswith("@as") else raw or "[]")
+    if not raw:
+        raise ValueError("no list")
+    return ast.literal_eval(raw[3:].strip() if raw.startswith("@as") else raw)
 try:
     sys.exit(0 if parse(sys.argv[1]) == parse(sys.argv[2]) else 1)
 except (ValueError, SyntaxError):
