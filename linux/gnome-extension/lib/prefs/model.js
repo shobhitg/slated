@@ -85,7 +85,7 @@ export class PrefsModel extends Emitter {
       this.saved = clone(this.draft);
     } else {
       try {
-        this.draft = decodeConfiguration(text);
+        this.draft = separateDuplicateIds(decodeConfiguration(text), this.makeId);
         this.saved = clone(this.draft);
         this.firstRun = false;
         this._diskText = text;
@@ -245,7 +245,7 @@ export class PrefsModel extends Emitter {
     }
     this._diskText = text;
     this._badText = null;
-    keepGeneratedIds(disk, this.saved, text);
+    keepGeneratedIds(separateDuplicateIds(disk, this.makeId), this.saved, text);
     const wasBlocked = this.loadError !== null;
     this.loadError = null;
     this.firstRun = false;
@@ -680,6 +680,23 @@ export class PrefsModel extends Emitter {
       source: 'prefs',
     });
   }
+}
+
+/**
+ * A binding or hotstring copied in config.json together with its "id" shares it with the original,
+ * and the window finds items by id: editing the copy would change the original, and deleting either
+ * would delete both. Later ones get a new id, as if written without one (keepGeneratedIds then keeps
+ * it across re-reads), and the next save writes it.
+ */
+export function separateDuplicateIds(config, makeId) {
+  for (const key of ['bindings', 'hotstrings']) {
+    const seen = new Set();
+    for (const item of config[key] ?? []) {
+      if (seen.has(item.id)) item.id = makeId();
+      seen.add(item.id);
+    }
+  }
+  return config;
 }
 
 /**
