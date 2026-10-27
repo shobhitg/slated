@@ -206,6 +206,16 @@ test('stop() undoes everything: shortcuts, keyboard options, signals and timers'
   assert.equal(quit.data.hyperRestored, true);
 });
 
+test('a caps:hyper you set yourself stays after disable, and the last status.json says Caps Lock is still Hyper', () => {
+  gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'] = ['compose:ralt', 'caps:hyper']; // GNOME Tweaks
+  writeConfig(config);
+  const runtime = startRuntime();
+  runtime.stop();
+  assert.deepEqual(gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'], ['compose:ralt', 'caps:hyper'], 'not Slated’s to take out');
+  assert.deepEqual(status().hyper, {wanted: true, mode: 'xkb', active: true});
+  assert.equal(events('app.quit')[0].data.hyperRestored, false);
+});
+
 test('first run with ~/.slate.js starts empty and loads the Slate file', () => {
   writeFileSync(join(home, '.slate.js'), readFileSync(join(repo, 'Tests/Smoke/fixtures/slate.js')));
   const runtime = startRuntime();

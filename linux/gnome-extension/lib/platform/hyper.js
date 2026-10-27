@@ -168,18 +168,28 @@ export class HyperManager {
     return result;
   }
 
-  /** Puts the keyboard options back the way they were (disable, or Hyper turned off). */
+  /**
+   * Puts the keyboard options back the way they were (disable, or Hyper turned off). Returns whether
+   * caps:hyper is still set afterwards, as when you had set it yourself.
+   */
   restore() {
     this._removeOption();
+    try {
+      return this._inputSources().get_strv('xkb-options').includes(CAPS_HYPER);
+    } catch {
+      return false;
+    }
   }
 
+  /** Stops watching and restores the keyboard options; returns `restore()`'s answer. */
   destroy() {
     this._cancellable.cancel();
     this._socketWatch?.cancel();
     this._socketWatch = null;
-    this.restore();
+    const capsHyperLeft = this.restore();
     this._settings = null;
     this._onDetected = null;
+    return capsHyperLeft;
   }
 
   // --- xkb-options -------------------------------------------------------------------------------

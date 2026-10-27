@@ -308,12 +308,14 @@ export class SlatedRuntime {
     this._step('hud', () => this._hud?.destroy());
     this._step('text input', () => this._input?.destroy());
     this._step('actions', () => this._runner?.destroy());
-    this._step('hyper key', () => this._hyperManager?.destroy());
+    let capsHyperLeft = false;
+    this._step('hyper key', () => (capsHyperLeft = this._hyperManager?.destroy() === true));
     this._step('hotstrings', () => this._espanso?.destroy({keepFile: locked}));
     this._timers.clearAll();
-    // The last status says what's left: GNOME's caps:hyper option went with Slated (keyd keeps
-    // working without it), and espanso's match file too, unless the screen is only locked.
-    const hyperRestored = this._hyper.mode === 'xkb';
+    // The last status says what's left: GNOME's caps:hyper option went with Slated, unless you had set
+    // it yourself (keyd keeps working without Slated), and espanso's match file too, unless the
+    // screen is only locked.
+    const hyperRestored = this._hyper.mode === 'xkb' && !capsHyperLeft;
     if (hyperRestored) this._hyper = {...this._hyper, mode: 'off', active: false, hyperIsSuper: false};
     if (!locked) this._hotstrings = {...this._hotstrings, count: 0};
     this._step('status', () => this._writeStatus(false));
