@@ -160,6 +160,15 @@ final class ClipboardService {
   /// moment later rather than immediately.
   func switcherClosed() {
     forgetPreviousApp?.cancel()
+    // Closed without a pick (Esc): give the keyboard back to the app you were in, as the hints and
+    // grid overlays do; the switcher made Slated the active app. A pick has taken `previousApp` by
+    // now. Clicking into another app, or into a Slated window (Settings makes Slated a regular app),
+    // leaves you there.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+      guard let app = self?.previousApp, NSApp.isActive, NSApp.activationPolicy() == .accessory else { return }
+      Log.record("clipboard.switcher_dismissed", ["returnedTo": app.bundleIdentifier ?? "unknown"])
+      app.activate()
+    }
     let work = DispatchWorkItem { [weak self] in self?.previousApp = nil }
     forgetPreviousApp = work
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
