@@ -126,7 +126,8 @@ export class ActionRunner {
     const blocked = this.automationBlocked?.() ?? null;
     if (blocked && this._startsAutomation(action, trigger)) {
       this.log?.record('automation.start_ignored', {reason: blocked, trigger, source}, 'notice');
-      this._lastFailure = `Automations don't start while ${blocked}`;
+      // As in _logged, a run inside another (a JavaScript layout step) leaves the outer outcome alone.
+      if (!this._context) this._lastFailure = `Automations don't start while ${blocked}`;
       return false;
     }
     return this._logged(
