@@ -34,6 +34,14 @@ public final class AppModel {
     get { draft }
     set {
       guard newValue != draft else { return }
+      // Read-only while config.json can't be read: an edit couldn't be saved, and the fixed file
+      // replaces the draft when it loads.
+      guard loadError == nil else {
+        showToast(
+          "Fix config.json first: nothing can be changed here until Slated can read it.",
+          symbol: "exclamationmark.triangle", style: .failure)
+        return
+      }
       draft = newValue
       draftDidChange()
     }
@@ -213,22 +221,28 @@ public final class AppModel {
     if !isSaving { syncFromDisk() }
   }
 
-  /// Adopts config.json when it changed on disk (hand edits), unless the UI has unsaved edits.
+  /// Adopts config.json when it changed on disk (hand edits), unless the UI has unsaved edits. A file
+  /// that can't be read blocks saving either way.
   private func syncFromDisk() {
-    guard saveTask == nil else { return }
+    let disk: SlatedConfiguration
     do {
-      let disk = withUniqueIDs(try services.loadConfiguration())
-      let wasBlocked = loadError != nil
-      loadError = nil
-      if disk != saved || wasBlocked {
-        saved = disk
-        draft = disk
-        issues = ConfigValidator.validate(disk, knownLayouts: knownLayoutNames)
-        saveState = .saved
-      }
+      disk = withUniqueIDs(try services.loadConfiguration())
     } catch {
+      // Also with an edit waiting to be saved: it couldn't be, and the banner says why.
+      saveTask?.cancel()
+      saveTask = nil
       loadError = Self.describe(error)
       saveState = .blocked
+      return
+    }
+    guard saveTask == nil else { return }
+    let wasBlocked = loadError != nil
+    loadError = nil
+    if disk != saved || wasBlocked {
+      saved = disk
+      draft = disk
+      issues = ConfigValidator.validate(disk, knownLayouts: knownLayoutNames)
+      saveState = .saved
     }
   }
 

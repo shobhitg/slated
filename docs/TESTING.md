@@ -177,6 +177,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Recording a shortcut with the real Caps Lock (Hyper) works. Global hotkeys pause while recording.
 - [ ] Editing a binding takes effect within about half a second, with no Save button.
       `scripts/logs.py --grep config.saved` shows the change.
+- [ ] Break config.json by hand (delete a comma) with Settings open: the banner appears and says where
+      the error is, and changing anything shows "Fix config.json first". Fix the file: Settings shows
+      it within a second or two, and edits save again.
 - [ ] The sidebar renders correctly (the Liquid Glass sidebar can't be captured by `make snapshots`).
 
 **Clipboard history**

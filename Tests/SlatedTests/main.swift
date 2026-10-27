@@ -40,6 +40,7 @@ let suites: [Suite] = [
   hidRemapperTests,
   keyboardTapTests,
   pasteboardTests,
+  blockedSettingsTests,
   logRedactionTests,
   macOSContractTests,
   uiHostingContractTests,
