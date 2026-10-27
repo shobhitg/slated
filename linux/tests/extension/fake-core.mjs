@@ -360,7 +360,7 @@ function plan(action, context) {
   const {frame, screens} = context;
   if (action.op === 'by-orientation') {
     const s = screenOf(screens, frame);
-    return plan(s.frame.height > s.frame.width ? action.portrait : action.landscape, context);
+    return plan(s.frame.height >= s.frame.width ? action.portrait : action.landscape, context);
   }
   const screen = resolveScreen(action.screen ?? null, context);
   if (!screen) throw new SlatedError('screenNotFound', `No screen matches "${action.screen}"`);

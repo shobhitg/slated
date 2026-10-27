@@ -161,6 +161,21 @@ test('by-orientation picks the action for the window’s screen shape', () => {
   assert.deepEqual(platform.windows[2].frame, {x: 1920, y: 0, width: 1080, height: 640});
 });
 
+test('by-orientation treats a square screen as portrait, like the Mac', () => {
+  const square = {displayID: 0, name: 'Square', frame: {x: 0, y: 0, width: 1200, height: 1200}, visibleFrame: {x: 0, y: 0, width: 1200, height: 1200}, isMain: true, scale: 1};
+  const platform = new FakePlatform({apps, screens: [square], windows: [new FakeWindow({id: 1, app: 'firefox', frame: {x: 100, y: 100, width: 400, height: 400}})]});
+  const runner = new ActionRunner({platform, core: realCore, log: new MemoryLog()});
+  const thirds = {
+    op: 'by-orientation',
+    landscape: {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/3', height: 'screenSizeY'},
+    portrait: {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX', height: 'screenSizeY/3'},
+  };
+  assert.equal(runner.run(thirds, {trigger: 't'}), true);
+  assert.deepEqual(platform.windows[0].frame, {x: 0, y: 0, width: 1200, height: 400});
+  // The core agrees when it resolves by-orientation itself (the settings window's previews).
+  assert.deepEqual(realCore.targetFrame(thirds, {frame: {x: 100, y: 100, width: 400, height: 400}, screens: [square]}), {x: 0, y: 0, width: 1200, height: 400});
+});
+
 test('layouts apply operations to each app’s windows with Slate’s options', () => {
   const windows = [
     new FakeWindow({id: 1, app: 'org.gnome.Terminal', title: 'c', frame: {x: 10, y: 50, width: 400, height: 300}}),

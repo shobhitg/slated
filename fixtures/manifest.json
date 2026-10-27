@@ -21,7 +21,7 @@
       "validate": 26
     },
     "frames.json": {
-      "targetFrame": 67,
+      "targetFrame": 69,
       "targetOrigin": 48
     },
     "hotstrings.json": {
@@ -42,10 +42,10 @@
       "parse": 597
     },
     "screens.json": {
-      "containing": 99,
-      "orderedLeftToRight": 13,
+      "containing": 110,
+      "orderedLeftToRight": 14,
       "parse": 50,
-      "resolve": 84
+      "resolve": 92
     },
     "settings.json": {
       "accessors": 27,
@@ -73,17 +73,17 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 16482,
+  "totalVectors": 16986,
   "vectors": {
     "automation.json": 103,
     "clipboard.json": 171,
     "config.json": 495,
     "expressions.json": 833,
-    "frames.json": 9718,
+    "frames.json": 9978,
     "hotstrings.json": 846,
     "keys.json": 375,
     "operations.json": 999,
-    "screens.json": 2598,
+    "screens.json": 2842,
     "settings.json": 85,
     "slate-config.json": 56,
     "starter.json": 21,
