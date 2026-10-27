@@ -492,6 +492,37 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "the hotstrings switch keeps items that aren't finished yet",
+      {
+        try onMain {
+          // PreviewServices writes the switch to config.json and reports it before returning, as the
+          // app does. Nothing is waiting for the debounce here.
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          let bindingID = model.addBinding()
+          try require(model.bindingBinding(bindingID)).wrappedValue.name = "My sequence"
+          let hotstringID = model.addHotstring()
+          try require(model.hotstringBinding(hotstringID)).wrappedValue.replacement = "no trigger yet"
+          model.saveNow()  // both held back: no keys, no trigger
+          model.setHotstringsEnabled(false)
+          expectEqual(model.configuration.bindings.map(\.name), ["My sequence"])
+          expectEqual(model.configuration.hotstrings.map(\.replacement), ["no trigger yet"])
+          expect(!services.configuration.general.hotstringsEnabled)
+          expect(!model.runtimeStatus.hotstringsEnabled)
+          expect(!model.configuration.general.hotstringsEnabled, "the draft has the switch too")
+
+          // Finished, they save with the switch as it is now.
+          try require(model.bindingBinding(bindingID)).wrappedValue.keys = hyper("m")
+          try require(model.hotstringBinding(hotstringID)).wrappedValue.trigger = ";nt"
+          model.saveNow()
+          expectEqual(services.configuration.bindings.map(\.name), ["My sequence"])
+          expectEqual(services.configuration.hotstrings.map(\.trigger), [";nt"])
+          expect(!services.configuration.general.hotstringsEnabled, "the switch stays off")
+          expectEqual(model.saveState, .saved)
+        }
+      }
+    ),
+    (
       "a hotstring stays Active while Try It pauses expansion; only missing permission waits",
       {
         try onMain {

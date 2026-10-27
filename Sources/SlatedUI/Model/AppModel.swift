@@ -81,8 +81,8 @@ public final class AppModel {
   @ObservationIgnored private var saveTask: Task<Void, Never>?
   @ObservationIgnored private var toastTask: Task<Void, Never>?
   @ObservationIgnored private var suspensions = 0
-  /// True while `saveConfiguration` runs. The app may report the change it causes through
-  /// `onChange` before the call returns; that's our own write, not a hand edit to adopt.
+  /// True while `saveConfiguration` or `setHotstringsEnabled` runs. The app may report the change it
+  /// causes through `onChange` before the call returns; that's our own write, not a hand edit to adopt.
   @ObservationIgnored private var isSaving = false
   /// Ids given to copied items (see `withUniqueIDs`), by kind, original id and occurrence.
   @ObservationIgnored private var replacementIDs: [String: UUID] = [:]
@@ -278,10 +278,23 @@ public final class AppModel {
   }
 
   func setHotstringsEnabled(_ enabled: Bool) {
+    // The app writes the switch to config.json itself, and may report that before returning. It's our
+    // own write, not a hand edit: adopting the file would drop the items held back from saving (a new
+    // shortcut still waiting for its keys, a hotstring with no trigger yet). Take only the switch from
+    // it, into the saved copy and the draft; without the draft, the save of an edit still waiting for
+    // its debounce would write the old value back.
+    isSaving = true
     services.setHotstringsEnabled(enabled)
-    // The app writes the switch to config.json itself. Keep the draft in step, or the save of an
-    // edit still waiting for its debounce would write the old value back.
-    configuration.general.hotstringsEnabled = enabled
+    isSaving = false
+    if loadError == nil, let written = try? services.loadConfiguration().general.hotstringsEnabled {
+      saved.general.hotstringsEnabled = written
+      draft.general.hotstringsEnabled = written
+    } else {
+      // config.json can't be read, so the app couldn't write the switch either. Show that (it may
+      // have just broken), and Settings refuses the change with a toast saying why.
+      if loadError == nil { syncFromDisk() }
+      configuration.general.hotstringsEnabled = enabled
+    }
     refresh()
   }
 
