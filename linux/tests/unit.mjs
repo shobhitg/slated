@@ -240,6 +240,19 @@ export function registerUnitTests({root, readText}) {
     expect(core.starterConfiguration().bindings[0].id !== starter.bindings[0].id, 'fresh ids each time');
   });
 
+  test('docs: docs/CONFIG.md lists every operation', () => {
+    const documented = new Set();
+    for (const line of readText(`${root}/docs/CONFIG.md`).split('\n')) {
+      const cell = /^\| ([^|]+) \|/.exec(line);
+      if (cell) for (const [, name] of cell[1].matchAll(/`([a-z-]+)`/g)) documented.add(name);
+    }
+    const source = readText(`${root}/linux/gnome-extension/lib/core/config.js`);
+    const decoder = source.slice(source.indexOf('export function decodeAction'), source.indexOf('export function sequenceAction'));
+    const operations = [...decoder.matchAll(/case '([a-z-]+)':/g)].map((m) => m[1]);
+    expect(operations.length >= 33, `found ${operations.length} operations`);
+    expectEqual(operations.filter((op) => !documented.has(op)), []);
+  });
+
   test('slate config: default options and diagnostics', () => {
     const result = core.parseSlateConfig('bind a:ctrl push up\nsource ~/other.slate\nbogus');
     expectEqual(result.bindings.length, 1);

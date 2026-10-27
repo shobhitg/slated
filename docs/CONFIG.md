@@ -109,10 +109,12 @@ with `"op"` plus Slate's JavaScript parameter names. The object form is exactly 
 | `hide` / `show` / `toggle` | `app`: `"current"`, `"all"`, `"all-but:Name"`, or a list of names |
 | `shell` | `command`, `wait`, `path` |
 | `undo`, `relaunch` | — |
+| `switch` | — (Slate's app switcher: accepted so Slate files load, but it does nothing yet and says so when run) |
 | `by-orientation` | `landscape`, `portrait`: two actions; runs the one matching the shape of the window's screen (a square screen counts as portrait) |
 | `insert-text` | `text`, `method` (`auto` `type` `paste`) |
 | `open-url` | `url` |
 | `keystroke` | `keys` (e.g. `"cmd+shift+4"`) |
+| `clipboard-history` | — (opens the [clipboard switcher](#clipboard-history), like `clipboard.shortcut`) |
 
 **Screens** (`screen`): an index (`0` is the leftmost display), `ordered:N`, a resolution
 (`1680x1050`), a direction (`left` `right` `up` `down`), or `next`/`previous`.
