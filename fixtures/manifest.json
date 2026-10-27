@@ -12,7 +12,7 @@
       "sessions": 11
     },
     "config.json": {
-      "decode": 633
+      "decode": 636
     },
     "expressions.json": {
       "closestName": 20,
@@ -73,11 +73,11 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 17209,
+  "totalVectors": 17212,
   "vectors": {
     "automation.json": 103,
     "clipboard.json": 213,
-    "config.json": 633,
+    "config.json": 636,
     "expressions.json": 876,
     "frames.json": 9978,
     "hotstrings.json": 846,

@@ -356,6 +356,21 @@ expect_true "a static setting is copied into config.json" test "$(setting_of "$h
 expect_true "a setting a function computes isn't copied, so the script keeps setting it" \
   test "$(setting_of "$home" windowHintsCharacters)" = none
 expect_output "a file with something left in it keeps loading" "$out" "loadSlateConfigs: true"
+expect_output "Slated's copies replace the file's" "$out" "the Slate file's own copies of them are ignored"
+# Then the imported shortcuts are Settings' to change: deleting or moving one doesn't bring back the
+# Slate file's copy, which stays loaded for what wasn't imported.
+home=$(new_home)
+cp "$FIXTURES/slate-import.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS="import-slate edit-imported print-hotkeys" smoke "$home")
+expect_true "a deleted imported shortcut stays deleted" bash -c '! grep -q "hotkey ctrl+alt+f16:" <<<"$1"' _ "$out"
+expect_true "a moved one leaves its old keys free" bash -c '! grep -q "hotkey ctrl+alt+f18:" <<<"$1"' _ "$out"
+expect_output "and works on its new keys" "$out" "hotkey ctrl+alt+f19: active"
+expect_output "what wasn't imported still runs from the file" "$out" "hotkey ctrl+alt+f17: active"
+expect_true "config.json lists the imported shortcuts" /usr/bin/python3 -I -c '
+import json, sys
+general = json.load(open(sys.argv[1]))["general"]
+assert general["importedSlateShortcuts"] == ["ctrl+alt+f16", "ctrl+alt+f18"], general
+' "$home/.config/slated/config.json"
 # A window event handler never runs in Slated, so it doesn't keep the file loaded, and the alert says so.
 home=$(new_home)
 cp "$FIXTURES/slate-window-events.js" "$home/.slate.js"

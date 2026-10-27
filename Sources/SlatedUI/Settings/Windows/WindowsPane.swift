@@ -401,6 +401,7 @@ extension BindingState {
     case .notSaved(let message, _): return (message, "exclamationmark.circle.fill", Theme.critical)
     case .paused: return ("Paused", "pause.circle.fill", Theme.neutral)
     case .slateOff: return ("Slate files off", "moon.fill", Theme.neutral)
+    case .imported: return ("Imported", "square.and.arrow.down", Theme.neutral)
     }
   }
 
@@ -416,6 +417,7 @@ extension BindingState {
     case .saving: return ("Saving…", Theme.neutral, nil)
     case .paused: return ("Paused", Theme.neutral, "pause.fill")
     case .slateOff: return ("Not loaded", Theme.neutral, nil)
+    case .imported: return ("Imported", Theme.neutral, nil)
     case .inactive: return ("Not registered", Theme.neutral, nil)
     }
   }
@@ -431,6 +433,8 @@ extension BindingState {
         ? "\(message) Until then, the last saved version of this shortcut stays in effect."
         : "\(message) The shortcut is saved as soon as that's fixed."
     case .slateOff: return "Loading Slate files is turned off in Slate Compatibility."
+    case .imported:
+      return "Imported into Slated's own shortcuts, where you can change it. Slated ignores this copy in your Slate file."
     case .paused: return "Slated is paused from the menu bar."
     default: return nil
     }

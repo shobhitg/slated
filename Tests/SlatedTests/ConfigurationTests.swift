@@ -6,6 +6,17 @@ let configurationTests = Suite(
   "Configuration",
   [
     (
+      "imported Slate shortcuts round-trip, and aren't written when there are none",
+      {
+        let json = #"{"general": {"importedSlateShortcuts": ["hyper+a", "ctrl+alt+f6 x"]}}"#
+        let config = try SlatedConfiguration.decode(from: Data(json.utf8))
+        expectEqual(config.general.importedSlateShortcuts, ["hyper+a", "ctrl+alt+f6 x"])
+        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        let none = String(decoding: try SlatedConfiguration().encoded(), as: UTF8.self)
+        expect(!none.contains("importedSlateShortcuts"), none)
+      }
+    ),
+    (
       "key combos parse and format",
       {
         let combo = try require(KeyCombo(string: "ctrl+shift+alt+cmd+a"))

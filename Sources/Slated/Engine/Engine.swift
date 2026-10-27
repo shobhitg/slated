@@ -228,7 +228,10 @@ final class Engine {
             trigger: "hotkey \((binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string)", source: "Slated")
         }
       }
-      entries += sources.entries(settings: settings)
+      // Shortcuts imported from a Slate file that keeps loading are Settings' now: the file's copies
+      // would come back as soon as one is deleted or moved there.
+      let imported = Set(config.general.importedSlateShortcuts)
+      entries += sources.entries(settings: settings).filter { !imported.contains($0.id) }
       entries += builtInEntries(config)
       let disabled = config.bindings.filter { !$0.enabled }.map { binding in
         (binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string
@@ -456,8 +459,10 @@ final class Engine {
       CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, name: $0.name, action: $0.action)
     }
     if config.general.loadSlateConfigs {
+      // Imported shortcuts are already listed as Slated's own (see apply).
+      let imported = Set(config.general.importedSlateShortcuts)
       for source in sources.sources where source.loaded {
-        result += source.bindings.map {
+        result += source.bindings.filter { !imported.contains($0.id) }.map {
           CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, action: $0.action, summary: $0.summary)
         }
       }
@@ -596,6 +601,11 @@ final class Engine {
           "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
         )
       }
+      if keepsLoading && imported > 0 {
+        parts.append(
+          "The imported shortcuts now run from Slated's configuration, where you can edit them in Settings; the Slate file's own copies of them are ignored."
+        )
+      }
       if !problems.isEmpty {
         parts.append(
           "Not imported, and still loaded, because the import's test run may not match this Mac:\n"
@@ -624,10 +634,12 @@ final class Engine {
     var neverRun: [String] = []
     var problems: [String] = []
     var warnings: [String] = []
+    var importedIDs: [String] = []
     func add(_ binding: HotkeyBinding) {
       let id = ((binding.modal?.keys.string).map { $0 + " " } ?? "") + binding.keys.string
       guard bound.insert(id).inserted else { return }
       config.bindings.append(binding)
+      importedIDs.append(id)
       imported += 1
     }
     for raw in config.general.slateConfigPaths {
@@ -663,7 +675,12 @@ final class Engine {
     }
     let summary = ImportSummary(
       imported: imported, skipped: skipped, neverRun: neverRun, problems: problems, warnings: warnings)
-    if !summary.keepsLoading { config.general.loadSlateConfigs = false }
+    if summary.keepsLoading {
+      // The files still bind these keys; from now on Slated's copies are the only ones (see apply).
+      config.general.importedSlateShortcuts = Set(config.general.importedSlateShortcuts + importedIDs).sorted()
+    } else {
+      config.general.loadSlateConfigs = false
+    }
     try save(config)
     Log.record(
       "slate.imported",

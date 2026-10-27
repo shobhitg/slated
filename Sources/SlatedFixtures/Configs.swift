@@ -205,6 +205,12 @@ private let decodeCases: [(String, String)] = [
   ("clipboard shortcut as a number", #"{"clipboard": {"shortcut": 5}}"#),
   ("automation is not an object", #"{"automation": []}"#),
   ("full configuration", fullConfig),
+  (
+    "Slate shortcuts imported while the files keep loading",
+    #"{"general": {"importedSlateShortcuts": ["hyper+a", "ctrl+alt+f6 x"]}}"#
+  ),
+  ("no imported Slate shortcuts: not written", #"{"general": {"importedSlateShortcuts": []}}"#),
+  ("imported Slate shortcuts as text", #"{"general": {"importedSlateShortcuts": "hyper+a"}}"#),
   ("docs/CONFIG.md example (JSON with comments)", configMarkdownExample),
   (
     "ConfigurationTests: missing keys and comments",

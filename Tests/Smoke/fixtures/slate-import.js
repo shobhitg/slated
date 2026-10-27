@@ -5,6 +5,7 @@ slate.config("windowHintsCharacters", function () {
   return "ASDF" + slate.screenCount();
 });
 slate.bind("f16:ctrl,alt", slate.operation("push", { direction: "up" }));
+slate.bind("f18:ctrl,alt", slate.operation("push", { direction: "down" }));
 // Needs the script: it moves the window itself.
 slate.bind("f17:ctrl,alt", function (win) {
   win.move({ x: 0, y: 0 });

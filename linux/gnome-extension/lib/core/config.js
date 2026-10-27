@@ -505,13 +505,18 @@ const defaultOptions = () => ({ignoreFail: false, mainFirst: false, mainLast: fa
 function general(v, path) {
   const c = new Keyed(v, path);
   const d = defaultGeneral();
-  return {
+  const out = {
     launchAtLogin: c.optional('launchAtLogin', bool) ?? d.launchAtLogin,
     loadSlateConfigs: c.optional('loadSlateConfigs', bool) ?? d.loadSlateConfigs,
     slateConfigPaths: c.optional('slateConfigPaths', arrayOf(str)) ?? d.slateConfigPaths,
     showActionHUD: c.optional('showActionHUD', bool) ?? d.showActionHUD,
     hotstringsEnabled: c.optional('hotstringsEnabled', bool) ?? d.hotstringsEnabled,
   };
+  // Shortcuts imported from Slate files that keep loading; the files' own bindings on these keys are
+  // ignored. Written only when there are some, as in Swift.
+  const imported = c.optional('importedSlateShortcuts', arrayOf(str)) ?? [];
+  if (imported.length) out.importedSlateShortcuts = imported;
+  return out;
 }
 
 /** One Slate `config` value: a boolean, a number or text, as in SettingValue's decoding. */

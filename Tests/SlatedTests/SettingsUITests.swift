@@ -546,6 +546,20 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "a Slate binding imported while its file keeps loading shows as imported, not as another use",
+      {
+        try onMain {
+          let model = AppModel(services: PreviewServices())
+          let source = try require(model.sources.first?.bindings.first { $0.keys == hyper("n") })
+          expect(model.state(for: source) != .imported)
+          model.configuration.general.importedSlateShortcuts = [source.id]
+          expect(model.state(for: source) == .imported)
+          let others = model.otherUses(of: hyper("n"), modal: nil, excluding: nil)
+          expect(!others.contains { $0.contains(".slate.js") }, "\(others)")
+        }
+      }
+    ),
+    (
       "copies static Slate bindings into Slated",
       {
         try onMain {

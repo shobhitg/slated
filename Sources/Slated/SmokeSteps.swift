@@ -1,4 +1,5 @@
 import AppKit
+import SlatedCore
 import SlatedSystem
 import SlatedUI
 
@@ -97,6 +98,20 @@ enum SmokeSteps {
         print(summary.message)
       } catch {
         print("import failed:", error.localizedDescription)
+      }
+    case "edit-imported":
+      // In Settings: delete the binding on ⌃⌥F16 and move the one on ⌃⌥F18 to ⌃⌥F19.
+      var config = engine.configuration
+      config.bindings.removeAll { $0.keys.string == "ctrl+alt+f16" }
+      if let index = config.bindings.firstIndex(where: { $0.keys.string == "ctrl+alt+f18" }),
+        let keys = KeyCombo(string: "ctrl+alt+f19")
+      {
+        config.bindings[index].keys = keys
+      }
+      do {
+        try LiveServices(engine: engine).saveConfiguration(config)
+      } catch {
+        print("save failed:", error.localizedDescription)
       }
     case "print-hotkeys":
       // Every shortcut's status, active ones too (the summary at the end lists only the others).

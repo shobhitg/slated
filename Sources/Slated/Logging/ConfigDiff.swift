@@ -19,7 +19,8 @@ enum ConfigDiff {
       let g = new.general
       changes.append(
         "general: launchAtLogin \(g.launchAtLogin), loadSlateConfigs \(g.loadSlateConfigs), "
-          + "showActionHUD \(g.showActionHUD), hotstringsEnabled \(g.hotstringsEnabled)")
+          + "showActionHUD \(g.showActionHUD), hotstringsEnabled \(g.hotstringsEnabled), "
+          + "importedSlateShortcuts \(g.importedSlateShortcuts.count)")
     }
     if old.clipboard != new.clipboard {
       let c = new.clipboard
