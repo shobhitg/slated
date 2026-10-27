@@ -87,4 +87,53 @@ let macOSContractTests = Suite(
         NotificationCenter.default.removeObserver(token)
       }
     ),
+    (
+      "clipboard search folds what the GNOME port folds: Grapheme_Extend dropped, few precomposed characters split",
+      {
+        // The rules linux/gnome-extension/lib/core/clipboard.js follows, checked on every scalar. The
+        // golden vectors in fixtures/clipboard.json pin individual cases.
+        func finds(_ text: String, _ query: String) -> Bool {
+          text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+        func ignored(_ scalar: Unicode.Scalar) -> Bool {
+          scalar.properties.isGraphemeExtend || (0x1F3FB...0x1F3FF).contains(scalar.value)
+        }
+        var wrong: [String] = []
+        var checked = (singletons: 0, precomposed: 0)
+        for value in UInt32(0xA0)...0x10FFFF {
+          guard let scalar = Unicode.Scalar(value), scalar.properties.generalCategory != .unassigned,
+            scalar.properties.generalCategory != .privateUse
+          else { continue }
+          let c = String(Character(scalar))
+          let nfd = c.decomposedStringWithCanonicalMapping
+          // (Swift's == compares canonically equivalent strings as equal, so compare scalars.)
+          let decomposes = !nfd.unicodeScalars.elementsEqual(c.unicodeScalars)
+          if nfd.unicodeScalars.count == 1 && decomposes && !ignored(scalar) {
+            // A singleton (CJK compatibility ideographs, Ω, K…) is always replaced.
+            checked.singletons += 1
+            if !finds(nfd, c + "\u{308}") { wrong.append(String(format: "singleton %04X", value)) }
+            continue
+          }
+          // Separately written, it's ignored exactly when it's Grapheme_Extend (or a skin tone). ("q" and
+          // "z" have no precomposed forms with marks, so they never combine with it.)
+          if !decomposes && finds("q" + c + "z", "qz") != ignored(scalar) {
+            wrong.append(String(format: "ignored %04X", value))
+          }
+          // Precomposed, it's split into base and marks only when the base is below U+0510.
+          let marks = nfd.unicodeScalars.filter(ignored)
+          let base = String(String.UnicodeScalarView(nfd.unicodeScalars.filter { !ignored($0) }))
+          guard !marks.isEmpty, !base.isEmpty else { continue }
+          checked.precomposed += 1
+          if finds(c, base) != (nfd.unicodeScalars.first!.value < 0x510) {
+            wrong.append(String(format: "precomposed %04X", value))
+          }
+        }
+        expectEqual(wrong, [])
+        expect(checked.singletons > 1000 && checked.precomposed > 1000, "\(checked)")
+        // A canonically equivalent spelling matches, also with the text's extra marks left out.
+        expect(finds("\u{304B}\u{3099}", "\u{304C}") && finds("\u{304C}", "\u{304B}\u{3099}"))
+        expect(finds("\u{FB2A}\u{309A}", "\u{5E9}\u{5C1}") && !finds("\u{FB2A}", "\u{5E9}\u{5C1}\u{309A}"))
+        expect(!finds("\u{304C}", "\u{304B}") && !finds("\u{304B}", "\u{304C}"))
+      }
+    ),
   ])

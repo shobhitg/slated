@@ -845,7 +845,9 @@ private func randomConfigJSON(_ rng: inout FuzzRNG) -> String {
     )
   }
   // A section from a newer Slated: kept and written back as read.
-  if rng.chance(0.2) { top.append("\(J.quote(rng.pick(["future", "aaa", "Bindings", "zzz"]))): \(randomJSONValue(&rng, depth: 0))") }
+  if rng.chance(0.2) {
+    top.append("\(J.quote(rng.pick(["future", "aaa", "Bindings", "zzz"]))): \(randomJSONValue(&rng, depth: 0))")
+  }
   return "{" + top.joined(separator: ", ") + "}"
 }
 
@@ -1159,6 +1161,10 @@ func fuzzClipboardFile(_ rng: inout FuzzRNG, count: Int) -> FixtureFile {
     "a", "e", "s", "S", "ß", "ẞ", "é", "e\u{301}", "É", "ﬁ", "f", "i", "İ", "ı", "I", " ", "æ", "Æ", "ø", "o", "ö",
     "Ö", "ſ", "ﬆ", "t", "k", "\u{212A}", "å", "\u{212B}", "σ", "ς", "Σ", "ǅ", "ǆ", "x", "1", "١", "１", "ｆ", "\t",
     "😀", "👍🏽", "\u{0301}", "\u{0308}", "n", "ŉ", "ʼ", "ﬀ", "ﬃ", "Ⅻ", "x\u{20DD}",
+    // Grapheme_Extend characters Foundation ignores, and precomposed characters it doesn't fold.
+    "\u{200C}", "\u{200D}", "ی", "か", "が", "\u{3099}", "\u{309A}", "ハ", "パ", "ﾊ", "ﾞ", "ﾟ", "ক", "\u{9BE}", "ا", "آ",
+    "\u{653}", "ש", "\u{FB2A}", "\u{5C1}", "가", "\u{1100}", "\u{1161}", "\u{11A8}", "=", "≠", "\u{338}", "\u{F900}",
+    "\u{8C48}",
   ]
   var items: [ClipboardItem] = []
   for n in 0..<60 {

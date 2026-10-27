@@ -192,20 +192,34 @@ function decodeItem(value, path) {
 
 // --- Search (Foundation's case- and diacritic-insensitive `range(of:)`) ----------------------------
 //
-// Foundation compares character by character (extended grapheme clusters), each folded: decomposed,
-// with nonspacing and enclosing marks (and emoji skin tones) dropped, then case-folded, so "É" is
-// "e", "ß" is "ss" and "ﬁ" is "fi". A match starts and ends at character boundaries of the text. A
-// query character that folds to several letters is compared only against what the current text
-// character folded to; its remaining letters then skip that many letters of the text unchecked. So
-// "ß" finds "sx" but not a lone "s", and "ﬃ" finds "file" but not "ﬁle". A letter is a whole
-// character of the folded text, so "ß" also finds "s😀" and "s\r\n". A character made only of marks
-// (a combining mark at the start of the text or after a line break) has nothing to attach to and
-// is compared as it is. The golden vectors in fixtures/clipboard.json pin all of this to what macOS
-// does.
+// Foundation compares character by character (extended grapheme clusters), each folded: Grapheme_Extend
+// characters (combining marks, ZWNJ, the halfwidth voicing marks ﾞ ﾟ…) and emoji skin tones dropped,
+// precomposed characters decomposed when their base is Latin, Greek or Cyrillic (below U+0510, so "É"
+// is "e" but "が" stays "が" and "آ" stays "آ") or when they stand for a single other character (CJK
+// compatibility ideographs), then case-folded, so "ß" is "ss" and "ﬁ" is "fi". A query character also
+// matches a text character that is canonically equivalent to it ("が" finds "か" + U+3099), with or
+// without the text's other marks. A match starts and ends at character boundaries of the text. A query character that folds to several letters is
+// compared only against what the current text character folded to; its remaining letters then skip
+// that many letters of the text unchecked. So "ß" finds "sx" but not a lone "s", and "ﬃ" finds
+// "file" but not "ﬁle". A letter is a whole character of the folded text, so "ß" also finds "s😀" and
+// "s\r\n". A character made only of marks (a combining mark at the start of the text or after a line
+// break) has nothing to attach to and is compared as it is. The golden vectors in
+// fixtures/clipboard.json pin all of this to what macOS does.
 
-const MARKS = /[\p{Mn}\p{Me}\u{1F3FB}-\u{1F3FF}]/gu;
+const MARKS = /[\p{Grapheme_Extend}\u{1F3FB}-\u{1F3FF}]/gu;
 
-const stripMarks = (s) => s.normalize('NFD').replace(MARKS, '');
+/** Decomposes the characters Foundation folds: those whose decomposition starts below U+0510, and singletons. */
+function decompose(s) {
+  let out = '';
+  for (const ch of s) {
+    const d = ch.normalize('NFD');
+    const first = d.codePointAt(0);
+    out += d !== ch && (first < 0x510 || d.length === (first > 0xffff ? 2 : 1)) ? d : ch;
+  }
+  return out;
+}
+
+const stripMarks = (s) => decompose(s).replace(MARKS, '');
 
 /** Full case folding, near enough: upper then lower case twice (ẞ → ß → ss), except dotless ı. */
 function caseFold(s) {
@@ -214,10 +228,27 @@ function caseFold(s) {
   return out;
 }
 
-/** A character folded, as its letters (characters of the folded text). */
+/** Folded characters by character; they're shared, so they must not be changed. */
+const foldedCharacters = new Map();
+const FOLDED_CHARACTERS_LIMIT = 20000;
+
+/**
+ * A character folded, as its letters (characters of the folded text). Outside Latin, Greek and
+ * Cyrillic it also carries its canonical decomposition, with and without the marks folding drops
+ * (`canonical`, `stripped`), for the canonically equivalent spellings.
+ */
 function foldCharacter(c) {
+  let folded = foldedCharacters.get(c);
+  if (folded !== undefined) return folded;
   const base = stripMarks(c);
-  return base === '' ? [c.normalize('NFD')] : graphemes(stripMarks(caseFold(base)));
+  folded = base === '' ? [c.normalize('NFD')] : graphemes(stripMarks(caseFold(base)));
+  if (/[^\u0000-\u050F]/u.test(c)) {
+    folded.canonical = c.normalize('NFD');
+    folded.stripped = base.normalize('NFD');
+  }
+  if (foldedCharacters.size >= FOLDED_CHARACTERS_LIMIT) foldedCharacters.clear();
+  foldedCharacters.set(c, folded);
+  return folded;
 }
 
 /** A query word as folded characters. */
@@ -242,11 +273,20 @@ export function foldedContains(text, word) {
 
 function containsFolded(characters, pattern) {
   if (pattern.length === 0) return false;
+  // A match starts with the query's first letter (or a spelling of its first character), so only
+  // those positions are tried.
+  const first = pattern[0];
   for (let start = 0; start < characters.length; start++) {
-    if (characters[start].length > 0 && matchesAt(characters, start, pattern)) return true;
+    const c = characters[start];
+    if (c.length === 0 || (c[0] !== first[0] && !equivalent(first, c))) continue;
+    if (matchesAt(characters, start, pattern)) return true;
   }
   return false;
 }
+
+/** Whether a query character is canonically equivalent to a whole text character, or to it without its extra marks. */
+const equivalent = (query, text) =>
+  query.canonical !== undefined && (query.canonical === text.canonical || query.canonical === text.stripped);
 
 /**
  * Folded characters are arrays of letters; `pending` holds the letters of the current one not yet
@@ -268,6 +308,10 @@ function matchesAt(characters, start, pattern) {
   };
   for (const folded of pattern) {
     if (!refill()) return false;
+    if (fresh && equivalent(folded, pending)) {
+      pending = [];
+      continue;
+    }
     const n = Math.min(folded.length, pending.length);
     for (let i = 0; i < n; i++) if (folded[i] !== pending[i]) return false;
     let skip = folded.length;
