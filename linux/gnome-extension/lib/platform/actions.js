@@ -97,7 +97,7 @@ export class ActionRunner {
     this._context = null;
     /** Set by a `shell` step with `wait`: the steps after it continue once this settles. */
     this._waiting = null;
-    /** Bumped to drop macro steps still waiting (`wait`): stop-automations, reloads, disable. */
+    /** Bumped to drop steps still waiting (`wait`, `shell` with `wait`): stop-automations, reloads, disable. */
     this._generation = 0;
     this._destroyed = false;
   }
@@ -176,11 +176,15 @@ export class ActionRunner {
     return waiting;
   }
 
-  /** Runs `body` once `waiting` (a `shell` step with `wait`) settles, logged as its own event. */
+  /**
+   * Runs `body` once `waiting` (a `shell` step with `wait`) settles, logged as its own event. Like the
+   * steps after a `wait`, it's dropped if automations are stopped, Slated reloads or it's turned off.
+   */
   _after(waiting, description, body) {
+    const generation = this._generation;
     const context = this._context ?? {trigger: 'unknown', source: null, label: null};
     waiting.then(() => {
-      if (this._destroyed) return;
+      if (this._destroyed || generation !== this._generation) return;
       this._logged({...context, trigger: `${context.trigger} (after shell)`}, () => description, body);
     });
   }

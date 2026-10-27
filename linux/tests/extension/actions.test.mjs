@@ -534,6 +534,25 @@ test('a macro step that fails after a wait is logged; reloads and destroy drop w
   assert.equal(runner.run('wait 1', {trigger: 't'}), true, 'a wait on its own does nothing');
 });
 
+test('steps waiting on a shell command are dropped by stop-automations and reloads, like steps after a wait', async () => {
+  const {platform, runner, sent} = automationSetup();
+  const macro = {op: 'sequence', operations: [
+    {op: 'press', input: 'key:w', phase: 'down'}, {op: 'shell', command: 'sleep 1', wait: true},
+    {op: 'press', input: 'key:w', phase: 'up'}, {op: 'press', input: 'mouse:left', phase: 'down'},
+  ]};
+  runner.run(macro, {trigger: 'hotkey f6'});
+  runner.run('stop-automations', {trigger: 'hotkey hyper+esc'});
+  assert.deepEqual(sent, ['w down', 'w up'], 'the stop releases W');
+  await platform.finishShells();
+  assert.deepEqual(sent, ['w down', 'w up'], 'and the left button never goes down once the command exits');
+
+  runner.setLayouts([{name: 'work', before: [{op: 'shell', command: 'gnome-terminal', wait: true}], apps: [{app: 'Terminal', operations: [leftHalf]}]}]);
+  runner.run({op: 'layout', name: 'work'}, {trigger: 't'});
+  runner.cancelPendingSteps(); // a config reload
+  await platform.finishShells();
+  assert.equal(platform.windows[1].frame.x, 1000, 'a reload drops the arrangement waiting on its command');
+});
+
 test('clipboard-history opens the switcher, or fails with the reason', () => {
   const {runner, errors} = automationSetup();
   let result = {ok: true};
