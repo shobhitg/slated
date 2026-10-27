@@ -1,7 +1,13 @@
 #!/bin/bash
 # Stand-in for gsettings, for linux/tests/installer/run.sh: keys live in $HOME/gsettings.json.
+# STUB_GSETTINGS_NO_COMMIT=1 plays dconf without a session bus (su, sudo -u, cron): a `set` prints
+# dconf's warning, changes nothing and still exits 0.
 set -euo pipefail
 echo "gsettings $*" >>"$STUB_LOG"
+if [ "${STUB_GSETTINGS_NO_COMMIT:-0}" = 1 ] && [ "${1:-}" = set ]; then
+  echo "(process:1234): dconf-WARNING **: 12:00:00.000: failed to commit changes to dconf: Cannot autolaunch D-Bus without X11 \$DISPLAY" >&2
+  exit 0
+fi
 python3 -I - "$HOME/gsettings.json" "$@" <<'PY'
 import json, sys
 path, command, schema, key = sys.argv[1:5]

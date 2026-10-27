@@ -405,13 +405,35 @@ hyper_keyd() {
 
 # --- Uninstall ------------------------------------------------------------------------------------------
 
+# Whether two gsettings string lists ("['a', 'b']", "@as []") hold the same options in the same order.
+same_options() {
+  python3 -I - "$1" "$2" <<'PY'
+import ast, sys
+def parse(raw):
+    raw = raw.strip()
+    return ast.literal_eval(raw[3:].strip() if raw.startswith("@as") else raw or "[]")
+try:
+    sys.exit(0 if parse(sys.argv[1]) == parse(sys.argv[2]) else 1)
+except (ValueError, SyntaxError):
+    sys.exit(1)
+PY
+}
+
 # Turning Slated off puts GNOME's keyboard options back: it takes out the caps:hyper option it added
 # and restores the caps options it set aside, then deletes its record of them (hyper.json). When
 # GNOME Shell isn't running Slated (uninstalling from a text console or another desktop), that
 # record is still there: do the same from it, or Caps Lock would stay the Hyper key without Slated.
+# The record is deleted only once your own settings really changed: gsettings exits 0 even when
+# dconf can't save (no session bus, as from su, sudo -u or cron), and with sudo -E it would change
+# root's settings.
 restore_keyboard_options() {
-  local record="$STATE_DIR/hyper.json" current next
+  local record="$STATE_DIR/hyper.json" current next now
   [ -f "$record" ] && have gsettings || return 0
+  if [ ! -O "$record" ]; then
+    note "Kept $record: it belongs to another user. To put their keyboard options back, run"
+    note "linux/install.sh --uninstall as that user, without sudo."
+    return 0
+  fi
   current="$(gsettings get org.gnome.desktop.input-sources xkb-options 2>/dev/null)" || return 0
   next="$(python3 -I - "$record" "$current" <<'PY'
 import ast, json, sys
@@ -419,18 +441,29 @@ try:
     record = json.load(open(sys.argv[1]))
     raw = sys.argv[2].strip()
     options = ast.literal_eval(raw[3:].strip() if raw.startswith("@as") else raw or "[]")
-except (OSError, ValueError, SyntaxError):
+except (OSError, ValueError, SyntaxError, TypeError):
     sys.exit(1)
 if not isinstance(record, dict) or not isinstance(options, list):
     sys.exit(1)
+# Read like the extension does (hyper.js _readState): anything but a list sets nothing aside.
+removed = record.get("removedOptions")
+removed = [o for o in removed if isinstance(o, str)] if isinstance(removed, list) else []
 if record.get("addedCapsHyper") is True:
     options = [o for o in options if o != "caps:hyper"]
-options += [o for o in record.get("removedOptions", []) if isinstance(o, str) and o not in options]
+options += [o for o in removed if o not in options]
 print("[" + ", ".join(repr(o) for o in options) + "]")
 PY
 )" || return 0
   if [ "$next" != "$current" ]; then
-    gsettings set org.gnome.desktop.input-sources xkb-options "$next" || return 0
+    gsettings set org.gnome.desktop.input-sources xkb-options "$next" 2>/dev/null || true
+    now="$(gsettings get org.gnome.desktop.input-sources xkb-options 2>/dev/null)" || now=""
+    if ! same_options "$now" "$next"; then
+      note "Couldn't put GNOME's keyboard options back from here (gsettings can't reach your session's"
+      note "settings), so Caps Lock may still be the Hyper key. Run linux/install.sh --uninstall again"
+      note "from your GNOME session, or run this there:"
+      note "  gsettings set org.gnome.desktop.input-sources xkb-options \"$next\""
+      return 0
+    fi
     ok "Put GNOME's keyboard options back as they were before Slated: $next"
   fi
   rm -f "$record"

@@ -195,6 +195,38 @@ check "...and forgets the record" test ! -e "$HOME/.local/state/slated/hyper.jso
 out="$(install_sh "$GE_BIN" --uninstall)"
 check "...only once" bash -c '! grep -q "keyboard options back" <<<"$1"' _ "$out"
 check "...and the options stay as they were" test "$(xkb_options)" = "['compose:ralt', 'caps:escape']"
+# When gsettings can't reach this session's settings (dconf without a session bus, from su or cron),
+# a set prints a warning and exits 0: the record stays, with what to do.
+install_sh "$GE_BIN" >/dev/null
+echo '{"addedCapsHyper": true, "removedOptions": ["caps:escape"]}' >"$HOME/.local/state/slated/hyper.json"
+"$STUBS/gsettings" set org.gnome.desktop.input-sources xkb-options "['compose:ralt', 'caps:hyper']"
+out="$(STUB_GSETTINGS_NO_COMMIT=1 install_sh "$GE_BIN" --uninstall)"
+status=$?
+check "an uninstall whose gsettings change doesn't stick still succeeds" test "$status" -eq 0
+check "...doesn't claim the options are back" bash -c '! grep -q "Put GNOME" <<<"$1"' _ "$out"
+check "...keeps the record for a later try" test -f "$HOME/.local/state/slated/hyper.json"
+check "...and gives the exact command to run in your session" contains "$out" "gsettings set org.gnome.desktop.input-sources xkb-options \"['compose:ralt', 'caps:escape']\""
+out="$(install_sh "$GE_BIN" --uninstall)"
+check "...which a later uninstall in the session does" test "$(xkb_options)" = "['compose:ralt', 'caps:escape']" -a ! -e "$HOME/.local/state/slated/hyper.json"
+# A record whose removedOptions isn't a list is read like the extension reads it: nothing set aside.
+for removed in '"caps:escape"' 'null' '{"caps": "escape"}'; do
+  install_sh "$GE_BIN" >/dev/null
+  echo "{\"addedCapsHyper\": true, \"removedOptions\": $removed}" >"$HOME/.local/state/slated/hyper.json"
+  "$STUBS/gsettings" set org.gnome.desktop.input-sources xkb-options "['compose:ralt', 'caps:hyper']"
+  out="$(install_sh "$GE_BIN" --uninstall)"
+  check "removedOptions $removed: caps:hyper comes out, nothing else goes in" test "$(xkb_options)" = "['compose:ralt']"
+  check "removedOptions $removed: no Python traceback" bash -c '! grep -q Traceback <<<"$1"' _ "$out"
+done
+# Another user's record (sudo -E keeps HOME, so gsettings would change root's settings): left alone.
+if [ "$(id -u)" != 0 ]; then
+  install_sh "$GE_BIN" >/dev/null
+  "$STUBS/gsettings" set org.gnome.desktop.input-sources xkb-options "['compose:ralt', 'caps:hyper']"
+  ln -s /etc/hosts "$HOME/.local/state/slated/hyper.json" # a file root owns
+  out="$(install_sh "$GE_BIN" --uninstall)"
+  check "another user's record isn't used or deleted" test -L "$HOME/.local/state/slated/hyper.json" -a "$(xkb_options)" = "['compose:ralt', 'caps:hyper']"
+  check "...and the uninstall says whose it is to restore" contains "$out" "belongs to another user"
+  rm -f "$HOME/.local/state/slated/hyper.json"
+fi
 install_sh "$GE_BIN" >/dev/null
 install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
 mkdir -p "$WORK/espanso/match"
