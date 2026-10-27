@@ -170,6 +170,8 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Mouse 4/5 work as triggers (after granting Accessibility).
 - [ ] Hyper+Esc stops everything. Switching apps stops automations (if enabled). Pausing, sleeping,
       locking the screen and quitting release anything held: no stuck button or key.
+- [ ] Hold W, switch the input source (e.g. to French, where W is another key), then stop: W is
+      released, in the game and in Keyboard Viewer.
 
 **Notch island** (try the built-in display, an external display, and a full-screen app)
 - [ ] Holding Caps Lock about half a second shows the cheat sheet on the display you're working on;
