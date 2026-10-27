@@ -128,14 +128,15 @@ public struct CheatSheet: Hashable, Sendable {
 
   static func group(for action: Action?) -> Group {
     guard let action else { return .scripts }
+    // Anything that clicks or presses is an automation, as in Settings, whatever its shape.
+    if action.containsAutomation { return .automation }
     switch action {
     case .throwWindow: return .displays
     case .byOrientation(let landscape, _): return group(for: landscape)
     case .chain(let actions): return actions.first.map(group(for:)) ?? .windows
     case .sequence(let steps):
-      // A macro is an automation, as in Settings; otherwise a sequence goes with its first step,
-      // like a chain ("Next display, then maximize" is a display shortcut).
-      if action.containsAutomation { return .automation }
+      // Like a chain, a sequence goes with its first step ("Next display, then maximize" is a
+      // display shortcut).
       return steps.first.map { group(for: $0.action) } ?? .utilities
     case .move, .resize, .push, .nudge, .corner, .grid, .undo: return .windows
     case .focus, .focusApp, .hide, .show, .toggle, .switchApp, .hint: return .apps
