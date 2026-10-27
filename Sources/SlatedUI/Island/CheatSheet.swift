@@ -132,11 +132,16 @@ public struct CheatSheet: Hashable, Sendable {
     case .throwWindow: return .displays
     case .byOrientation(let landscape, _): return group(for: landscape)
     case .chain(let actions): return actions.first.map(group(for:)) ?? .windows
+    case .sequence(let steps):
+      // A macro is an automation, as in Settings; otherwise a sequence goes with its first step,
+      // like a chain ("Next display, then maximize" is a display shortcut).
+      if action.containsAutomation { return .automation }
+      return steps.first.map { group(for: $0.action) } ?? .utilities
     case .move, .resize, .push, .nudge, .corner, .grid, .undo: return .windows
     case .focus, .focusApp, .hide, .show, .toggle, .switchApp, .hint: return .apps
     case .layout, .snapshot, .activateSnapshot, .deleteSnapshot: return .layouts
     case .click, .press, .hold, .autoRepeat, .wait, .stopAutomations: return .automation
-    case .sequence, .shell, .insertText, .keystroke, .openURL, .relaunch, .clipboardHistory: return .utilities
+    case .shell, .insertText, .keystroke, .openURL, .relaunch, .clipboardHistory: return .utilities
     }
   }
 
@@ -154,11 +159,24 @@ public struct CheatSheet: Hashable, Sendable {
     } else if key.count == 1 {
       base = 200 + Int(key.unicodeScalars.first!.value % 100)
     } else {
-      // Named keys keep a stable alphabetical order after the rest.
-      base = 400 + Int(key.unicodeScalars.prefix(2).reduce(0) { $0 * 128 + Int($1.value % 128) } % 10_000)
+      base = 400 + (namedKeyOrder[KeyNames.canonical(combo.key)] ?? namedKeyOrder.count)
     }
     return [base, combo.modifiers.rawValue.nonzeroBitCount]
   }
+
+  /// Named keys in natural order, so F2 comes before F10 and Pad 1 before Pad 10: by name, then by
+  /// the number they end with.
+  private static let namedKeyOrder: [String: Int] = {
+    func split(_ name: String) -> (name: String, number: Int) {
+      let digits = name.reversed().prefix(while: \.isNumber).count
+      return (name.dropLast(digits).lowercased(), Int(name.suffix(digits)) ?? -1)
+    }
+    let names = Set(KeyNames.named.values).sorted { a, b in
+      let (x, y) = (split(a), split(b))
+      return x.name == y.name ? x.number < y.number : x.name < y.name
+    }
+    return Dictionary(uniqueKeysWithValues: names.enumerated().map { ($0.element, $0.offset) })
+  }()
 
   /// The region a window action lands in on a sample screen, as fractions of the screen.
   static func region(for action: Action) -> CGRect? {

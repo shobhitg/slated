@@ -183,6 +183,11 @@ let uiCheatSheetTests = Suite(
           expectEqual(group(.shell(command: "ls", wait: false, path: nil)), "Utilities")
           expectEqual(group(.layout(name: "coding")), "Layouts")
           expectEqual(group(.chain([.throwWindow(screen: .index(1), width: nil, height: nil)])), "Displays")
+          // A macro sits with the automations, as in Settings; other sequences go by their first step.
+          expectEqual(group(try require(AutomationRecipes.recipe("macro")).action), "Automation")
+          expectEqual(group(.sequence(WindowPresets.defaultSequence)), "Displays")
+          expectEqual(group(.sequence([SequenceStep(.insertText("hi", method: .auto))])), "Utilities")
+          expectEqual(group(.sequence([])), "Utilities")
           expectEqual(group(nil), "Scripts")
           let script = CheatSheet.Shortcut(keys: try combo("hyper+j"), summary: "JavaScript function")
           let sheet = CheatSheet.hyper([script], hyperModifiers: .hyper)
@@ -209,6 +214,23 @@ let uiCheatSheetTests = Suite(
             .sorted { CheatSheet.rank($0).lexicographicallyPrecedes(CheatSheet.rank($1)) }.map(\.key)
           expectEqual(Array(sorted.prefix(8)), ["a", "z", "1", "0", "'", "left", "up", "right"])
           expectEqual(Set(sorted.suffix(2)), ["tab", "f5"])
+        }
+      }
+    ),
+    (
+      "named keys sort by name, then number (F2 before F10), whatever the config's order",
+      {
+        try onMain {
+          let keys = ["f12", "f10", "f2", "f1", "f11", "pageDown", "pageUp", "space", "mouse5", "mouse4", "tab", "esc"]
+          @MainActor func sorted(_ keys: [String]) -> [String] {
+            keys.map { KeyCombo(key: $0, modifiers: .hyper) }
+              .sorted { CheatSheet.rank($0).lexicographicallyPrecedes(CheatSheet.rank($1)) }.map(\.key)
+          }
+          let expected = [
+            "esc", "f1", "f2", "f10", "f11", "f12", "mouse4", "mouse5", "pageDown", "pageUp", "space", "tab",
+          ]
+          expectEqual(sorted(keys), expected)
+          expectEqual(sorted(keys.reversed()), expected)
         }
       }
     ),
