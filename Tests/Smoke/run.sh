@@ -6,7 +6,11 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 FIXTURES="$ROOT/Tests/Smoke/fixtures"
-swift build --package-path "$ROOT" --product Slated >/dev/null || exit 1
+if ! build_output="$(swift build --package-path "$ROOT" --product Slated 2>&1)"; then
+  printf '%s\n' "$build_output" | tail -30
+  echo "smoke: building Slated failed" >&2
+  exit 1
+fi
 BIN="$(swift build --package-path "$ROOT" --show-bin-path)/Slated"
 
 WORK="$(mktemp -d)"
@@ -93,7 +97,7 @@ expect_output "a modifier alone is rejected as a shortcut, with the reason" "$ou
 expect_output "mouse button shortcuts explain what they need" "$out" "Mouse button shortcuts need Accessibility permission"
 # "Pause Slated" stays paused when another app comes to the front: app-specific bindings make app
 # switches re-register hotkeys, which used to bring every one of them back.
-out=$(SLATED_SMOKE_PAUSE=1 smoke "$home")
+out=$(SLATED_SMOKE_STEPS=pause smoke "$home")
 expect_output "pausing unregisters every hotkey" "$out" "paused: 0 hotkeys registered"
 expect_output "switching apps while paused doesn't bring them back" "$out" \
   "paused, after switching apps: 0 hotkeys registered"
@@ -119,7 +123,7 @@ expect_output "the event log records the config error" "$(log_of "$home")" '"eve
 home=$(new_home)
 mkdir -p "$home/.config/slated"
 cp "$FIXTURES/config-broken.json" "$home/.config/slated/config.json"
-out=$(SLATED_SMOKE_SAVE=1 smoke "$home")
+out=$(SLATED_SMOKE_STEPS=save smoke "$home")
 expect_output "Settings pauses saving while config.json can't be read" "$out" "settings save: refused: Couldn't read"
 expect_output "the menu bar's toggles don't save over it either" "$out" "menu save: refused: Couldn't read"
 expect_true "the unreadable config.json is left as it was" \
@@ -131,7 +135,7 @@ home=$(new_home)
 mkdir -p "$home/.config/slated" "$home/dotfiles"
 cp "$FIXTURES/config-hand-edited.json" "$home/dotfiles/config.json"
 ln -s "$home/dotfiles/config.json" "$home/.config/slated/config.json"
-out=$(SLATED_SMOKE_SAVE=1 smoke "$home")
+out=$(SLATED_SMOKE_STEPS=save smoke "$home")
 expect_output "saving through a symlinked config.json works" "$out" "settings save: saved"
 expect_true "config.json is still a symlink after saving" test -L "$home/.config/slated/config.json"
 expect_true "the save went into the dotfiles copy" \
@@ -188,6 +192,18 @@ edit_when_started "$home" bash -c 'cp "$1" "$2.new" && mv "$2.new" "$2"' _ "$FIX
   "$home/dotfiles/config.json" &
 out=$(SLATED_SMOKE_SECONDS=3 smoke "$home"); wait
 expect_output "an edit to the file config.json links to is reloaded" "$out" "native: 1 bindings, 2 hotstrings"
+
+# 10. A ~/.slate.js event handler runs once per event, however often the file reloads (every settings
+#     save reloads it), and not at all once Slate files stop loading.
+script_calls() { grep -c '"message":"screens changed"' "$1/Library/Logs/Slated/slated.log"; }
+home=$(new_home)
+cp "$FIXTURES/slate-events.js" "$home/.slate.js"
+SLATED_SMOKE_STEPS="reload reload reload screens-changed" smoke "$home" >/dev/null
+expect_true "a reloaded script's event handler runs once per event" test "$(script_calls "$home")" -eq 1
+home=$(new_home)
+cp "$FIXTURES/slate-events.js" "$home/.slate.js"
+SLATED_SMOKE_STEPS="stop-loading-slate screens-changed" smoke "$home" >/dev/null
+expect_true "a script that's no longer loaded gets no events" test "$(script_calls "$home")" -eq 0
 
 echo
 echo "$passed passed, $failed failed"

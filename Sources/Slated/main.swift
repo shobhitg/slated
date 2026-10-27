@@ -1,52 +1,22 @@
 import AppKit
-import SlatedSystem
 
 let app = NSApplication.shared
 
 if CommandLine.arguments.contains("--smoke") {
   // Start the engine without UI or permission prompts, print what it loaded, and exit. Tests/Smoke can
-  // keep it running longer (SLATED_SMOKE_SECONDS), have it save the configuration first
-  // (SLATED_SMOKE_SAVE), or pause it and bring another app to the front (SLATED_SMOKE_PAUSE).
+  // keep it running longer (SLATED_SMOKE_SECONDS) and drive it half way through (SLATED_SMOKE_STEPS,
+  // see SmokeSteps).
   let environment = ProcessInfo.processInfo.environment
+  let steps = (environment["SLATED_SMOKE_STEPS"] ?? "").split(separator: " ").map(String.init)
   let engine = Engine()
   engine.allowsKeyboardChanges = false
   engine.start()
   let seconds = environment["SLATED_SMOKE_SECONDS"].flatMap(Double.init) ?? 1
-  if environment["SLATED_SMOKE_PAUSE"] != nil {
-    DispatchQueue.main.asyncAfter(deadline: .now() + seconds / 2) {
-      engine.setPaused(true)
-      print("paused: \(HotKeyCenter.shared.registrationCount) hotkeys registered")
-      // Only this process's observers hear it: as if another app had become active.
-      let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-      if let other = NSWorkspace.shared.runningApplications.first(where: {
-        $0.bundleIdentifier != nil && $0.bundleIdentifier != front
-      }) {
-        NSWorkspace.shared.notificationCenter.post(
-          name: NSWorkspace.didActivateApplicationNotification, object: NSWorkspace.shared,
-          userInfo: [NSWorkspace.applicationUserInfoKey: other])
-      }
-    }
+  DispatchQueue.main.asyncAfter(deadline: .now() + seconds / 2) {
+    for step in steps { SmokeSteps.run(step, engine: engine) }
   }
   DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-    if environment["SLATED_SMOKE_PAUSE"] != nil {
-      print("paused, after switching apps: \(HotKeyCenter.shared.registrationCount) hotkeys registered")
-    }
-    if environment["SLATED_SMOKE_SAVE"] != nil {
-      // Saving as Settings does (through the UI's services) and as the menu bar's toggles do.
-      let services = LiveServices(engine: engine)
-      let saves: [(String, () throws -> Void)] = [
-        ("settings", { try services.saveConfiguration(try services.loadConfiguration()) }),
-        ("menu", { try engine.save(engine.configuration) }),
-      ]
-      for (name, save) in saves {
-        do {
-          try save()
-          print("\(name) save: saved")
-        } catch {
-          print("\(name) save: refused:", error.localizedDescription)
-        }
-      }
-    }
+    SmokeSteps.report(steps)
     let status = engine.status
     let config = engine.configuration
     print("config:", engine.store.fileURL.path, engine.store.loadError ?? "ok")
