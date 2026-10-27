@@ -562,12 +562,16 @@ async function run(mode) {
     click(recorderIn(titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0]));
     world.emit(settings.contentPage, 'hidden');
     check(controllers().length === 0, 'stopped when the collapsed sidebar shows');
-    // As on the Mac, a click anywhere else ends it: say, into the Name field to type a name.
+    // As on the Mac, a click anywhere else ends it: say, into the Name field to type a name. GTK is
+    // still running the window's controllers then (world.press), so they go after it's delivered,
+    // and the click itself goes on to the field.
     settings.navigate('windows', {binding: ID.HALF});
     click(recorderIn(visible('windows')));
     const clicks = world.stateOf(window).controllers.filter(c => world.stateOf(c).cls === 'Gtk.GestureClick');
     check(clicks.length === 1, 'recording watches clicks in the window');
-    world.emit(clicks[0], 'pressed', 1, 20, 20);
+    const {consumed} = world.press(window, titled(visible('windows'), 'Adw.EntryRow', 'Name')[0]);
+    check(!consumed, 'the click reaches the Name field');
+    await settle();
     check(controllers().length === 0 && world.stateOf(window).controllers.length === 0, 'a click elsewhere stopped it');
     check(model.binding(ID.HALF).keys === before, 'the shortcut is unchanged');
     pop('windows');
@@ -1076,6 +1080,22 @@ function selfTest() {
       const area = new Gtk.DrawingArea();
       area.set_draw_func((_a, cr) => cr.drawRoundedRectangle(0, 0, 1, 1));
     }, /Cairo.Context has no method/);
+    // A press runs the window's controllers as GTK does: removing the one GTK runs next is a crash,
+    // and on GTK 4.20 a gesture removed during its own 'pressed' swallows the press.
+    const pressWindow = new Gtk.Window();
+    const keys = new Gtk.EventControllerKey({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    const gesture = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    pressWindow.add_controller(keys);
+    pressWindow.add_controller(gesture);
+    gesture.connect('pressed', () => pressWindow.remove_controller(keys));
+    rejects(`removing the controller GTK runs next during a press ${tag}`, () => world.press(pressWindow, pressWindow),
+      /use-after-free/);
+    const otherWindow = new Gtk.Window();
+    const selfRemoving = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    otherWindow.add_controller(selfRemoving);
+    selfRemoving.connect('pressed', () => otherWindow.remove_controller(selfRemoving));
+    check(world.press(otherWindow, otherWindow).consumed === (mode === 'new'),
+      `a gesture removed in its own 'pressed' swallows the press only on GTK 4.20 ${tag}`);
     new Adw.ActionRow({title: 'markup on'});
     new Adw.SwitchRow({use_markup: false, title: 'markup off'});
     check(world.report.markupRows.join() === 'Adw.ActionRow', `rows with markup on are reported ${tag}: ${world.report.markupRows}`);
