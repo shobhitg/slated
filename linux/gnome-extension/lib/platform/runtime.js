@@ -12,16 +12,20 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as Core from '../core/index.js';
 import {ActionRunner, errorMessage} from './actions.js';
+import {AutomationEngine, OWN_APPS, automationShortcuts, sendsKeys, whileHeldRepeat} from './automation.js';
+import {ClipboardService} from './clipboard.js';
 import {bindingKey, comboOf, modalOf} from './combos.js';
 import {ConfigStore, DEFAULT_SLATE_PATHS, emptyConfiguration} from './configStore.js';
 import {DebugService} from './debug.js';
 import {EspansoSync} from './espanso.js';
 import {readText} from './files.js';
+import {FocusTracker} from './focus.js';
 import {GnomePlatform} from './gnomePlatform.js';
 import {ActionHUD} from './hud.js';
 import {HyperManager, acceleratorOptions} from './hyper.js';
+import {AutomationIndicator} from './indicator.js';
 import {InputInjector} from './input.js';
-import {KeybindingManager, MutterGrabber} from './keybindings.js';
+import {KeybindingManager, MutterGrabber, readKeyboardRepeat, releaseTiming} from './keybindings.js';
 import {EventLog, LogFile, journalMirror} from './log.js';
 import {OverlayController} from './overlays.js';
 import * as Paths from './paths.js';
@@ -30,9 +34,13 @@ import {MonitorWatcher, currentScreens} from './screens.js';
 import {SlateSources} from './slateSources.js';
 import {SnapshotStore} from './snapshots.js';
 import {StatusFile, buildStatus} from './status.js';
+import {InputSynthesizer} from './synth.js';
 import {Debouncer, Timers} from './timers.js';
-import {conditionMatches, defaultEntry, diagnosticText, resolutionOf, truthyText} from './util.js';
+import {appMatchesAny, conditionMatches, defaultEntry, diagnosticText, resolutionOf, shortcutLabel, truthyText} from './util.js';
 import * as Windows from './windows.js';
+
+/** How many recently focused apps status.json lists (for the settings window's app picker). */
+const RECENT_APPS = 12;
 
 /** "0.1.0", "0.1.0+3f2a9c1" or "0.1.0 (3f2a9c1-dirty)" → {version, commit}. */
 export function parseVersionName(versionName) {
@@ -95,6 +103,12 @@ export class SlatedRuntime {
     this._statusIdle = 0;
     this._applyIdle = 0;
     this._started = false;
+    /** The focused app (util.appIdentity), for per-app bindings and stopping automations. */
+    this._focusedApp = null;
+    this._recentApps = [];
+    /** "key-repeat": while-held repeats stop when the key is let go; "toggle": keyboard repeat is off. */
+    this._whileHeldMode = 'key-repeat';
+    this._loggedWhileHeld = '';
   }
 
   // --- Lifecycle ---------------------------------------------------------------------------------
@@ -139,7 +153,8 @@ export class SlatedRuntime {
         log: this._log,
         focusedAppId: () => this._platform?.appInfo(this._platform.focusedApp())?.id ?? null,
       });
-      this._platform = new GnomePlatform({timers: this._timers, input: this._input, home: this._home});
+      this._synth = new InputSynthesizer({log: this._log});
+      this._platform = new GnomePlatform({timers: this._timers, input: this._input, synth: this._synth, home: this._home});
       this._snapshots = new SnapshotStore({path: Paths.snapshotsPath(), platform: this._platform, log: this._log});
       this._runner = new ActionRunner({platform: this._platform, core: this.core, log: this._log, snapshots: this._snapshots});
       this._overlays = new OverlayController({log: this._log, place: (window, frame) => this._runner.place(window, frame, 'Grid')});
@@ -163,11 +178,47 @@ export class SlatedRuntime {
       // Reloading re-grabs shortcuts; never do that from inside Mutter's key handling.
       this._runner.onRelaunch = () => this.scheduleReload('relaunch');
     });
+    this._step('automation', () => {
+      this._automation = new AutomationEngine({
+        timers: this._timers,
+        synth: this._synth,
+        log: this._log,
+        focusedApp: () => this._focusedApp,
+      });
+      this._automation.perform = (action) => this._runner?.performStep(action) ?? false;
+      this._automation.onChange = () => this._automationChanged();
+      this._indicator = new AutomationIndicator();
+      if (this._runner) this._runner.automation = this._automation;
+    });
+    this._step('clipboard', () => {
+      this._clipboard = new ClipboardService({
+        timers: this._timers,
+        log: this._log,
+        path: Paths.clipboardPath(),
+        input: this._input,
+        focus: {
+          window: () => Windows.focusedWindow(),
+          app: () => this._focusedApp,
+          activate: (window) => Windows.activate(window),
+          isAlive: (window) => Windows.isAlive(window),
+        },
+      });
+      this._clipboard.onChange = () => this._publishStatus();
+      if (this._input) this._input.onClipboardWrite = (text) => this._clipboard?.markOwnWrite(text);
+      if (this._runner) this._runner.clipboard = this._clipboard;
+    });
     this._step('shortcuts', () => {
       this._keybindings = new KeybindingManager({
         grabber: new MutterGrabber({timers: this._timers, hyperIsSuper: () => this._hyper.hyperIsSuper}),
         log: this._log,
+        onRelease: (entry) => this._automation?.released(`hotkey ${entry.id}`),
       });
+    });
+    this._step('focus', () => {
+      this._focusTracker = new FocusTracker((app) => this._focusChanged(app));
+      this._focusedApp = this._focusTracker.current();
+      this._rememberApp(this._focusedApp);
+      this._keybindings?.setFocusedApp(this._focusedApp);
     });
     this._step('slate sources', () => {
       this._scriptHost = new GnomeScriptHost({runner: this._runner, log: this._log, home: this._home});
@@ -223,14 +274,23 @@ export class SlatedRuntime {
     // don't churn on every lock.
     const locked = !!Main.sessionMode?.isLocked;
     this._started = false;
+    // Safety first: nothing Slated pressed stays down, and no auto-repeat or macro keeps running.
+    this._step('automation', () => {
+      this._automation?.destroy(locked ? 'screen locked' : 'disabled');
+      this._runner?.cancelPendingSteps();
+      this._synth?.destroy();
+      this._indicator?.destroy();
+    });
     this._step('debug interface', () => this._debugService?.destroy());
     this._step('displays', () => {
       this._monitors?.destroy();
       this._screensChanged?.cancel();
     });
+    this._step('focus', () => this._focusTracker?.destroy());
     this._step('config', () => this._store?.stopWatching());
     this._step('slate sources', () => this._sources?.destroy());
     this._step('shortcuts', () => this._keybindings?.destroy());
+    this._step('clipboard', () => this._clipboard?.stop());
     this._step('overlays', () => this._overlays?.destroy());
     this._step('hud', () => this._hud?.destroy());
     this._step('text input', () => this._input?.destroy());
@@ -245,6 +305,7 @@ export class SlatedRuntime {
     this._debugService = this._monitors = this._screensChanged = this._store = this._sources = null;
     this._scriptEvents = this._scriptHost = this._keybindings = this._overlays = this._hud = null;
     this._input = this._platform = this._snapshots = this._runner = this._hyperManager = this._espanso = null;
+    this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = null;
     this._statusFile = null;
     this._timers = null;
   }
@@ -260,6 +321,14 @@ export class SlatedRuntime {
     if (!this._started) return;
     const config = this._configuration();
     const general = config.general ?? {};
+
+    // Safety: a reload re-grabs every trigger, so nothing keeps running or stays held across it.
+    this._step('automation', () => {
+      if (this._automation?.isRunning) this._automation.stopAll('config reloaded');
+      this._runner?.cancelPendingSteps();
+      if (this._automation) this._automation.settings = {...this._automation.settings, ...(config.automation ?? {})};
+    });
+    this._step('clipboard', () => this._clipboard?.apply(config.clipboard));
 
     this._step('slate sources', () => {
       const paths = general.loadSlateConfigs === false ? [] : (general.slateConfigPaths ?? DEFAULT_SLATE_PATHS);
@@ -299,11 +368,19 @@ export class SlatedRuntime {
       } catch {
         escapeKeys = null;
       }
-      // Slated's own bindings come first so they win over Slate-file duplicates.
-      this._keybindings.apply([...this._configEntries(config, settings), ...(this._sources?.entries(settings) ?? [])], {
+      // While-held repeats notice the key being let go through GNOME's key repeat; with it off, a
+      // second press stops them instead.
+      const repeat = readKeyboardRepeat();
+      this._whileHeldMode = repeat.enabled ? 'key-repeat' : 'toggle';
+      // Slated's own bindings come first so they win over Slate-file duplicates; the built-in
+      // clipboard and stop shortcuts come last, so a binding on the same keys wins (as on macOS).
+      const entries = [...this._configEntries(config, settings), ...(this._sources?.entries(settings) ?? []), ...this._builtInEntries(config)];
+      this._logWhileHeld(entries);
+      this._keybindings.apply(entries, {
         disabled,
         escapeKeys,
         acceleratorFor: (combo) => this.core.toGnomeAccelerator(combo, options),
+        holdTiming: repeat.enabled ? releaseTiming(repeat) : null,
       });
     });
 
@@ -331,12 +408,18 @@ export class SlatedRuntime {
       }
       if (!keys) return;
       const id = bindingKey(keys, modal, this.core);
+      const whileHeld = whileHeldRepeat(binding.action);
       entries.push({
         id,
         keys,
         modal,
         repeats: typeof binding.repeats === 'boolean' ? binding.repeats : repeatOps.includes(binding.action?.op),
         source: 'Slated',
+        apps: Array.isArray(binding.onlyInApps) ? binding.onlyInApps : [],
+        // A while-held repeat needs to hear about the key being let go; one that types keys can't
+        // (any key event ends GNOME's key repeat), so it works like a toggle.
+        holdable: !!whileHeld && !modal && !sendsKeys(whileHeld.action),
+        whileHeld: !!whileHeld,
         run: () =>
           this._runner?.run(binding.action, {
             label: binding.name ?? null,
@@ -347,6 +430,85 @@ export class SlatedRuntime {
       });
     });
     return entries;
+  }
+
+  /** Slated's own shortcuts: the clipboard switcher (`clipboard.shortcut`) and the automation stop shortcut. */
+  _builtInEntries(config) {
+    const entries = [];
+    const add = (keysText, action, source) => {
+      let keys = null;
+      try {
+        keys = comboOf(keysText, this.core);
+      } catch {
+        keys = null;
+      }
+      if (!keys) return;
+      const id = bindingKey(keys, null, this.core);
+      entries.push({id, keys, modal: null, repeats: false, source, run: () => this._runner?.run(action, {trigger: `hotkey ${id}`, source})});
+    };
+    if (config.clipboard?.enabled !== false && config.clipboard?.shortcut) add(config.clipboard.shortcut, {op: 'clipboard-history'}, 'Slated clipboard');
+    if (config.automation?.stopShortcut) add(config.automation.stopShortcut, {op: 'stop-automations'}, 'Slated automation');
+    return entries;
+  }
+
+  /** Says once (per change) which while-held bindings work like toggles on GNOME, and why. */
+  _logWhileHeld(entries) {
+    const whileHeld = entries.filter((e) => e.whileHeld);
+    const toggles = whileHeld.filter((e) => this._whileHeldMode === 'toggle' || !e.holdable).map((e) => e.id);
+    const signature = JSON.stringify([this._whileHeldMode, toggles]);
+    if (signature === this._loggedWhileHeld) return;
+    this._loggedWhileHeld = signature;
+    if (whileHeld.length === 0) return;
+    const data = {mode: this._whileHeldMode, bindings: whileHeld.length};
+    if (toggles.length) {
+      data.toggles = toggles;
+      data.reason =
+        this._whileHeldMode === 'toggle'
+          ? 'keyboard repeat is off in GNOME Settings, so Slated can’t tell when a key is let go: press the shortcut again to stop'
+          : 'these repeat keystrokes, which stop GNOME’s key repeat: press the shortcut again to stop';
+    }
+    this._log.record('automation.while_held', data, toggles.length ? 'notice' : 'info');
+  }
+
+  // --- Automation, focus and clipboard -----------------------------------------------------------
+
+  _focusChanged(app) {
+    this._focusedApp = app;
+    this._rememberApp(app);
+    this._automation?.focusChanged(app);
+    if (this._keybindings?.setFocusedApp(app)) this._publishStatus();
+  }
+
+  /** Recently focused apps (id and name), newest first, for the settings window's app picker. */
+  _rememberApp(app) {
+    if (!app?.id || appMatchesAny(app, OWN_APPS)) return;
+    this._recentApps = [{id: app.id, name: app.name ?? app.id}, ...this._recentApps.filter((a) => a.id !== app.id)].slice(0, RECENT_APPS);
+  }
+
+  /** The stop shortcut as keycaps ("✦ Esc"), when it's registered. */
+  _stopLabel() {
+    const text = this._configuration().automation?.stopShortcut;
+    if (!text) return null;
+    try {
+      const combo = comboOf(text, this.core);
+      if (!combo) return null;
+      const status = this._keybindings?.statuses?.[bindingKey(combo, null, this.core)];
+      return status === 'active' || status === 'duplicate' ? shortcutLabel(combo) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  _automationChanged() {
+    try {
+      this._indicator?.update(this._automation?.active ?? [], {
+        stopLabel: this._stopLabel(),
+        visible: this._configuration().automation?.showIndicator !== false,
+      });
+    } catch (e) {
+      this._error('indicator', e);
+    }
+    this._publishStatus();
   }
 
   /** Re-applies on the next main-loop turn (coalesces bursts; safe from inside key handlers). */
@@ -395,6 +557,7 @@ export class SlatedRuntime {
   // --- Status ------------------------------------------------------------------------------------
 
   _statusState(running) {
+    const config = this._configuration();
     return {
       session: this._log?.session,
       version: this._build?.version,
@@ -403,6 +566,14 @@ export class SlatedRuntime {
       hotstrings: this._hotstrings,
       hotkeys: this._keybindings?.statuses ?? {},
       sources: this._sources?.sources ?? [],
+      automation: {
+        running: running ? (this._automation?.active ?? []).map((a) => a.title) : [],
+        shortcuts: running ? automationShortcuts(this._automation?.active ?? []) : [],
+        stopShortcut: config.automation?.stopShortcut ?? null,
+        whileHeld: this._whileHeldMode,
+      },
+      clipboard: {enabled: config.clipboard?.enabled !== false, items: this._clipboard?.count ?? 0},
+      recentApps: this._recentApps,
       lastAction: this._lastAction,
       lastError: this._lastError,
     };
@@ -502,5 +673,13 @@ export class SlatedRuntime {
 
   debugStatus() {
     return buildStatus(this._statusState(true));
+  }
+
+  debugMovePointer(x, y) {
+    try {
+      return this._synth?.moveTo(x, y).ok ?? false;
+    } catch {
+      return false;
+    }
   }
 }

@@ -66,6 +66,8 @@ let files: [FixtureFile] = [
   starterFixtures(),
   settingsFixtures(),
   hotstringFixtures(),
+  automationFixtures(),
+  clipboardFixtures(),
 ]
 
 do {

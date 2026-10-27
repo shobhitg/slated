@@ -131,6 +131,11 @@ def xkb_options():
     return out.stdout.strip()
 
 
+def window_events():
+    """What the test window received: {"buttons": {"1": n, …}, "pressed": [names], "released": [names]}."""
+    return json.loads((HOME / 'test-window-events.json').read_text())
+
+
 # --- The scenario -----------------------------------------------------------------------------------
 
 def main():
@@ -212,6 +217,53 @@ def main():
         dismissed = wait_until(lambda: log_events('grid.dismissed'), 3)
         check('the grid opens and Escape dismisses it', ok and shown and dismissed, error or log_events()[-5:])
 
+    # 6b. Game automation: synthesized clicks, held keys and auto-repeats reach the focused window.
+    if SKIP_INPUT:
+        skip('automation clicks and held keys reach the window', 'SLATED_SKIP_INPUT=1')
+    else:
+        call('FocusWindow', 't', window['id'])
+        frame = focused_window()['frame']
+        center = (float(frame['x'] + frame['width'] / 2), float(frame['y'] + frame['height'] / 2))
+        check('the pointer moves over the test window', call('MovePointer', 'dd', *center))
+        before = window_events()
+        ok, error = run_action('click right 2')
+        got = wait_until(lambda: window_events()['buttons'].get('3', 0) >= before['buttons'].get('3', 0) + 2, 5)
+        check('click right 2 double-clicks the right button in the window', ok and got, f'{error} {window_events()}')
+        left = window_events()['buttons'].get('1', 0)
+        ok, error = run_action("repeat 0.05 times:5 'click left'")
+        got = wait_until(lambda: window_events()['buttons'].get('1', 0) >= left + 5, 5)
+        finished = wait_until(lambda: any(e['data'].get('reason') == 'finished' for e in log_events('automation.stopped')), 5)
+        check('an auto-repeat clicks five times, then stops by itself', ok and got and finished, f'{error} {window_events()}')
+        time.sleep(0.5)
+        check('…and no more than five', window_events()['buttons'].get('1', 0) == left + 5, window_events())
+        ok, error = run_action('hold key:w')
+        held = wait_until(lambda: 'w' in window_events()['pressed'], 5)
+        running = wait_until(lambda: status()['automation']['running'] == ['Hold W'], 5)
+        check('hold key:w holds W down and status.json shows it', ok and held and running, f'{error} {status().get("automation")}')
+        ok, error = run_action('stop-automations')
+        released = wait_until(lambda: 'w' in window_events()['released'], 5)
+        idle = wait_until(lambda: status()['automation']['running'] == [], 5)
+        check('stop-automations releases W', ok and released and idle, f'{error} {window_events()}')
+        stopped = log_events('automation.stopped_all')
+        check('the stop is logged with its reason', stopped and stopped[-1]['data'].get('reason') == 'stop shortcut', stopped[-1:])
+
+    # 6c. Clipboard history: the test window copied a text when it got focus.
+    items = wait_until(lambda: status()['clipboard']['items'] >= 1, 10)
+    check('the test window’s copy is in clipboard history', bool(items), status().get('clipboard'))
+    saved_path = STATE / 'clipboard.json'
+    saved = wait_until(lambda: saved_path.exists() and 'Slated clipboard test' in saved_path.read_text(), 5)
+    check('clipboard history is saved, readable only by you', saved and (saved_path.stat().st_mode & 0o777) == 0o600,
+          oct(saved_path.stat().st_mode) if saved_path.exists() else 'no clipboard.json')
+    check('the log never contains clipboard text', 'Slated clipboard test' not in (STATE / 'slated.log').read_text())
+    print(f"    clipboard shortcut status: {status()['hotkeys'].get('shift+cmd+v')}, stop shortcut: {status()['hotkeys'].get('hyper+esc')}")
+    if SKIP_INPUT:
+        skip('the clipboard switcher opens and closes', 'SLATED_SKIP_INPUT=1')
+    else:
+        ok, error = run_action({'op': 'clipboard-history'})
+        opened = wait_until(lambda: log_events('clipboard.switcher_opened'), 3)
+        call('PressKeys', 's', 'esc')
+        check('the clipboard switcher opens', ok and opened, error or log_events()[-5:])
+
     # 7. ~/.slate.js: Slate's JavaScript API with orientation logic, reloaded when the config changes.
     (HOME / '.slate.js').write_text(
         'var third = slate.operation("move", {x: "screenOriginX", y: "screenOriginY", width: "screenSizeX/3", height: "screenSizeY"});\n'
@@ -244,12 +296,21 @@ def main():
     wait_until(lambda: 'hyper+a' in status()['hotkeys'], 5)
     print(f"    xkb-mode shortcut statuses: {json.dumps(status()['hotkeys'], sort_keys=True)}")
 
-    # 9. Disabling undoes everything.
+    # 9. Disabling undoes everything, and lets go of anything Slated holds down.
+    held_before = None
+    if not SKIP_INPUT:
+        call('FocusWindow', 't', window['id'])
+        held_before = window_events()['released'].count('w')
+        run_action('hold key:w')
+        wait_until(lambda: status()['automation']['running'] == ['Hold W'], 5)
     call('DisableExtension', 's', UUID, interface='org.gnome.Shell.Extensions', path='/org/gnome/Shell/Extensions', dest='org.gnome.Shell.Extensions')
     stopped = wait_until(lambda: not status()['running'], 10)
     check('status.json says stopped after disable', stopped, status())
     check('the xkb option is removed on disable', "'caps:hyper'" not in xkb_options() and "'compose:ralt'" in xkb_options(), xkb_options())
     check('app.quit is logged', bool(log_events('app.quit')))
+    if held_before is not None:
+        released = wait_until(lambda: window_events()['released'].count('w') > held_before, 5)
+        check('disabling releases a held key', released, window_events())
 
     # 10. The log is clean.
     lines = (STATE / 'slated.log').read_text().splitlines()

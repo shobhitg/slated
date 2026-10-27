@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
-import {KeybindingManager, normalizeAccelerator} from '../../gnome-extension/lib/platform/keybindings.js';
+import {
+  KeybindingManager,
+  MIN_RELEASE_MS,
+  MODIFIER_KEY_REASON,
+  MOUSE_BUTTON_REASON,
+  normalizeAccelerator,
+  releaseTiming,
+} from '../../gnome-extension/lib/platform/keybindings.js';
+import {appIdentity} from '../../gnome-extension/lib/platform/util.js';
+import * as realCore from '../../gnome-extension/lib/core/index.js';
 import {fakeCore} from './fake-core.mjs';
-import {MemoryLog} from './fixtures.mjs';
+import {FakeTimers, MemoryLog} from './fixtures.mjs';
 
 /** Mutter's accelerator grabs in miniature: refuses taken accelerators, records repeat flags. */
 class FakeGrabber {
@@ -11,6 +20,14 @@ class FakeGrabber {
     this.taken = new Set(taken);
     this.grabs = new Map();
     this.next = 1;
+    this.timers = new FakeTimers();
+    this.deferred = 0;
+  }
+  timeout(ms, callback) {
+    return this.timers.timeout(ms, callback);
+  }
+  clearTimeout(id) {
+    this.timers.clear(id);
   }
   connect(callback) {
     this.callback = callback;
@@ -27,6 +44,7 @@ class FakeGrabber {
     this.grabs.delete(action);
   }
   defer(callback) {
+    this.deferred += 1;
     callback();
   }
   destroy() {
@@ -203,4 +221,147 @@ test('accelerators compare by modifiers and key, Hyper counting as Super in xkb 
   assert.notEqual(normalizeAccelerator('<Hyper>a'), normalizeAccelerator('<Super>a'));
   assert.equal(normalizeAccelerator(''), null);
   assert.equal(normalizeAccelerator('<Super>'), null);
+});
+
+// --- Game automation: per-app bindings, mouse buttons, modifier keys, while-held -----------------
+
+const realAccelerator = (combo) => realCore.toGnomeAccelerator(combo);
+const realCombo = (text) => realCore.parseKeyCombo(text);
+
+function appEntry(keys, apps, runs, extra = {}) {
+  return {id: keys, keys: realCombo(keys), modal: null, repeats: false, source: 'test', apps, run: () => runs.push(keys), ...extra};
+}
+
+test('app-specific bindings are grabbed only while one of their apps has focus', () => {
+  const grabber = new FakeGrabber();
+  const log = new MemoryLog();
+  const manager = new KeybindingManager({grabber, log});
+  const runs = [];
+  manager.setFocusedApp(appIdentity('firefox'));
+  manager.apply(
+    [
+      appEntry('f', ['org.prismlauncher.PrismLauncher.desktop'], runs),
+      appEntry('g', ['steam_app_1086940'], runs),
+      appEntry('hyper+x', [], runs),
+    ],
+    {acceleratorFor: realAccelerator},
+  );
+  assert.deepEqual(grabber.accelerators(), ['<Control><Alt><Shift><Super>x'], 'only the global binding while Firefox has focus');
+  assert.deepEqual(manager.statuses, {f: 'active', g: 'active', 'hyper+x': 'active'}, 'app bindings count as ready');
+
+  // The launcher's desktop id, written with ".desktop", matches without it too.
+  assert.equal(manager.setFocusedApp(appIdentity('org.prismlauncher.PrismLauncher')), true);
+  assert.deepEqual(grabber.accelerators(), ['<Control><Alt><Shift><Super>x', 'f']);
+  assert.ok(grabber.press('f'));
+  assert.deepEqual(runs, ['f']);
+
+  // A Proton game without a desktop file is known by its window's WM_CLASS.
+  manager.setFocusedApp(appIdentity('window:12', ['steam_app_1086940']));
+  assert.deepEqual(grabber.accelerators(), ['<Control><Alt><Shift><Super>x', 'g'], 'f is let go, g grabbed');
+
+  const deferred = grabber.deferred;
+  assert.equal(manager.setFocusedApp(appIdentity('window:13', ['steam_app_1086940'])), false, 'same bindings: nothing to redo');
+  assert.equal(grabber.deferred, deferred);
+  manager.setFocusedApp(null);
+  assert.deepEqual(grabber.accelerators(), ['<Control><Alt><Shift><Super>x'], 'the overview: no app bindings');
+  assert.equal(log.named('hotkeys.registered').length, 1, 'app switches that change no problem aren’t logged as registrations');
+});
+
+test('an app binding duplicates a global one only while its app has focus', () => {
+  const grabber = new FakeGrabber();
+  const manager = new KeybindingManager({grabber});
+  const runs = [];
+  const entries = [appEntry('f', ['minecraft'], runs), appEntry('f', [], runs)];
+  manager.apply(entries, {acceleratorFor: realAccelerator});
+  assert.deepEqual(manager.statuses, {f: 'active'});
+  assert.deepEqual(manager.duplicates, []);
+  manager.setFocusedApp(appIdentity('Minecraft'));
+  assert.deepEqual(manager.duplicates, ['f'], 'the app binding wins in its app');
+  assert.equal(grabber.accelerators().length, 1);
+});
+
+test('mouse buttons and lone modifier keys fail with reasons, even for app bindings', () => {
+  const grabber = new FakeGrabber();
+  const manager = new KeybindingManager({grabber});
+  manager.apply(
+    [
+      appEntry('mouse4', [], []),
+      appEntry('ctrl+mouse5', [], []),
+      appEntry('shift', [], []),
+      appEntry('mouse3', ['minecraft'], []),
+      appEntry('rightAlt', ['minecraft'], []),
+    ],
+    {acceleratorFor: realAccelerator},
+  );
+  assert.equal(manager.statuses.mouse4, `failed: ${MOUSE_BUTTON_REASON}`);
+  assert.equal(manager.statuses['ctrl+mouse5'], `failed: ${MOUSE_BUTTON_REASON}`);
+  assert.equal(manager.statuses.shift, `failed: ${MODIFIER_KEY_REASON}`);
+  assert.equal(manager.statuses.mouse3, `failed: ${MOUSE_BUTTON_REASON}`, 'reported before the app is ever focused');
+  assert.equal(manager.statuses.rightAlt, `failed: ${MODIFIER_KEY_REASON}`);
+  assert.match(MOUSE_BUTTON_REASON, /keyd/);
+  assert.deepEqual(grabber.accelerators(), []);
+});
+
+test('release timing follows GNOME’s keyboard repeat, with a floor for slow main loops', () => {
+  assert.deepEqual(releaseTiming({delayMs: 500, intervalMs: 30}), {firstMs: 500 + MIN_RELEASE_MS, nextMs: MIN_RELEASE_MS});
+  assert.deepEqual(releaseTiming({delayMs: 250, intervalMs: 80}), {firstMs: 410, nextMs: 160});
+});
+
+test('a holdable binding runs once per press; key repeats keep it held until they stop', () => {
+  const grabber = new FakeGrabber();
+  const releases = [];
+  const runs = [];
+  const manager = new KeybindingManager({grabber, onRelease: (entry) => releases.push(entry.id)});
+  manager.apply([appEntry('f', [], runs, {holdable: true}), appEntry('g', [], runs)], {acceleratorFor: realAccelerator, holdTiming: releaseTiming({delayMs: 500, intervalMs: 30})});
+  const flags = Object.fromEntries([...grabber.grabs.values()].map((g) => [g.accelerator, g.repeats]));
+  assert.deepEqual(flags, {f: true, g: false}, 'the holdable grab listens to key repeat');
+
+  grabber.press('f'); // press
+  assert.deepEqual(runs, ['f']);
+  grabber.timers.advance(500); // GNOME's repeat delay
+  for (let i = 0; i < 10; i++) {
+    grabber.press('f'); // a key-repeat activation every 30 ms
+    grabber.timers.advance(30);
+  }
+  assert.deepEqual(runs, ['f'], 'repeats are heartbeats, not new presses');
+  assert.deepEqual(manager.heldKeys, ['f']);
+  grabber.timers.advance(MIN_RELEASE_MS - 31);
+  assert.deepEqual(releases, [], 'still within the release window');
+  grabber.timers.advance(2);
+  assert.deepEqual(releases, ['f'], 'no repeat for ~2× the interval: released');
+  assert.deepEqual(manager.heldKeys, []);
+
+  grabber.press('f');
+  assert.deepEqual(runs, ['f', 'f'], 'the next press runs again');
+  grabber.timers.advance(600);
+  assert.deepEqual(releases, ['f', 'f'], 'a quick tap is released after the delay plus the window');
+});
+
+test('without keyboard repeat nothing is holdable: while-held bindings work like toggles', () => {
+  const grabber = new FakeGrabber();
+  const releases = [];
+  const runs = [];
+  const manager = new KeybindingManager({grabber, onRelease: (entry) => releases.push(entry.id)});
+  manager.apply([appEntry('f', [], runs, {holdable: true})], {acceleratorFor: realAccelerator, holdTiming: null});
+  assert.equal([...grabber.grabs.values()][0].repeats, false, 'key repeat is ignored like any toggle');
+  grabber.press('f');
+  grabber.timers.advance(5000);
+  grabber.press('f');
+  assert.deepEqual(runs, ['f', 'f'], 'each press reaches the action, which toggles');
+  assert.deepEqual(releases, []);
+});
+
+test('re-applying or switching apps lets go of held keys', () => {
+  const grabber = new FakeGrabber();
+  const releases = [];
+  const manager = new KeybindingManager({grabber, onRelease: (entry) => releases.push(entry.id)});
+  const timing = releaseTiming({delayMs: 500, intervalMs: 30});
+  const entries = [appEntry('f', ['minecraft'], [], {holdable: true})];
+  manager.setFocusedApp(appIdentity('minecraft'));
+  manager.apply(entries, {acceleratorFor: realAccelerator, holdTiming: timing});
+  grabber.press('f');
+  manager.setFocusedApp(appIdentity('firefox'));
+  assert.deepEqual(releases, ['f']);
+  assert.equal(grabber.timers.pending, 0, 'its release timer is gone');
+  manager.destroy();
 });

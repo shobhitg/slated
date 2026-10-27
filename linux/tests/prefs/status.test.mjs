@@ -37,6 +37,27 @@ export default suite('Status and placement', [
     expectEqual(s.lastAction, 'Left half · firefox');
     expectEqual(s.screens, null);
     expectEqual(hotkeyCounts(s), {active: 1, failed: 1, duplicate: 1, disabled: 1, unknown: 0});
+    // Fields an older extension doesn't write yet come back empty.
+    expectEqual(s.automation, {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'});
+    expectEqual(s.clipboard, {enabled: false, items: 0});
+    expectEqual(s.recentApps, []);
+  }],
+  ['parses automation, the clipboard and recent apps', () => {
+    const s = parseStatus(JSON.stringify({
+      ...JSON.parse(EXAMPLE),
+      automation: {running: ['Repeat click left every 100 ms', 7], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'toggle'},
+      clipboard: {enabled: true, items: 12.4},
+      recentApps: [{id: 'steam_app_1', name: 'steam_app_1'}, {id: 'firefox'}, {name: 'no id'}, 'nonsense'],
+    }));
+    expectEqual(s.automation, {running: ['Repeat click left every 100 ms'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'toggle'});
+    expectEqual(s.clipboard, {enabled: true, items: 12});
+    expectEqual(s.recentApps, [{id: 'steam_app_1', name: 'steam_app_1'}, {id: 'firefox', name: 'firefox'}]);
+  }],
+  ['a saved binding is up to date whatever order its fields are in', () => {
+    const saved = {action: {op: 'undo'}, enabled: true, id: 'x', keys: 'hyper+u'};
+    const made = {id: 'x', keys: 'hyper+u', action: {op: 'undo'}, enabled: true};
+    const status = parseStatus(JSON.stringify({running: true, hotkeys: {'hyper+u': 'active'}}));
+    expectEqual(bindingState({binding: made, key: 'hyper+u', saved, status, running: true}), {state: 'active'});
   }],
   ['tolerates missing, broken and odd status files', () => {
     expectEqual(parseStatus(null), emptyStatus());

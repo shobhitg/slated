@@ -1,8 +1,10 @@
 import {suite, expect, expectEqual} from './harness.mjs';
 import {checkExpression, lint, isRelativeAmount} from '../../gnome-extension/lib/prefs/expressions.js';
 import {
-  validate, keyProblem, typingWarning, actionProblems, savable, configChanges, target,
+  validate, keyProblem, typingWarning, actionProblems, savable, configChanges, target, MODIFIER_KEY_PROBLEM,
 } from '../../gnome-extension/lib/prefs/validator.js';
+import {GNOME_NOTES} from '../../gnome-extension/lib/prefs/automation.js';
+import {decodeConfiguration} from '../../gnome-extension/lib/prefs/engine.js';
 import {fillDefaults} from '../../gnome-extension/lib/prefs/config.js';
 import {presetById} from '../../gnome-extension/lib/prefs/presets.js';
 
@@ -64,6 +66,60 @@ export default suite('Validation', [
     }));
     expectEqual(issues.filter(i => i.target === target.binding('a')).map(i => i.message), ['Same shortcut as “Two”. Only one of them can run.']);
     expectEqual(issues.filter(i => i.target === target.binding('c')), [], 'disabled bindings never clash');
+  }],
+  ['bindings limited to different apps never clash', () => {
+    const issues = validate(config({
+      bindings: [
+        {id: 'a', name: 'Minecraft', keys: 'f', action: half, onlyInApps: ['org.prismlauncher.PrismLauncher']},
+        {id: 'b', name: 'Proton game', keys: 'f', action: half, onlyInApps: ['steam_app_1']},
+        {id: 'c', name: 'Also Minecraft', keys: 'f', action: half, onlyInApps: ['org.prismlauncher.PrismLauncher.desktop']},
+        {id: 'd', name: 'Everywhere', keys: 'hyper+g', action: half},
+        {id: 'e', name: 'In a game', keys: 'hyper+g', action: half, onlyInApps: ['steam_app_1']},
+      ],
+    }));
+    const keys = id => issues.filter(i => i.target === target.binding(id) && i.field === 'keys').map(i => i.message);
+    expectEqual(keys('a'), ['Same shortcut as “Also Minecraft”. Only one of them can run.']);
+    expectEqual(keys('b'), [], 'another game: no clash, and a plain key is fine there');
+    expectEqual(keys('d'), ['Same shortcut as “In a game”. Only one of them can run.'], 'everywhere overlaps every app');
+  }],
+  ['modifier keys, mouse buttons and the built-in shortcuts', () => {
+    // The engine's config: the built-in shortcuts' defaults filled in, ids in Swift's upper case.
+    const decoded = decodeConfiguration(JSON.stringify({
+      bindings: [
+        {keys: 'shift', action: half},
+        {keys: 'mouse4', action: {op: 'hold', input: 'mouse:right'}},
+        {keys: 'shift+cmd+v', action: half},
+        {keys: 'hyper+esc', action: {op: 'stop-automations'}},
+        {keys: 'f8', action: {op: 'wait', seconds: 1}},
+      ],
+    }));
+    const issues = validate(decoded);
+    const at = letter => {
+      const id = decoded.bindings['abcde'.indexOf(letter)].id;
+      return issues.filter(i => i.target === target.binding(id)).map(i => [i.severity, i.message]);
+    };
+    expectEqual(at('a'), [['error', MODIFIER_KEY_PROBLEM]]);
+    expectEqual(at('b'), [['warning', GNOME_NOTES.mouseTrigger]], 'kept for the Mac, with the keyd hint');
+    expectEqual(at('c'), [['warning', 'Same keys as the clipboard history shortcut. This shortcut wins, so Shift Super V won\'t open the clipboard history.']]);
+    expectEqual(at('d'), [], 'running the same action is harmless');
+    expectEqual(at('e'), [['warning', 'A wait on its own does nothing. Use it as a step in a sequence, between other steps.']]);
+  }],
+  ['automation action problems, as on the Mac', () => {
+    const repeat = (action, extra = {}) => ({op: 'repeat', action, interval: 0.1, ...extra});
+    expectEqual(actionProblems(repeat({op: 'click', button: 'left'})), []);
+    expectEqual(actionProblems(repeat({op: 'click', button: 'left'}, {interval: 0.005})).map(p => p.message),
+      ['Repeat at most 100 times a second (an interval of 10 ms or more).']);
+    expectEqual(actionProblems(repeat(repeat({op: 'click'}))).map(p => p.message), ["An auto-repeat can't repeat another auto-repeat."]);
+    expectEqual(actionProblems(repeat({op: 'wait', seconds: 1})), [{severity: 'warning', message: 'Repeating a wait does nothing. Repeat a click or a key.'}]);
+    expectEqual(actionProblems(repeat({op: 'stop-automations'}))[0].message, 'This would stop itself the first time it runs.');
+    expectEqual(actionProblems(repeat({op: 'keystroke', keys: 'ctrl+wat'}))[0].message, 'Repeated: “wat” isn\'t a key Slated knows.');
+    expectEqual(actionProblems({op: 'hold', input: 'key:wat'})[0].message, '“wat” isn\'t a key Slated knows.');
+    expectEqual(actionProblems({op: 'press', input: 'mouse:back', phase: 'down'})[0].message, 'Choose a mouse button or a key.');
+    expectEqual(actionProblems({op: 'hold', input: 'key:rightShift'}), []);
+    expectEqual(actionProblems({op: 'wait', seconds: 900})[0], {severity: 'warning', message: "That's a wait of over 10 minutes."});
+    expectEqual(actionProblems({op: 'sequence', operations: [{op: 'press', input: 'key:w', phase: 'down'}, {op: 'click', button: 'left'}]}),
+      [{severity: 'warning', message: 'W stays down after the last step. Add a Release step, or press the stop shortcut to let go.'}]);
+    for (const op of ['click', 'stop-automations', 'clipboard-history']) expectEqual(actionProblems({op}), [], op);
   }],
   ['hotstring issues', () => {
     const issues = validate(config({
@@ -130,5 +186,18 @@ export default suite('Validation', [
     expect(changes.includes('keyboard: capsLock hyper, alone nothing, modifiers Ctrl+Alt+Shift+Super'));
     expect(changes.includes('setting undoMaxStackSize: 20'));
     expect(!changes.join(' ').includes('secret'), 'replacements stay out of the log');
+  }],
+  ['clipboard and automation settings changes are logged, app ids only counted', () => {
+    const before = decodeConfiguration('{}');
+    const after = JSON.parse(JSON.stringify(before));
+    after.clipboard.shortcut = null;
+    after.clipboard.excludedApps.push('org.keepassxc.KeePassXC');
+    after.automation.maxRunMinutes = 5;
+    const changes = configChanges(before, after);
+    expectEqual(changes, [
+      'clipboard: enabled true, shortcut none, maxItems 200, persist true, retentionDays 30, ignoreConcealed true, excludedApps 8, pasteAfterSelecting true',
+      'automation: stopShortcut hyper+esc, stopOnAppSwitch true, maxRunMinutes 5, showIndicator true',
+    ]);
+    expect(!changes.join(' ').includes('keepassxc'), 'which apps is nobody else\'s business');
   }],
 ]);

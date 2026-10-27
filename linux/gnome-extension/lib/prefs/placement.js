@@ -8,7 +8,7 @@
 
 import {isObject} from './util.js';
 import {targetFrame, isNotImplemented, describeError} from './engine.js';
-import {isWindowGeometry, resolveAction, kindById, kindOf} from './actions.js';
+import {isWindowGeometry, resolveAction, kindById, kindOf, containsAutomation, containsWindowGeometry} from './actions.js';
 
 /**
  * Displays to preview on when status.json doesn't list the real ones: a landscape main display
@@ -51,6 +51,8 @@ export function sampleFrame(screens, screen = null) {
 /** Whether the editor shows a placement preview for this action. */
 export function previews(action) {
   const a = resolveAction(action);
+  // Automations that never touch a window (an auto-clicker, a macro of clicks) get no window preview.
+  if (containsAutomation(a) && !containsWindowGeometry(a)) return false;
   if (a && (a.op === 'chain' || a.op === 'sequence')) return true;
   return isWindowGeometry(action);
 }

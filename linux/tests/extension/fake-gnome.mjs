@@ -9,7 +9,7 @@
 //   globalThis.global = gnome.global;
 //   const {SlatedRuntime} = await import('…/runtime.js');
 
-import {existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync, accessSync, constants} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync, accessSync, chmodSync, constants} from 'node:fs';
 import {dirname} from 'node:path';
 
 import {screens as fixtureScreens} from './fixtures.mjs';
@@ -141,7 +141,7 @@ export class FakeMetaWindow {
     return true;
   }
   get_wm_class() {
-    return this.app?.id ?? 'unknown';
+    return this.wmClass ?? this.app?.id ?? 'unknown';
   }
   get_gtk_application_id() {
     return null;
@@ -215,6 +215,18 @@ export class FakeActor {
   remove_style_pseudo_class(name) {
     this.pseudoClasses.delete(name);
   }
+  destroy_all_children() {
+    for (const child of [...this.children]) child.destroy();
+  }
+  get_allocation_box() {
+    return {x1: this.x, y1: this.y, x2: this.x + this.width, y2: this.y + this.height};
+  }
+  get_text() {
+    return this.text ?? '';
+  }
+  set_text(text) {
+    this.text = text;
+  }
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -285,13 +297,14 @@ export class FakeShellApp {
     return new FakeActor({width: size, height: size, icon: this.id});
   }
   get_id() {
-    return `${this.id}.desktop`;
+    // GNOME names apps without a desktop file "window:<n>", after their first window.
+    return this.is_window_backed() ? this.id : `${this.id}.desktop`;
   }
   get_name() {
     return this.name;
   }
   is_window_backed() {
-    return false;
+    return String(this.id).startsWith('window:');
   }
   get_windows() {
     return this.windows;
@@ -322,6 +335,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   const trackerSignals = new Signals();
   const appSystemSignals = new Signals();
   const layoutSignals = new Signals();
+  const overviewSignals = new Signals();
 
   const fileTest = (path, test) => {
     if (!existsSync(path)) return false;
@@ -419,11 +433,21 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     monitor_file() {
       return new FakeMonitor(this.path);
     }
+    replace_contents(bytes, _etag, _backup, flags) {
+      mkdirSync(dirname(this.path), {recursive: true});
+      writeFileSync(this.path, bytes, {mode: flags & 1 ? 0o600 : 0o644});
+      return [true, null];
+    }
+    set_attribute_uint32(attribute, value) {
+      if (attribute !== 'unix::mode') throw new Error(`unsupported attribute ${attribute}`);
+      chmodSync(this.path, value);
+      return true;
+    }
   }
 
   const Gio = {
     File: {new_for_path: (path) => new FakeFile(path)},
-    FileCreateFlags: {NONE: 0},
+    FileCreateFlags: {NONE: 0, PRIVATE: 1, REPLACE_DESTINATION: 2},
     FileQueryInfoFlags: {NONE: 0},
     FileCopyFlags: {OVERWRITE: 1},
     FileMonitorFlags: {WATCH_MOVES: 8},
@@ -438,6 +462,16 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       set_strv(key, value) {
         state.settings[`${this.schema}:${key}`] = [...value];
         return true;
+      }
+      get_boolean(key) {
+        const value = state.settings[`${this.schema}:${key}`];
+        if (value === undefined) throw new Error(`no boolean ${this.schema}:${key} in the fake`);
+        return value;
+      }
+      get_uint(key) {
+        const value = state.settings[`${this.schema}:${key}`];
+        if (value === undefined) throw new Error(`no uint ${this.schema}:${key} in the fake`);
+        return value;
       }
     },
     SettingsSchemaSource: {get_default: () => ({lookup: () => null})},
@@ -475,7 +509,25 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     external_binding_name_for_action: (action) => `external-grab-${action}`,
     WindowType: {NORMAL: 0, DESKTOP: 1, DOCK: 2, DIALOG: 3, MODAL_DIALOG: 4, TOOLBAR: 5, MENU: 6, UTILITY: 7},
     MaximizeFlags: {HORIZONTAL: 1, VERTICAL: 2, BOTH: 3},
+    SelectionType: {SELECTION_PRIMARY: 0, SELECTION_CLIPBOARD: 1, SELECTION_DND: 2},
     is_wayland_compositor: () => true,
+  };
+
+  // The clipboard: Meta.Selection reports new owners, St.Clipboard reads and writes text.
+  const selectionSignals = new Signals();
+  const selection = {
+    connect: (signal, callback) => selectionSignals.connect(signal, callback),
+    disconnect: (id) => selectionSignals.disconnect(id),
+    get_mimetypes: (type) => (type === 1 ? [...state.clipboardMimeTypes] : []),
+  };
+  const clipboard = {
+    get_text: (_type, callback) => callback(clipboard, state.clipboard ?? null),
+    set_text: (_type, text) => {
+      state.clipboard = text;
+      state.clipboardMimeTypes = ['text/plain;charset=utf-8'];
+      state.clipboardWrites.push(text);
+      selectionSignals.emit('owner-changed', 1, null);
+    },
   };
 
   const tracker = {
@@ -516,15 +568,33 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     },
     BoxLayout: class extends FakeActor {},
     Icon: class extends FakeActor {},
-    ClipboardType: {PRIMARY: 0, CLIPBOARD: 1},
-    Clipboard: {
-      get_default: () => ({
-        get_text: (_type, callback) => callback(null, state.clipboard ?? null),
-        set_text: (_type, text) => {
-          state.clipboard = text;
-        },
-      }),
+    Button: class extends FakeActor {
+      constructor(props = {}) {
+        super({hover: false, ...props});
+      }
     },
+    ScrollView: class extends FakeActor {
+      constructor(props = {}) {
+        super(props);
+        this.vadjustment = {value: 0, page_size: 400};
+      }
+    },
+    Entry: class extends FakeActor {
+      constructor(props = {}) {
+        super(props);
+        this.clutter_text = new FakeActor({text: ''});
+        this.clutter_text.entry = this;
+      }
+      get_text() {
+        return this.clutter_text.text;
+      }
+      set_text(text) {
+        this.clutter_text.text = text;
+        this.clutter_text.emit('text-changed');
+      }
+    },
+    ClipboardType: {PRIMARY: 0, CLIPBOARD: 1},
+    Clipboard: {get_default: () => clipboard},
   };
   const Clutter = {
     BinLayout: class {},
@@ -535,22 +605,38 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     GrabState: {NONE: 0, POINTER: 1, KEYBOARD: 2, ALL: 3},
     AnimationMode: {EASE_OUT_QUAD: 2},
     keysym_to_unicode: (keysym) => (keysym < 0x100 ? keysym : 0),
-    InputDeviceType: {KEYBOARD_DEVICE: 1},
+    InputDeviceType: {POINTER_DEVICE: 0, KEYBOARD_DEVICE: 1},
     KeyState: {RELEASED: 0, PRESSED: 1},
+    ButtonState: {RELEASED: 0, PRESSED: 1},
     ModifierType: {SHIFT_MASK: 1, CONTROL_MASK: 4, MOD1_MASK: 8, MOD4_MASK: 64, SUPER_MASK: 1 << 26, HYPER_MASK: 1 << 27, META_MASK: 1 << 28},
     get_default_backend: () => ({
       get_default_seat: () => ({
-        create_virtual_device: () => ({
-          notify_keyval: (time, keysym, keyState) => state.typed.push({keysym, pressed: keyState === 1}),
-          notify_key: (time, code, keyState) => state.typed.push({code, pressed: keyState === 1}),
-          run_dispose() {},
-        }),
+        create_virtual_device: (type) =>
+          type === 0
+            ? {
+                notify_button: (time, button, buttonState) => state.buttons.push({button, pressed: buttonState === 1, time}),
+                run_dispose() {
+                  state.disposed.push('pointer');
+                },
+              }
+            : {
+                notify_keyval: (time, keysym, keyState) => state.typed.push({keysym, pressed: keyState === 1}),
+                notify_key: (time, code, keyState) => state.typed.push({code, pressed: keyState === 1}),
+                run_dispose() {
+                  state.disposed.push('keyboard');
+                },
+              },
       }),
     }),
   };
   state.chrome = new Set();
   state.modal = [];
   state.typed = [];
+  state.buttons = [];
+  state.disposed = [];
+  state.clipboard = null;
+  state.clipboardMimeTypes = [];
+  state.clipboardWrites = [];
   state.inputSource = {type: 'xkb', id: 'us', xkbId: 'us'};
   const uiGroup = new FakeActor();
 
@@ -561,6 +647,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       get_monitor_geometry: (i) => ({...screens[i].frame}),
       get_monitor_scale: () => 1,
       get_focus_window: () => state.focused,
+      get_selection: () => selection,
+      get_current_monitor: () => 0,
       list_all_windows: () => state.windows,
       sort_windows_by_stacking: (windows) => [...windows].reverse(), // state.windows is top-first
       grab_accelerator(accelerator, flags) {
@@ -595,6 +683,13 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       removeChrome: (actor) => state.chrome.delete(actor),
     },
     uiGroup,
+    overview: {
+      get visible() {
+        return !!state.overview;
+      },
+      connect: (signal, callback) => overviewSignals.connect(signal, callback),
+      disconnect: (id) => overviewSignals.disconnect(id),
+    },
     sessionMode: {
       get isLocked() {
         return state.locked;
@@ -616,7 +711,13 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     state,
     loop,
     global,
-    signals: {display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals},
+    signals: {display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals, selection: selectionSignals, overview: overviewSignals},
+
+    /** Opens or closes the overview, as GNOME Shell's Main.overview reports it. */
+    overview(visible) {
+      state.overview = visible;
+      overviewSignals.emit(visible ? 'showing' : 'hidden');
+    },
     modules: {
       'gi://GLib': GLib,
       'gi://Gio': Gio,
@@ -629,18 +730,33 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'resource:///org/gnome/shell/ui/status/keyboard.js': {getInputSourceManager: () => ({currentSource: state.inputSource})},
     },
 
-    /** Adds a window (on top of the stack) and focuses it. */
-    addWindow({id, app, title = 'Window', frame}) {
+    /** Adds a window (on top of the stack) and focuses it, telling focus watchers. */
+    addWindow({id, app, title = 'Window', frame, wmClass}) {
       let shellApp = state.apps.find((a) => a.id === app.id);
       if (!shellApp) {
         shellApp = new FakeShellApp(app);
         state.apps.push(shellApp);
       }
       const window = new FakeMetaWindow({id, app: shellApp, title, frame});
+      if (wmClass) window.wmClass = wmClass;
       shellApp.windows.unshift(window);
       state.windows.unshift(window);
       state.focused = window;
+      displaySignals.emit('notify::focus-window');
       return window;
+    },
+
+    /** Focuses a window (or nothing: the overview), as Mutter reports it. */
+    focus(window) {
+      state.focused = window;
+      displaySignals.emit('notify::focus-window');
+    },
+
+    /** Another app copies something: a new clipboard owner with these MIME types. */
+    copy(text, mimeTypes = ['text/plain;charset=utf-8', 'UTF8_STRING']) {
+      state.clipboard = text;
+      state.clipboardMimeTypes = [...mimeTypes];
+      selectionSignals.emit('owner-changed', 1, {});
     },
 
     /** Presses a grabbed accelerator: Mutter emits accelerator-activated with its action. */

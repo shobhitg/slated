@@ -15,6 +15,10 @@ private let comboInputs: [String] = [
   "ctrl+caps", "ctrl+help", "ctrl+mute", "ctrl+volumeDown", "ctrl+home", "ctrl+end", "ctrl+delete",
   "ctrl+forwarddelete", "ctrl+esc", "ctrl+down", "ctrl+right", "x+y", "hyper+pad9", "ctrl+pad5", "a b", "cmd+a b",
   "ctrl+\u{00A0}a", "ctrl+İ",
+  // Modifier keys (holdable for automation) and mouse buttons 3–5 (shortcuts on macOS)
+  "shift", "Shift", "ctrl", "alt", "cmd", "rightShift", "rightshift", "RIGHTCTRL", "rightAlt", "rightCmd", "ctrl+shift",
+  "shift+shift", "cmd+rightAlt", "hyper+rightCmd", "mouse3", "mouse4", "MOUSE5", "Mouse3", "ctrl+mouse4", "hyper+mouse5",
+  "meh+mouse3", "fn+mouse4", "mouse6", "mouse1", "mouse", "f13", "hyper+esc", "cmd+shift+v", "shift+cmd+v",
 ]
 
 /// Built with KeyCombo(key:modifiers:), the way the UI and the Slate importer create combos.
@@ -23,7 +27,8 @@ private let comboParts: [(String, Modifiers)] = [
   ("F12", .meh), ("", .hyper), ("", []), ("ab", .control), ("É", .option), ("space", [.function]),
   ("tab", [.function, .control, .option, .shift, .command]), ("'", [.control, .command]), ("+", .shift),
   ("enter", []), ("backspace", .option), ("pagedown", []), ("padenter", .control), ("left", [.option, .command]),
-  ("4", [.command, .shift]),
+  ("4", [.command, .shift]), ("Mouse4", .control), ("SHIFT", []), ("rightcmd", .hyper), ("MOUSE3", []),
+  ("RightAlt", .shift),
 ]
 
 private let keyNames: [String] = [
@@ -33,6 +38,9 @@ private let keyNames: [String] = [
   "backspace", "pageup", "pagedown", "RETURN", "Esc", "PAD1", "F5", "a", "A", "z", "0", "9", "'", ";", ",", ".", "/",
   "\\", "[", "]", "-", "=", "`", "+", "\"", ":", "é", "É", "ß", "😀", "👍🏽", "e\u{301}", "ab", "", " ", "pad10",
   "padEquals", "fn", "f", "ẞ", "İ", "Ω", "\u{915}\u{94D}\u{937}", "\u{915}\u{94D}", "\u{0E01}\u{0E33}",
+  "shift", "Shift", "ctrl", "CTRL", "alt", "cmd", "rightShift", "rightshift", "RIGHTCTRL", "rightAlt", "rightCmd",
+  "mouse3", "mouse4", "mouse5", "MOUSE4", "Mouse5", "mouse6", "mouse1", "mouse2", "control", "option", "command",
+  "rightOption", "super", "leftShift", "hyper",
 ]
 
 private let modifierTokens: [String] = [
@@ -81,6 +89,7 @@ func keyFixtures() -> FixtureFile {
     return [
       "name": .string(name), "canonical": .string(canonical), "valid": .bool(KeyNames.isValid(name)),
       "display": .string(KeyNames.displayName(for: canonical)), "displayRaw": .string(KeyNames.displayName(for: name)),
+      "modifierKey": .bool(KeyNames.isModifierKey(name)), "mouseButton": .bool(KeyNames.isMouseButton(name)),
     ]
   }
   let tokens: [J] = modifierTokens.map { token in
@@ -101,8 +110,9 @@ func keyFixtures() -> FixtureFile {
     name: "keys.json",
     description:
       "KeyCombo(string:) parsing, canonical strings and display (with and without the ✦ Hyper glyph), "
-      + "KeyCombo(key:modifiers:) canonicalization, KeyNames, modifier tokens, and Slate keystrokes "
-      + "(SlateSyntax.parseKeystroke). Modifiers are listed in the order ctrl, alt, shift, cmd, fn.",
+      + "KeyCombo(key:modifiers:) canonicalization, KeyNames (including modifier keys and mouse buttons 3–5), "
+      + "modifier tokens, and Slate keystrokes (SlateSyntax.parseKeystroke). Modifiers are listed in the order ctrl, "
+      + "alt, shift, cmd, fn.",
     sections: [
       "keyCombos": combos, "comboParts": parts, "keyNames": names, "modifierTokens": tokens, "keystrokes": keystrokes,
     ])

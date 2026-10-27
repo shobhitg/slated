@@ -18,6 +18,7 @@ import {validate, savable, configChanges, target} from './validator.js';
 import {parseStatus, emptyStatus, extensionState, bindingState, runningSummary} from './status.js';
 import {presetById, starterBindings} from './presets.js';
 import {bindingTitle} from './actions.js';
+import {builtInShortcut, recipeBindingName, sharesApps} from './automation.js';
 import {loadSlateScript, importSlateScript, importClassic, planImport} from './importer.js';
 import {newBinding, newHotstring} from './config.js';
 
@@ -485,12 +486,16 @@ export class PrefsModel extends Emitter {
     return this.draft.bindings.some(b => statusKey(b.keys, b.modal) === sourceBinding.statusKey && deepEqual(b.action, action));
   }
 
-  /** Other bindings (Slated's and the Slate files') using the same keys, for duplicate hints. */
+  /**
+   * Other bindings (Slated's and the Slate files') using the same keys, for duplicate hints. Bindings
+   * limited to other apps than this one's never run at the same time, so they don't count.
+   */
   otherUses(keys, modal, excludingId) {
     if (!keysString(keys)) return [];
     const key = statusKey(keys, modal);
+    const me = this.binding(excludingId) ?? {};
     const uses = this.draft.bindings
-      .filter(b => b.id !== excludingId && b.enabled !== false && statusKey(b.keys, b.modal) === key)
+      .filter(b => b.id !== excludingId && b.enabled !== false && statusKey(b.keys, b.modal) === key && sharesApps(b, me))
       .map(b => `“${bindingTitle(b)}”`);
     if (this.slateLoading) {
       for (const source of this.sources.filter(s => s.exists)) {
@@ -500,6 +505,43 @@ export class PrefsModel extends Emitter {
       }
     }
     return uses;
+  }
+
+  // --- Automation and the built-in shortcuts ------------------------------------------------------------
+
+  /**
+   * Adds a binding that runs an automation recipe (`action`: the recipe's, possibly adjusted), named
+   * after it and limited to `apps` when given. Returns its id; without keys it waits to be recorded.
+   */
+  addRecipe(recipe, {keys = '', action = recipe.action, apps = []} = {}) {
+    const fields = {name: recipeBindingName(recipe, action), keys: keysString(keys)};
+    if (apps.length) fields.onlyInApps = [...apps];
+    const id = this.addBinding(action, fields);
+    this.log('ui.recipe_added', {recipe: recipe.id, keys: Boolean(fields.keys), apps: apps.length});
+    return id;
+  }
+
+  /** What takes a built-in shortcut's keys away from it: Slated bindings (which win) and Slate files'. */
+  otherUsesOfBuiltIn(id) {
+    const builtIn = builtInShortcut(id);
+    const keys = builtIn?.keys(this.draft);
+    if (!keys) return [];
+    const uses = this.draft.bindings
+      .filter(b => b.enabled !== false && !b.modal && keysString(b.keys) === keys && b.action?.op !== builtIn.action.op)
+      .map(b => `“${bindingTitle(b)}”`);
+    if (this.slateLoading) {
+      for (const source of this.sources.filter(s => s.exists)) {
+        for (const b of source.bindings) if (b.statusKey === keys) uses.push(`“${b.summary ?? b.keys}” in ${source.displayPath}`);
+      }
+    }
+    return uses;
+  }
+
+  /** A built-in shortcut's state as the running extension reports it: {state, reason} or null. */
+  builtInState(id) {
+    const keys = builtInShortcut(id)?.keys(this.draft);
+    if (!keys || !this.running) return null;
+    return this.status.hotkeys?.[keys] ?? null;
   }
 
   // --- Hotstrings -------------------------------------------------------------------------------------

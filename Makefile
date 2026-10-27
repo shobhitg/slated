@@ -115,7 +115,7 @@ clean:
 	rm -rf .build build
 
 # --- Linux: the GNOME Shell extension (see docs/LINUX.md) ---------------------------------------------
-.PHONY: linux-pack linux-install linux-uninstall linux-test-prefs linux-test-prefs-gjs linux-test-gtk linux-test-installer
+.PHONY: linux-pack linux-install linux-uninstall linux-test-prefs linux-test-prefs-gjs linux-test-gtk linux-test-installer linux-test-extension
 
 # The extension zip in build/linux, stamped with build-info.json (works without GNOME too).
 linux-pack:
@@ -145,3 +145,7 @@ linux-test-gtk:
 linux-test-installer:
 	linux/tests/installer/run.sh
 	linux/tests/logs/run.sh
+
+# The extension's runtime (lib/platform) against a simulated GNOME Shell, plus a syntax check of every file.
+linux-test-extension:
+	linux/tests/extension/run.sh

@@ -45,6 +45,11 @@ const XML = `<node>
     <method name="GetStatus">
       <arg type="s" name="json" direction="out"/>
     </method>
+    <method name="MovePointer">
+      <arg type="d" name="x" direction="in"/>
+      <arg type="d" name="y" direction="in"/>
+      <arg type="b" name="ok" direction="out"/>
+    </method>
     <method name="Reload"/>
   </interface>
 </node>`;
@@ -89,6 +94,10 @@ export class DebugService {
 
   GetStatus() {
     return JSON.stringify(this._runtime.debugStatus());
+  }
+
+  MovePointer(x, y) {
+    return this._runtime.debugMovePointer(x, y);
   }
 
   Reload() {

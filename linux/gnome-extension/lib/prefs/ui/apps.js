@@ -1,5 +1,6 @@
-// Installed applications, for app pickers: "Focus App", layouts and hotstring app filters.
-// Slate matches apps by name; hotstring filters use desktop app ids (e.g. org.gnome.TextEditor).
+// Installed applications, for app pickers: "Focus App", layouts, hotstring app filters, the apps a
+// shortcut works in and the clipboard's excluded apps. Slate matches apps by name; hotstring filters,
+// onlyInApps and excludedApps use desktop app ids (e.g. org.gnome.TextEditor).
 
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
@@ -21,10 +22,13 @@ export function installedApps() {
 }
 
 /**
- * A menu button that offers a searchable list of installed apps and calls `onPick(app)` with
- * {id, name}. `exclude(app)` hides apps already chosen.
+ * A menu button that offers a searchable list of apps and calls `onPick(app)` with {id, name}.
+ * `exclude(app)` hides apps already chosen. `sections()` lists what to offer as [{title, apps}]
+ * (installed apps by default); an app shows once, in the first section that has it.
  */
-export function appPickerButton({onPick, exclude = () => false, tooltip = 'Choose an installed app', iconName = 'view-app-grid-symbolic'}) {
+export function appPickerButton({
+  onPick, exclude = () => false, tooltip = 'Choose an installed app', iconName = 'view-app-grid-symbolic', sections = null,
+}) {
   const list = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE, css_classes: ['navigation-sidebar']});
   const search = new Gtk.SearchEntry({placeholder_text: 'Search apps'});
   const scroller = new Gtk.ScrolledWindow({
@@ -46,14 +50,27 @@ export function appPickerButton({onPick, exclude = () => false, tooltip = 'Choos
       child = next;
     }
     const query = search.get_text().trim().toLowerCase();
-    const apps = installedApps().filter(app => !exclude(app) && (!query || app.name.toLowerCase().includes(query) || app.id.toLowerCase().includes(query)));
-    for (const app of apps.slice(0, 200)) {
-      const row = new Gtk.ListBoxRow({child: label(app.name, {ellipsize: true}), activatable: true});
-      row.set_tooltip_text(app.id);
-      row._slatedApp = app;
-      list.append(row);
+    const matches = app => !exclude(app) && (!query || app.name.toLowerCase().includes(query) || app.id.toLowerCase().includes(query));
+    const shown = new Set();
+    let count = 0;
+    const groups = sections ? sections() : [{title: null, apps: installedApps()}];
+    for (const group of groups) {
+      const apps = group.apps.filter(app => matches(app) && !shown.has(app.id));
+      if (!apps.length) continue;
+      if (group.title && groups.length > 1) {
+        const heading = new Gtk.ListBoxRow({child: label(group.title, {classes: ['heading', 'dim-label']}), activatable: false, selectable: false});
+        list.append(heading);
+      }
+      for (const app of apps.slice(0, 200)) {
+        shown.add(app.id);
+        const row = new Gtk.ListBoxRow({child: label(app.name, {ellipsize: true}), activatable: true});
+        row.set_tooltip_text(app.id);
+        row._slatedApp = app;
+        list.append(row);
+        count++;
+      }
     }
-    if (!apps.length) list.append(new Gtk.ListBoxRow({child: label('No matching apps', {classes: ['dim-label']}), activatable: false}));
+    if (!count) list.append(new Gtk.ListBoxRow({child: label('No matching apps', {classes: ['dim-label']}), activatable: false}));
   };
   list.connect('row-activated', (_list, row) => {
     if (!row._slatedApp) return;

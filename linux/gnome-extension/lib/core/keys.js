@@ -47,11 +47,20 @@ function maskOf(modifiers) {
 
 // --- Key names -------------------------------------------------------------------------------------
 
+/**
+ * Modifier keys on their own: holdable for automation (`hold key:shift` toggles sprint), but not usable
+ * as shortcuts by themselves.
+ */
+export const MODIFIER_KEYS = Object.freeze(['shift', 'ctrl', 'alt', 'cmd', 'rightShift', 'rightCtrl', 'rightAlt', 'rightCmd']);
+
+/** Extra mouse buttons usable as triggers on macOS: middle (3), back (4) and forward (5). */
+export const MOUSE_BUTTON_KEYS = Object.freeze(['mouse3', 'mouse4', 'mouse5']);
+
 const NAMED = new Map();
 for (const n of [
   'left', 'right', 'up', 'down', 'return', 'tab', 'space', 'delete', 'forwardDelete', 'esc', 'home', 'end', 'pageUp',
   'pageDown', 'help', 'caps', 'mute', 'volumeUp', 'volumeDown', 'backslash', 'padClear', 'padEnter', 'pad=', 'pad*',
-  'pad+', 'pad-', 'pad.', 'pad/',
+  'pad+', 'pad-', 'pad.', 'pad/', ...MODIFIER_KEYS, ...MOUSE_BUTTON_KEYS,
 ]) {
   NAMED.set(n.toLowerCase(), n);
 }
@@ -75,9 +84,21 @@ export function isValidKey(key) {
   return NAMED.has(lowercased(key)) || characterCount(key) === 1;
 }
 
+/** A modifier key on its own (`shift`, `rightCmd`…), which can be held but isn't a shortcut. */
+export function isModifierKey(key) {
+  return MODIFIER_KEYS.includes(canonicalKey(String(key)));
+}
+
+/** Mouse button 3, 4 or 5 as a shortcut key (macOS only; GNOME can't grab mouse buttons). */
+export function isMouseButton(key) {
+  return MOUSE_BUTTON_KEYS.includes(canonicalKey(String(key)));
+}
+
 const DISPLAY = {
   left: '←', right: '→', up: '↑', down: '↓', return: '↩', tab: '⇥', space: 'Space', delete: '⌫', forwardDelete: '⌦',
   esc: '⎋', home: '↖', end: '↘', pageUp: '⇞', pageDown: '⇟', padEnter: '⌤', backslash: '\\', caps: '⇪',
+  shift: '⇧', ctrl: '⌃', alt: '⌥', cmd: '⌘', rightShift: 'Right ⇧', rightCtrl: 'Right ⌃', rightAlt: 'Right ⌥',
+  rightCmd: 'Right ⌘', mouse3: 'Middle Click', mouse4: 'Mouse 4', mouse5: 'Mouse 5',
 };
 
 /** How a key is shown in menus and settings: arrows and symbols for named keys, "Pad 1", "F5", "A". */
@@ -182,6 +203,9 @@ const NAMED_KEYSYMS = {
   // The Mac keypad's Clear key sits where PC keyboards (and Apple keyboards on Linux) have Num Lock.
   padClear: 'Num_Lock', padEnter: 'KP_Enter', 'pad=': 'KP_Equal', 'pad*': 'KP_Multiply', 'pad+': 'KP_Add',
   'pad-': 'KP_Subtract', 'pad.': 'KP_Decimal', 'pad/': 'KP_Divide',
+  // Modifier keys, for holding them (automation). The left-hand key is the plain name.
+  shift: 'Shift_L', ctrl: 'Control_L', alt: 'Alt_L', cmd: 'Super_L', rightShift: 'Shift_R', rightCtrl: 'Control_R',
+  rightAlt: 'Alt_R', rightCmd: 'Super_R',
 };
 
 // X keysym names of the printable ASCII punctuation.

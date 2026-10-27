@@ -84,18 +84,24 @@ export default suite('Config and canonical actions', [
       wordBoundary: false, method: 'auto', onlyInApps: [], exceptInApps: []});
     expectThrows(() => fillDefaults([]), /JSON object/);
     // Sections the stand-in doesn't model pass through, so a save never drops them.
-    const kept = fillDefaults({clipboard: {enabled: false}, automation: {maxRunMinutes: 5}, future: [1]});
-    expectEqual([kept.clipboard, kept.automation, kept.future], [{enabled: false}, {maxRunMinutes: 5}, [1]]);
+    const kept = fillDefaults({
+      clipboard: {enabled: false}, automation: {maxRunMinutes: 5}, island: {enabled: false}, future: [1],
+    });
+    expectEqual(
+      [kept.clipboard, kept.automation, kept.island, kept.future],
+      [{enabled: false}, {maxRunMinutes: 5}, {enabled: false}, [1]]);
   }],
   ['the engine facade decodes, encodes and round-trips', () => {
     const id = '3F2A9C1E-0B7D-4E5F-8A6B-1C2D3E4F5A6B';
     const config = decodeConfiguration(`{ "keyboard": {"capsLock": "hyper"}, "hotstrings": [{"id": "${id.toLowerCase()}", "trigger": ";s", "replacement": "x"}],
-      "clipboard": {"shortcut": null, "maxItems": 20}, "automation": {"showIndicator": false}, }`);
+      "clipboard": {"shortcut": null, "maxItems": 20}, "automation": {"showIndicator": false},
+      "island": {"cheatSheet": false}, }`);
     expectEqual(config.keyboard.capsLock, 'hyper');
     expectEqual(config.general.loadSlateConfigs, true);
     expectEqual([config.hotstrings[0].trigger, config.hotstrings[0].id], [';s', id], 'ids come back uppercase, as Swift writes them');
     expectEqual([config.clipboard.shortcut, config.clipboard.maxItems, config.clipboard.enabled], [null, 20, true]);
     expectEqual(config.automation.showIndicator, false);
+    expectEqual([config.island.enabled, config.island.cheatSheet, config.island.cheatSheetDelay], [true, false, 0.5]);
     const again = decodeConfiguration(encodeConfiguration(config));
     expectEqual(again, config, 'encode → decode keeps every value');
     expectThrows(() => decodeConfiguration(undefined), /Expected config.json text/);

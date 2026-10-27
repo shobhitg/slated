@@ -34,6 +34,18 @@ export function writeTextAtomic(path, text) {
   GLib.file_set_contents(path, encoder.encode(text));
 }
 
+/**
+ * Writes `text` so only you can read it (mode 0600, for private content like clipboard history),
+ * replacing the file atomically and creating its folder (0700). Throws on failure.
+ */
+export function writePrivateTextAtomic(path, text) {
+  GLib.mkdir_with_parents(dirname(path), 0o700);
+  const file = Gio.File.new_for_path(path);
+  file.replace_contents(encoder.encode(text), null, false, Gio.FileCreateFlags.PRIVATE | Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+  // A file that existed before keeps its old mode through a replace: make sure it's private.
+  file.set_attribute_uint32('unix::mode', 0o600, Gio.FileQueryInfoFlags.NONE, null);
+}
+
 /** Deletes a file; returns false when it wasn't there. */
 export function remove(path) {
   try {

@@ -9,11 +9,22 @@
 //    "hotkeys":{"hyper+a":"active","hyper+q":"failed: <reason>","hyper+w":"duplicate","hyper+z":"disabled"},
 //    "sources":[{"path":"~/.slate.js","kind":"javascript","exists":true,"loaded":true,"bindings":21,
 //                "diagnostics":["..."]}],
+//    "automation":{"running":["Repeat click left every 100 ms"],"shortcuts":["f6"],"stopShortcut":"hyper+esc",
+//                  "whileHeld":"key-repeat"},
+//    "clipboard":{"enabled":true,"items":12},
+//    "recentApps":[{"id":"steam_app_1086940","name":"steam_app_1086940"},{"id":"firefox","name":"Firefox"}],
 //    "lastAction":"Left half · Firefox","lastError":null}
 //
 // Hotkey keys are config strings ("hyper+a"); modal bindings are "<modal keys> <keys>"
 // ("ctrl+alt+f4 1"). "duplicate" means more than one binding uses those keys: the first one
 // (config.json before Slate files, then file order) is the one that runs.
+//
+// automation.running lists what runs now (the indicator's titles; insert-text is shown as a length);
+// automation.shortcuts holds the hotkey keys (as in "hotkeys") of the shortcuts that started them.
+// automation.whileHeld is "key-repeat" when while-held repeats stop as the key is let go (noticed
+// through GNOME's key repeat), or "toggle" when keyboard repeat is off and they need a second press.
+// recentApps are the apps focused lately (newest first): the ids "Only in…" app lists offer, including
+// games without a desktop file, which are known by their window's WM_CLASS.
 
 import GLib from 'gi://GLib';
 
@@ -60,6 +71,17 @@ export function buildStatus(state) {
     },
     hotkeys,
     sources: (state.sources ?? []).map(sourceStatus),
+    automation: {
+      running: (state.automation?.running ?? []).map(String),
+      shortcuts: (state.automation?.shortcuts ?? []).map(String),
+      stopShortcut: typeof state.automation?.stopShortcut === 'string' ? state.automation.stopShortcut : null,
+      whileHeld: state.automation?.whileHeld === 'toggle' ? 'toggle' : 'key-repeat',
+    },
+    clipboard: {
+      enabled: state.clipboard?.enabled !== false,
+      items: Number.isFinite(state.clipboard?.items) ? state.clipboard.items : 0,
+    },
+    recentApps: (state.recentApps ?? []).filter((app) => app?.id).map((app) => ({id: String(app.id), name: String(app.name ?? app.id)})),
     lastAction: state.lastAction ?? null,
     lastError: state.lastError ?? null,
   };

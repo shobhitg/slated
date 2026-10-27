@@ -65,6 +65,7 @@ export {targetFrame, targetOrigin, resolveScreen, screenContaining, orderedLeftT
  *   run without a Slate config.
  * decodeAction(json) → canonical Action (throws like decodeConfiguration).
  * isWindowGeometry(action) → true for actions that move or resize the focused window (and can be undone).
+ * isAutomation(action) → true for click, press, hold, repeat, wait and stop-automations (they synthesize input).
  * readSettings(settings) → Slate's global settings with typed values and Slate's defaults
  *   (defaultToCurrentScreen, repeatOnHoldOps, secondsBeforeRepeat, undoMaxStackSize, …).
  * randomUUID() → a new binding/hotstring id in Swift's uppercase form (ids must be UUIDs to decode).
@@ -75,6 +76,7 @@ export {
   starterConfiguration,
   decodeAction,
   isWindowGeometry,
+  isAutomation,
   readSettings,
   randomUUID,
 } from './config.js';
@@ -85,9 +87,40 @@ export {
  * formatKeyCombo(KeyCombo) → "hyper+a" (canonical config string).
  * displayKeyCombo(KeyCombo, {hyperGlyph = true}) → "✦A" / "⌃⌥⇧⌘A".
  * toGnomeAccelerator(KeyCombo | "hyper+a", {hyperMode: "modifiers"|"xkb"}) → "<Control><Alt><Shift><Super>a",
- *   or "<Hyper>a" with hyperMode "xkb"; null when the key has no keysym. `fn` is ignored.
+ *   or "<Hyper>a" with hyperMode "xkb"; null when the key has no keysym (mouse buttons). `fn` is ignored.
+ * isModifierKey("shift") / isMouseButton("mouse4"): keys that can be held (automation) or bound only on
+ *   macOS; neither is a GNOME shortcut on its own. keysymName("shift") → "Shift_L", the keysym to press.
  */
-export {parseKeyCombo, formatKeyCombo, displayKeyCombo, toGnomeAccelerator} from './keys.js';
+export {
+  parseKeyCombo,
+  formatKeyCombo,
+  displayKeyCombo,
+  toGnomeAccelerator,
+  isModifierKey,
+  isMouseButton,
+  keysymName,
+  keyDisplayName,
+  MODIFIER_KEYS,
+  MOUSE_BUTTON_KEYS,
+} from './keys.js';
+
+// --- Game automation ------------------------------------------------------------------------------
+/**
+ * parseSyntheticInput("key:shift+w") → {kind: "key", combo: KeyCombo} | {kind: "mouse", button} | null:
+ *   what `press` and `hold` act on. formatSyntheticInput(input) → canonical text ("key:shift+w").
+ * new RepeatSchedule({interval, times, jitter}): shouldRunAgain(runs) and nextInterval(random) for `repeat`.
+ * MOUSE_BUTTONS, REPEAT_MODES, PRESS_PHASES: the values `click`, `repeat` and `press` take.
+ */
+export {parseSyntheticInput, formatSyntheticInput, RepeatSchedule, MOUSE_BUTTONS, REPEAT_MODES, PRESS_PHASES} from './automation.js';
+
+// --- Clipboard history ----------------------------------------------------------------------------
+/**
+ * new ClipboardHistory(items, {newId}): add(text, {app, at, limit}), enforce(limit), prune(days, now), remove(id),
+ *   togglePin(id), clear({keepPinned}), search(query), toJSON(); ClipboardHistory.fromJSON(parsed clipboard.json).
+ *   Dates are Swift's (seconds since 2001-01-01): referenceSeconds(ms = Date.now()) converts.
+ * foldedContains(text, word) → the case- and diacritic-insensitive match search uses.
+ */
+export {ClipboardHistory, referenceSeconds, referenceToMilliseconds, foldedContains} from './clipboard.js';
 
 // --- Hotstrings -----------------------------------------------------------------------------------
 /**

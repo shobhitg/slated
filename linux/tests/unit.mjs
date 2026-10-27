@@ -19,12 +19,14 @@ const CONTRACT = [
 /** Exports added beyond the contract (documented in index.js). */
 const ADDITIONS = [
   'validateExpression', 'shellArguments', 'describeDiagnostic', 'screenContaining', 'orderedLeftToRight',
-  'decodeAction', 'isWindowGeometry', 'readSettings', 'displayKeyCombo',
+  'decodeAction', 'isWindowGeometry', 'readSettings', 'displayKeyCombo', 'isAutomation', 'isModifierKey',
+  'isMouseButton', 'keysymName', 'keyDisplayName', 'parseSyntheticInput', 'formatSyntheticInput', 'RepeatSchedule',
+  'ClipboardHistory', 'referenceSeconds', 'referenceToMilliseconds', 'foldedContains',
 ];
 
 const MODULES = [
   'index.js', 'errors.js', 'text.js', 'json.js', 'tokenizer.js', 'expression.js', 'keys.js', 'model.js', 'config.js',
-  'slateSyntax.js', 'slateConfig.js', 'frame.js', 'hotstrings.js',
+  'slateSyntax.js', 'slateConfig.js', 'frame.js', 'hotstrings.js', 'automation.js', 'clipboard.js',
 ];
 
 const hyper = ['ctrl', 'alt', 'shift', 'cmd'];
@@ -107,6 +109,59 @@ export function registerUnitTests({root, readText}) {
     for (let i = 1; i <= 20; i++) named.push(`f${i}`);
     for (let c = 0x21; c < 0x7f; c++) named.push(String.fromCharCode(c));
     for (const key of named) expect(keysymName(key) !== null, `no keysym for ${show(key)}`);
+  });
+
+  test('keys: modifier keys have keysyms for holding them; mouse buttons have none', () => {
+    const keysyms = {
+      shift: 'Shift_L', ctrl: 'Control_L', alt: 'Alt_L', cmd: 'Super_L', rightShift: 'Shift_R', rightCtrl: 'Control_R',
+      rightAlt: 'Alt_R', rightCmd: 'Super_R', RIGHTCMD: 'Super_R', mouse3: null, mouse4: null, mouse5: null,
+    };
+    for (const [key, name] of Object.entries(keysyms)) expectEqual(keysymName(key), name, `keysym for ${show(key)}`);
+    expectEqual(core.toGnomeAccelerator('ctrl+mouse4'), null, 'mouse buttons are no GNOME accelerators');
+    expectEqual([...core.MODIFIER_KEYS], ['shift', 'ctrl', 'alt', 'cmd', 'rightShift', 'rightCtrl', 'rightAlt', 'rightCmd']);
+    expectEqual([...core.MOUSE_BUTTON_KEYS], ['mouse3', 'mouse4', 'mouse5']);
+    expect(core.isModifierKey('Shift') && !core.isModifierKey('a') && !core.isModifierKey('mouse4'), 'isModifierKey');
+    expect(core.isMouseButton('MOUSE4') && !core.isMouseButton('mouse6') && !core.isMouseButton('shift'), 'isMouseButton');
+    expectEqual(core.keyDisplayName('mouse3'), 'Middle Click');
+  });
+
+  test('automation: inputs, schedules and isAutomation accept every action form', () => {
+    expectEqual(core.parseSyntheticInput('key:shift+w'), {kind: 'key', combo: {key: 'w', modifiers: ['shift']}});
+    expectEqual(core.parseSyntheticInput('mouse:Right'), {kind: 'mouse', button: 'right'});
+    expectEqual(core.parseSyntheticInput(5), null, 'only strings');
+    expectEqual(core.formatSyntheticInput({kind: 'key', combo: {key: 'a', modifiers: ['ctrl', 'alt', 'shift', 'cmd']}}), 'key:hyper+a');
+    const schedule = new core.RepeatSchedule({interval: 0.1});
+    expectEqual([schedule.times, schedule.jitter, schedule.shouldRunAgain(1e9), schedule.nextInterval(0.5)], [null, 0, true, 0.1]);
+    expectEqual(new core.RepeatSchedule({interval: 1, times: 9007199254740993n}).times, 9007199254740992, 'BigInt times');
+    expect(core.isAutomation('repeat 0.1 "click"') && core.isAutomation({op: 'wait', seconds: 1}), 'Slate syntax and JSON');
+    expect(!core.isAutomation({op: 'clipboard-history'}) && !core.isAutomation('keystroke e'), 'not automation');
+    const error = expectThrows(() => core.decodeAction({op: 'repeat', action: 'click', interval: 0}));
+    expectEqual([error?.message, error?.codingPath], ['interval must be more than 0 seconds', ['interval']]);
+  });
+
+  test('clipboard: dates, ids, JSON round trip and options', () => {
+    expectEqual(core.referenceSeconds(Date.UTC(2001, 0, 1)), 0);
+    expectEqual(core.referenceToMilliseconds(core.referenceSeconds(1_700_000_000_123)), 1_700_000_000_123);
+    const history = new core.ClipboardHistory();
+    expect(history.add('secret', {at: 1, limit: 10}), 'added');
+    expect(/^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/.test(history.items[0].id), 'random v4 id');
+    history.add('b', {app: 'org.gnome.Terminal', at: 2, limit: 10});
+    const json = history.toJSON();
+    expectEqual(Object.keys(json.items[0]), ['id', 'text', 'copiedAt', 'sourceApp', 'pinned'], 'the Mac app’s field order');
+    expect(!('sourceApp' in json.items[1]), 'no sourceApp when unknown');
+    const again = core.ClipboardHistory.fromJSON(JSON.parse(JSON.stringify(json)));
+    expectEqual(again.toJSON(), json);
+    expectEqual(core.ClipboardHistory.fromJSON({items: []}, {newId: () => 'X'}).add('y', {at: 0, limit: 1}), true);
+    expect(core.foldedContains('Crème brûlée', 'creme BRULEE'.split(' ')[1]) && !core.foldedContains('abc', ''), 'foldedContains');
+    const bad = expectThrows(() => core.ClipboardHistory.fromJSON({items: [{id: 'x', text: 't', copiedAt: 0, pinned: false}]}));
+    expect(bad instanceof SlatedError && bad.kind === 'invalidConfiguration', `bad id: ${bad}`);
+    expectEqual(bad?.codingPath, ['items', 0, 'id']);
+  });
+
+  test('config: onlyInApps is written only when it limits the binding', () => {
+    const config = core.decodeConfiguration({bindings: [{keys: 'f', onlyInApps: ['steam_app_1'], action: 'click'}, {keys: 'g', onlyInApps: [], action: 'click'}]});
+    expectEqual(config.bindings.map((b) => b.onlyInApps), [['steam_app_1'], undefined]);
+    expect(core.encodeConfiguration(config).split('onlyInApps').length === 2, 'one onlyInApps in the file');
   });
 
   test('keys: combos accept config strings and validate modifier names', () => {

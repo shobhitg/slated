@@ -2,13 +2,25 @@ import {suite, expect, expectEqual} from './harness.mjs';
 import {
   parseKeyComboLocal, formatKeyComboLocal, parseKeyCombo, formatKeyCombo, keysString, keysCombo, keycaps, comboLabel,
   keyLabel, keyNameFromGdk, modifiersFromState, modifiersFromHeldKeys, isAcceptableGlobalShortcut, statusKey, isModifierKeyName,
-  spokenCombo,
+  spokenCombo, isValidKey, isModifierKey, isMouseButton, canonicalKey, MODIFIER_KEY_NAMES, MOUSE_BUTTON_KEYS,
 } from '../../gnome-extension/lib/prefs/keys.js';
+import {isModifierKey as coreIsModifierKey, isMouseButton as coreIsMouseButton} from '../../gnome-extension/lib/core/index.js';
 
 // Gdk.ModifierType values (GTK 4): passed in so keys.js stays free of gi:// imports.
 const MASKS = {SHIFT: 1, CONTROL: 4, ALT: 8, SUPER: 1 << 26, HYPER: 1 << 27, META: 1 << 28};
 
 export default suite('Keys', [
+  ['modifier keys and extra mouse buttons are keys too, as in the engine', () => {
+    for (const key of [...MODIFIER_KEY_NAMES, ...MOUSE_BUTTON_KEYS]) {
+      expect(isValidKey(key), key);
+      expectEqual([isModifierKey(key), isMouseButton(key)], [coreIsModifierKey(key), coreIsMouseButton(key)], key);
+    }
+    expectEqual(canonicalKey('RightShift'), 'rightShift');
+    expectEqual([keyLabel('shift'), keyLabel('rightCmd'), keyLabel('mouse3'), keyLabel('mouse4')], ['Shift', 'Right Super', 'Middle Click', 'Mouse 4']);
+    expectEqual(comboLabel('ctrl+shift'), 'Ctrl Shift', 'Shift held with Ctrl');
+    expectEqual(parseKeyCombo('cmd+mouse5'), {key: 'mouse5', modifiers: ['cmd']});
+    expect(!isModifierKey('a') && !isMouseButton('mouse1'), 'mouse1 and mouse2 are the left and right buttons, never shortcuts');
+  }],
   ['parses config key strings like Swift KeyCombo', () => {
     expectEqual(parseKeyComboLocal('hyper+a'), {key: 'a', modifiers: ['ctrl', 'alt', 'shift', 'cmd']});
     expectEqual(parseKeyComboLocal('cmd+ctrl+left'), {key: 'left', modifiers: ['ctrl', 'cmd']});

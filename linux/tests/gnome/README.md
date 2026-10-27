@@ -16,6 +16,11 @@ Shell runs with `SLATED_DEBUG=1`:
 - a chain binding cycles;
 - pressing Ctrl+Alt+Shift+Super+D through the virtual keyboard fires the grabbed accelerator;
 - window hints and the grid open with a modal grab and close on Escape;
+- game automation reaches the window: a right double-click, an auto-repeat that clicks five times and
+  stops, `hold key:w` shown in `status.json` and released by `stop-automations`, and disabling the
+  extension releasing a held key (the test window records what it receives);
+- clipboard history records the test window's copy, saves it with mode 0600, keeps the text out of
+  the log, and the switcher opens;
 - `~/.slate.js` loads, reloads on change, and its function binding runs `win.doOperation` with an
   orientation check;
 - Caps Lock → Hyper in xkb mode adds `caps:hyper` while keeping other options;
@@ -79,3 +84,15 @@ These are the things a headless shell can't show. Use GNOME 46–49 on Wayland.
 8. Lock the screen and unlock: shortcuts work again afterwards, and Caps Lock is a plain Caps Lock on
    the lock screen.
 9. `~/.slate.js`: edit and save it. The bindings reload within a second (`slate.loaded` in the log).
+10. Game automation, with a game or any app that counts clicks:
+    - `repeat 0.1 'click left'` on a shortcut clicks until you press it again. The red "running" pill
+      shows at the top with the stop shortcut, and the stop shortcut ends it.
+    - `hold key:w` keeps walking in a game until pressed again; `hold key:shift` sprints.
+    - `repeat 0.05 while-held 'click left'` stops about 0.1 s after you let go of the shortcut.
+    - An `onlyInApps` binding on a plain key (F) works only in that app: F types normally elsewhere,
+      and in the overview's search.
+    - Switching apps, opening the overview, locking the screen and `maxRunMinutes` stop everything;
+      nothing stays pressed afterwards.
+11. Clipboard history: copy a few texts, press Super+Shift+V, search, pick one with ↩ or Ctrl+2: it
+    pastes into the window you were in (Ctrl+Shift+V in a terminal). A KeePassXC copy isn't recorded.
+    `~/.local/state/slated/clipboard.json` is `-rw-------`.

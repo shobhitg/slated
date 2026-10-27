@@ -8,9 +8,15 @@
 // Pure ES module.
 
 import {formatList, isObject, deepEqual} from './util.js';
-import {keysCombo, keysString, statusKey, isValidKey, isFunctionKey, keyLabel} from './keys.js';
+import {
+  keysCombo, keysString, statusKey, isValidKey, isFunctionKey, keyLabel, comboLabel, isModifierKey, isMouseButton,
+} from './keys.js';
 import {checkExpression} from './expressions.js';
-import {bindingTitle, actionDetail, isMacOnly} from './actions.js';
+import {bindingTitle, actionDetail, resolveAction} from './actions.js';
+import {
+  BUILT_IN_SHORTCUTS, GNOME_NOTES, sharesApps, unreleasedPresses, inputName, parseInput, clipboardSettings,
+  automationSettings,
+} from './automation.js';
 import {parseOperation, isNotImplemented, describeError} from './engine.js';
 
 /** Issue targets are strings: "binding:<id>", "hotstring:<id>", "layout:<name>". */
@@ -25,8 +31,9 @@ const issue = (severity, targetKey, field, message) => ({severity, target: targe
 /** Every issue in the configuration. */
 export function validate(config, {knownLayouts = []} = {}) {
   const layouts = new Set(knownLayouts);
+  const builtIns = BUILT_IN_SHORTCUTS.map(builtIn => ({builtIn, keys: builtIn.keys(config)})).filter(b => b.keys);
   return [
-    ...bindingIssues(config.bindings ?? [], layouts),
+    ...bindingIssues(config.bindings ?? [], layouts, builtIns),
     ...hotstringIssues(config.hotstrings ?? []),
     ...layoutIssues(config.layouts ?? [], layouts),
   ];
@@ -49,17 +56,38 @@ export function typingWarning(keys, modal) {
   return `Without Ctrl, Alt or Super this shortcut takes over typing ${keyLabel(combo.key)} everywhere.`;
 }
 
-function bindingIssues(bindings, layouts) {
+export const MODIFIER_KEY_PROBLEM = "A modifier key can't be a shortcut on its own. Add a key, or use it as a held input instead.";
+
+function bindingIssues(bindings, layouts, builtIns = []) {
   const issues = [];
   const byKeys = new Map();
   for (const binding of bindings) {
     const t = target.binding(binding.id);
+    const combo = keysCombo(binding.keys);
     const problem = keyProblem(binding.keys);
     if (problem) {
       issues.push(issue('error', t, 'keys', problem));
-    } else {
+    } else if (isModifierKey(combo.key)) {
+      issues.push(issue('error', t, 'keys', MODIFIER_KEY_PROBLEM));
+    } else if (isMouseButton(combo.key)) {
+      // Fine on the Mac, which shares this config.json: a warning, so the binding is still saved.
+      issues.push(issue('warning', t, 'keys', GNOME_NOTES.mouseTrigger));
+    } else if (!(binding.onlyInApps ?? []).length) {
+      // Limited to some apps, a plain key is fine: it's grabbed only while one of them has focus.
       const warning = typingWarning(binding.keys, binding.modal);
       if (warning) issues.push(issue('warning', t, 'keys', warning));
+    }
+    // Bindings are registered before the built-in shortcuts, so they win.
+    if (binding.enabled !== false && !binding.modal && combo.key) {
+      const keys = keysString(binding.keys);
+      for (const {builtIn, keys: builtInKeys} of builtIns) {
+        if (builtInKeys !== keys || deepEqual(resolveAction(binding.action), builtIn.action)) continue;
+        issues.push(issue('warning', t, 'keys',
+          `Same keys as ${builtIn.title}. This shortcut wins, so ${comboLabel(keys)} won't ${builtIn.effect}.`));
+      }
+    }
+    if (resolveAction(binding.action)?.op === 'wait') {
+      issues.push(issue('warning', t, 'action', 'A wait on its own does nothing. Use it as a step in a sequence, between other steps.'));
     }
     for (const p of actionProblems(binding.action, layouts)) issues.push(issue(p.severity, t, 'action', p.message));
     if (binding.enabled !== false && keysCombo(binding.keys).key) {
@@ -71,7 +99,9 @@ function bindingIssues(bindings, layouts) {
   for (const group of byKeys.values()) {
     if (group.length < 2) continue;
     for (const binding of group) {
-      const others = group.filter(b => b.id !== binding.id).map(b => `“${bindingTitle(b)}”`);
+      // Bindings limited to different apps never run at the same time.
+      const others = group.filter(b => b.id !== binding.id && sharesApps(b, binding)).map(b => `“${bindingTitle(b)}”`);
+      if (!others.length) continue;
       issues.push(issue('warning', target.binding(binding.id), 'keys',
         `Same shortcut as ${formatList(others)}. Only one of them can run.`));
     }
@@ -129,8 +159,31 @@ export function actionProblems(action, knownLayouts = new Set()) {
   case 'sequence': {
     const steps = a.steps ? a.steps.map(s => s.action) : (a.operations ?? []);
     if (!steps.length) return err('Add at least one step to the sequence.');
-    return steps.flatMap((op, i) => prefixed(`Step ${i + 1}`, actionProblems(op, layouts)));
+    const problems = steps.flatMap((op, i) => prefixed(`Step ${i + 1}`, actionProblems(op, layouts)));
+    for (const input of unreleasedPresses(steps)) {
+      problems.push({severity: 'warning',
+        message: `${inputName(input)} stays down after the last step. Add a Release step, or press the stop shortcut to let go.`});
+    }
+    return problems;
   }
+  case 'repeat': {
+    const problems = prefixed('Repeated', actionProblems(a.action, layouts));
+    if (!(a.interval >= 0.01)) problems.push(...err('Repeat at most 100 times a second (an interval of 10 ms or more).'));
+    const repeated = resolveAction(a.action);
+    if (repeated?.op === 'repeat') problems.push(...err("An auto-repeat can't repeat another auto-repeat."));
+    else if (repeated?.op === 'wait') problems.push({severity: 'warning', message: 'Repeating a wait does nothing. Repeat a click or a key.'});
+    else if (repeated?.op === 'stop-automations') problems.push({severity: 'warning', message: 'This would stop itself the first time it runs.'});
+    return problems;
+  }
+  case 'press': case 'hold': {
+    const input = parseInput(a.input);
+    if (!input) return err('Choose a mouse button or a key.');
+    const problem = input.kind === 'key' ? keyProblem(input.keys) : null;
+    return problem ? err(problem) : [];
+  }
+  case 'wait':
+    return a.seconds > 600 ? [{severity: 'warning', message: "That's a wait of over 10 minutes."}] : [];
+  case 'click': case 'stop-automations': case 'clipboard-history': return [];
   case 'by-orientation':
     return [...prefixed('Landscape', actionProblems(a.landscape, layouts)),
       ...prefixed('Portrait', actionProblems(a.portrait, layouts))];
@@ -166,8 +219,6 @@ export function actionProblems(action, knownLayouts = new Set()) {
   case 'switch': return [{severity: 'warning', message: "Slated doesn't run the app switcher yet."}];
   case 'hint': case 'undo': case 'relaunch': return [];
   default:
-    // The Mac app's automation and clipboard operations: kept as they are, just not run here.
-    if (isMacOnly(a)) return [{severity: 'warning', message: 'Only Slated for Mac runs this operation.'}];
     return err(`Slated doesn't know the operation “${a.op}”.`);
   }
 }
@@ -296,5 +347,17 @@ export function configChanges(oldConfig, newConfig) {
     changes.push(`layouts: ${(newConfig.layouts ?? []).map(l => l.name).join(', ')}`);
   }
   if (!deepEqual(oldConfig.defaults, newConfig.defaults)) changes.push(`display defaults: ${(newConfig.defaults ?? []).length}`);
+  // Settings → Clipboard and Settings → Automation. App ids are counted, not listed.
+  if (!deepEqual(oldConfig.clipboard, newConfig.clipboard)) {
+    const c = clipboardSettings(newConfig);
+    changes.push(`clipboard: enabled ${c.enabled}, shortcut ${c.shortcut ?? 'none'}, maxItems ${c.maxItems}, persist ${c.persist}, `
+      + `retentionDays ${c.retentionDays}, ignoreConcealed ${c.ignoreConcealed}, excludedApps ${(c.excludedApps ?? []).length}, `
+      + `pasteAfterSelecting ${c.pasteAfterSelecting}`);
+  }
+  if (!deepEqual(oldConfig.automation, newConfig.automation)) {
+    const a = automationSettings(newConfig);
+    changes.push(`automation: stopShortcut ${a.stopShortcut ?? 'none'}, stopOnAppSwitch ${a.stopOnAppSwitch}, `
+      + `maxRunMinutes ${a.maxRunMinutes}, showIndicator ${a.showIndicator}`);
+  }
   return changes;
 }

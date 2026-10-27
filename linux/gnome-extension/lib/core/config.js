@@ -6,6 +6,7 @@
 // {id, keys: "hyper+a", action, enabled, name?, modal?, repeats?}. `decodeAction` and
 // `decodeConfiguration` accept everything Swift's decoders accept and fill in the same defaults.
 
+import {formatSyntheticInput, MOUSE_BUTTONS, parseSyntheticInput, PRESS_PHASES, REPEAT_MODES} from './automation.js';
 import {SlatedError} from './errors.js';
 import {asDouble, asInt, formatJSON, isNumberValue, JSONNumber, parseJSON5} from './json.js';
 import {formatKeyCombo, modifierMask, parseKeyCombo} from './keys.js';
@@ -164,6 +165,14 @@ function keyCombo(v, path) {
 function appSelector(v, path) {
   if (Array.isArray(v) && v.every((item) => typeof item === 'string')) return [...v];
   return appSelectorFromString(str(v, path));
+}
+
+/** SyntheticInput's decoding: "mouse:right", "key:w"… in canonical form. */
+function syntheticInput(v, path) {
+  const raw = str(v, path);
+  const input = parseSyntheticInput(raw);
+  if (input === null) throw decodingError(path, `Invalid input "${raw}". Expected e.g. "mouse:right" or "key:w".`);
+  return formatSyntheticInput(input);
 }
 
 /**
@@ -338,6 +347,45 @@ export function decodeAction(value, path = []) {
       return {op, url: required('url')};
     case 'keystroke':
       return {op, keys: c.required('keys', keyCombo)};
+    case 'click': {
+      const button = c.optional('button', enumOf(MOUSE_BUTTONS, 'MouseButton')) ?? 'left';
+      const count = c.optional('count', int) ?? 1;
+      const action = {op, button};
+      // max(1, count): a count below 1 means one click.
+      if (count >= 1 && count !== 1) action.count = count;
+      return action;
+    }
+    case 'press': {
+      const input = c.required('input', syntheticInput);
+      return {op, input, phase: c.required('phase', enumOf(PRESS_PHASES, 'PressPhase'))};
+    }
+    case 'hold':
+      return {op, input: c.required('input', syntheticInput)};
+    case 'repeat': {
+      const interval = c.required('interval', double);
+      if (!(Number.isFinite(interval) && interval > 0)) throw decodingError(c.at('interval'), 'interval must be more than 0 seconds');
+      const times = c.optional('times', int);
+      if (times !== undefined && times < 1) throw decodingError(c.at('times'), 'times must be at least 1');
+      const jitter = c.optional('jitter', double) ?? 0;
+      if (!(Number.isFinite(jitter) && jitter >= 0 && jitter <= 0.5)) {
+        throw decodingError(c.at('jitter'), 'jitter must be between 0 and 0.5');
+      }
+      const repeated = c.required('action', decodeAction);
+      const mode = c.optional('mode', enumOf(REPEAT_MODES, 'RepeatMode')) ?? 'toggle';
+      const action = {op, action: repeated, interval};
+      if (mode !== 'toggle') action.mode = mode;
+      if (times !== undefined) action.times = times;
+      if (jitter !== 0) action.jitter = jitter;
+      return action;
+    }
+    case 'wait': {
+      const seconds = c.required('seconds', double);
+      if (!(Number.isFinite(seconds) && seconds >= 0)) throw decodingError(c.at('seconds'), "seconds can't be negative");
+      return {op, seconds};
+    }
+    case 'stop-automations':
+    case 'clipboard-history':
+      return {op};
     default:
       throw decodingError(c.at('op'), `Unknown operation "${op}"`);
   }
@@ -365,6 +413,13 @@ function geometry(action) {
     case 'by-orientation': return geometry(action.landscape) && geometry(action.portrait);
     default: return false;
   }
+}
+
+const AUTOMATION_OPS = new Set(['click', 'press', 'hold', 'repeat', 'wait', 'stop-automations']);
+
+/** True for automation actions, which synthesize mouse and keyboard input (Action.isAutomation). */
+export function isAutomation(action) {
+  return AUTOMATION_OPS.has(decodeAction(action).op);
 }
 
 // --- Configuration -------------------------------------------------------------------------------
@@ -500,10 +555,13 @@ function binding(v, path) {
   const action = c.required('action', decodeAction);
   const repeats = c.optional('repeats', bool);
   const enabled = c.optional('enabled', bool) ?? true;
+  const onlyInApps = c.optional('onlyInApps', arrayOf(str)) ?? [];
   const out = {action, enabled, id, keys};
   if (modal !== undefined) out.modal = modal;
   if (name !== undefined) out.name = name;
   if (repeats !== undefined) out.repeats = repeats;
+  // Written only when the binding is limited to some apps.
+  if (onlyInApps.length > 0) out.onlyInApps = onlyInApps;
   return out;
 }
 

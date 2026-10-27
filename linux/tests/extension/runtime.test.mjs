@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
-import {after, beforeEach, test} from 'node:test';
+import {after, afterEach, beforeEach, test} from 'node:test';
 import {fileURLToPath} from 'node:url';
 
 import {fakeCore} from './fake-core.mjs';
@@ -46,6 +46,10 @@ beforeEach(() => {
 
 after(() => {
   for (const dir of homes) rmSync(dir, {recursive: true, force: true});
+});
+
+afterEach(() => {
+  assert.deepEqual(events('runtime.error'), [], 'no part of the runtime failed');
 });
 
 const configPath = () => join(home, '.config/slated/config.json');

@@ -11,7 +11,7 @@ import Gtk from 'gi://Gtk';
 
 import {
   CATEGORIES, kindById, kindsInCategory, kindOf, isGeometryKind, formFromAction, updateAction, convertAction,
-  actionTitle, actionDetail, EXTRA_STEPS, isMacOnly, uneditableExplanation,
+  actionTitle, actionDetail, EXTRA_STEPS, INPUT_STEPS, UNKNOWN_KIND, isInputStep,
 } from '../actions.js';
 import {PRESETS, PRESET_GROUPS, presetMatches} from '../presets.js';
 import {checkExpression, sampleVariables} from '../expressions.js';
@@ -24,6 +24,9 @@ import {
 import {ShortcutRecorder} from './recorder.js';
 import {PlacementPreview, previewScreens} from './preview.js';
 import {appPickerButton} from './apps.js';
+import {
+  inputRows, clickRows, phaseRows, repeatRows, waitRows, stopAutomationsInfo, clipboardHistoryInfo,
+} from './automationeditors.js';
 
 const EDGE_ITEMS = [
   {id: 'left', label: 'Left'}, {id: 'right', label: 'Right'}, {id: 'up', label: 'Top'}, {id: 'down', label: 'Bottom'},
@@ -138,14 +141,14 @@ function expressionRow(model, {title, value, relative = false, onChange}) {
  * Pushes a page that edits one nested action (a chain step, a by-orientation branch, a layout
  * operation). `get()` returns undefined once the item is gone; the page then closes itself.
  */
-export function pushActionPage(ctx, {title, get, set, depth}) {
+export function pushActionPage(ctx, {title, get, set, depth, exclude = []}) {
   const page = new Adw.NavigationPage({title});
   const prefs = new Adw.PreferencesPage();
   const preview = new PlacementPreview(ctx.model);
   const previewGroup = group();
   previewGroup.add(preview.widget);
   prefs.add(previewGroup);
-  const editor = new ActionEditor(ctx, {get, set, depth});
+  const editor = new ActionEditor(ctx, {get, set, depth, exclude});
   for (const g of editor.groups) prefs.add(g);
   const toolbar = new Adw.ToolbarView({content: prefs});
   toolbar.add_top_bar(new Adw.HeaderBar());
@@ -195,6 +198,7 @@ function kindPicker(onPick) {
   row.add_suffix(menu);
   row.set_activatable_widget(menu);
   let allowComposition = true;
+  let excluded = [];
   let selected = null;
   const fill = () => {
     const columns = box('horizontal', 18);
@@ -217,7 +221,7 @@ function kindPicker(onPick) {
           content.append(text);
           if (k.id === selected) content.append(icon('object-select-symbolic', {classes: ['accent']}));
           const b = new Gtk.Button({child: content, css_classes: ['flat'], tooltip_text: k.explanation});
-          b.set_sensitive(allowComposition || (k.id !== 'chain' && k.id !== 'sequence'));
+          b.set_sensitive((allowComposition || (k.id !== 'chain' && k.id !== 'sequence')) && !excluded.includes(k.id));
           b.connect('clicked', () => {
             popover.popdown();
             if (k.id !== selected) onPick(k.id);
@@ -232,10 +236,11 @@ function kindPicker(onPick) {
   popover.connect('show', fill);
   return {
     row,
-    set(kindId, {composition = true} = {}) {
+    set(kindId, {composition = true, exclude = []} = {}) {
       const k = kindById(kindId);
       selected = kindId;
       allowComposition = composition;
+      excluded = exclude;
       row.set_title(k?.title ?? 'Operation');
       row.set_subtitle(CATEGORIES.find(c => c.id === k?.category)?.title ?? '');
       kindIcon.set_from_icon_name(k?.icon ?? 'dialog-question-symbolic');
@@ -282,12 +287,14 @@ export class ActionEditor {
    * @param {() => any} options.get the current action
    * @param {(action: any) => void} options.set stores a new action
    * @param {number} [options.depth] nesting level (chains inside chains stop at 2)
+   * @param {string[]} [options.exclude] kinds the picker doesn't offer (no repeat inside a repeat)
    */
-  constructor(ctx, {get, set, depth = 0}) {
+  constructor(ctx, {get, set, depth = 0, exclude = []}) {
     this.ctx = ctx;
     this.get = get;
     this.set = set;
     this.depth = depth;
+    this.exclude = exclude;
     this.fields = [];
     this.layoutKey = null;
 
@@ -316,9 +323,9 @@ export class ActionEditor {
     const action = this.get();
     if (action === undefined) return;
     const form = formFromAction(action);
-    this.picker.set(form.kind, {composition: this.depth < 2});
+    this.picker.set(form.kind, {composition: this.depth < 2, exclude: this.exclude});
     const kind = kindById(form.kind);
-    this.operationGroup.set_description(form.kind === 'unknown' ? uneditableExplanation(action) : kind?.explanation ?? '');
+    this.operationGroup.set_description(form.kind === 'unknown' ? UNKNOWN_KIND.explanation : kind?.explanation ?? '');
     this.presetsBox.set_visible(isGeometryKind(form.kind));
     this.presets.sync(action);
     const key = this._layoutKey(form);
@@ -328,6 +335,7 @@ export class ActionEditor {
     } else {
       for (const field of this.fields) field.sync?.(form);
     }
+    if (form.kind === 'repeat') this.paramsGroup.set_description(this.fields[0]?.describe?.(action) ?? '');
   }
 
   _layoutKey(form) {
@@ -535,6 +543,44 @@ export class ActionEditor {
     case 'open-url':
       text('URL', 'url', true);
       break;
+    case 'clipboard-history':
+      this._add(clipboardHistoryInfo(this.ctx));
+      break;
+    case 'click':
+      this._add(clickRows({get: () => this._form(), update: (k, v) => this._update(k, v)}));
+      hint('Clicks where the pointer is, without moving it.');
+      break;
+    case 'press':
+      this._add(inputRows({get: () => this._form().input, set: v => this._update('input', v)}));
+      this._add(phaseRows({get: () => this._form(), update: (k, v) => this._update(k, v)}));
+      hint('Something pressed down stays down until a Release step, or until you press the stop shortcut.');
+      break;
+    case 'hold':
+      this._add(inputRows({title: 'Hold down', get: () => this._form().input, set: v => this._update('input', v)}));
+      hint('The first press holds it down; the next press lets go. Stopping automations lets go too.');
+      break;
+    case 'repeat':
+      this._add(repeatRows({
+        get: () => this._form(),
+        update: (k, v) => this._update(k, v),
+        whileHeldMode: () => model.status.automation?.whileHeld ?? 'key-repeat',
+        openNested: () => pushActionPage(this.ctx, {
+          title: 'What to Repeat', depth: this.depth + 1, exclude: ['repeat'],
+          get: () => {
+            const action = this.get();
+            return action?.op === 'repeat' ? action.action : undefined;
+          },
+          set: value => this._update('repeatAction', value),
+        }),
+      }));
+      break;
+    case 'wait':
+      this._add(waitRows({get: () => this._form(), update: (k, v) => this._update(k, v)}));
+      hint("Waits only pause a sequence. Steps after the wait run when it's over; nothing is blocked meanwhile.");
+      break;
+    case 'stop-automations':
+      this._add(stopAutomationsInfo(this.ctx));
+      break;
     case 'shell':
       text('Command', 'command', true);
       text('Folder (default: home)', 'workingDirectory', true);
@@ -552,17 +598,15 @@ export class ActionEditor {
       break;
     }
     case 'unknown':
-      this._add({row: notice(isMacOnly(form.raw)
-        ? {level: 'info', title: `${actionTitle(form.raw)}: runs only in Slated for Mac`,
-          detail: 'It stays in config.json unchanged. Pick an operation above to replace it.'}
-        : {level: 'warning', title: `Slated doesn't know “${form.raw?.op ?? '?'}”`,
-          detail: 'It stays in config.json unchanged. Pick an operation above to replace it.'}).widget});
+      this._add({row: notice({level: 'warning', title: `Slated doesn't know “${form.raw?.op ?? '?'}”`,
+        detail: 'It stays in config.json unchanged. Pick an operation above to replace it.'}).widget});
       break;
     default:
       break;
     }
     this.paramsGroup.set_visible(this.fields.length > 0);
     for (const field of this.fields) field.sync?.(form);
+    if (form.kind === 'repeat') this.paramsGroup.set_description(this.fields[0]?.describe?.(this.get()) ?? '');
   }
 
   _form() {
@@ -571,7 +615,10 @@ export class ActionEditor {
 
   /** Stops any shortcut recording in this editor (when its page hides). */
   stopRecording() {
-    for (const field of this.fields) field.recorder?.stop();
+    for (const field of this.fields) {
+      field.recorder?.stop();
+      for (const recorder of field.recorders ?? []) recorder.stop();
+    }
   }
 }
 
@@ -652,7 +699,8 @@ export class OperationList {
       const row = new Adw.ActionRow({use_markup: false, title: `${prefix} · ${actionTitle(action)}`, subtitle: actionDetail(action), activatable: true});
       row.set_subtitle_lines(1);
       row.add_prefix(glyph(action));
-      if (this.mode === 'sequence' && index > 0) {
+      // "Same window" only means something for steps that act on windows.
+      if (this.mode === 'sequence' && index > 0 && !isInputStep(action)) {
         const same = new Gtk.CheckButton({label: 'Same window', active: item.keepWindow === true, valign: Gtk.Align.CENTER,
           tooltip_text: 'Slate\'s “>”: run on the window that was focused when this run of steps began'});
         same.connect('toggled', () => {
@@ -715,6 +763,8 @@ export class OperationList {
       content.append(label(g.title, {classes: ['heading']}));
       for (const preset of PRESETS.filter(p => p.group === g.id)) content.append(button(preset.title, () => add(preset.action), {classes: ['flat']}));
     }
+    content.append(label('Mouse & Keys', {classes: ['heading']}));
+    for (const step of INPUT_STEPS) content.append(button(step.title, () => add(step.action), {classes: ['flat']}));
     content.append(label('Other', {classes: ['heading']}));
     for (const extra of EXTRA_STEPS) content.append(button(extra.title, () => add(extra.action), {classes: ['flat']}));
     const menu = new Gtk.MenuButton({icon_name: 'list-add-symbolic', popover, valign: Gtk.Align.CENTER, css_classes: ['flat']});
