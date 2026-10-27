@@ -115,7 +115,7 @@ function makeHome() {
   fs.mkdirSync(extension, {recursive: true});
   fs.writeFileSync(path.join(extension, 'build-info.json'), JSON.stringify({version: '0.1.0', commit: 'abc1234-dirty', builtAt: '2026-10-22T18:00:00Z'}));
   return {home, extension, configFile: path.join(home, '.config/slated/config.json'), statusFile: path.join(home, '.local/state/slated/status.json'),
-    logFile: path.join(home, '.local/state/slated/slated.log')};
+    logFile: path.join(home, '.local/state/slated/slated.log'), keydConfig: path.join(home, 'etc-keyd-slated.conf')};
 }
 
 async function run(mode) {
@@ -124,7 +124,9 @@ async function run(mode) {
   const shell = {state: 1, calls: []};
   const world = createWorld({
     api, home: files.home, mode,
-    env: {apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'},
+    // Where linux/install.sh --hyper-keyd puts Slated's keyd configuration (/etc/keyd/slated.conf).
+    env: {vars: {SLATED_KEYD_CONF: files.keydConfig},
+      apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'},
       {id: 'org.keepassxc.KeePassXC', name: 'KeePassXC'}],
       keyNames: {97: {name: 'a', char: 'a'}, 65307: {name: 'Escape'}, 65288: {name: 'BackSpace'}, 65505: {name: 'Shift_L'}, 49: {name: '1', char: '1'},
         65515: {name: 'Super_L'}, 65517: {name: 'Hyper_L'}, 65475: {name: 'F6'}, 118: {name: 'v', char: 'v'}, 32: {name: 'space', char: ' '}}},
@@ -562,15 +564,37 @@ async function run(mode) {
     click(recorderIn(titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0]));
     world.emit(settings.contentPage, 'hidden');
     check(controllers().length === 0, 'stopped when the collapsed sidebar shows');
-    // As on the Mac, a click anywhere else ends it: say, into the Name field to type a name.
+    // As on the Mac, a click anywhere else ends it: say, into the Name field to type a name. GTK is
+    // still running the window's controllers then (world.press), so they go after it's delivered,
+    // and the click itself goes on to the field.
     settings.navigate('windows', {binding: ID.HALF});
     click(recorderIn(visible('windows')));
     const clicks = world.stateOf(window).controllers.filter(c => world.stateOf(c).cls === 'Gtk.GestureClick');
     check(clicks.length === 1, 'recording watches clicks in the window');
-    world.emit(clicks[0], 'pressed', 1, 20, 20);
+    const {consumed} = world.press(window, titled(visible('windows'), 'Adw.EntryRow', 'Name')[0]);
+    check(!consumed, 'the click reaches the Name field');
+    await settle();
     check(controllers().length === 0 && world.stateOf(window).controllers.length === 0, 'a click elsewhere stopped it');
     check(model.binding(ID.HALF).keys === before, 'the shortcut is unchanged');
+    // A click on the recorder's own row (its title) is a click on the recorder: on release the list
+    // activates the row, and the row clicks its button. That stops the recording, without a restart.
+    const recorderButton = recorderIn(visible('windows'));
+    click(recorderButton);
+    const recorderRow = world.stateOf(recorderButton).parent;
+    world.press(window, recorderRow);
+    await settle();
+    world.emit(recorderRow, 'activated');
+    click(prop(world, recorderRow, 'activatable-widget'));
+    await settle();
+    check(controllers().length === 0, 'clicking the recorder\'s row stopped it without starting over');
     pop('windows');
+    // Another control in a recorder's row is somewhere else, such as the clipboard shortcut's Default.
+    settings.showPane('clipboard');
+    const switcherRow = titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0];
+    click(recorderIn(switcherRow));
+    world.press(window, buttons(switcherRow, 'Default')[0]);
+    await settle();
+    check(controllers().length === 0, 'a press on the row\'s Default button stopped it');
   });
 
   await step('Hotstrings: espanso guidance, editing, the try-it field', async () => {
@@ -648,12 +672,25 @@ async function run(mode) {
     check(pills('Recommended') === 1, 'with GNOME\'s option in use, keyd is marked recommended');
     const sends = titled(visible('keyboard'), 'Adw.ComboRow', 'Hyper key sends')[0];
     check(/always sends the Hyper modifier/.test(prop(world, sends, 'subtitle')), `xkb: ${prop(world, sends, 'subtitle')}`);
-    // Turning Slated off gives Caps Lock back only where Slated set it up: keyd's mapping stays.
+    // Turning Slated off gives Caps Lock back only where Slated set it up: GNOME's option. keyd's
+    // mapping stays, the installer's even with Slated's Hyper switch off, and only that one is removed
+    // with linux/install.sh --hyper-keyd --remove.
     const onRow = () => titled(visible('general'), 'Adw.SwitchRow', 'Slated is on')[0];
+    const offText = () => prop(world, onRow(), 'subtitle');
+    const hyperOff = () => model.setStatusText(JSON.stringify({...JSON.parse(statusText), hyper: {wanted: false, mode: 'off', active: false}}));
     withHyperMode('keyd');
-    check(/keyd keeps Caps Lock as Hyper/.test(prop(world, onRow(), 'subtitle')), `keyd: ${prop(world, onRow(), 'subtitle')}`);
+    check(/your keyd configuration/.test(offText()) && !/--remove|restores/.test(offText()), `keyd set up by hand: ${offText()}`);
+    fs.writeFileSync(files.keydConfig, '[main]\ncapslock = layer(hyper)\n');
     withHyperMode('xkb');
-    check(/restores Caps Lock/.test(prop(world, onRow(), 'subtitle')), `xkb: ${prop(world, onRow(), 'subtitle')}`);
+    check(/restores Caps Lock/.test(offText()), `xkb: ${offText()}`);
+    withHyperMode('keyd');
+    check(/keyd keeps Caps Lock as Hyper.*--hyper-keyd --remove/.test(offText()), `keyd from the installer: ${offText()}`);
+    hyperOff();
+    check(/keyd keeps Caps Lock as Hyper/.test(offText()), `the installer's keyd, Hyper off here: ${offText()}`);
+    fs.rmSync(files.keydConfig);
+    withHyperMode('xkb');
+    hyperOff();
+    check(!/Caps Lock/.test(offText()), `nothing of Slated's on Caps Lock: ${offText()}`);
     model.setStatusText(statusText);
     titled(visible('keyboard'), 'Adw.SwitchRow', 'Use Caps Lock as Hyper')[0].set_active(false);
     check(model.configuration.keyboard.capsLock === 'off', 'Caps Lock as Hyper off');
@@ -834,6 +871,60 @@ async function run(mode) {
     model.deleteLayout(`${taken} 2`);
   });
 
+  await step('typing a name through a Slate layout\'s, or one only a shortcut names, takes no shortcut along', async () => {
+    const extra = path.join(files.home, '.slate.layouts.js');
+    fs.writeFileSync(extra, 'slate.layout("Writing", {"Notes": {"operations": [slate.operation("move", '
+      + '{"x": "screenOriginX", "y": "screenOriginY", "width": "screenSizeX", "height": "screenSizeY"})]}});\n'
+      + 'slate.bind("w:ctrl,alt", slate.operation("layout", {"name": "Writing"}));\n');
+    model.update(config => {
+      config.general.slateConfigPaths.push('~/.slate.layouts.js');
+    });
+    const copied = model.copyIntoSlated(model.sources.find(s => s.file === extra).bindings[0]);
+    const gaming = model.addBinding({op: 'layout', name: 'Gaming'}, {keys: 'hyper+g'});
+    settings.showPane('layouts');
+    click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'New Layout')[0]);
+    const page = visible('layouts');
+    const own = model.addBinding({op: 'layout', name: 'New Layout'}, {keys: 'hyper+9'});
+    const name = titled(page, 'Adw.EntryRow', 'Name')[0];
+    const problem = titled(page, 'Adw.ActionRow', 'Not saved')[0];
+    // Select all and type, a letter at a time.
+    const type = text => [...text].forEach((_, i) => name.set_text(text.slice(0, i + 1)));
+    type('Writing');
+    check(prop(world, problem, 'visible') !== false && prop(world, problem, 'subtitle') === 'Another layout already has this name.',
+      `the Slate file's layout name is taken: ${prop(world, problem, 'subtitle')}`);
+    type('Writing 2');
+    type('Gaming 2');
+    const names = () => [own, copied, gaming].map(id => model.binding(id).action.name);
+    check(names().join() === 'Gaming 2,Writing,Gaming', `only the layout's own shortcut follows: ${names()}`);
+    await settle();
+    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    const saved = [own, copied, gaming].map(id => onDisk.bindings.find(b => b.id === id).action.name);
+    check(saved.join() === 'Gaming 2,Writing,Gaming', `nor on disk: ${saved}`);
+    for (const id of [own, copied, gaming]) model.deleteBinding(id);
+    model.deleteLayout('Gaming 2');
+    model.update(config => {
+      config.general.slateConfigPaths.pop();
+    });
+  });
+
+  await step('a layout copied in config.json is its own: its row edits it, and deleting it keeps the original', async () => {
+    const original = model.configuration.layouts[0];
+    model.update(config => {
+      config.layouts.push({...JSON.parse(JSON.stringify(original)), apps: []});
+    });
+    settings.navigate('layouts');
+    const copies = rowsIn(visible('layouts'), (w, s) => s.props.get('title') === original.name);
+    check(copies.length === 2, `both are listed: ${copies.length}`);
+    activate(copies[1]);
+    const page = visible('layouts');
+    check(!titled(page, 'Adw.ExpanderRow', original.apps[0].app).length, 'the copy\'s editor shows the copy, which has no apps');
+    click(findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Delete Layout')[0]);
+    world.emit(world.report.dialogs[world.report.dialogs.length - 1], 'response', 'accept');
+    await settle();
+    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8')).layouts.filter(l => l.name === original.name);
+    check(onDisk.length === 1 && onDisk[0].apps.length === original.apps.length, `the original stays, with its apps: ${JSON.stringify(onDisk)}`);
+  });
+
   await step('Automation: running now, your automations, recipes and the safety settings', async () => {
     settings.showPane('automation');
     const root = visible('automation');
@@ -991,6 +1082,63 @@ async function run(mode) {
     check(!model.loadError, 'fixed again');
   });
 
+  await step('a broken config.json that\'s deleted no longer blocks saving: Reload says so, and a change creates it', async () => {
+    const text = fs.readFileSync(files.configFile, 'utf8');
+    fs.writeFileSync(files.configFile, '{"bindings": [');
+    world.touch(files.configFile);
+    await settle();
+    check(model.loadError, 'the broken file is noticed');
+    fs.rmSync(files.configFile);
+    settings.showPane('general');
+    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and your Slate files')[0]);
+    settings.showPane('slate');
+    click(buttons(visible('slate'), 'Reload')[0]);
+    const toasts = world.report.toasts.slice(-2);
+    check(toasts.join(' | ') === 'Configuration reloaded | Reloaded config.json and your Slate files', `toasts: ${toasts.join(' | ')}`);
+    check(prop(world, settings.windowTitle, 'subtitle') !== 'config.json needs a fix', 'no fix asked for a file that\'s gone');
+    model.update(config => {
+      config.general.showActionHUD = !config.general.showActionHUD;
+    });
+    await settle();
+    check(fs.existsSync(files.configFile), 'the next change creates config.json');
+    fs.writeFileSync(files.configFile, text);
+    world.touch(files.configFile);
+    await settle();
+    check(!model.loadError && model.saveState.kind === 'saved', 'back to the file as it was');
+  });
+
+  await step('Overview counts the hotstrings that expand here: the extension leaves Mac-only ones out of espanso', async () => {
+    const statusText = fs.readFileSync(files.statusFile, 'utf8');
+    const hotstrings = JSON.parse(JSON.stringify(model.configuration.hotstrings));
+    model.setShellInfo({state: 1, error: ''});
+    model.setStatusText(JSON.stringify({session: 'abcd1234', running: true, updatedAt: new Date().toISOString(),
+      hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '~/.config/espanso/match/slated.yml', count: 0}}));
+    model.update(config => {
+      config.general.hotstringsEnabled = true;
+      for (const h of config.hotstrings) {
+        h.enabled = true;
+        h.onlyInApps = ['com.apple.mail'];
+      }
+    });
+    settings.showPane('overview');
+    const row = rowsIn(visible('overview'), (w, s) => s.props.get('title') === 'Hotstrings')[0];
+    const pillText = () => findAll(world, row, 'Gtk.Label', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-pill'))
+      .map(p => prop(world, p, 'label')).join();
+    const count = hotstrings.length;
+    check(prop(world, row, 'subtitle').startsWith(`0 hotstrings · ${count} Mac only`) && pillText() === 'Mac only',
+      `all Mac only: ${prop(world, row, 'subtitle')} [${pillText()}]`);
+    model.update(config => {
+      config.hotstrings[0].onlyInApps = [];
+    });
+    settings.showPane('overview');
+    check(prop(world, row, 'subtitle').startsWith(`1 hotstring · ${count - 1} Mac only`) && pillText() === 'Active',
+      `one expands here: ${prop(world, row, 'subtitle')} [${pillText()}]`);
+    model.update(config => {
+      config.hotstrings = hotstrings;
+    });
+    model.setStatusText(statusText);
+  });
+
   await step('the About dialog has debug information', async () => {
     settings.showPane('about');
     activate(rowsIn(visible('about'), (w, s) => s.props.get('title') === 'Credits, links and debug information')[0]);
@@ -1076,6 +1224,22 @@ function selfTest() {
       const area = new Gtk.DrawingArea();
       area.set_draw_func((_a, cr) => cr.drawRoundedRectangle(0, 0, 1, 1));
     }, /Cairo.Context has no method/);
+    // A press runs the window's controllers as GTK does: removing the one GTK runs next is a crash,
+    // and on GTK 4.20 a gesture removed during its own 'pressed' swallows the press.
+    const pressWindow = new Gtk.Window();
+    const keys = new Gtk.EventControllerKey({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    const gesture = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    pressWindow.add_controller(keys);
+    pressWindow.add_controller(gesture);
+    gesture.connect('pressed', () => pressWindow.remove_controller(keys));
+    rejects(`removing the controller GTK runs next during a press ${tag}`, () => world.press(pressWindow, pressWindow),
+      /use-after-free/);
+    const otherWindow = new Gtk.Window();
+    const selfRemoving = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    otherWindow.add_controller(selfRemoving);
+    selfRemoving.connect('pressed', () => otherWindow.remove_controller(selfRemoving));
+    check(world.press(otherWindow, otherWindow).consumed === (mode === 'new'),
+      `a gesture removed in its own 'pressed' swallows the press only on GTK 4.20 ${tag}`);
     new Adw.ActionRow({title: 'markup on'});
     new Adw.SwitchRow({use_markup: false, title: 'markup off'});
     check(world.report.markupRows.join() === 'Adw.ActionRow', `rows with markup on are reported ${tag}: ${world.report.markupRows}`);

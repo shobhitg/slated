@@ -187,14 +187,18 @@ export function createOverviewPane(ctx) {
         : {label: running ? 'Not active' : 'Waiting', style: 'warning'},
       action: hyperOn ? null : {label: 'Set Up', run: () => ctx.navigate('keyboard')},
     });
-    const enabledHotstrings = config.hotstrings.filter(h => h.enabled !== false).length;
+    // The extension leaves hotstrings limited to some apps out of espanso's file (gnomeScopeNote).
+    const enabledHotstrings = config.hotstrings.filter(h => h.enabled !== false);
+    const macOnly = enabledHotstrings.filter(h => h.onlyInApps?.length).length;
+    const expanding = enabledHotstrings.length - macOnly;
     const espanso = espansoGuidance(status.hotstrings, running);
     hotstringsRow.update({
       value: config.general.hotstringsEnabled === false ? 'Text expansion is turned off'
-        : `${plural(enabledHotstrings, 'hotstring')} · ${espanso.title.toLowerCase()}`,
+        : `${plural(expanding, 'hotstring')}${macOnly ? ` · ${macOnly} Mac only` : ''} · ${espanso.title.toLowerCase()}`,
       state: config.general.hotstringsEnabled === false ? {label: 'Off', style: 'dim'}
-        : espanso.level === 'ok' ? {label: 'Active', style: 'success'}
-          : espanso.level === 'warning' ? {label: 'Needs espanso', style: 'warning'} : {label: 'Waiting', style: 'dim'},
+        : !expanding && macOnly ? {label: 'Mac only', style: 'dim'}
+          : espanso.level === 'ok' ? {label: 'Active', style: 'success'}
+            : espanso.level === 'warning' ? {label: 'Needs espanso', style: 'warning'} : {label: 'Waiting', style: 'dim'},
       action: {label: 'Edit', run: () => ctx.navigate('hotstrings')},
     });
     const problems = [];

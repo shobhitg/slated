@@ -12,7 +12,7 @@ import {
   keysCombo, keysString, statusKey, isValidKey, isFunctionKey, keyLabel, comboLabel, isModifierKey, isMouseButton,
 } from './keys.js';
 import {checkExpression} from './expressions.js';
-import {bindingTitle, actionDetail, resolveAction} from './actions.js';
+import {bindingTitle, actionDetail, resolveAction, layoutNames} from './actions.js';
 import {
   BUILT_IN_SHORTCUTS, GNOME_NOTES, sharesApps, unreleasedPresses, inputName, parseInput, clipboardSettings,
   automationSettings,
@@ -206,15 +206,7 @@ export function actionProblems(action, knownLayouts = new Set()) {
     return [];
   case 'shell': return blank(a.command) ? err('Enter a command to run.') : [];
   case 'insert-text': return !a.text ? err('Enter the text to insert.') : [];
-  case 'open-url': {
-    const url = String(a.url ?? '');
-    const m = /^([a-zA-Z][a-zA-Z0-9+.-]*):(.*)$/s.exec(url);
-    // As the Mac's URL(string:) has it: whitespace in a path or query is percent-encoded, so
-    // "…/search?q=a b" is fine, but not in the host or port.
-    const host = m && m[2].startsWith('//') ? m[2].slice(2).split(/[/?#]/)[0].split('@').pop() : '';
-    if (!m || !m[2] || url.endsWith('://') || /\s/.test(host)) return err('Enter a full URL, like https://example.com.');
-    return [];
-  }
+  case 'open-url': return isFullURL(String(a.url ?? '')) ? [] : err('Enter a full URL, like https://example.com.');
   case 'keystroke': {
     const problem = keyProblem(a.keys);
     return problem ? err(problem) : [];
@@ -226,7 +218,70 @@ export function actionProblems(action, knownLayouts = new Set()) {
   }
 }
 
+// --- URLs ----------------------------------------------------------------------------------------------
+
+// A host's ASCII characters: RFC 3986's reg-name (unreserved, sub-delims, percent-encodings).
+const REG_NAME = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=]|%[0-9A-Fa-f]{2}|[^\x00-\x7f])*$/u;
+// Characters IDNA drops from a host name, and the other non-ASCII ones it refuses there: white space,
+// controls, private-use and unassigned code points, and the remaining format characters.
+const IDNA_DROPPED = /[­᠎​⁠-⁤⁪-⁯﻿︀-️\u{1bca0}-\u{1bca3}\u{1d173}-\u{1d17a}]/gu;
+const IDNA_REFUSED = /[\p{White_Space}\p{Cc}\p{Co}\p{Cn}\p{Cf}￼�]/u;
+const IDNA_DOTS = /[.。．｡]/;
+
+function isURLHost(host) {
+  // An IP literal: IPv6 or IPvFuture characters, then maybe a zone id ("%25en0"), anything up to "]".
+  if (host.startsWith('[')) {
+    return host.indexOf(']') === host.length - 1 && /^[A-Za-z0-9\-._~!$&'()*+,;=:]*$/.test(host.slice(1, -1).split('%')[0]);
+  }
+  if (!/[^\x00-\x7f]/.test(host)) return REG_NAME.test(host);
+  // IDNA maps other characters to ASCII label by label: a fullwidth "：" becomes ":", which no host has.
+  const mapped = host.normalize('NFKC');
+  const kept = mapped.replace(IDNA_DROPPED, '');
+  if (!REG_NAME.test(mapped) || IDNA_REFUSED.test(kept)) return false;
+  const labels = kept.split(IDNA_DOTS);
+  if (IDNA_DOTS.test(mapped.slice(-1))) labels.pop();
+  // No empty label, none starting with a combining mark or starting or ending with a hyphen, and
+  // "--" in the third and fourth places only for punycode ("xn--"), which is ASCII already.
+  return labels.every(label => label && !/^\p{M}|^-|-$/u.test(label)
+    && (/^xn--/i.test(label) ? /^[a-z0-9-]+$/i.test(label) : !/^..--/u.test(label)));
+}
+
+/**
+ * Whether the Mac takes `url` as a full URL: URL(string:) reads it, with more than a scheme
+ * (ConfigValidator.swift). Since macOS 14, URL(string:) percent-encodes what doesn't belong in a path,
+ * query, fragment or user name, so "…/search?q=a b" is fine; a host or port must be RFC 3986's, and a
+ * host with other characters must pass IDNA. Checked against Foundation on macOS 26 (the URLs in
+ * validator.test.mjs, also in SettingsUITests.swift, and random ones).
+ */
+export function isFullURL(url) {
+  const m = /^([a-zA-Z][a-zA-Z0-9+.-]*):(.*)$/s.exec(url);
+  if (!m || !m[2] || url.endsWith('://')) return false;
+  if (!m[2].startsWith('//')) return true;
+  const authority = m[2].slice(2).split(/[/?#]/)[0];
+  const hostPort = authority.slice(authority.lastIndexOf('@') + 1);
+  const close = hostPort.startsWith('[') ? hostPort.indexOf(']') : 0;
+  if (close < 0) return false;
+  const portAt = hostPort.indexOf(':', close);
+  const host = portAt < 0 ? hostPort : hostPort.slice(0, portAt);
+  return /^[0-9]*$/.test(portAt < 0 ? '' : hostPort.slice(portAt + 1)) && isURLHost(host);
+}
+
 // --- Hotstrings ----------------------------------------------------------------------------------------
+
+/**
+ * Whether some app has both hotstrings available (Hotstring.sharesApps in ConfigValidator.swift). The
+ * Mac only considers the hotstrings available in the app in front, so two with the same trigger in
+ * different apps each fire in their own. App filters hold Mac bundle ids.
+ */
+export function hotstringsShareApps(a, b) {
+  const [onlyA, exceptA, onlyB, exceptB] = [a.onlyInApps, a.exceptInApps, b.onlyInApps, b.exceptInApps].map(list => list ?? []);
+  const mine = onlyA.filter(app => !exceptA.includes(app));
+  const theirs = onlyB.filter(app => !exceptB.includes(app));
+  if (!onlyA.length && !onlyB.length) return true;
+  if (!onlyB.length) return mine.some(app => !exceptB.includes(app));
+  if (!onlyA.length) return theirs.some(app => !exceptA.includes(app));
+  return mine.some(app => theirs.includes(app));
+}
 
 function hotstringIssues(hotstrings) {
   const issues = [];
@@ -244,7 +299,7 @@ function hotstringIssues(hotstrings) {
     }
     if (h.enabled === false) continue;
     for (const other of hotstrings) {
-      if (other.id === h.id || other.enabled === false || !other.trigger) continue;
+      if (other.id === h.id || other.enabled === false || !other.trigger || !hotstringsShareApps(h, other)) continue;
       const insensitive = h.caseSensitive === false || other.caseSensitive === false;
       const mine = insensitive ? trigger.toLowerCase() : trigger;
       const theirs = insensitive ? other.trigger.toLowerCase() : other.trigger;
@@ -291,23 +346,31 @@ function layoutIssues(layoutList, layouts) {
  * The configuration to write: the draft, except that items with errors fall back to their last saved
  * version (or are left out if they were never saved). Layouts have no identity beyond their name,
  * which is exactly what's being edited when a name clashes or is empty, so any layout error keeps
- * all layouts as last saved.
+ * all layouts as last saved. What applies a layout by a name only the draft has (renamed or added
+ * since) then waits too, display defaults with the layouts: on disk it would apply no layout.
  */
 export function savable(draft, lastSaved, issues) {
   const bad = new Set(issues.filter(i => i.severity === 'error').map(i => i.target));
   if (!bad.size) return draft;
   const result = {...draft};
+  const layoutsHeld = [...bad].some(t => t.startsWith('layout:'));
+  const savedNames = new Set((lastSaved.layouts ?? []).map(l => l.name));
+  const unsaved = new Set(layoutsHeld ? (draft.layouts ?? []).map(l => l.name).filter(name => !savedNames.has(name)) : []);
+  const waits = action => unsaved.size > 0 && layoutNames(action).some(name => unsaved.has(name));
   result.bindings = (draft.bindings ?? []).flatMap(b => {
-    if (!bad.has(target.binding(b.id))) return [b];
+    if (!bad.has(target.binding(b.id)) && !waits(b.action)) return [b];
     const previous = (lastSaved.bindings ?? []).find(s => s.id === b.id);
     return previous ? [previous] : [];
   });
   result.hotstrings = (draft.hotstrings ?? []).flatMap(h => {
-    if (!bad.has(target.hotstring(h.id))) return [h];
+    if (!bad.has(target.hotstring(h.id)) && !waits(h.action)) return [h];
     const previous = (lastSaved.hotstrings ?? []).find(s => s.id === h.id);
     return previous ? [previous] : [];
   });
-  if ([...bad].some(t => t.startsWith('layout:'))) result.layouts = lastSaved.layouts ?? [];
+  if (layoutsHeld) {
+    result.layouts = lastSaved.layouts ?? [];
+    result.defaults = lastSaved.defaults ?? [];
+  }
   return result;
 }
 

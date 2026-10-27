@@ -49,15 +49,21 @@ export default suite('Validation', [
     expectEqual(actionProblems({op: 'layout', name: 'Coding'}, new Set(['Coding'])), []);
     expectEqual(actionProblems({op: 'open-url', url: 'https://'})[0].message, 'Enter a full URL, like https://example.com.');
     expectEqual(actionProblems({op: 'open-url', url: 'mailto:me@example.com'}), []);
-    // What the Mac's check makes of whitespace (macOS 14's URL(string:) percent-encodes it in a path,
-    // query, fragment or user name, not in the scheme, host or port), as probed on macOS 26.
+    // What the Mac's check makes of them, as probed on macOS 26: macOS 14's URL(string:) percent-encodes
+    // what doesn't belong in a path, query, fragment or user name, but a host or port must be RFC 3986's
+    // (with IDNA for other characters in a host). SettingsUITests.swift checks the same URLs.
     const urls = {
       ok: ['https://www.google.com/search?q=hello world', 'https://example.com/a b', 'https://example.com/a\tb',
         'https://example.com/a\nb', 'https://example.com/ ', 'mailto:me @example.com', 'https://example.com/#a b',
         'https://user name@example.com/', 'file:///home/me/a b.txt', 'https://example.com?q=a b',
-        'obsidian://open?vault=My Notes', 'https://example.com/\u00a0x', 'slack://open'],
+        'obsidian://open?vault=My Notes', 'https://example.com/\u00a0x', 'slack://open',
+        'http://localhost:3000/', 'https://[::1]:8080/', 'https://example.com:/x', 'https://exa%41mple.com',
+        'https://m\u00fcnchen.de/', 'https://\u4f8b\u3048.\u30c6\u30b9\u30c8/', 'https://exa\ufeffmple.com', 'https://exa\u200bmple.com'],
       bad: ['https://example.com ', ' https://example.com', 'https://exa mple.com', 'https://a\nb', 'https://', 'https:',
-        'https:// example.com', 'ht tp://example.com', 'https://example.com:80 /x', 'https://exa\u00a0mple.com'],
+        'https:// example.com', 'ht tp://example.com', 'https://example.com:80 /x', 'https://exa\u00a0mple.com',
+        'https://{host}/path', 'https://localhost:port/', 'https://example.com:8o8o/', 'https://[::1/', 'https://[::1]x/',
+        'https://exa|mple.com/', 'https://exa%mple.com', 'https://exa\u0085mple.com', 'https://exa\u3000mple.com',
+        'https://exa\uff1ample.com', 'https://exa\u200emple.com'],
     };
     for (const url of urls.ok) expectEqual(actionProblems({op: 'open-url', url}), [], JSON.stringify(url));
     for (const url of urls.bad) expectEqual(actionProblems({op: 'open-url', url}).length, 1, JSON.stringify(url));
@@ -153,6 +159,29 @@ export default suite('Validation', [
     expectEqual(messages('3'), ['The replacement is empty, so the trigger will just be deleted.',
       'Another hotstring uses the same trigger. Only one of them will fire.']);
     expectEqual(messages('6'), ['“;br” fires as soon as it\'s typed, so this one never gets the chance.']);
+  }],
+  ['hotstrings kept to different apps don\'t clash; overlapping ones do', () => {
+    // The Mac's case (SettingsUITests.swift): its matcher only considers the hotstrings available in
+    // the app in front, so each of these fires in its own app. GNOME expands none of the Mac-only ones.
+    const mail = 'com.apple.mail';
+    const messages = 'com.apple.MobileSMS';
+    const hotstrings = [
+      {id: 'mailSignature', trigger: ';sig', replacement: 'Best, S', onlyInApps: [mail]},
+      {id: 'chatSignature', trigger: ';sig', replacement: 'cheers', onlyInApps: [messages]},
+      {id: 'notInMail', trigger: ';e', replacement: 'e', exceptInApps: [mail]},
+      {id: 'mailOnlyEmail', trigger: ';email', replacement: 'a@b.c', onlyInApps: [mail]},
+    ];
+    expectEqual(validate(config({hotstrings})), []);
+    const issues = validate(config({hotstrings: [...hotstrings,
+      {id: 'everywhere', trigger: ';sig', replacement: 'S.'},
+      {id: 'chatEmail', trigger: ';email', replacement: 'a@b.c', onlyInApps: [messages]},
+    ]}));
+    const about = id => issues.filter(i => i.target === target.hotstring(id)).map(i => i.message);
+    for (const clash of ['mailSignature', 'chatSignature', 'everywhere']) {
+      expect(about(clash).some(m => m.startsWith('Another hotstring')), `${clash} clashes`);
+    }
+    expect(about('chatEmail').some(m => m.includes('“;e”')), '“;e” works in Messages, where ;email is');
+    expectEqual(about('mailOnlyEmail'), [], 'not in Mail, where “;e” isn\'t');
   }],
   ['layout issues', () => {
     const issues = validate(config({

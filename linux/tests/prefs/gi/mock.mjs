@@ -6,7 +6,8 @@
 // argument GJS requires. API that only newer libraries have (up to GTK 4.20 and libadwaita 1.8,
 // GNOME 49) is reachable only after an `'name' in object` check, and in "min" mode it doesn't exist
 // at all, so the fallbacks run. Deprecated API is recorded. Removing a widget that isn't a child, or
-// adding one that already has a parent, fails like a GTK critical would.
+// adding one that already has a parent, fails like a GTK critical would. A press (world.press) runs a
+// window's controllers the way GTK walks them, so a handler that removes them mid-walk fails.
 //
 // GLib, Gio and GObject are small working fakes backed by a temporary home folder, so the real
 // file, monitor and timer code in io.js runs too. Nothing here draws anything: widgets are plain
@@ -148,6 +149,8 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
 
   const states = new WeakMap();
   const stateOf = object => states.get(object);
+  // The controller a press is being delivered to, and the controllers removed meanwhile (see press()).
+  let dispatching = null;
 
   function defaultValue(code, owner, self, cacheKey) {
     switch (code) {
@@ -210,6 +213,7 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
     if (!c) throw new MockError(`remove() of something that isn't a widget on ${p.cls}`);
     if (c.parent !== parent) throw new MockError(`remove() of a ${c.cls} that isn't a child of this ${p.cls} (a GTK critical)`);
     if (p.controllers.includes(child)) {
+      if (dispatching?.widget === parent) dispatching.removed.add(child);
       p.controllers = p.controllers.filter(x => x !== child);
     } else {
       p.children = p.children.filter(x => x !== child);
@@ -474,6 +478,12 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
       draw(object);
     },
     'Gtk.Widget.get_root': object => root(object),
+    // What's under the pointer: the target of the press being delivered (see press()).
+    'Gtk.Widget.pick': (o, state) => state.picked ?? NEXT,
+    'Gtk.Widget.is_ancestor': (o, state, [ancestor]) => {
+      for (let p = state.parent; p; p = stateOf(p).parent) if (p === ancestor) return true;
+      return false;
+    },
     'Gtk.Widget.get_native': object => root(object),
     'Gtk.Widget.get_width': () => 320,
     'Gtk.Widget.get_height': () => 200,
@@ -1039,6 +1049,45 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
       }
     },
     pendingTimers: () => [...timers.values()].map(t => t.kind),
+    /**
+     * A primary-button press over `target` (what Gtk.Widget.pick finds there), delivered to the
+     * capture-phase click gestures of `window` the way gtk_widget_run_controllers does in GTK 4.14 to
+     * 4.20: add_controller prepends, so the newest runs first, and the walk saves the next link
+     * before it runs a controller. A handler that removes that next controller frees the link GTK
+     * reads next, a use-after-free that crashes the settings window or corrupts its heap: that
+     * fails here. In "new" mode (GTK 4.20), removing a controller also resets it (since GTK 4.16.2),
+     * and a gesture reset inside its own 'pressed' consumes the press. Returns {consumed}: true when
+     * GTK stops the press there, so `target` never gets it.
+     */
+    press(window, target, {x = 10, y = 10} = {}) {
+      const state = stateOf(window);
+      const capture = world.namespaces.Gtk.PropagationPhase.CAPTURE;
+      let consumed = false;
+      state.picked = target;
+      try {
+        let current = state.controllers[state.controllers.length - 1] ?? null;
+        while (current) {
+          const order = [...state.controllers].reverse();
+          const next = order[order.indexOf(current) + 1] ?? null;
+          const c = stateOf(current);
+          if (isA(c.cls, 'Gtk.GestureClick') && c.props.get('propagation-phase') === capture) {
+            dispatching = {widget: window, removed: new Set()};
+            emit(current, 'pressed', 1, x, y);
+            if (next && dispatching.removed.has(next)) {
+              throw new MockError(`A 'pressed' handler removed the ${stateOf(next).cls} that GTK runs next on this ${state.cls}: `
+                + 'a use-after-free in gtk_widget_run_controllers');
+            }
+            if (mode === 'new' && dispatching.removed.has(current)) consumed = true;
+            dispatching = null;
+          }
+          current = next;
+        }
+      } finally {
+        state.picked = null;
+        dispatching = null;
+      }
+      return {consumed};
+    },
     /** Pretends a file changed on disk: fires its monitors. */
     touch(p) {
       for (const m of monitors) if (m.path === p) m.fire();

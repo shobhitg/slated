@@ -46,6 +46,11 @@ function harness(files = {}) {
 
 const half = presetById('left-half').action;
 
+/** A Slate file with a layout named "Code" and a shortcut that applies it. */
+const SLATE_CODE = 'slate.layout("Code", {"Terminal": {"operations": [slate.operation("move", '
+  + '{"x": "screenOriginX", "y": "screenOriginY", "width": "screenSizeX", "height": "screenSizeY"})]}});\n'
+  + 'slate.bind("c:ctrl,alt", slate.operation("layout", {"name": "Code"}));\n';
+
 /** config.json ids must be UUIDs, as in Swift: deterministic ones for the tests. */
 const testId = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const A = testId(0xa);
@@ -148,6 +153,35 @@ export default suite('Preferences model', [
     model.syncFromDisk();
     expectEqual(model.loadError, null);
     expectEqual(model.saveState, {kind: 'saved'});
+  }],
+  ['a broken config.json that\'s deleted no longer blocks saving: the next change creates it', () => {
+    // Broken from the start, then deleted and reloaded.
+    let {model, disk, tick} = harness({[CONFIG]: '{"bindings": ['});
+    model.load();
+    expect(model.loadError !== null, 'blocked');
+    delete disk[CONFIG];
+    model.reload();
+    expectEqual([model.loadError, model.saveState, model.firstRun], [null, {kind: 'saved'}, true], 'as on a first run');
+    model.update(config => {
+      config.general.showActionHUD = true;
+    });
+    tick();
+    expectEqual(decodeConfiguration(disk[CONFIG]).general.showActionHUD, true, 'created again');
+    // Broken by a hand edit after it was read, with an edit waiting, then deleted: the edit is saved.
+    ({model, disk, tick} = harness({[CONFIG]: '{"general": {"showActionHUD": true}}'}));
+    model.load();
+    disk[CONFIG] = '{"general": ';
+    model.syncFromDisk();
+    model.update(config => {
+      config.keyboard.capsLock = 'hyper';
+    });
+    expectEqual(model.saveState, {kind: 'blocked'});
+    delete disk[CONFIG];
+    model.syncFromDisk();
+    expectEqual(model.loadError, null);
+    tick();
+    const saved = decodeConfiguration(disk[CONFIG]);
+    expectEqual([saved.general.showActionHUD, saved.keyboard.capsLock], [true, 'hyper'], 'what the window showed, with the edit');
   }],
   ['write failures are reported and logged', () => {
     const {model, disk, logged} = harness({[CONFIG]: '{}'});
@@ -257,6 +291,127 @@ export default suite('Preferences model', [
       l.apps.push({app: 'Files', operations: [], options: l.apps[0].options});
     });
     expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps.length}`), ['A: 1', 'AB: 2']);
+  }],
+  ['a Slate file\'s layout name is taken, as when adding a layout', () => {
+    const {model} = harness({[CONFIG]: JSON.stringify({layouts: [{name: 'New Layout', apps: []}]}), [`${HOME}/.slate.js`]: SLATE_CODE});
+    model.load();
+    expectEqual(model.layoutNameProblem('New Layout', 'Code'), 'Another layout already has this name.');
+    expectEqual(model.setLayout('New Layout', l => {
+      l.name = 'Code';
+    }), 'New Layout');
+    expectEqual(model.layoutNameProblem('New Layout', 'Code 2'), null);
+  }],
+  ['a rename keeps what named the new name before (a Slate layout, or none yet) where it was', () => {
+    const {model} = harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'Terminals', apps: []}],
+      bindings: [{id: A, keys: 'hyper+t', action: {op: 'layout', name: 'Terminals'}}, {id: B, keys: 'hyper+g', action: {op: 'layout', name: 'Gaming'}}],
+    })});
+    model.load();
+    expectEqual([...model.layoutReferences('Gaming')], [`binding:${B}`]);
+    // As the layout editor types "Gaming 2" over "Terminals": "Gaming" arrives with hyper+g on it.
+    let name = model.setLayout('Terminals', l => {
+      l.name = 'Gaming';
+    });
+    expectEqual(model.configuration.bindings.map(b => b.action.name), ['Gaming', 'Gaming']);
+    name = model.setLayout(name, l => {
+      l.name = 'Gaming 2';
+    }, {keep: new Set([`binding:${B}`])});
+    expectEqual(name, 'Gaming 2');
+    expectEqual(model.configuration.bindings.map(b => b.action.name), ['Gaming 2', 'Gaming']);
+  }],
+  ['a rename re-points every step, hotstring and display default that applies the layout', () => {
+    const layout = name => ({op: 'layout', name});
+    const {model} = harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'Code', apps: []}],
+      bindings: [
+        {id: A, keys: 'hyper+1', action: layout('Code')},
+        {id: B, keys: 'hyper+2', action: {op: 'chain', operations: [layout('Code'), half]}},
+        {id: testId(0xc), keys: 'hyper+3', action: {op: 'by-orientation', landscape: layout('Code'), portrait: half}},
+        {id: testId(0xd), keys: 'hyper+4', action: {op: 'sequence', operations: [layout('Code'), {op: 'wait', seconds: 1}]}},
+        {id: testId(0xe), keys: 'hyper+5', action: 'layout Code'},
+      ],
+      hotstrings: [{id: H, trigger: ';code', replacement: '', action: layout('Code')}],
+      defaults: [{target: 'Code', condition: {count: {_0: 2}}}],
+    })});
+    model.load();
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+    });
+    const config = model.configuration;
+    expectEqual(config.bindings[0].action, layout('Coding'));
+    expectEqual(config.bindings[1].action.operations[0], layout('Coding'));
+    expectEqual(config.bindings[2].action.landscape, layout('Coding'));
+    expectEqual(config.bindings[3].action.operations[0], layout('Coding'));
+    if (implemented('parseOperation')) expectEqual(config.bindings[4].action, layout('Coding'), 'Slate syntax too');
+    expectEqual(config.hotstrings[0].action, layout('Coding'));
+    expectEqual(config.defaults.map(d => d.target), ['Coding']);
+    expectEqual(model.issues.filter(i => /no layout named/.test(i.message)), [], 'nothing still names the old layout');
+  }],
+  ['a layout copied in config.json is its own: editing or deleting the copy spares the original', () => {
+    const copied = () => harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'Code', apps: [{app: 'Firefox'}]}, {name: 'Code', apps: [{app: 'Terminal'}]}],
+      bindings: [{id: A, keys: 'hyper+1', action: {op: 'layout', name: 'Code'}}],
+    })});
+    let {model, disk, tick} = copied();
+    model.load();
+    expectEqual(model.layoutIndex('Code', 1), 1);
+    expectEqual(model.layoutNameProblem('Code', 'Code 2', 1), null);
+    expectEqual(model.setLayout('Code', l => {
+      l.name = 'Code 2';
+    }, {index: 1}), 'Code 2');
+    expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps[0].app}`), ['Code: Firefox', 'Code 2: Terminal']);
+    expectEqual(model.binding(A).action.name, 'Code', 'the original still has the name, so its shortcut stays');
+    ({model, disk, tick} = copied());
+    model.load();
+    model.deleteLayout('Code', 1);
+    tick();
+    expectEqual(decodeConfiguration(disk[CONFIG]).layouts.map(l => `${l.name}: ${l.apps[0].app}`), ['Code: Firefox']);
+  }],
+  ['a rename waits with its shortcuts while another layout can\'t be saved', () => {
+    const bad = {op: 'move', x: 'screenOriginX+', y: '0', width: '10', height: '10'};
+    const start = (chat, code = {name: 'Code', apps: []}) => harness({[CONFIG]: JSON.stringify({
+      layouts: [code, {name: 'Chat', apps: [{app: 'Slack', operations: [chat]}]}],
+      bindings: [{id: A, keys: 'hyper+1', action: {op: 'layout', name: 'Code'}}],
+      defaults: [{target: 'Code', condition: {count: {_0: 2}}}],
+    })});
+    const onDisk = disk => {
+      const saved = decodeConfiguration(disk[CONFIG]);
+      return [saved.layouts.map(l => l.name), saved.bindings[0].action.name, saved.defaults[0].target];
+    };
+    // An operation half-typed in another layout while this one is renamed.
+    let {model, disk, tick} = start(half);
+    model.load();
+    model.setLayout('Chat', l => {
+      l.apps[0].operations = [bad];
+    });
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+    });
+    tick();
+    expectEqual(onDisk(disk), [['Code', 'Chat'], 'Code', 'Code'], 'the shortcut keeps the name config.json has');
+    // A typo already in the file, in another layout.
+    ({model, disk, tick} = start(bad));
+    model.load();
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+    });
+    tick();
+    expectEqual(onDisk(disk), [['Code', 'Chat'], 'Code', 'Code']);
+    // An error in the renamed layout itself, saved as the window closes.
+    ({model, disk} = start(half));
+    model.load();
+    model.setLayout('Code', l => {
+      l.name = 'Coding';
+      l.apps.push({app: 'Terminal', operations: [{...bad, x: '0', width: 'screenSizeX/'}]});
+    });
+    model.saveNow();
+    expectEqual(onDisk(disk), [['Code', 'Chat'], 'Code', 'Code']);
+    // Fixed: the rename and its shortcuts save together.
+    model.setLayout('Coding', l => {
+      l.apps.pop();
+    });
+    model.saveNow();
+    expectEqual(onDisk(disk), [['Coding', 'Chat'], 'Coding', 'Coding']);
   }],
   ['moving, deleting and duplicating', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({

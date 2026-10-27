@@ -83,8 +83,10 @@ keyd's configuration is a system file that the extension can't change. The insta
 `config.json`, using `keyboard.capsLockAlone` (tap for Escape) and `keyboard.hyperModifiers` (Meh).
 **After changing either in Settings, run `linux/install.sh --hyper-keyd` again.** `--tap-escape`
 turns the tap on whatever `config.json` says. If keyd already has another configuration, the
-installer doesn't write its own. Instead it prints the lines to add to yours. To remove it, run
-`linux/install.sh --hyper-keyd --remove`.
+installer doesn't write its own. Instead it prints the lines to add to yours. To remove the file the
+installer wrote, run `linux/install.sh --hyper-keyd --remove`; lines you added to your own
+configuration you take out there, then run `sudo keyd reload`. keyd keeps Caps Lock as Hyper until
+then, even with Slated or its Hyper key turned off.
 
 ### Hotstrings
 

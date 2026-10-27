@@ -11,6 +11,7 @@
 
 import Adw from 'gi://Adw';
 import Gdk from 'gi://Gdk';
+import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
 import {
@@ -121,18 +122,39 @@ export class ShortcutRecorder {
     });
     root.add_controller(this.controller);
     // As on the Mac, a click anywhere else ends the recording (and goes on to what was clicked), so
-    // clicking into a field to type there works. A click on this button stops it through 'clicked'.
-    this.clicks = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
-    this.clicks.connect('pressed', (gesture, presses, x, y) => {
-      const picked = root.pick(x, y, Gtk.PickFlags.DEFAULT);
-      if (picked && (picked === this.button || picked.is_ancestor(this.button))) return;
-      this.stop();
+    // clicking into a field to type there works. A click on the recorder stops it through 'clicked'.
+    const clicks = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    clicks.connect('pressed', (gesture, presses, x, y) => {
+      if (this._isOwnPress(root.pick(x, y, Gtk.PickFlags.DEFAULT))) return;
+      // Stop once GTK has delivered this press, before the next event: it's still walking the window's
+      // controllers now, and removing them frees the list link it reads next (a crash). Since GTK
+      // 4.16.2 that would also reset this gesture mid-press, which swallows the click.
+      GLib.idle_add(GLib.PRIORITY_HIGH, () => {
+        if (this.clicks === clicks) this.stop();
+        return GLib.SOURCE_REMOVE;
+      });
     });
-    root.add_controller(this.clicks);
+    this.clicks = clicks;
+    root.add_controller(clicks);
     recording.add(this);
     this._inhibit(true);
     this._render([]);
     this.onRecording(true);
+  }
+
+  /**
+   * Whether a press on `picked` is on this recorder: on its button, or on the rest of its row, which
+   * the list activates on release, clicking the button. That click stops the recording, as on the
+   * Mac; stopping on the press too would start it again. Another control in the row, such as a key
+   * menu or a Default button, counts as somewhere else.
+   */
+  _isOwnPress(picked) {
+    const suffixes = this.button.get_parent();
+    for (let widget = picked; widget; widget = widget.get_parent()) {
+      if (widget === this.button || widget === this.row) return true;
+      if (widget.get_parent() === suffixes) return false;
+    }
+    return false;
   }
 
   stop() {

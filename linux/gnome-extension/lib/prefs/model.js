@@ -17,7 +17,7 @@ import {keysString, statusKey} from './keys.js';
 import {validate, savable, configChanges, target, LAYOUT_NAME_MISSING, LAYOUT_NAME_TAKEN} from './validator.js';
 import {parseStatus, emptyStatus, extensionState, bindingState, runningSummary} from './status.js';
 import {presetById, starterBindings} from './presets.js';
-import {bindingTitle} from './actions.js';
+import {bindingTitle, layoutNames, renameLayout} from './actions.js';
 import {builtInShortcut, recipeBindingName, sharesApps} from './automation.js';
 import {loadSlateScript, importSlateScript, importClassic, planImport} from './importer.js';
 import {newBinding, newHotstring} from './config.js';
@@ -232,7 +232,25 @@ export class PrefsModel extends Emitter {
       this._blocked(`Couldn't read config.json: ${describeError(error)}`);
       return;
     }
-    if (text === null || text === undefined) return; // Deleted: keep what's shown; the next save recreates it.
+    if (text === null || text === undefined) {
+      // Deleted: keep what's shown; the next save recreates it. When saving waited for the broken
+      // file that was there, it's gone, so saving resumes as on a first run (with edits made meanwhile).
+      if (this.loadError) {
+        this.loadError = null;
+        this._badText = null;
+        this._diskText = null;
+        this.firstRun = true;
+        this.saveState = {kind: 'saved'};
+        if (!deepEqual(this.draft, this.saved)) {
+          this._draftChanged();
+        } else {
+          this._revalidate();
+          this.emit('config');
+          this.emit('save-state');
+        }
+      }
+      return;
+    }
     // The same text again (a file monitor event, the reload nudge): nothing to adopt.
     if (this.loadError ? text === this._badText : text === this._diskText) return;
     let disk;
@@ -596,40 +614,74 @@ export class PrefsModel extends Emitter {
     return name;
   }
 
-  deleteLayout(name) {
+  /**
+   * Where Slated's layout called `name` is in config.layouts: at `index` when the layout there has
+   * that name (a layout copied in config.json shares its name with the original), else the first
+   * with it; -1 when there's none.
+   */
+  layoutIndex(name, index = null) {
+    return layoutIndex(this.draft.layouts, name, index);
+  }
+
+  /** Deletes the layout called `name` (the one at `index`, see layoutIndex). */
+  deleteLayout(name, index = null) {
     this.update(config => {
-      config.layouts = config.layouts.filter(l => l.name !== name);
+      const at = layoutIndex(config.layouts, name, index);
+      if (at >= 0) config.layouts.splice(at, 1);
     });
   }
 
   /**
-   * Why the layout called `name` can't be renamed to `newName`, or null. Shortcuts apply a layout by
-   * its name, so a rename that clashes would move them to the other layout.
+   * Why the layout called `name` (at `index`) can't be renamed to `newName`, or null. Shortcuts apply
+   * a layout by its name, so a rename that clashes would move them to the other layout. A Slate
+   * file's layouts count, as for addLayout: their shortcuts would come along too.
    */
-  layoutNameProblem(name, newName) {
+  layoutNameProblem(name, newName, index = null) {
     if (!String(newName ?? '').trim()) return LAYOUT_NAME_MISSING;
-    const index = this.draft.layouts.findIndex(l => l.name === name);
-    return this.draft.layouts.some((l, i) => i !== index && l.name === newName) ? LAYOUT_NAME_TAKEN : null;
+    if (newName === name) return null;
+    const own = layoutIndex(this.draft.layouts, name, index);
+    const taken = this.draft.layouts.some((l, i) => i !== own && l.name === newName)
+      || this.sources.some(s => s.layouts.some(l => l.name === newName));
+    return taken ? LAYOUT_NAME_TAKEN : null;
+  }
+
+  /** What applies the layout called `name`: "binding:<id>", "hotstring:<id>" and "default:<index>" keys. */
+  layoutReferences(name) {
+    const refs = new Set();
+    for (const b of this.draft.bindings) if (layoutNames(b.action).includes(name)) refs.add(target.binding(b.id));
+    for (const h of this.draft.hotstrings) if (layoutNames(h.action).includes(name)) refs.add(target.hotstring(h.id));
+    (this.draft.defaults ?? []).forEach((d, i) => d.target === name && refs.add(`default:${i}`));
+    return refs;
   }
 
   /**
-   * Changes a layout; a rename also updates bindings that apply it. Returns the layout's new name.
-   * A rename to an empty name or another layout's isn't applied (see layoutNameProblem): the
-   * shortcuts would follow it to the other layout, and finding this one by name would find that.
+   * Changes the layout called `name` (the one at `index`, see layoutIndex); a rename also re-points
+   * what applies it: bindings and hotstrings, in any step, and display defaults. Returns the
+   * layout's new name. A rename to an empty name or another layout's isn't applied (see
+   * layoutNameProblem): the shortcuts would follow it to the other layout, and finding this one by
+   * name would find that. What's in `keep` (layoutReferences keys) isn't re-pointed: as a name is
+   * typed, the layout editor keeps there what named a name before the layout took it.
    */
-  setLayout(name, mutate) {
+  setLayout(name, mutate, {index = null, keep = new Set()} = {}) {
     let newName = name;
     this.update(config => {
-      const layout = config.layouts.find(l => l.name === name);
+      const at = layoutIndex(config.layouts, name, index);
+      const layout = config.layouts[at];
       if (!layout) return;
       mutate(layout);
-      if (layout.name !== name && this.layoutNameProblem(name, layout.name)) layout.name = name;
+      if (layout.name !== name && this.layoutNameProblem(name, layout.name, at)) layout.name = name;
       newName = layout.name;
-      if (newName !== name) {
-        for (const b of config.bindings) {
-          if (b.action?.op === 'layout' && b.action.name === name) b.action = {...b.action, name: newName};
-        }
+      // A copy still has the old name: what applies that name stays with it.
+      if (newName === name || config.layouts.some(l => l.name === name)) return;
+      for (const b of config.bindings) {
+        if (!keep.has(target.binding(b.id))) b.action = renameLayout(b.action, name, newName);
       }
+      for (const h of config.hotstrings) {
+        if (h.action !== undefined && !keep.has(target.hotstring(h.id))) h.action = renameLayout(h.action, name, newName);
+      }
+      (config.defaults ?? []).forEach((d, i) => {
+        if (d.target === name && !keep.has(`default:${i}`)) d.target = newName;
+      });
     });
     return newName;
   }
@@ -680,6 +732,12 @@ export class PrefsModel extends Emitter {
       source: 'prefs',
     });
   }
+}
+
+/** See PrefsModel.layoutIndex. */
+function layoutIndex(layouts, name, index) {
+  if (index !== null && index !== undefined && layouts[index]?.name === name) return index;
+  return layouts.findIndex(l => l.name === name);
 }
 
 /**
