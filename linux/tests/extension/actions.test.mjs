@@ -445,6 +445,22 @@ test('a maximized window that first settles at its old size gets the size asked 
   assert.equal(platform.calls.filter((c) => c[0] === 'setFrame').length, 2, 'asked once more, then left alone');
 });
 
+test('undoMaxStackSize is read as on the Mac: infinity keeps everything, text that isn\u2019t a number is the default', () => {
+  // 12 moves, then undo until it fails: how many undos were kept (SlateSettings.undoMaxStackSize, at least 1).
+  const kept = (undoMaxStackSize) => {
+    const {runner} = setup();
+    runner.settings = {undoMaxStackSize};
+    for (let i = 0; i < 12; i++) runner.run(i % 2 ? leftHalf : rightHalf, {trigger: 't'});
+    let undos = 0;
+    while (runner.run({op: 'undo'}, {trigger: 't'})) undos++;
+    return undos;
+  };
+  assert.deepEqual(
+    [Infinity, -Infinity, NaN, '', ' 12', '1e20', '3', 2.9, 0, -5].map(kept),
+    [12, 1, 10, 10, 10, 12, 3, 2, 1, 1],
+  );
+});
+
 test('the grid places windows with undo', () => {
   const {platform, runner, performed} = setup();
   runner.place(platform.windows[0], {x: 0, y: 32, width: 640.4, height: 524}, 'Grid');
