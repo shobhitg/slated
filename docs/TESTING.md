@@ -4,11 +4,11 @@
 
 | Layer | Where | Run | What it covers |
 |---|---|---|---|
-| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic: model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching and templates. |
+| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic: model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching and templates, log redaction. From `SlatedSystem`: the keyboard tap's decisions (fed events that are never posted) and `hidutil` parsing. |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
-| Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift` | `make test` | JavaScriptCore behavior the script engine depends on: error lines, stacks, exceptions inside callbacks. Fails first if a macOS update changes it. |
+| Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape and portrait screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
-| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited JSON, broken files, unknown operations, duplicate shortcuts. It also checks what lands in the event log, including crash detection. |
+| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited JSON, broken files, unknown operations, duplicate shortcuts. It also checks what lands in the event log, including crash detection. `SLATED_SMOKE_SECONDS` keeps it running longer and `SLATED_SMOKE_STEPS` drives it half way through (`Sources/Slated/SmokeSteps.swift`): saving over a broken or symlinked config.json, edits made while it runs, pausing then switching apps, reloading `~/.slate.js`. |
 | Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch, confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), uninstall, `--purge`. Launches the app for a few seconds. |
 | Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~4,500 curated inputs, ~16,400 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
 | Linux engine | `linux/tests/run.mjs` (+ `harness.mjs`, `fixtures.mjs`, `unit.mjs`) | `make linux-test` | The JavaScript port of SlatedCore (`linux/gnome-extension/lib/core`) against every golden vector, plus tests for its JavaScript-only API (GNOME accelerators). Runs on Node if installed, else macOS's JavaScriptCore; `make linux-test-all` runs every runtime available (Node, GJS, JavaScriptCore). |
@@ -128,7 +128,12 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       light stays off.
 - [ ] Quitting Slated restores Caps Lock: `hidutil property --get UserKeyMapping` prints `(null)`.
 - [ ] After `kill -9` of Slated, relaunching it cleans up or re-applies the mapping correctly.
+      With the Hyper key turned off in config.json before relaunching, Caps Lock works again.
+- [ ] Your own `hidutil` key mappings (if any) survive Slated starting and quitting.
+- [ ] Running the binary from a terminal and pressing Ctrl-C restores Caps Lock too.
 - [ ] After sleep and wake, the Hyper key still works.
+- [ ] Hold Caps Lock while a password field takes focus (a Hyper shortcut that opens a login
+      prompt, say), let go there, then type in another app: keys arrive without ⌃⌥⇧⌘.
 
 **Hotstrings** (try TextEdit, Safari, Notes, Terminal, Slack)
 - [ ] `;shrug` expands immediately; `afterDelimiter` triggers wait for space or punctuation and keep it.
