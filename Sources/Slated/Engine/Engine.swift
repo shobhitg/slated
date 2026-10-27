@@ -39,14 +39,18 @@ final class Engine {
   private var loggedWarnings: [String] = []
 
   var configuration: SlatedConfiguration { store.configuration }
-  /// False in `--smoke` runs: never install the keyboard tap or remap Caps Lock on the real system.
+  /// False in `--smoke` runs and test runs of the app (`SLATED_HOME` set): never install the keyboard
+  /// tap or remap Caps Lock on the real system.
   var allowsKeyboardChanges = true
+  /// What kind of run this is, for the log: "app", "smoke", or "test" (the app with `SLATED_HOME` set).
+  var mode = "app"
 
   func start() {
     Diagnostics.checkPreviousRun()
     var startInfo = Diagnostics.build.merging(Diagnostics.system) { a, _ in a }
     startInfo["accessibility"] = Permissions.isAccessibilityTrusted
-    startInfo["mode"] = allowsKeyboardChanges ? "app" : "smoke"
+    startInfo["mode"] = mode
+    startInfo["keyboardChanges"] = allowsKeyboardChanges
     Log.record("app.start", level: .notice, startInfo)
     Accessibility.configure()
     store.load()
@@ -112,9 +116,19 @@ final class Engine {
     hotkeys.setFrontmostApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
     observeSystem()
-    // A mapping left over from a crash would leave Caps Lock dead; adopt it so `applyKeyboard`
-    // removes it when Hyper is off (or keeps it when on).
-    capsLockRemapped = allowsKeyboardChanges && HIDRemapper.isCapsLockRemapped
+    if allowsKeyboardChanges {
+      switch HIDRemapper.capsLockOwner(record: SlatedPaths.capsLockRecordURL) {
+      case .slated:
+        // Left over from a run that didn't quit cleanly: Caps Lock would stay dead. Adopt it, so
+        // `applyKeyboard` removes it when Hyper is off (or keeps it when on).
+        capsLockRemapped = true
+      case .otherTool:
+        // Another tool's (a Hammerspoon setup, say): left as it is, or put back after Slated's Hyper.
+        Log.record("keyboard.caps_lock_mapped_elsewhere", level: .notice)
+      case .nobody:
+        break
+      }
+    }
     apply()
     // Permission can be granted or revoked at any time in System Settings; react within a second.
     permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -128,7 +142,7 @@ final class Engine {
     clipboard.stop()
     Log.record("app.quit", level: .notice, ["capsLockRestored": capsLockRemapped])
     tap.stop()
-    if capsLockRemapped { HIDRemapper.setCapsLockRemapped(false) }
+    if capsLockRemapped { HIDRemapper.setCapsLockRemapped(false, record: SlatedPaths.capsLockRecordURL) }
     capsLockRemapped = false
     hotkeys.unregisterAll()
   }
@@ -144,7 +158,12 @@ final class Engine {
     do {
       try store.save(configuration)
     } catch {
-      Log.error("config.save_failed", error.localizedDescription, ["path": store.fileURL.path])
+      Log.error("config.save_failed", LogPrivacy.message(error.localizedDescription), ["path": store.fileURL.path])
+      if error is ConfigChangedOnDisk {
+        // The store loaded a hand edit instead. Settings ignores changes reported while its own save
+        // runs, so tell it again once that save has returned: it then shows the edit.
+        DispatchQueue.main.async { [weak self] in self?.notify() }
+      }
       throw error
     }
     let changes = ConfigDiff.changes(from: before, to: configuration)
@@ -297,7 +316,11 @@ final class Engine {
     let remap = wantsHyper && tapRunning
     var remapFailed = false
     if remap != capsLockRemapped {
-      if HIDRemapper.setCapsLockRemapped(remap) { capsLockRemapped = remap } else { remapFailed = true }
+      if HIDRemapper.setCapsLockRemapped(remap, record: SlatedPaths.capsLockRecordURL) {
+        capsLockRemapped = remap
+      } else {
+        remapFailed = true
+      }
     }
     let state =
       "tap \(tapRunning ? "on" : "off"), hyper \(remap ? "on" : "off"), hotstrings \(wantsHotstrings && tapRunning ? "on" : "off")"

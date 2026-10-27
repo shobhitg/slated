@@ -1,5 +1,7 @@
 import AppKit
 import Foundation
+import SlatedCore
+import SlatedSystem
 
 // macOS behaviors the app's runtime is built around, checked on this Mac. Each one explains a design
 // choice; if one starts failing after a macOS update, revisit that choice.
@@ -71,6 +73,28 @@ let macOSContractTests = Suite(
         let type = try FileManager.default.attributesOfItem(atPath: link.path)[.type] as? FileAttributeType
         expectEqual(type, .typeRegular)
         expectEqual(try String(contentsOf: target, encoding: .utf8), "new")
+      }
+    ),
+    (
+      "Carbon refuses a hotkey only when Slated itself registered it already (so failures say so)",
+      {
+        try MainActor.assumeIsolated {
+          let center = HotKeyCenter.shared
+          // macOS's own shortcuts (here the screenshot one) register fine: they compete for the key
+          // press, so registering can't tell that another app or macOS uses a shortcut.
+          let screenshot = try center.register(KeyCombo(key: "3", modifiers: [.command, .shift])) { _ in }
+          center.unregister(screenshot)
+          let combo = KeyCombo(key: "f19", modifiers: [.control, .option, .shift, .command])
+          let first = try center.register(combo) { _ in }
+          defer { center.unregister(first) }
+          do throws(HotKeyCenter.RegistrationError) {
+            let second = try center.register(combo) { _ in }
+            center.unregister(second)
+            expect(false, "the same combo registered twice")
+          } catch {
+            expect(error.description.hasPrefix("Another Slated shortcut already uses"), error.description)
+          }
+        }
       }
     ),
     (

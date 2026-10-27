@@ -10,6 +10,7 @@ if CommandLine.arguments.contains("--smoke") {
   let steps = (environment["SLATED_SMOKE_STEPS"] ?? "").split(separator: " ").map(String.init)
   let engine = Engine()
   engine.allowsKeyboardChanges = false
+  engine.mode = "smoke"
   engine.start()
   let seconds = environment["SLATED_SMOKE_SECONDS"].flatMap(Double.init) ?? 1
   DispatchQueue.main.asyncAfter(deadline: .now() + seconds / 2) {

@@ -16,4 +16,13 @@ nonisolated enum SlatedPaths {
     if let override = ProcessInfo.processInfo.environment["SLATED_CONFIG"] { return URL(fileURLWithPath: override) }
     return URL(fileURLWithPath: home).appendingPathComponent(".config/slated/config.json")
   }
+
+  /// Slated's own files: snapshots, clipboard history, crash marker.
+  static var supportURL: URL {
+    URL(fileURLWithPath: home).appendingPathComponent("Library/Application Support/Slated")
+  }
+
+  /// Present while Slated's Caps Lock → F18 mapping is in place (`HIDRemapper`); `install.sh` reads it
+  /// too, through `scripts/restore-caps-lock.py`.
+  static var capsLockRecordURL: URL { supportURL.appendingPathComponent("caps-lock-mapping.json") }
 }

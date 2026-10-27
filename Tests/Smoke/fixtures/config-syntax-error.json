@@ -1,0 +1,6 @@
+{
+  // A hand edit in progress: the comma after "keys" is missing.
+  "bindings": [
+    { "keys": "hyper+a" "action": "push left" }
+  ]
+}

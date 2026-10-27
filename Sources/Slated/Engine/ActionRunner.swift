@@ -210,7 +210,11 @@ final class ActionRunner {
     case .autoRepeat(let repeated, let interval, let mode, let times, let jitter):
       guard let automation else { return fail("Automation isn't available") }
       if case .autoRepeat = repeated { return fail("An auto-repeat can't repeat another auto-repeat") }
-      let id = currentTrigger ?? chainKey ?? "repeat \(SlateSyntax.format(repeated.redactedForLog))"
+      // The id is logged, so its text is redacted, but it must still tell different actions apart:
+      // two insert-texts of the same length would otherwise share one, and the second would stop the
+      // first. The hash is of the whole action (and differs every launch).
+      let id =
+        currentTrigger ?? chainKey ?? "repeat \(SlateSyntax.format(repeated.redactedForLog)) #\(repeated.hashValue)"
       automation.toggleRepeat(
         repeated, interval: interval, mode: mode, times: times, jitter: jitter, id: id, trigger: currentTrigger)
       return true

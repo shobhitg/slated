@@ -1,0 +1,4 @@
+{
+  // An insert-text that types words without quotes: the error quotes the text.
+  "bindings": [ { "keys": "hyper+p", "action": "insert-text SECRETPHRASE my bank pin 4321" } ],
+}

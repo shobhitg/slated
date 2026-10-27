@@ -28,6 +28,7 @@ final class SlateSourceLoader {
     modificationDates = [:]
     javascript.reset()
 
+    var loaded: [String: String] = [:]  // resolved path → how it's listed
     for raw in paths {
       let path = SlatedPaths.expand(raw)
       let exists = FileManager.default.fileExists(atPath: path)
@@ -37,6 +38,17 @@ final class SlateSourceLoader {
         sources.append(SlateSource(path: raw, kind: kind, exists: false, loaded: false))
         continue
       }
+      // The same file listed twice (`~/.slate.js` and its full path, say) loads once: a second load
+      // would bind every shortcut twice and run its event handlers twice per event.
+      let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+      if let first = loaded[resolved] {
+        sources.append(
+          SlateSource(
+            path: raw, kind: kind, exists: true, loaded: false,
+            diagnostics: [Diagnostic(.warning, "Same file as \(first), which is already loaded", file: path)]))
+        continue
+      }
+      loaded[resolved] = raw
       switch kind {
       case .classic: loadClassic(path: path, displayPath: raw)
       case .javascript: sources.append(javascript.load(path: path, displayPath: raw, runner: runner))
@@ -62,7 +74,9 @@ final class SlateSourceLoader {
       var data: [String: Any] = [
         "path": source.path, "kind": source.kind.rawValue, "loaded": source.loaded, "bindings": source.bindings.count,
       ]
-      if !source.diagnostics.isEmpty { data["diagnostics"] = source.diagnostics.map(\.description) }
+      if !source.diagnostics.isEmpty {
+        data["diagnostics"] = source.diagnostics.map { LogPrivacy.message($0.description) }
+      }
       Log.record("slate.loaded", level: errors.isEmpty ? .info : .error, data)
     }
   }

@@ -7,14 +7,21 @@ import SlatedCore
 // The keyboard tap's decisions, fed with events that are created but never posted, on a tap that is
 // never started: nothing here touches the real keyboard or mouse.
 
-/// What the tap reported to the main actor.
+/// What the tap reported to the main actor, and the Escape key presses it would have posted.
 private final class TapRecorder: @unchecked Sendable {
   var events: [String] = []
 }
 
-private func key(_ code: CGKeyCode, down: Bool) -> CGEvent {
+/// What the HID system says is physically down, as each test sets it (nothing, unless it says so).
+private final class FakeHID: @unchecked Sendable {
+  var keys: Set<CGKeyCode> = []
+  var buttons: Set<Int> = []
+}
+
+private func key(_ code: CGKeyCode, down: Bool, autorepeat: Bool = false) -> CGEvent {
   let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
   event.flags = []
+  if autorepeat { event.setIntegerValueField(.keyboardEventAutorepeat, value: 1) }
   return event
 }
 
@@ -27,14 +34,20 @@ private func otherMouse(button number: Int64, down: Bool) -> CGEvent {
   return event
 }
 
-private func recordingTap() -> (KeyboardTap, TapRecorder) {
+private func recordingTap(hid: FakeHID = FakeHID()) -> (KeyboardTap, TapRecorder) {
   let tap = KeyboardTap()
   let recorder = TapRecorder()
   tap.onHyperHotkey = { code, down in recorder.events.append("key \(code) \(down ? "down" : "up")") }
   tap.onMouseHotkey = { hotkey, down in recorder.events.append("mouse\(hotkey.button) \(down ? "down" : "up")") }
   tap.onHyperEvent = { event in recorder.events.append("hyper \(event)") }
+  tap.physicalState = KeyboardTap.PhysicalState(
+    isKeyDown: { hid.keys.contains($0) }, isMouseButtonDown: { hid.buttons.contains($0) })
+  // Recorded, never posted.
+  tap.postEscape = { recorder.events.append("escape posted") }
   return (tap, recorder)
 }
+
+private let hyperFlags: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
 
 /// Lets the main-actor callbacks the tap dispatched run.
 private func deliverCallbacks() {
@@ -49,6 +62,8 @@ private var hyperOn: KeyboardTap.Options {
 
 private let capsLock = CGKeyCode(KeyboardTap.hyperKeyCode)
 private let keyA: CGKeyCode = 0
+private let keyH: CGKeyCode = 4
+private let keyJ: CGKeyCode = 38
 
 let keyboardTapTests = Suite(
   "KeyboardTap",
@@ -104,21 +119,131 @@ let keyboardTapTests = Suite(
     (
       "Caps Lock's release, missed while macOS had the tap off, doesn't leave Hyper on every key",
       {
-        let (tap, recorder) = recordingTap()
+        let (tap, recorder) = recordingTap()  // the HID system says nothing is down
         tap.update(options: hyperOn, hotstrings: [])
         _ = tap.handle(type: .keyDown, event: key(capsLock, down: true))
         // macOS turns slow taps off; events that pass meanwhile (Caps Lock's release) go unseen.
         _ = tap.handle(type: .tapDisabledByTimeout, event: key(capsLock, down: false))
         let typed = key(keyA, down: true)
         expect(tap.handle(type: .keyDown, event: typed) != nil)
-        expectEqual(typed.flags.intersection([.maskControl, .maskAlternate, .maskShift, .maskCommand]), [])
+        expectEqual(typed.flags.intersection(hyperFlags), [])
         deliverCallbacks()
         expectEqual(recorder.events, ["hyper pressed", "hyper released"])
-        // Still holding Caps Lock: its key repeat brings Hyper back.
+        // Pressed again: Hyper is back.
         _ = tap.handle(type: .keyDown, event: key(capsLock, down: true))
         let combo = key(keyA, down: true)
         _ = tap.handle(type: .keyDown, event: combo)
         expect(combo.flags.contains(.maskCommand))
+      }
+    ),
+    (
+      "a Hyper combo still held when macOS turns the tap back on keeps its repeats and release out of the app",
+      {
+        let hid = FakeHID()
+        let (tap, recorder) = recordingTap(hid: hid)
+        tap.update(options: hyperOn, hotstrings: [], hyperHotkeys: [keyJ])
+        _ = tap.handle(type: .keyDown, event: key(capsLock, down: true))
+        expect(tap.handle(type: .keyDown, event: key(keyJ, down: true)) == nil)  // e.g. a while-held repeat
+        hid.keys = [capsLock, keyJ]  // both still held while the tap is off and on again
+        _ = tap.handle(type: .tapDisabledByTimeout, event: key(keyJ, down: true))
+        for _ in 0..<5 {
+          let repeated = key(keyJ, down: true, autorepeat: true)
+          expect(tap.handle(type: .keyDown, event: repeated) == nil, "J's auto-repeat reached the app")
+        }
+        expect(tap.handle(type: .keyUp, event: key(keyJ, down: false)) == nil, "J's release reached the app")
+        deliverCallbacks()
+        expectEqual(recorder.events, ["hyper pressed", "hyper used", "key 38 down", "key 38 up"])
+        _ = tap.handle(type: .keyUp, event: key(capsLock, down: false))
+        deliverCallbacks()
+        expectEqual(recorder.events.last, "hyper released")
+      }
+    ),
+    (
+      "Caps Lock still held when the tap comes back on: the next keys get Hyper, and bound ones fire",
+      {
+        let hid = FakeHID()
+        let (tap, recorder) = recordingTap(hid: hid)
+        tap.update(options: hyperOn, hotstrings: [], hyperHotkeys: [keyJ])
+        _ = tap.handle(type: .keyDown, event: key(capsLock, down: true))
+        _ = tap.handle(type: .keyDown, event: key(keyA, down: true))  // an unbound Hyper combo, released
+        _ = tap.handle(type: .keyUp, event: key(keyA, down: false))
+        // Another key was pressed, so Caps Lock doesn't auto-repeat: nothing would turn Hyper back on.
+        hid.keys = [capsLock]
+        _ = tap.handle(type: .tapDisabledByUserInput, event: key(keyA, down: false))
+        let unbound = key(keyH, down: true)
+        expect(tap.handle(type: .keyDown, event: unbound) != nil)
+        expect(unbound.flags.isSuperset(of: hyperFlags), "Caps Lock+H lost the Hyper modifiers")
+        expect(tap.handle(type: .keyDown, event: key(keyJ, down: true)) == nil, "Caps Lock+J typed a plain j")
+        deliverCallbacks()
+        expectEqual(recorder.events, ["hyper pressed", "hyper used", "key 38 down"])
+      }
+    ),
+    (
+      "Caps Lock held past the alone timeout across a tap re-enable sends no Escape when released",
+      {
+        let hid = FakeHID()
+        let (tap, recorder) = recordingTap(hid: hid)
+        var options = hyperOn
+        options.capsLockAloneSendsEscape = true
+        options.aloneTimeout = 0.2
+        tap.update(options: options, hotstrings: [])
+        // A quick tap sends Escape (through the stand-in, never posted).
+        _ = tap.handle(type: .keyDown, event: key(capsLock, down: true))
+        _ = tap.handle(type: .keyUp, event: key(capsLock, down: false))
+        expectEqual(recorder.events.filter { $0 == "escape posted" }.count, 1)
+        // A long hold (reading the cheat sheet) with the tap off and on again meanwhile doesn't.
+        _ = tap.handle(type: .keyDown, event: key(capsLock, down: true))
+        Thread.sleep(forTimeInterval: 0.3)
+        hid.keys = [capsLock]
+        _ = tap.handle(type: .tapDisabledByTimeout, event: key(capsLock, down: true))
+        _ = tap.handle(type: .keyDown, event: key(capsLock, down: true, autorepeat: true))
+        _ = tap.handle(type: .keyUp, event: key(capsLock, down: false))
+        expectEqual(recorder.events.filter { $0 == "escape posted" }.count, 1)
+      }
+    ),
+    (
+      "a mouse button shortcut still held when the tap comes back on keeps its release from the app",
+      {
+        let hid = FakeHID()
+        let (tap, recorder) = recordingTap(hid: hid)
+        tap.update(options: hyperOn, hotstrings: [], mouseHotkeys: [.init(button: 4, modifiers: [])])
+        expect(tap.handle(type: .otherMouseDown, event: otherMouse(button: 3, down: true)) == nil)
+        hid.buttons = [4]
+        _ = tap.handle(type: .tapDisabledByTimeout, event: otherMouse(button: 3, down: true))
+        expect(tap.handle(type: .otherMouseUp, event: otherMouse(button: 3, down: false)) == nil)
+        deliverCallbacks()
+        expectEqual(recorder.events, ["mouse4 down", "mouse4 up"])
+      }
+    ),
+    (
+      "only what was let go while the tap was off is released: Caps Lock up, J still held",
+      {
+        let hid = FakeHID()
+        let (tap, recorder) = recordingTap(hid: hid)
+        tap.update(options: hyperOn, hotstrings: [], hyperHotkeys: [keyJ])
+        _ = tap.handle(type: .keyDown, event: key(capsLock, down: true))
+        _ = tap.handle(type: .keyDown, event: key(keyJ, down: true))
+        hid.keys = [keyJ]
+        _ = tap.handle(type: .tapDisabledByTimeout, event: key(capsLock, down: false))
+        deliverCallbacks()
+        expectEqual(recorder.events, ["hyper pressed", "hyper used", "key 38 down", "hyper released"])
+        let plain = key(keyA, down: true)
+        _ = tap.handle(type: .keyDown, event: plain)
+        expectEqual(plain.flags.intersection(hyperFlags), [])
+        expect(tap.handle(type: .keyUp, event: key(keyJ, down: false)) == nil)
+        deliverCallbacks()
+        expectEqual(recorder.events.last, "key 38 up")
+      }
+    ),
+    (
+      "contract: the HID system answers for any mouse button, including 4 and 5",
+      {
+        // Read-only. CGMouseButton is a C enum with three named cases; the tap asks about buttons 4
+        // and 5 by number, so the type must take numbers beyond them.
+        expectEqual(CGMouseButton(rawValue: 3)?.rawValue, 3)
+        expectEqual(CGMouseButton(rawValue: 4)?.rawValue, 4)
+        _ = KeyboardTap.PhysicalState.hidSystem.isMouseButtonDown(5)
+        _ = KeyboardTap.PhysicalState.hidSystem.isKeyDown(CGKeyCode(KeyboardTap.hyperKeyCode))
       }
     ),
   ])

@@ -13,14 +13,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var settingsWindow: NSWindow?
   private var onboardingWindow: NSWindow?
   private var signalSources: [DispatchSourceSignal] = []
-  private lazy var clipboardPanel = ClipboardPanel(services: services)
+  private lazy var clipboardPanel = ClipboardPanel(services: LiveServices.forClipboardSwitcher(engine))
   private var modalActive = false
   private static let onboardingDoneKey = "onboardingCompleted"
 
-  /// Test runs (SLATED_HOME set) never put windows or system dialogs on screen.
+  /// Test runs (SLATED_HOME set) never put windows or system dialogs on screen, and never touch the
+  /// keyboard: no event tap, no Caps Lock mapping.
   private var isTestRun: Bool { ProcessInfo.processInfo.environment["SLATED_HOME"] != nil }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    // First, before `engine.start()` remaps Caps Lock: a signal from now on quits through
+    // `applicationWillTerminate`, which restores it. Its handler runs on the main queue, so only once
+    // launching has finished.
+    handleTerminationSignals()
+    if isTestRun {
+      engine.allowsKeyboardChanges = false
+      engine.mode = "test"
+    }
     engine.start()
     _ = model  // loads the configuration and subscribes to engine changes
     setUpStatusItem()
@@ -34,7 +43,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       self?.modalActive = modal != nil
       self?.refreshStatusIcon()
     }
-    handleTerminationSignals()
     observeSettingsNavigation()
 
     let onboarded = UserDefaults.standard.bool(forKey: Self.onboardingDoneKey)
@@ -58,10 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   /// `install.sh`, `make run` and logout send SIGTERM, and a terminal running Slated sends SIGINT
-  /// (Ctrl-C) or SIGHUP (closed); route them through normal termination so Caps Lock is restored
-  /// instead of staying remapped until reboot.
+  /// (Ctrl-C), SIGQUIT (Ctrl-\) or SIGHUP (closed); route them through normal termination so Caps Lock
+  /// is restored instead of staying remapped until reboot.
   private func handleTerminationSignals() {
-    for (number, name) in [(SIGTERM, "sigterm"), (SIGINT, "sigint"), (SIGHUP, "sighup")] {
+    for (number, name) in [(SIGTERM, "sigterm"), (SIGINT, "sigint"), (SIGQUIT, "sigquit"), (SIGHUP, "sighup")] {
       signal(number, SIG_IGN)
       let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
       source.setEventHandler {
@@ -258,7 +266,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     Log.record("menu.toggle_hyper", ["enable": engine.configuration.keyboard.capsLock != .hyper])
     var config = engine.configuration
     config.keyboard.capsLock = config.keyboard.capsLock == .hyper ? .off : .hyper
-    do { try engine.save(config) } catch { Log.error("config.save_failed", error.localizedDescription) }
+    do {
+      try engine.save(config)
+    } catch {
+      Log.error("config.save_failed", LogPrivacy.message(error.localizedDescription))
+    }
   }
 
   @objc private func togglePause() {
@@ -282,7 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ? "Your Slate bindings are now part of Slated's configuration and can be edited in Settings. Your Slate files are left untouched and no longer loaded."
         : "These need JavaScript and still run from your Slate file:\n" + summary.skipped.joined(separator: "\n")
     } catch {
-      Log.error("slate.import_failed", error.localizedDescription)
+      Log.error("slate.import_failed", LogPrivacy.message(error.localizedDescription))
       alert.messageText = "Couldn't import"
       alert.informativeText = error.localizedDescription
     }

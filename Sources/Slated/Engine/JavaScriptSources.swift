@@ -89,7 +89,9 @@ final class JavaScriptSources {
             "trigger": "hotkey \(binding.keys.string)", "source": source, "function": binding.summary,
             "ms": (CFAbsoluteTimeGetCurrent() - start) * 1000,
           ]
-          if !result.diagnostics.isEmpty { data["errors"] = result.diagnostics.map(\.description) }
+          if !result.diagnostics.isEmpty {
+            data["errors"] = result.diagnostics.map { LogPrivacy.message($0.description) }
+          }
           Log.record(result.success ? "script.binding" : "script.binding_failed", level: result.success ? .info : .error, data)
           if !result.diagnostics.isEmpty { self?.onDiagnostics?(result.diagnostics) }
         }

@@ -16,7 +16,9 @@ public final class HotKeyCenter {
 
     public var description: String {
       switch status {
-      case OSStatus(eventHotKeyExistsErr): return "Another app already uses \(combo.display())"
+      // Carbon refuses a combo only when this process registered it already: other apps' and macOS's
+      // own shortcuts register fine (they just compete for the key press).
+      case OSStatus(eventHotKeyExistsErr): return "Another Slated shortcut already uses \(combo.display())"
       case OSStatus(eventHotKeyInvalidErr): return "macOS rejected \(combo.display()) as a hotkey"
       case -1: return "\(combo.key) isn't a key on this keyboard layout"
       default: return "Couldn't register \(combo.display()) (error \(status))"

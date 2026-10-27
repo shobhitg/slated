@@ -52,30 +52,37 @@ public final class TextInjector: @unchecked Sendable {
   }
 
   private func paste(_ text: String) {
-    let saved: [NSPasteboardItem] = DispatchQueue.main.sync {
-      let pasteboard = NSPasteboard.general
-      let items = (pasteboard.pasteboardItems ?? []).map { item -> NSPasteboardItem in
-        let copy = NSPasteboardItem()
-        for type in item.types {
-          if let data = item.data(forType: type) { copy.setData(data, forType: type) }
-        }
-        return copy
-      }
-      pasteboard.clearContents()
-      pasteboard.setString(text, forType: .string)
-      // Mark it transient so clipboard histories skip this temporary paste; Slated's own always does.
-      pasteboard.setString("", forType: PasteboardWatcher.transientType)
-      pasteboard.setString("", forType: PasteboardWatcher.slatedPasteType)
-      return items
-    }
+    let saved = DispatchQueue.main.sync { Self.stage(text, on: .general) }
     key(9, flags: .maskCommand)  // ⌘V
     // Give the target app time to read the clipboard before restoring it.
     usleep(250_000)
-    DispatchQueue.main.async {
-      let pasteboard = NSPasteboard.general
-      pasteboard.clearContents()
-      if !saved.isEmpty { pasteboard.writeObjects(saved) }
+    DispatchQueue.main.async { Self.restore(saved, on: .general) }
+  }
+
+  /// Puts `text` on `pasteboard` for one paste, and returns what was there to put back. Marked
+  /// transient so clipboard histories skip it (Slated's own always does), and kept on this Mac:
+  /// Universal Clipboard doesn't offer it to the user's other devices.
+  static func stage(_ text: String, on pasteboard: NSPasteboard) -> [NSPasteboardItem] {
+    let saved = (pasteboard.pasteboardItems ?? []).map { item -> NSPasteboardItem in
+      let copy = NSPasteboardItem()
+      for type in item.types {
+        if let data = item.data(forType: type) { copy.setData(data, forType: type) }
+      }
+      return copy
     }
+    pasteboard.prepareForNewContents(with: .currentHostOnly)
+    pasteboard.setString(text, forType: .string)
+    pasteboard.setString("", forType: PasteboardWatcher.transientType)
+    pasteboard.setString("", forType: PasteboardWatcher.slatedPasteType)
+    return saved
+  }
+
+  /// Puts back what `stage` saved, as it was. That's not a new copy, so clipboard history doesn't
+  /// record it again (as if copied in the app in front, which may be one it never records).
+  static func restore(_ saved: [NSPasteboardItem], on pasteboard: NSPasteboard) {
+    pasteboard.clearContents()
+    if !saved.isEmpty { pasteboard.writeObjects(saved) }
+    PasteboardWatcher.ignoreCurrentContents(of: pasteboard)
   }
 
   private func key(_ code: CGKeyCode, flags: CGEventFlags = []) {
