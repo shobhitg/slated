@@ -44,6 +44,8 @@ check "Info.plist carries the git commit" /usr/libexec/PlistBuddy -c 'Print :Sla
 check "the installer confirmed the new build is running" grep -q "Running: session" <<<"$out"
 check "the app logged its start" test "$(count app.start)" -ge 1
 check "the app logged its config" grep -q '"event":"config.loaded"' "$LOG"
+# SLATED_HOME makes it a test run: no event tap and no Caps Lock mapping, whatever the config says.
+check "the test run left the keyboard alone" grep -qE '"keyboardChanges":false.*"mode":"test"' "$LOG"
 
 out="$("$ROOT/install.sh" --debug 2>&1)"; status=$?
 check "reinstall over the running app succeeds" test "$status" -eq 0

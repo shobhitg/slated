@@ -39,14 +39,18 @@ final class Engine {
   private var loggedWarnings: [String] = []
 
   var configuration: SlatedConfiguration { store.configuration }
-  /// False in `--smoke` runs: never install the keyboard tap or remap Caps Lock on the real system.
+  /// False in `--smoke` runs and test runs of the app (`SLATED_HOME` set): never install the keyboard
+  /// tap or remap Caps Lock on the real system.
   var allowsKeyboardChanges = true
+  /// What kind of run this is, for the log: "app", "smoke", or "test" (the app with `SLATED_HOME` set).
+  var mode = "app"
 
   func start() {
     Diagnostics.checkPreviousRun()
     var startInfo = Diagnostics.build.merging(Diagnostics.system) { a, _ in a }
     startInfo["accessibility"] = Permissions.isAccessibilityTrusted
-    startInfo["mode"] = allowsKeyboardChanges ? "app" : "smoke"
+    startInfo["mode"] = mode
+    startInfo["keyboardChanges"] = allowsKeyboardChanges
     Log.record("app.start", level: .notice, startInfo)
     Accessibility.configure()
     store.load()

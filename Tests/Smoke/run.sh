@@ -44,6 +44,7 @@ expect_output "first run without a Slate config starts from the built-in binding
 expect_true "first run writes a valid config.json" \
   /usr/bin/python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$home/.config/slated/config.json"
 expect_output "the event log records the start" "$(log_of "$home")" '"event":"app.start"'
+expect_true "a smoke run leaves the keyboard alone" grep -qE '"keyboardChanges":false.*"mode":"smoke"' "$home/Library/Logs/Slated/slated.log"
 expect_output "the event log records the new config" "$(log_of "$home")" '"event":"config.created"'
 expect_output "the event log records hotkey registration" "$(log_of "$home")" '"event":"hotkeys.registered"'
 expect_output "the event log records a clean quit" "$(log_of "$home")" '"event":"app.quit"'

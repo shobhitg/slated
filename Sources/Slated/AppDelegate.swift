@@ -17,10 +17,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var modalActive = false
   private static let onboardingDoneKey = "onboardingCompleted"
 
-  /// Test runs (SLATED_HOME set) never put windows or system dialogs on screen.
+  /// Test runs (SLATED_HOME set) never put windows or system dialogs on screen, and never touch the
+  /// keyboard: no event tap, no Caps Lock mapping.
   private var isTestRun: Bool { ProcessInfo.processInfo.environment["SLATED_HOME"] != nil }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    if isTestRun {
+      engine.allowsKeyboardChanges = false
+      engine.mode = "test"
+    }
     engine.start()
     _ = model  // loads the configuration and subscribes to engine changes
     setUpStatusItem()
