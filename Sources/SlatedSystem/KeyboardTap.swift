@@ -44,6 +44,21 @@ public final class KeyboardTap: @unchecked Sendable {
     case pressed, used, released
   }
 
+  /// Whether a key (virtual key code) or mouse button (numbered from 1, so mouse4 is 4) is physically
+  /// down right now, according to the HID system. Tests replace it: the events they feed the tap never
+  /// reach the HID system.
+  struct PhysicalState: Sendable {
+    var isKeyDown: @Sendable (CGKeyCode) -> Bool
+    var isMouseButtonDown: @Sendable (Int) -> Bool
+
+    static let hidSystem = PhysicalState(
+      isKeyDown: { CGEventSource.keyState(.hidSystemState, key: $0) },
+      isMouseButtonDown: { button in
+        CGMouseButton(rawValue: UInt32(button - 1)).map { CGEventSource.buttonState(.hidSystemState, button: $0) }
+          ?? false
+      })
+  }
+
   /// Value written into `eventSourceUserData` of events Slated posts, so the tap ignores them.
   public static let syntheticEventMarker: Int64 = 0x534C_4154_4544
   /// The virtual key code Caps Lock is remapped to (F18).
@@ -80,6 +95,9 @@ public final class KeyboardTap: @unchecked Sendable {
   private var mouseHotkeyHeld: [Int: MouseHotkey] = [:]
   private var machPort: CFMachPort?
   private var runLoop: CFRunLoop?
+  /// Set before the tap starts; tests replace both.
+  var physicalState = PhysicalState.hidSystem
+  var postEscape: @Sendable () -> Void = { KeyboardTap.postKey(53) }
 
   public init() {}
 
@@ -162,6 +180,29 @@ public final class KeyboardTap: @unchecked Sendable {
     return Held(hyper: hyperDown, keys: Array(hyperHotkeyHeld), mouse: Array(mouseHotkeyHeld.values))
   }
 
+  /// Forgets the presses in progress that are no longer physically down. Must be called with `lock`
+  /// held. What is still held carries on as if the tap had never been off: Hyper stays on (and a long
+  /// hold still isn't a tap that sends Escape), and a swallowed combo's repeats and release stay
+  /// swallowed.
+  private func forgetReleased() -> Held {
+    matcher.reset()  // typing went by unseen
+    var released = Held()
+    if hyperDown && !physicalState.isKeyDown(CGKeyCode(Self.hyperKeyCode)) {
+      released.hyper = true
+      hyperDown = false
+      hyperUsed = false
+    }
+    for code in hyperHotkeyHeld where !physicalState.isKeyDown(CGKeyCode(code)) {
+      hyperHotkeyHeld.remove(code)
+      released.keys.append(code)
+    }
+    for (button, hotkey) in mouseHotkeyHeld where !physicalState.isMouseButtonDown(button) {
+      mouseHotkeyHeld[button] = nil
+      released.mouse.append(hotkey)
+    }
+    return released
+  }
+
   /// Reports everything in `held` as released, so nothing it started (a while-held repeat, the cheat
   /// sheet) keeps going.
   private func release(_ held: Held) {
@@ -209,9 +250,9 @@ public final class KeyboardTap: @unchecked Sendable {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
       if let port = lock.withLock({ machPort }) { CGEvent.tapEnable(tap: port, enable: true) }
       notify(type == .tapDisabledByTimeout ? "reenabled_after_timeout" : "reenabled_after_user_input")
-      // Events went by unseen while macOS had the tap off, perhaps Caps Lock's release among them.
-      // Still holding it? Its key repeat turns Hyper back on.
-      release(lock.withLock { forgetHeld() })
+      // Events went by unseen while macOS had the tap off, perhaps Caps Lock's release among them:
+      // release what is no longer down, and keep what still is.
+      release(lock.withLock { forgetReleased() })
       return pass
     }
     if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker { return pass }
@@ -312,7 +353,7 @@ public final class KeyboardTap: @unchecked Sendable {
       }
     }
 
-    if sendEscape { Self.postKey(53) }
+    if sendEscape { postEscape() }
     if let hyperEvent, let handler = onHyperEvent {
       DispatchQueue.main.async { MainActor.assumeIsolated { handler(hyperEvent) } }
     }

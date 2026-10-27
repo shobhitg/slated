@@ -139,6 +139,10 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] After sleep and wake, the Hyper key still works.
 - [ ] Hold Caps Lock while a password field takes focus (a Hyper shortcut that opens a login
       prompt, say), let go there, then type in another app: keys arrive without ⌃⌥⇧⌘.
+- [ ] When the log shows `tap.reenabled_after_timeout` or `tap.reenabled_after_user_input` while you
+      were holding Caps Lock (or Caps Lock + a bound key), everything you still held kept working:
+      Caps Lock + a bound key ran the binding, a held binding's key never typed its letter, and letting
+      go of a long hold didn't send Escape. (Slated asks the keyboard what is still down.)
 
 **Hotstrings** (try TextEdit, Safari, Notes, Terminal, Slack)
 - [ ] `;shrug` expands immediately; `afterDelimiter` triggers wait for space or punctuation and keep it.
