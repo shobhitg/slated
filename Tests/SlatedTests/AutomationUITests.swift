@@ -793,5 +793,33 @@ let uiSymbolContractTests = Suite(
           }
         }
       }
-    )
+    ),
+    (
+      "every icon-only button and menu has an accessibility label",
+      {
+        // Hosted views expose no accessibility tree to check (HostingContractTests), so this reads the
+        // source: a control whose label is just an SF Symbol needs `.accessibilityLabel` among the
+        // modifiers that follow it, or VoiceOver reads the symbol's name.
+        let ui = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+          .appendingPathComponent("../../Sources/SlatedUI").standardizedFileURL
+        let files = try require(FileManager.default.enumerator(at: ui, includingPropertiesForKeys: nil))
+          .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
+        expect(files.count > 50, "read \(files.count) files in \(ui.path)")
+        var unlabeled: [String] = []
+        for file in files {
+          let lines = try String(contentsOf: file, encoding: .utf8).components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+          for index in lines.indices.dropLast(2) {
+            let opensLabel =
+              lines[index].hasSuffix("label: {") || (lines[index].hasPrefix("Button(action:") && lines[index].hasSuffix(") {"))
+            guard opensLabel, lines[index + 1].hasPrefix("Image(systemName:"), lines[index + 2] == "}" else { continue }
+            let modifiers = lines[(index + 3)...].prefix { $0.hasPrefix(".") }
+            if !modifiers.contains(where: { $0.hasPrefix(".accessibilityLabel(") }) {
+              unlabeled.append("\(file.lastPathComponent):\(index + 1)")
+            }
+          }
+        }
+        expectEqual(unlabeled, [])
+      }
+    ),
   ])

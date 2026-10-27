@@ -496,6 +496,7 @@ struct AppNameField: View {
       .menuStyle(.borderlessButton)
       .fixedSize()
       .help("Choose a running app")
+      .accessibilityLabel("Choose a running app")
     }
   }
 }
