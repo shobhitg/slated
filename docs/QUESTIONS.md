@@ -175,8 +175,18 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 16. ~~**Universal Clipboard.**~~ **Decided (2026-10-27): this Mac only.** Slated's temporary paste of a
     hotstring replacement or insert-text is written as this-Mac-only, so your other devices never get
     it. Real copies and clipboard history picks are left alone.
-17. **Importing a `~/.slate.js` with `slate.on` handlers.** "Import Slate Config into Slated…"
-    converts the bindings and, when none are skipped, stops loading the file. Event handlers
-    (`slate.on("appActivated", …)`) can't be converted but aren't listed as skipped, so they stop
-    with it, unannounced. (Your `~/.slate.js` has none.) Should the import keep loading a file that
-    has handlers, and say why? *Assumption:* unchanged; the importer is in SlatedScript.
+17. **Importing a `~/.slate.js` with `slate.on` handlers.** *Now:* handlers for events Slated
+    delivers (app events, display changes) are listed as staying in the file, which keeps loading.
+    Window-event handlers, which Slated never runs, are reported as such and don't keep it loading
+    (on GNOME the same for `appHidden`/`appUnhidden`). (Your `~/.slate.js` has none.)
+18. **Partial imports (2026-10-27).** When a Slate file keeps loading after an import (something in it
+    needs JavaScript), the shortcuts that were imported are listed in
+    `general.importedSlateShortcuts` and the file's own copies are ignored, so Settings owns them; a
+    later full import or turning Slate files off makes the list moot. Questions: is the name right
+    (it's in config.json for good, shared with GNOME), and should "Load Slate configs" turned back on
+    later bring the file's copies back? *Assumption:* the list stays and keeps them ignored.
+19. **Imports that may not match this Mac.** The importer runs the script on pretend Macs. If loading
+    it there hits an error, or the script runs `slate.shell` (or moves windows) while loading, nothing
+    is imported from that file and it keeps loading; the alert says why. *Assumption:* safer than
+    importing what it could, since an imported copy would win over the file's real one. A bound
+    function that reads the app's name or a window's title is likewise left in the file.
