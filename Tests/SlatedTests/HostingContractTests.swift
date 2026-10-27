@@ -298,6 +298,27 @@ let uiHostingContractTests = Suite(
       }
     ),
     (
+      "the shortcut recorder records F18 as F18 when Caps Lock isn't the Hyper key",
+      {
+        try onMain {
+          // Nothing remaps Caps Lock then, so F18 is a real F18 key (an extended keyboard, a layer).
+          for requiresModifier in [true, false] {
+            let services = PreviewServices()
+            let model = AppModel(services: services)
+            model.configuration.keyboard.capsLock = .off
+            let box = ComboBox()
+            let recorder = ShortcutRecorder(combo: box.binding, requiresModifier: requiresModifier, autoStart: true)
+            let window = hostingWindow(recorder.environment(model).frame(width: 420))
+            NSApp.sendEvent(try require(keyDown(KeyEventMapping.hyperKeyCode, in: window)))  // F18
+            spin()
+            expectEqual(box.combo, KeyCombo(key: "f18"))
+            expect(!services.hotkeysSuspended, "recording stops once a shortcut is accepted")
+            window.close()
+          }
+        }
+      }
+    ),
+    (
       "Settings → General shows any undo history size config.json can hold",
       {
         try onMain {
