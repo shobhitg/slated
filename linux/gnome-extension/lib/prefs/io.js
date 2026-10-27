@@ -16,6 +16,11 @@ export function readText(path) {
   return decoder.decode(bytes);
 }
 
+/** Whether a file exists (a symbolic link counts when it leads to one). */
+export function fileExists(path) {
+  return GLib.file_test(path, GLib.FileTest.EXISTS);
+}
+
 /**
  * The last `maxBytes` of a file (the log can grow to several megabytes; only its tail matters), or
  * null when it doesn't exist. The first, possibly partial, line is dropped.

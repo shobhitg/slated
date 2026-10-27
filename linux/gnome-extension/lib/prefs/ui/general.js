@@ -6,6 +6,7 @@ import Adw from 'gi://Adw';
 
 import {tildify} from '../util.js';
 import {implemented} from '../engine.js';
+import {fileExists} from '../io.js';
 import {button, group, switchRow, comboRow, spinRow, commandRow, launchFile} from './widgets.js';
 
 const REPEAT_ITEMS = [{id: 0.25, label: 'Short'}, {id: 0.4, label: 'Medium'}, {id: 0.7, label: 'Long'}];
@@ -25,6 +26,24 @@ export function saveStateText(state) {
   case 'blocked': return {text: 'Saving paused until config.json can be read', style: 'warning'};
   default: return {text: '', style: 'dim'};
   }
+}
+
+/**
+ * What the "Slated is on" switch says turning Slated off does. Slated undoes only what it set up:
+ * GNOME's caps:hyper option (xkb mode). keyd's mapping is a system file the extension can't change.
+ * The one linux/install.sh wrote stays, whatever Slated's own Hyper switch says, until it's removed
+ * with --remove; a keyd configured by hand does what it says, Caps Lock included or not.
+ */
+export function turningOffText(hyperMode, slatedKeyd) {
+  const runs = 'Slated runs with your session while this is on.';
+  if (hyperMode === 'xkb') return `${runs} Turning it off restores Caps Lock and stops your shortcuts.`;
+  if (slatedKeyd) {
+    return `${runs} Turning it off stops your shortcuts; keyd keeps Caps Lock as Hyper until you remove it (linux/install.sh --hyper-keyd --remove).`;
+  }
+  if (hyperMode === 'keyd') {
+    return `${runs} Turning it off stops your shortcuts. Caps Lock stays as your keyd configuration has it: change it there, then run sudo keyd reload.`;
+  }
+  return `${runs} Turning it off stops your shortcuts.`;
 }
 
 const bool = (settings, key, fallback) => (typeof settings[key] === 'boolean' ? settings[key] : fallback);
@@ -147,10 +166,7 @@ export function createGeneralPane(ctx) {
       ? "Couldn't reach GNOME Shell. Use the Extensions app to turn Slated on or off."
       : !shell.known
         ? 'GNOME Shell loads Slated after you log out and back in.'
-        // keyd's mapping is a system service's, which the extension can't undo (see Keyboard).
-        : model.status.hyper.mode === 'keyd'
-          ? 'Slated runs with your session while this is on. Turning it off stops your shortcuts; keyd keeps Caps Lock as Hyper until you remove it (linux/install.sh --hyper-keyd --remove).'
-          : 'Slated runs with your session while this is on. Turning it off restores Caps Lock and stops your shortcuts.');
+        : turningOffText(model.status.hyper.mode, fileExists(paths.keydConfig)));
     hud.set(model.configuration.general.showActionHUD);
     leftToRight.set(bool(settings(), 'orderScreensLeftToRight', true));
     const delay = number(settings(), 'secondsBeforeRepeat', 0.4);

@@ -10,6 +10,9 @@
 // As in the extension (lib/platform/paths.js) and on macOS, SLATED_HOME stands in for the home
 // folder (then the XDG variables, which belong to the real home, don't apply) and SLATED_CONFIG for
 // the config file, so tests can point everything at a throwaway home.
+//
+// keydConfig is the keyd configuration `linux/install.sh --hyper-keyd` installs (/etc/keyd/slated.conf,
+// or SLATED_KEYD_CONF as for the installer). It's root's; the settings window only checks it's there.
 
 /**
  * @param {string} home the home folder
@@ -30,5 +33,6 @@ export function slatedPaths(home, getenv = () => null) {
     statusFile: `${stateHome}/slated/status.json`,
     logFile: `${stateHome}/slated/slated.log`,
     clipboardFile: `${stateHome}/slated/clipboard.json`,
+    keydConfig: absolute(getenv('SLATED_KEYD_CONF')) ?? '/etc/keyd/slated.conf',
   };
 }

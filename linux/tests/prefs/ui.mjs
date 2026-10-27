@@ -115,7 +115,7 @@ function makeHome() {
   fs.mkdirSync(extension, {recursive: true});
   fs.writeFileSync(path.join(extension, 'build-info.json'), JSON.stringify({version: '0.1.0', commit: 'abc1234-dirty', builtAt: '2026-10-22T18:00:00Z'}));
   return {home, extension, configFile: path.join(home, '.config/slated/config.json'), statusFile: path.join(home, '.local/state/slated/status.json'),
-    logFile: path.join(home, '.local/state/slated/slated.log')};
+    logFile: path.join(home, '.local/state/slated/slated.log'), keydConfig: path.join(home, 'etc-keyd-slated.conf')};
 }
 
 async function run(mode) {
@@ -124,7 +124,9 @@ async function run(mode) {
   const shell = {state: 1, calls: []};
   const world = createWorld({
     api, home: files.home, mode,
-    env: {apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'},
+    // Where linux/install.sh --hyper-keyd puts Slated's keyd configuration (/etc/keyd/slated.conf).
+    env: {vars: {SLATED_KEYD_CONF: files.keydConfig},
+      apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'},
       {id: 'org.keepassxc.KeePassXC', name: 'KeePassXC'}],
       keyNames: {97: {name: 'a', char: 'a'}, 65307: {name: 'Escape'}, 65288: {name: 'BackSpace'}, 65505: {name: 'Shift_L'}, 49: {name: '1', char: '1'},
         65515: {name: 'Super_L'}, 65517: {name: 'Hyper_L'}, 65475: {name: 'F6'}, 118: {name: 'v', char: 'v'}, 32: {name: 'space', char: ' '}}},
@@ -670,12 +672,25 @@ async function run(mode) {
     check(pills('Recommended') === 1, 'with GNOME\'s option in use, keyd is marked recommended');
     const sends = titled(visible('keyboard'), 'Adw.ComboRow', 'Hyper key sends')[0];
     check(/always sends the Hyper modifier/.test(prop(world, sends, 'subtitle')), `xkb: ${prop(world, sends, 'subtitle')}`);
-    // Turning Slated off gives Caps Lock back only where Slated set it up: keyd's mapping stays.
+    // Turning Slated off gives Caps Lock back only where Slated set it up: GNOME's option. keyd's
+    // mapping stays, the installer's even with Slated's Hyper switch off, and only that one is removed
+    // with linux/install.sh --hyper-keyd --remove.
     const onRow = () => titled(visible('general'), 'Adw.SwitchRow', 'Slated is on')[0];
+    const offText = () => prop(world, onRow(), 'subtitle');
+    const hyperOff = () => model.setStatusText(JSON.stringify({...JSON.parse(statusText), hyper: {wanted: false, mode: 'off', active: false}}));
     withHyperMode('keyd');
-    check(/keyd keeps Caps Lock as Hyper/.test(prop(world, onRow(), 'subtitle')), `keyd: ${prop(world, onRow(), 'subtitle')}`);
+    check(/your keyd configuration/.test(offText()) && !/--remove|restores/.test(offText()), `keyd set up by hand: ${offText()}`);
+    fs.writeFileSync(files.keydConfig, '[main]\ncapslock = layer(hyper)\n');
     withHyperMode('xkb');
-    check(/restores Caps Lock/.test(prop(world, onRow(), 'subtitle')), `xkb: ${prop(world, onRow(), 'subtitle')}`);
+    check(/restores Caps Lock/.test(offText()), `xkb: ${offText()}`);
+    withHyperMode('keyd');
+    check(/keyd keeps Caps Lock as Hyper.*--hyper-keyd --remove/.test(offText()), `keyd from the installer: ${offText()}`);
+    hyperOff();
+    check(/keyd keeps Caps Lock as Hyper/.test(offText()), `the installer's keyd, Hyper off here: ${offText()}`);
+    fs.rmSync(files.keydConfig);
+    withHyperMode('xkb');
+    hyperOff();
+    check(!/Caps Lock/.test(offText()), `nothing of Slated's on Caps Lock: ${offText()}`);
     model.setStatusText(statusText);
     titled(visible('keyboard'), 'Adw.SwitchRow', 'Use Caps Lock as Hyper')[0].set_active(false);
     check(model.configuration.keyboard.capsLock === 'off', 'Caps Lock as Hyper off');

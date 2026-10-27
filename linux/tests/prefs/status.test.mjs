@@ -163,5 +163,8 @@ export default suite('Status and placement', [
     const config = slatedPaths('/home/me', name => ({SLATED_CONFIG: '/elsewhere/slated.json'})[name] ?? null);
     expectEqual([config.configFile, config.configDir, config.statusFile],
       ['/elsewhere/slated.json', '/elsewhere', '/home/me/.local/state/slated/status.json']);
+    // The keyd configuration linux/install.sh --hyper-keyd writes, moved by the same variable as there.
+    expectEqual(paths.keydConfig, '/etc/keyd/slated.conf');
+    expectEqual(slatedPaths('/home/me', name => ({SLATED_KEYD_CONF: '/tmp/keyd/slated.conf'})[name] ?? null).keydConfig, '/tmp/keyd/slated.conf');
   }],
 ]);
