@@ -232,7 +232,25 @@ export class PrefsModel extends Emitter {
       this._blocked(`Couldn't read config.json: ${describeError(error)}`);
       return;
     }
-    if (text === null || text === undefined) return; // Deleted: keep what's shown; the next save recreates it.
+    if (text === null || text === undefined) {
+      // Deleted: keep what's shown; the next save recreates it. When saving waited for the broken
+      // file that was there, it's gone, so saving resumes as on a first run (with edits made meanwhile).
+      if (this.loadError) {
+        this.loadError = null;
+        this._badText = null;
+        this._diskText = null;
+        this.firstRun = true;
+        this.saveState = {kind: 'saved'};
+        if (!deepEqual(this.draft, this.saved)) {
+          this._draftChanged();
+        } else {
+          this._revalidate();
+          this.emit('config');
+          this.emit('save-state');
+        }
+      }
+      return;
+    }
     // The same text again (a file monitor event, the reload nudge): nothing to adopt.
     if (this.loadError ? text === this._badText : text === this._diskText) return;
     let disk;

@@ -1067,6 +1067,31 @@ async function run(mode) {
     check(!model.loadError, 'fixed again');
   });
 
+  await step('a broken config.json that\'s deleted no longer blocks saving: Reload says so, and a change creates it', async () => {
+    const text = fs.readFileSync(files.configFile, 'utf8');
+    fs.writeFileSync(files.configFile, '{"bindings": [');
+    world.touch(files.configFile);
+    await settle();
+    check(model.loadError, 'the broken file is noticed');
+    fs.rmSync(files.configFile);
+    settings.showPane('general');
+    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and your Slate files')[0]);
+    settings.showPane('slate');
+    click(buttons(visible('slate'), 'Reload')[0]);
+    const toasts = world.report.toasts.slice(-2);
+    check(toasts.join(' | ') === 'Configuration reloaded | Reloaded config.json and your Slate files', `toasts: ${toasts.join(' | ')}`);
+    check(prop(world, settings.windowTitle, 'subtitle') !== 'config.json needs a fix', 'no fix asked for a file that\'s gone');
+    model.update(config => {
+      config.general.showActionHUD = !config.general.showActionHUD;
+    });
+    await settle();
+    check(fs.existsSync(files.configFile), 'the next change creates config.json');
+    fs.writeFileSync(files.configFile, text);
+    world.touch(files.configFile);
+    await settle();
+    check(!model.loadError && model.saveState.kind === 'saved', 'back to the file as it was');
+  });
+
   await step('the About dialog has debug information', async () => {
     settings.showPane('about');
     activate(rowsIn(visible('about'), (w, s) => s.props.get('title') === 'Credits, links and debug information')[0]);

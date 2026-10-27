@@ -154,6 +154,35 @@ export default suite('Preferences model', [
     expectEqual(model.loadError, null);
     expectEqual(model.saveState, {kind: 'saved'});
   }],
+  ['a broken config.json that\'s deleted no longer blocks saving: the next change creates it', () => {
+    // Broken from the start, then deleted and reloaded.
+    let {model, disk, tick} = harness({[CONFIG]: '{"bindings": ['});
+    model.load();
+    expect(model.loadError !== null, 'blocked');
+    delete disk[CONFIG];
+    model.reload();
+    expectEqual([model.loadError, model.saveState, model.firstRun], [null, {kind: 'saved'}, true], 'as on a first run');
+    model.update(config => {
+      config.general.showActionHUD = true;
+    });
+    tick();
+    expectEqual(decodeConfiguration(disk[CONFIG]).general.showActionHUD, true, 'created again');
+    // Broken by a hand edit after it was read, with an edit waiting, then deleted: the edit is saved.
+    ({model, disk, tick} = harness({[CONFIG]: '{"general": {"showActionHUD": true}}'}));
+    model.load();
+    disk[CONFIG] = '{"general": ';
+    model.syncFromDisk();
+    model.update(config => {
+      config.keyboard.capsLock = 'hyper';
+    });
+    expectEqual(model.saveState, {kind: 'blocked'});
+    delete disk[CONFIG];
+    model.syncFromDisk();
+    expectEqual(model.loadError, null);
+    tick();
+    const saved = decodeConfiguration(disk[CONFIG]);
+    expectEqual([saved.general.showActionHUD, saved.keyboard.capsLock], [true, 'hyper'], 'what the window showed, with the edit');
+  }],
   ['write failures are reported and logged', () => {
     const {model, disk, logged} = harness({[CONFIG]: '{}'});
     model.load();
