@@ -395,7 +395,11 @@ export class SlatedRuntime {
       this._whileHeldMode = repeat.enabled ? 'key-repeat' : 'toggle';
       // Slated's own bindings come first so they win over Slate-file duplicates; the built-in
       // clipboard and stop shortcuts come last, so a binding on the same keys wins (as on macOS).
-      const entries = [...this._configEntries(config, settings), ...(this._sources?.entries(settings) ?? []), ...this._builtInEntries(config)];
+      // Shortcuts imported from a Slate file that keeps loading are the settings window's now: the
+      // file's copies would come back as soon as one is deleted or moved there.
+      const imported = new Set(Array.isArray(general.importedSlateShortcuts) ? general.importedSlateShortcuts : []);
+      const slateEntries = (this._sources?.entries(settings) ?? []).filter((entry) => !imported.has(entry.id));
+      const entries = [...this._configEntries(config, settings), ...slateEntries, ...this._builtInEntries(config)];
       this._logWhileHeld(entries);
       this._keybindings.apply(entries, {
         disabled,
@@ -558,7 +562,9 @@ export class SlatedRuntime {
     if (!this._runner) return;
     const screens = currentScreens();
     this._log.record('display.changed', {screens: screens.length, resolutions: screens.map(resolutionOf).sort(), reason});
-    const defaults = [...(this._sources?.defaults ?? []), ...(this._configuration().defaults ?? []).map(defaultEntry).filter(Boolean)];
+    // config.json's come first, as with bindings: an imported default edited in the settings window wins
+    // over the copy still in a Slate file that keeps loading.
+    const defaults = [...(this._configuration().defaults ?? []).map(defaultEntry).filter(Boolean), ...(this._sources?.defaults ?? [])];
     const trigger = `display change (${screens.length} screens)`;
     for (const entry of defaults) {
       if (!conditionMatches(entry.condition, screens)) continue;
