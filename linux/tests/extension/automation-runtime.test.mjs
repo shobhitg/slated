@@ -369,6 +369,85 @@ test('keys an auto-repeat types don’t wait for a modifier Slated itself holds 
   gnome.press('F7');
 });
 
+const typedKeys = (keysym) => gnome.state.typed.filter((t) => t.keysym === keysym && t.pressed).length;
+const HYPER_HELD = 1 | 4 | 8 | 64; // Shift, Ctrl, Alt and Super, as keyd's Hyper sets them
+
+test('an auto-repeat’s keys are skipped while you hold a modifier, never typed later', () => {
+  start({bindings: [
+    {keys: 'f7', action: {op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.05, times: 20}},
+    {keys: 'hyper+e', action: {op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.05}},
+  ]});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F7');
+  gnome.loop.advance(200);
+  const before = typedKeys(0x65);
+  assert.equal(before, 5);
+  gnome.state.modifiers = 8; // Alt held: the repeat finishes meanwhile
+  gnome.loop.advance(1500);
+  assert.equal(events('automation.stopped')[0].data.reason, 'finished');
+  gnome.addWindow({id: 2, app: firefox, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.state.modifiers = 0;
+  gnome.loop.advance(2000);
+  assert.equal(typedKeys(0x65), before, 'no E reaches Firefox after the repeat finished');
+
+  gnome.state.modifiers = HYPER_HELD; // ✦E pressed and held, then pressed again to toggle it off
+  gnome.press(`${HYPER}e`);
+  gnome.loop.advance(400);
+  gnome.press(`${HYPER}e`);
+  gnome.state.modifiers = 0;
+  gnome.loop.advance(2000);
+  assert.equal(events('automation.stopped')[1].data.reason, 'toggled off');
+  assert.equal(typedKeys(0x65), before, 'and none after it was toggled off');
+});
+
+test('an auto-repeat sends nothing while Alt is held for Alt+Tab, however long (Q would quit apps in the switcher)', () => {
+  start({bindings: [{keys: 'f8', action: {op: 'repeat', action: {op: 'keystroke', keys: 'q'}, interval: 0.05}}]});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F8');
+  gnome.state.modifiers = 8;
+  const atAlt = typedKeys(0x71);
+  gnome.loop.advance(2500);
+  assert.equal(typedKeys(0x71), atAlt);
+  gnome.state.modifiers = 0;
+  gnome.loop.advance(200);
+  assert.ok(typedKeys(0x71) > atAlt, 'Q goes on once Alt is let go');
+  gnome.press('F8');
+});
+
+test('a stop leaves your own shortcut’s keys alone: they’re typed once you let go of Hyper', () => {
+  start({bindings: [{keys: 'hyper+f', action: autoClick}, {keys: 'hyper+c', action: {op: 'keystroke', keys: 'ctrl+c'}}]});
+  gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press(`${HYPER}f`);
+  gnome.state.modifiers = HYPER_HELD;
+  gnome.press(`${HYPER}c`); // waits for Hyper to be let go
+  gnome.press(`${HYPER}Escape`);
+  assert.equal(events('automation.stopped_all')[0].data.reason, 'stop shortcut');
+  gnome.state.modifiers = 0;
+  gnome.loop.advance(100);
+  assert.deepEqual(gnome.state.typed, [{code: 29, pressed: true}, {keysym: 0x63, pressed: true}, {keysym: 0x63, pressed: false}, {code: 29, pressed: false}]);
+});
+
+test('a stop ends text an automation is still typing', () => {
+  const long = {op: 'repeat', action: {op: 'insert-text', text: 'x'.repeat(400), method: 'type'}, interval: 10};
+  start({bindings: [{keys: 'f9', action: long}]});
+  const launcher = gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
+  gnome.press('F9');
+  gnome.loop.advance(50);
+  gnome.press(`${HYPER}Escape`);
+  const atStop = gnome.state.typed.length;
+  assert.ok(atStop > 0 && atStop < 800);
+  gnome.loop.advance(1000);
+  assert.equal(gnome.state.typed.length, atStop, 'the stop shortcut ends it');
+
+  gnome.focus(launcher);
+  gnome.press('F9');
+  gnome.loop.advance(50);
+  gnome.addWindow({id: 2, app: firefox, frame: {x: 0, y: 0, width: 800, height: 600}});
+  const atSwitch = gnome.state.typed.length;
+  gnome.loop.advance(1000);
+  assert.equal(gnome.state.typed.length, atSwitch, 'and so does switching apps: nothing more goes to Firefox');
+});
+
 test('the time limit and stopOnAppSwitch come from config.json', () => {
   start({bindings: [{keys: 'hyper+f', action: autoClick}], automation: {maxRunMinutes: 0.01, stopOnAppSwitch: false, stopShortcut: null}});
   assert.ok(!gnome.accelerators().includes(`${HYPER}Escape`), 'stopShortcut null turns it off');

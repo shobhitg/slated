@@ -157,20 +157,26 @@ export class GnomePlatform {
     return openURL(url);
   }
 
-  insertText(text, method) {
+  /** `options.from`: who sends it, "binding", "repeat" or "macro" (input.js `insertText`). */
+  insertText(text, method, options) {
     try {
-      return this._input.insertText(text, method);
+      return this._input.insertText(text, method, options);
     } catch (e) {
       return {ok: false, error: `Couldn't type: ${e.message}`};
     }
   }
 
-  pressKeys(combo) {
+  pressKeys(combo, options) {
     try {
-      return this._input.pressKeys(combo);
+      return this._input.pressKeys(combo, options);
     } catch (e) {
       return {ok: false, error: `Couldn't press keys: ${e.message}`};
     }
+  }
+
+  /** Drops keys and text automations left waiting or half typed (they were stopped). */
+  cancelPendingInput() {
+    this._input?.cancelPending();
   }
 
   /** Clicks a mouse button where the pointer is, `count` times (2 is a double-click). */

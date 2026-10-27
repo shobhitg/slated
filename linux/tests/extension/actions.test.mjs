@@ -553,6 +553,22 @@ test('steps waiting on a shell command are dropped by stop-automations and reloa
   assert.equal(platform.windows[1].frame.x, 1000, 'a reload drops the arrangement waiting on its command');
 });
 
+test('keys and text say who sends them; stop-automations drops what automations left, even with nothing running', () => {
+  const {platform, runner} = automationSetup();
+  const from = [];
+  let dropped = 0;
+  platform.pressKeys = (combo, options) => from.push(`keys ${options?.from}`) && {ok: true};
+  platform.insertText = (text, method, options) => from.push(`text ${options?.from}`) && {ok: true};
+  platform.cancelPendingInput = () => dropped++;
+  const macro = {op: 'sequence', operations: [{op: 'keystroke', keys: 'e'}, {op: 'wait', seconds: 1}, {op: 'insert-text', text: 'x'}]};
+  runner.run(macro, {trigger: 'hotkey f6'});
+  platform.advance(1000);
+  runner.run({op: 'repeat', action: {op: 'keystroke', keys: 'e'}, interval: 0.1, times: 1}, {trigger: 'hotkey f7'});
+  assert.deepEqual(from, ['keys binding', 'text macro', 'keys repeat']);
+  runner.run('stop-automations', {trigger: 'hotkey hyper+esc'});
+  assert.equal(dropped, 1);
+});
+
 test('clipboard-history opens the switcher, or fails with the reason', () => {
   const {runner, errors} = automationSetup();
   let result = {ok: true};

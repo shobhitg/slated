@@ -185,7 +185,7 @@ export class ActionRunner {
     const context = this._context ?? {trigger: 'unknown', source: null, label: null};
     waiting.then(() => {
       if (this._destroyed || generation !== this._generation) return;
-      this._logged({...context, trigger: `${context.trigger} (after shell)`}, () => description, body);
+      this._logged({...context, trigger: `${context.trigger} (after shell)`, continued: true}, () => description, body);
     });
   }
 
@@ -203,7 +203,7 @@ export class ActionRunner {
     this.platform.after(ms, () => {
       if (this._destroyed || generation !== this._generation) return;
       const outer = {context: this._context, failure: this._lastFailure, app: this._lastApp};
-      this._context = context;
+      this._context = {...(context ?? {trigger: 'unknown', source: null, label: null}), continued: true};
       this._lastFailure = null;
       let ok;
       try {
@@ -223,10 +223,23 @@ export class ActionRunner {
     });
   }
 
-  /** Drops macro steps that are waiting to run (stop-automations, reloads). */
+  /**
+   * Drops macro steps that are waiting to run (stop-automations, reloads), and keys or text that
+   * automations left waiting for modifiers or half typed.
+   */
   cancelPendingSteps() {
     this._generation += 1;
     this.automation?.dropWaits();
+    this.platform.cancelPendingInput?.();
+  }
+
+  /**
+   * Who sends keys or text now, which decides how they wait for your modifiers (input.js): a
+   * shortcut's own action, an auto-repeat's run, or a macro's steps after a wait or shell command.
+   */
+  _keysFrom() {
+    if (this._context?.quiet) return 'repeat';
+    return this._context?.continued ? 'macro' : 'binding';
   }
 
   /**
@@ -406,7 +419,7 @@ export class ActionRunner {
         return this._fail("Slate's app switcher (switch) isn't supported yet");
 
       case 'insert-text': {
-        const result = this.platform.insertText(String(action.text ?? ''), action.method ?? 'auto');
+        const result = this.platform.insertText(String(action.text ?? ''), action.method ?? 'auto', {from: this._keysFrom()});
         return result.ok ? true : this._fail(result.error);
       }
       case 'open-url': {
@@ -421,7 +434,7 @@ export class ActionRunner {
           combo = null;
         }
         if (!combo) return this._fail(`Unknown keys ${JSON.stringify(action.keys)}`);
-        const result = this.platform.pressKeys(combo);
+        const result = this.platform.pressKeys(combo, {from: this._keysFrom()});
         return result.ok ? true : this._fail(result.error);
       }
 

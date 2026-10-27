@@ -231,6 +231,11 @@ these to point everything at a throwaway home.
   when the key's auto-repeat stops: about 0.1 s later, or as soon as you press or release another
   key, since GNOME repeats only the last key pressed. With key repeat turned off in GNOME Settings, or
   for repeats that type keys themselves, a second press stops it instead.
+- **An auto-repeat that types keys skips its runs while you hold a modifier** (Alt for Alt+Tab, Ctrl,
+  Shift…), and never types them later: with Alt held, they would reach GNOME's app switcher, where Q
+  quits an app. A shortcut's own keys still wait until you let go of its modifiers. Keys a macro
+  types after a `wait` wait too, but are dropped if you still hold a modifier after 1.5 s or another
+  app has focus by then.
 - **Mouse buttons can't be shortcuts in GNOME.** Bindings on `mouse3`–`mouse5` show as failed. Map
   the side buttons to keys with keyd, then bind those keys (`f13`…`f20`). In keyd the side buttons
   are usually `mouse1` and `mouse2`, and keyd only reads a mouse that its `[ids]` section lists.
