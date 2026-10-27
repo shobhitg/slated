@@ -527,6 +527,31 @@ async function run(mode) {
     check(visible('windows') !== page, 'the editor closed');
   });
 
+  await step('switching sections stops a recording: the keys typed there aren\'t taken as a shortcut', async () => {
+    const controllers = () => findAll(world, window, 'Gtk.EventControllerKey');
+    const selectSection = id => sidebar.select_row(rows.find(r => world.stateOf(r).expandos._slatedId === id));
+    settings.navigate('windows', {binding: ID.HALF});
+    const before = model.binding(ID.HALF).keys;
+    click(recorderIn(visible('windows')));
+    check(controllers().length === 1, 'recording');
+    // The editor stays on top of its section's own navigation, so it never gets "hidden".
+    selectSection('hotstrings');
+    check(controllers().length === 0, 'the window no longer captures every key once another section shows');
+    check(model.binding(ID.HALF).keys === before, 'the shortcut is unchanged');
+    selectSection('windows');
+    pop('windows');
+    settings.showPane('clipboard');
+    click(recorderIn(titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0]));
+    check(controllers().length === 1, 'recording the clipboard shortcut');
+    selectSection('general');
+    check(controllers().length === 0, 'stopped when General shows');
+    // In a narrow window the sidebar replaces the content (the split view hides its content page).
+    selectSection('clipboard');
+    click(recorderIn(titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0]));
+    world.emit(settings.contentPage, 'hidden');
+    check(controllers().length === 0, 'stopped when the collapsed sidebar shows');
+  });
+
   await step('Hotstrings: espanso guidance, editing, the try-it field', async () => {
     settings.showPane('hotstrings');
     const root = visible('hotstrings');

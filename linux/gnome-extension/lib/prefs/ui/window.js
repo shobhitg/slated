@@ -19,6 +19,7 @@ import {readText, readTail, writeTextAtomic, readBuildInfo, watchFile, glibSched
 import {getExtensionInfo, setExtensionEnabled, requestLogout} from '../shell.js';
 import {installStyles} from './style.js';
 import {box, label, icon, badge as badgeLabel, emptyState} from './widgets.js';
+import {stopAllRecording} from './recorder.js';
 import {saveStateText} from './general.js';
 import {createOverviewPane} from './overview.js';
 import {createWindowsPane} from './windows.js';
@@ -217,6 +218,9 @@ export class SlatedSettings {
     // Content: one navigation view per section, in a stack.
     this.contentStack = new Gtk.Stack({transition_type: Gtk.StackTransitionType.CROSSFADE, transition_duration: 120});
     this.contentPage = new Adw.NavigationPage({title: 'Overview', tag: 'content', child: this.contentStack});
+    // Collapsed, the sidebar replaces the content: a recording there would swallow the keys that
+    // move through the sidebar.
+    this.contentPage.connect('hidden', () => stopAllRecording());
     this.split.set_content(this.contentPage);
     for (const [id, title, iconName, create] of PANES) this._createPane(id, title, iconName, create);
 
@@ -273,6 +277,8 @@ export class SlatedSettings {
   showPane(id) {
     const pane = this.panes.get(id);
     if (!pane) return;
+    // A recorder in the section being left would keep taking every key typed in this one.
+    stopAllRecording();
     const changed = this.current !== id;
     this.current = id;
     this.contentStack.set_visible_child_name(id);
