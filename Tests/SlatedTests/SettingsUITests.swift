@@ -488,6 +488,49 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "a binding or hotstring copied in config.json with its id becomes an item of its own",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let left = HotkeyBinding(name: "Left", keys: hyper("left"), action: preset("left-half"))
+          var right = left  // pasted in config.json, id and all, then edited by hand
+          right.name = "Right"
+          right.keys = hyper("right")
+          right.action = preset("right-half")
+          let shrug = Hotstring(trigger: ";shrug", replacement: "¯\\_(ツ)_/¯")
+          var flip = shrug
+          flip.trigger = ";flip"
+          var config = SlatedConfiguration()
+          config.bindings = [left, right]
+          config.hotstrings = [shrug, flip]
+          try services.saveConfiguration(config)
+
+          let model = AppModel(services: services)
+          let bindingIDs = model.configuration.bindings.map(\.id)
+          let hotstringIDs = model.configuration.hotstrings.map(\.id)
+          expectEqual(bindingIDs.first, left.id)
+          expectEqual(Set(bindingIDs).count, 2)
+          expectEqual(hotstringIDs.first, shrug.id)
+          expectEqual(Set(hotstringIDs).count, 2)
+          // Reading the file again (any change the app reports) keeps the new ids.
+          services.simulateCopy("anything")
+          expectEqual(model.configuration.bindings.map(\.id), bindingIDs)
+          expectEqual(model.configuration.hotstrings.map(\.id), hotstringIDs)
+
+          // Edits and deletes reach the copy, not the original.
+          try require(model.bindingBinding(bindingIDs[1])).wrappedValue.name = "Right Half"
+          expectEqual(model.configuration.bindings.map(\.name), ["Left", "Right Half"])
+          model.deleteHotstring(hotstringIDs[1])
+          expectEqual(model.configuration.hotstrings.map(\.trigger), [";shrug"])
+          // The next save writes the new id.
+          model.saveNow()
+          expectEqual(services.configuration.bindings.map(\.id), bindingIDs)
+          expectEqual(services.configuration.bindings.map(\.name), ["Left", "Right Half"])
+          expectEqual(services.configuration.hotstrings.map(\.trigger), [";shrug"])
+        }
+      }
+    ),
+    (
       "its own saves don't count as hand edits",
       {
         try onMain {
