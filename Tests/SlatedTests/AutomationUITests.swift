@@ -466,6 +466,25 @@ let uiAutomationTests = Suite(
       }
     ),
     (
+      "a time limit too big for a whole number still reads as one",
+      {
+        try onMain {
+          // config.json takes 1e300 as plain JSON, and JSON5 Infinity. Int(_:) traps on both, and the
+          // running card, the time limit picker and the rail chip all show the limit.
+          let config = try SlatedConfiguration.decode(
+            from: Data(#"{"automation": {"maxRunMinutes": Infinity, "stopOnAppSwitch": false}}"#.utf8))
+          expectEqual(RunningAutomationsCard.stopHint(config.automation), "Stops after ∞ min")
+          expectEqual(AutomationLimits.timeLimitTitle(1e300), "1e+300 min")
+          expectEqual(AutomationLimits.timeLimitTitle(1e19), "1e+19 min")
+          expectEqual(AutomationLimits.timeLimitTitle(-.infinity), "-∞ min")
+          // Numbers that fit read as before.
+          expectEqual(AutomationLimits.timeLimitTitle(1e15), "1000000000000000 min")
+          expectEqual(AutomationLimits.timeLimitTitle(2.5), "2.5 min")
+          expectEqual(AutomationLimits.timeLimitTitle(90), "90 min")
+        }
+      }
+    ),
+    (
       "running automations refresh on change and lead back to their bindings",
       {
         try onMain {
