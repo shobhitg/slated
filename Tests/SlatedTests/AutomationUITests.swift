@@ -138,6 +138,11 @@ let uiRecipeTests = Suite(
           expect(!holdW.matches(.hold(.key(KeyCombo(key: "shift")))))
           let sprint = try require(AutomationRecipes.recipe("toggle-sprint"))
           expect(sprint.matches(.hold(.key(KeyCombo(key: "rightShift")))))
+          // The modifier picked in the add sheet names the binding, so it never claims Shift for Option.
+          expectEqual(sprint.bindingName(for: sprint.action), "Toggle Sprint (Shift)")
+          expectEqual(sprint.bindingName(for: .hold(.key(KeyCombo(key: "alt")))), "Toggle Sprint (Option)")
+          let crouch = try require(AutomationRecipes.recipe("toggle-crouch"))
+          expectEqual(crouch.bindingName(for: .hold(.key(KeyCombo(key: "cmd")))), "Toggle Crouch (Command)")
           let autoClick = try require(AutomationRecipes.recipe("auto-click-left"))
           expect(autoClick.matches(.autoRepeat(.click(.left, count: 1), interval: 0.25, mode: .toggle, jitter: 0.2)))
           expect(!autoClick.matches(.autoRepeat(.click(.left, count: 1), interval: 0.1, mode: .toggle, times: 5)))

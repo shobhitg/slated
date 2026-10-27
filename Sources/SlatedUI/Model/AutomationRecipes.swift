@@ -45,6 +45,10 @@ struct AutomationRecipe: Identifiable, Hashable {
       return "Spam \(combo.display())"
     case ("hold-w", .hold(.key(let combo))) where combo != KeyCombo(key: "w"):
       return "Hold \(combo.display())"
+    case ("toggle-sprint", .hold(.key(let combo))), ("toggle-crouch", .hold(.key(let combo))):
+      // The key in brackets follows the one picked: "Toggle Sprint (Option)".
+      guard action != self.action, let purpose = title.components(separatedBy: " (").first else { return title }
+      return "\(purpose) (\(AutomationDescriber.inputName(.key(combo))))"
     default:
       return title
     }
