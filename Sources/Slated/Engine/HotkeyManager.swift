@@ -147,6 +147,10 @@ final class HotkeyManager {
     tokens.removeAll()
     direct.removeAll()
     modalEntries.removeAll()
+    // Nothing comes back until the next `apply`: an app switch re-applies `lastEntries`, which used to
+    // bring every hotkey back while Slated was paused or Settings was recording a shortcut.
+    lastEntries = []
+    lastDisabled = []
     stopRepeating()
   }
 

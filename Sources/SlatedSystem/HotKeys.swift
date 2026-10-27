@@ -34,6 +34,9 @@ public final class HotKeyCenter {
 
   private init() {}
 
+  /// How many hotkeys are registered with macOS right now.
+  public var registrationCount: Int { refs.count }
+
   /// Registers `combo`; `handler` runs on key down and key up. Returns a token for `unregister`.
   @discardableResult
   public func register(_ combo: KeyCombo, handler: @escaping Handler) throws(RegistrationError) -> UInt32 {

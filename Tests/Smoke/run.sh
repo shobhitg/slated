@@ -91,6 +91,12 @@ expect_output "automation config loads" "$out" "native: 4 bindings"
 expect_output "all bindings and built-ins get a status" "$out" "hotkeys: 6 registered"
 expect_output "a modifier alone is rejected as a shortcut, with the reason" "$out" "A modifier key can't be a shortcut on its own"
 expect_output "mouse button shortcuts explain what they need" "$out" "Mouse button shortcuts need Accessibility permission"
+# "Pause Slated" stays paused when another app comes to the front: app-specific bindings make app
+# switches re-register hotkeys, which used to bring every one of them back.
+out=$(SLATED_SMOKE_PAUSE=1 smoke "$home")
+expect_output "pausing unregisters every hotkey" "$out" "paused: 0 hotkeys registered"
+expect_output "switching apps while paused doesn't bring them back" "$out" \
+  "paused, after switching apps: 0 hotkeys registered"
 
 # 4d. Notch island settings; the cheat sheet lists only Hyper shortcuts, grouped.
 home=$(new_home)
