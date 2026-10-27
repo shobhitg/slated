@@ -116,7 +116,8 @@ public final class PreviewServices: AppServices {
   }
 
   public func setHotstringsEnabled(_ enabled: Bool) {
-    status.hotstringsEnabled = enabled
+    // Like the app: the switch is written to config.json (`general.hotstringsEnabled`) right away.
+    configuration.general.hotstringsEnabled = enabled
     recomputeStatus()
     notify()
   }
@@ -234,6 +235,7 @@ public final class PreviewServices: AppServices {
       }
     }
     status.hotkeys = hotkeys
+    status.hotstringsEnabled = configuration.general.hotstringsEnabled
     status.hyperKeyActive = configuration.keyboard.capsLock == .hyper && !status.paused
     status.hotstringsActive = status.hotstringsEnabled && !status.paused && !configuration.hotstrings.isEmpty
   }

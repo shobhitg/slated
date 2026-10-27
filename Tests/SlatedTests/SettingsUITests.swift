@@ -418,6 +418,21 @@ let uiModelTests = Suite(
       }
     ),
     (
+      "the hotstrings switch survives an edit that's still waiting to be saved",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          model.configuration.keyboard.capsLock = .hyper  // an edit, waiting for the debounce
+          model.setHotstringsEnabled(false)  // the app writes the switch to config.json right away
+          model.saveNow()  // then the debounced save runs
+          expect(!services.configuration.general.hotstringsEnabled, "the switch stays off")
+          expectEqual(services.configuration.keyboard.capsLock, .hyper)
+          expect(!model.runtimeStatus.hotstringsEnabled)
+        }
+      }
+    ),
+    (
       "its own saves don't count as hand edits",
       {
         try onMain {

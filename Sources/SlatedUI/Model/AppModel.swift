@@ -229,6 +229,9 @@ public final class AppModel {
 
   func setHotstringsEnabled(_ enabled: Bool) {
     services.setHotstringsEnabled(enabled)
+    // The app writes the switch to config.json itself. Keep the draft in step, or the save of an
+    // edit still waiting for its debounce would write the old value back.
+    configuration.general.hotstringsEnabled = enabled
     refresh()
   }
 
