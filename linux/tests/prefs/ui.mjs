@@ -591,8 +591,11 @@ async function run(mode) {
     world.emit(add, 'apply');
     check(model.configuration.layouts[0].apps.length === 2, 'app added');
     const name = titled(page, 'Adw.EntryRow', 'Name')[0];
+    name.set_text('Codin');
+    check(visible('layouts') === page, 'the editor stays open while the name changes');
     name.set_text('Code');
     check(model.binding(ID.LAYOUT).action.name === 'Code', 'renaming keeps the shortcut pointing at it');
+    check(visible('layouts') === page && prop(world, page, 'title') === 'Code', 'still open, under the new name');
     pop('layouts');
   });
 
@@ -771,6 +774,34 @@ async function run(mode) {
     click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Delete Layout')[0]);
     world.emit(world.report.dialogs[world.report.dialogs.length - 1], 'response', 'accept');
     check(!layout(), 'layout deleted');
+  });
+
+  await step('typing another layout\'s name over a layout\'s name moves no shortcut', async () => {
+    settings.showPane('layouts');
+    const taken = model.binding(ID.LAYOUT).action.name;
+    click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'New Layout')[0]);
+    const page = visible('layouts');
+    const id = model.addBinding({op: 'layout', name: 'New Layout'}, {keys: 'hyper+9'});
+    const name = titled(page, 'Adw.EntryRow', 'Name')[0];
+    const problem = titled(page, 'Adw.ActionRow', 'Not saved')[0];
+    // Select all and start typing "<taken> 2": the name passes through the other layout's.
+    name.set_text(taken);
+    check(prop(world, problem, 'visible') !== false && prop(world, problem, 'subtitle') === 'Another layout already has this name.',
+      `flagged: ${prop(world, problem, 'subtitle')}`);
+    check(model.binding(id).action.name === 'New Layout', `its shortcut stays: ${model.binding(id).action.name}`);
+    check(model.configuration.layouts.filter(l => l.name === taken).length === 1, 'no two layouts share a name');
+    await settle();
+    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    check(onDisk.bindings.find(b => b.id === id).action.name === 'New Layout', 'nor on disk');
+    check(name.get_text() === taken, 'the field keeps what was typed');
+    name.set_text(`${taken} 2`);
+    check(visible('layouts') === page, 'the editor stays open');
+    check(prop(world, problem, 'visible') === false, 'fine again');
+    check(model.binding(id).action.name === `${taken} 2` && model.binding(ID.LAYOUT).action.name === taken,
+      'each shortcut applies its own layout');
+    check(model.configuration.layouts.some(l => l.name === `${taken} 2` && !l.apps.length), 'the layout being edited got the name');
+    model.deleteBinding(id);
+    model.deleteLayout(`${taken} 2`);
   });
 
   await step('Automation: running now, your automations, recipes and the safety settings', async () => {

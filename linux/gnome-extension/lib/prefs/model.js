@@ -14,7 +14,7 @@ import {
   decodeConfiguration, encodeConfiguration, starterConfiguration, parseSlateConfig, describeError, isNotImplemented,
 } from './engine.js';
 import {keysString, statusKey} from './keys.js';
-import {validate, savable, configChanges, target} from './validator.js';
+import {validate, savable, configChanges, target, LAYOUT_NAME_MISSING, LAYOUT_NAME_TAKEN} from './validator.js';
 import {parseStatus, emptyStatus, extensionState, bindingState, runningSummary} from './status.js';
 import {presetById, starterBindings} from './presets.js';
 import {bindingTitle} from './actions.js';
@@ -602,13 +602,28 @@ export class PrefsModel extends Emitter {
     });
   }
 
-  /** Changes a layout; a rename also updates bindings that apply it. Returns the layout's new name. */
+  /**
+   * Why the layout called `name` can't be renamed to `newName`, or null. Shortcuts apply a layout by
+   * its name, so a rename that clashes would move them to the other layout.
+   */
+  layoutNameProblem(name, newName) {
+    if (!String(newName ?? '').trim()) return LAYOUT_NAME_MISSING;
+    const index = this.draft.layouts.findIndex(l => l.name === name);
+    return this.draft.layouts.some((l, i) => i !== index && l.name === newName) ? LAYOUT_NAME_TAKEN : null;
+  }
+
+  /**
+   * Changes a layout; a rename also updates bindings that apply it. Returns the layout's new name.
+   * A rename to an empty name or another layout's isn't applied (see layoutNameProblem): the
+   * shortcuts would follow it to the other layout, and finding this one by name would find that.
+   */
   setLayout(name, mutate) {
     let newName = name;
     this.update(config => {
       const layout = config.layouts.find(l => l.name === name);
       if (!layout) return;
       mutate(layout);
+      if (layout.name !== name && this.layoutNameProblem(name, layout.name)) layout.name = name;
       newName = layout.name;
       if (newName !== name) {
         for (const b of config.bindings) {

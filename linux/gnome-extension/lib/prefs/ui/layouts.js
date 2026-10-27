@@ -67,13 +67,31 @@ function pushLayoutEditor(ctx, name, source = null) {
 
   const top = group();
   if (!editable) top.add(notice({level: 'info', title: `Read-only · ${source.displayPath}`, detail: 'Edit this layout in your Slate file.'}).widget);
-  const nameRow = editable ? entryRow({title: 'Name', text: name, onChange: v => mutate(l => {
-    l.name = v;
-  })}) : null;
+  // Why the model didn't take the typed name (empty, or another layout's; see layoutNameProblem). The
+  // field keeps what was typed, flagged, until the name is usable.
+  let nameProblem = null;
+  const nameRow = editable ? entryRow({title: 'Name', text: name, onChange: v => {
+    const before = currentName;
+    nameProblem = model.layoutNameProblem(before, v);
+    // The model runs its listeners, this page's sync among them, before setLayout returns: look the
+    // layout up under its new name from the start, or sync finds no layout and closes the page.
+    if (!nameProblem) currentName = v;
+    currentName = model.setLayout(before, l => {
+      l.name = v;
+    });
+    showNameIssues();
+  }}) : null;
   if (nameRow) top.add(nameRow.row);
   const nameIssue = new Adw.ActionRow({use_markup: false, title: 'Not saved', subtitle: '', activatable: false});
   nameIssue.add_css_class('slated-invalid');
   top.add(nameIssue);
+  function showNameIssues() {
+    const layout = getLayout();
+    const messages = nameProblem ? [nameProblem]
+      : editable && layout ? model.issuesFor(target.layout(layout.name)).filter(i => i.field === 'name').map(i => i.message) : [];
+    nameIssue.set_subtitle(messages.join('\n'));
+    nameIssue.set_visible(messages.length > 0);
+  }
   const triggersRow = new Adw.ActionRow({use_markup: false, title: 'Shortcut'});
   const triggersBox = box('horizontal', 6);
   triggersRow.add_suffix(triggersBox);
@@ -208,10 +226,8 @@ function pushLayoutEditor(ctx, name, source = null) {
       return;
     }
     page.set_title(layout.name || 'Untitled Layout');
-    nameRow?.set(layout.name);
-    const issues = editable ? model.issuesFor(target.layout(layout.name)).filter(i => i.field === 'name') : [];
-    nameIssue.set_subtitle(issues.map(i => i.message).join('\n'));
-    nameIssue.set_visible(issues.length > 0);
+    if (!nameProblem) nameRow?.set(layout.name);
+    showNameIssues();
     clear(triggersBox);
     const triggers = model.triggersForLayout(layout.name);
     for (const t of triggers) triggersBox.append(keycaps(t.keys, {modal: t.modal}));

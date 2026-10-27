@@ -198,6 +198,39 @@ export default suite('Preferences model', [
     expectEqual(model.binding(A).action, {op: 'layout', name: 'Writing'});
     expectEqual(model.triggersForLayout('Writing'), [{keys: 'hyper+1', modal: null}]);
   }],
+  ['typing another layout\'s name (or none) over a layout\'s name moves no shortcut and renames no other layout', () => {
+    const {model, disk, tick} = harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'A', apps: [{app: 'Firefox'}]}, {name: 'B', apps: [{app: 'Terminal'}]}],
+      bindings: [{id: A, keys: 'hyper+1', action: {op: 'layout', name: 'A'}}, {id: B, keys: 'hyper+2', action: {op: 'layout', name: 'B'}}],
+    })});
+    model.load();
+    expectEqual(model.layoutNameProblem('B', 'A'), 'Another layout already has this name.');
+    expectEqual(model.layoutNameProblem('B', '  '), 'Name the layout.');
+    expectEqual(model.layoutNameProblem('B', 'B'), null);
+    // The editor tracks its layout by name while "B" becomes "AB": select all, type A, then B.
+    let name = model.setLayout('B', l => {
+      l.name = 'A';
+    });
+    expectEqual(name, 'B');
+    expectEqual(model.binding(B).action.name, 'B');
+    expectEqual(model.setLayout(name, l => {
+      l.name = '';
+    }), 'B');
+    tick();
+    expectEqual(decodeConfiguration(disk[CONFIG]).bindings.map(b => b.action.name), ['A', 'B']);
+    name = model.setLayout(name, l => {
+      l.name = 'AB';
+    });
+    expectEqual(name, 'AB');
+    expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps[0].app}`), ['A: Firefox', 'AB: Terminal']);
+    expectEqual(model.configuration.bindings.map(b => b.action.name), ['A', 'AB']);
+    // The rest of a change still applies.
+    model.setLayout('AB', l => {
+      l.name = 'A';
+      l.apps.push({app: 'Files', operations: [], options: l.apps[0].options});
+    });
+    expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps.length}`), ['A: 1', 'AB: 2']);
+  }],
   ['moving, deleting and duplicating', () => {
     const {model} = harness({[CONFIG]: JSON.stringify({
       bindings: [{id: A, keys: 'hyper+a', action: half}, {id: B, keys: 'hyper+b', action: half}],

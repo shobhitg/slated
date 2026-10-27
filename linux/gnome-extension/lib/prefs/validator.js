@@ -259,13 +259,16 @@ function hotstringIssues(hotstrings) {
 
 // --- Layouts -------------------------------------------------------------------------------------------
 
+export const LAYOUT_NAME_MISSING = 'Name the layout.';
+export const LAYOUT_NAME_TAKEN = 'Another layout already has this name.';
+
 function layoutIssues(layoutList, layouts) {
   const issues = [];
   const seen = new Set();
   for (const layout of layoutList) {
     const t = target.layout(layout.name);
-    if (blank(layout.name)) issues.push(issue('error', t, 'name', 'Name the layout.'));
-    else if (seen.has(layout.name)) issues.push(issue('error', t, 'name', 'Another layout already has this name.'));
+    if (blank(layout.name)) issues.push(issue('error', t, 'name', LAYOUT_NAME_MISSING));
+    else if (seen.has(layout.name)) issues.push(issue('error', t, 'name', LAYOUT_NAME_TAKEN));
     else seen.add(layout.name);
     for (const app of layout.apps ?? []) {
       for (const op of app.operations ?? []) {
