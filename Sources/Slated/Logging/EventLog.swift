@@ -76,7 +76,9 @@ nonisolated final class EventLog: @unchecked Sendable {
   private func write(_ line: Data) {
     if handle == nil { open() }
     guard let handle else { return }
-    handle.write(line)
+    // Not `write(_:)`: it raises an Objective-C exception (a crash, leaving Caps Lock remapped) when
+    // the disk is full or the write fails. A lost log line is the lesser evil.
+    guard (try? handle.write(contentsOf: line)) != nil else { return }
     bytesWritten += UInt64(line.count)
     if bytesWritten > Self.maxBytes { rotate() }
   }
