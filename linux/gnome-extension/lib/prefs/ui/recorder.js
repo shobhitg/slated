@@ -58,6 +58,7 @@ export class ShortcutRecorder {
     this.baseSubtitle = subtitle;
     this.recording = false;
     this.controller = null;
+    this.clicks = null;
     this.window = null;
     this.held = new Set();
 
@@ -119,6 +120,15 @@ export class ShortcutRecorder {
       return false;
     });
     root.add_controller(this.controller);
+    // As on the Mac, a click anywhere else ends the recording (and goes on to what was clicked), so
+    // clicking into a field to type there works. A click on this button stops it through 'clicked'.
+    this.clicks = new Gtk.GestureClick({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+    this.clicks.connect('pressed', (gesture, presses, x, y) => {
+      const picked = root.pick(x, y, Gtk.PickFlags.DEFAULT);
+      if (picked && (picked === this.button || picked.is_ancestor(this.button))) return;
+      this.stop();
+    });
+    root.add_controller(this.clicks);
     recording.add(this);
     this._inhibit(true);
     this._render([]);
@@ -131,7 +141,9 @@ export class ShortcutRecorder {
     recording.delete(this);
     this.button.remove_css_class('recording');
     if (this.controller && this.window) this.window.remove_controller(this.controller);
+    if (this.clicks && this.window) this.window.remove_controller(this.clicks);
     this.controller = null;
+    this.clicks = null;
     this.held.clear();
     this._inhibit(false);
     this.window = null;

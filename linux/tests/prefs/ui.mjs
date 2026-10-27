@@ -562,6 +562,15 @@ async function run(mode) {
     click(recorderIn(titled(visible('clipboard'), 'Adw.ActionRow', 'Open the switcher')[0]));
     world.emit(settings.contentPage, 'hidden');
     check(controllers().length === 0, 'stopped when the collapsed sidebar shows');
+    // As on the Mac, a click anywhere else ends it: say, into the Name field to type a name.
+    settings.navigate('windows', {binding: ID.HALF});
+    click(recorderIn(visible('windows')));
+    const clicks = world.stateOf(window).controllers.filter(c => world.stateOf(c).cls === 'Gtk.GestureClick');
+    check(clicks.length === 1, 'recording watches clicks in the window');
+    world.emit(clicks[0], 'pressed', 1, 20, 20);
+    check(controllers().length === 0 && world.stateOf(window).controllers.length === 0, 'a click elsewhere stopped it');
+    check(model.binding(ID.HALF).keys === before, 'the shortcut is unchanged');
+    pop('windows');
   });
 
   await step('Hotstrings: espanso guidance, editing, the try-it field', async () => {
