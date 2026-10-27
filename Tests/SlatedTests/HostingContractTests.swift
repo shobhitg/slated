@@ -242,4 +242,28 @@ let uiHostingContractTests = Suite(
         }
       }
     ),
+    (
+      "Settings → Automation's indicator preview is the island while it's on, else the pill",
+      {
+        try onMain {
+          // Running automations show in the island, which is on by default; the pill only without it.
+          let subtitle = AutomationIndicatorPreview.settingSubtitle
+          expect(subtitle.contains("notch island") && subtitle.contains("pill"), subtitle)
+          // The preview draws the island's black shape, or the pill's light one (in light mode).
+          @MainActor func topCenter(inIsland: Bool) throws -> NSColor {
+            let preview = AutomationIndicatorPreview(stop: KeyCombo(key: "esc", modifiers: .hyper), inIsland: inIsland)
+            let host = NSHostingView(rootView: preview.environment(\.colorScheme, .light))
+            host.frame.size = host.fittingSize
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            return try require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: 2)?.usingColorSpace(.sRGB))
+          }
+          let island = try topCenter(inIsland: true)
+          expect(island.brightnessComponent < 0.1 && island.alphaComponent > 0.9, "island: \(island)")
+          let pill = try topCenter(inIsland: false)
+          expect(pill.brightnessComponent > 0.9, "pill: \(pill)")
+        }
+      }
+    ),
   ])
