@@ -542,7 +542,9 @@ final class Engine {
     let screens = Screens.current()
     let resolutions = screens.map(\.resolution).sorted()
     Log.record("display.changed", ["screens": screens.count, "resolutions": resolutions])
-    for entry in sources.defaults + store.configuration.defaults {
+    // Slated's own come first, as with bindings: an imported default edited in Settings wins over
+    // the copy still in a Slate file that keeps loading.
+    for entry in store.configuration.defaults + sources.defaults {
       let matches: Bool
       switch entry.condition {
       case .count(let n): matches = screens.count == n
@@ -649,13 +651,14 @@ final class Engine {
         for name in result.functionSettings { settings[name] = nil }
         config.settings = settings.merging(config.settings)
         config.layouts += sources.javascript.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
+        config.defaults += result.defaults.filter { !config.defaults.contains($0) }
       } else if let text = try? String(contentsOfFile: path, encoding: .utf8) {
         let file = SlateConfigParser.parse(text, path: path)
         warnings += file.diagnostics.map(\.description)
         file.bindings.forEach(add)
         config.settings = file.settings.merging(config.settings)
         config.layouts += file.layouts.filter { layout in !config.layouts.contains { $0.name == layout.name } }
-        config.defaults += file.defaults
+        config.defaults += file.defaults.filter { !config.defaults.contains($0) }
       }
     }
     let summary = ImportSummary(

@@ -14,6 +14,8 @@ import SlatedCore
 public enum SlateImporter {
   public struct Result: Sendable {
     public var bindings: [HotkeyBinding]
+    /// Display defaults (`slate.default`) that name a layout or snapshot.
+    public var defaults: [ScreenDefault]
     /// Keystrokes that couldn't be converted, with the reason.
     public var skipped: [(keystroke: String, reason: String)]
     /// What the import leaves out because it never runs in Slated anyway (handlers for window
@@ -74,7 +76,8 @@ public enum SlateImporter {
 
     // The app turns the Slate files off after an import that skipped nothing, so everything else the
     // script set up that doesn't become part of Slated's config is listed too; the file then keeps
-    // running it. Plain layouts and settings are imported by the app.
+    // running it. Plain layouts and settings are imported by the app; plain display defaults are in
+    // the result.
     var neverRun: [(String, String)] = []
     for event in ScriptEventName.allCases where loaded.events.contains(event) {
       let handler = "slate.on(\"\(event.rawValue)\")"
@@ -90,12 +93,17 @@ public enum SlateImporter {
     for layout in loaded.layouts where layout.staticLayout == nil {
       skipped.append(("slate.layout(\"\(layout.name)\")", "has steps that run JavaScript"))
     }
+    var defaults: [ScreenDefault] = []
     for entry in loaded.defaults {
-      let reason = entry.screenDefault == nil ? "runs JavaScript" : "display defaults aren't imported yet"
-      skipped.append(("slate.default(\(describe(entry.condition)))", reason))
+      if let plain = entry.screenDefault {
+        defaults.append(plain)
+      } else {
+        skipped.append(("slate.default(\(describe(entry.condition)))", "runs JavaScript"))
+      }
     }
     return Result(
-      bindings: bindings, skipped: skipped, neverRun: neverRun, functionSettings: engine.configFunctions.keys.sorted(),
+      bindings: bindings, defaults: defaults, skipped: skipped, neverRun: neverRun,
+      functionSettings: engine.configFunctions.keys.sorted(),
       problems: problems, diagnostics: loaded.diagnostics)
   }
 

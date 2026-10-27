@@ -168,8 +168,10 @@ func importerReportsWhatItLeavesBehind() throws {
     result.skipped.map(\.keystroke),
     [
       #"slate.on("appActivated")"#, #"slate.config("defaultToCurrentScreen")"#,
-      #"slate.layout("js")"#, "slate.default(2 screens)", "slate.default(1440x900, 1920x1080)",
+      #"slate.layout("js")"#, "slate.default(2 screens)",
     ])
+  // A display default naming a layout or snapshot is plain data: it becomes one of Slated's own.
+  expectEqual(result.defaults, [ScreenDefault(target: "plain", condition: .resolutions(["1440x900", "1920x1080"]))])
   // Slated never delivers window events, so these handlers don't run with or without the import, and
   // don't keep the file loaded.
   expectEqual(

@@ -371,6 +371,28 @@ expect_output "an import that hit an error says so" "$out" "it hit an error on a
 expect_output "and keeps the file loading" "$out" "loadSlateConfigs: true"
 expect_output "so the binding after the error still works" "$out" "hotkey ctrl+alt+f17: active"
 expect_output "and nothing that may not match this Mac is imported" "$out" "native: 0 bindings"
+# A display default naming a layout is imported in config.json's shape, so the file can turn off.
+home=$(new_home)
+cp "$FIXTURES/slate-defaults.js" "$home/.slate.js"
+out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+expect_true "a display default is imported" /usr/bin/python3 -I -c '
+import json, sys
+config = json.load(open(sys.argv[1]))
+assert config["defaults"] == [{"target": "coding", "count": 2}], config["defaults"]
+assert [layout["name"] for layout in config["layouts"]] == ["coding"], config["layouts"]
+' "$home/.config/slated/config.json"
+expect_output "so nothing keeps the file loaded" "$out" "loadSlateConfigs: false"
+# Slated's own display default wins over a Slate file's for the same displays, as its bindings do.
+home=$(new_home)
+cp "$FIXTURES/slate-default-everywhere.js" "$home/.slate.js"
+mkdir -p "$home/.config/slated"
+printf '{ "layouts": [{ "name": "native" }], "defaults": [%s] }\n' \
+  "$(for n in 1 2 3 4 5 6; do printf '{ "target": "native", "count": %s }' "$n"; [ "$n" -lt 6 ] && printf ', '; done)" \
+  >"$home/.config/slated/config.json"
+SLATED_SMOKE_STEPS=screens-changed smoke "$home" >/dev/null
+expect_true "config.json's display default wins over the Slate file's" \
+  bash -c 'grep -q "\"action\":\"layout native\"" "$1" && ! grep -q "\"action\":\"layout file\"" "$1"' _ \
+  "$home/Library/Logs/Slated/slated.log"
 
 echo
 echo "$passed passed, $failed failed"
