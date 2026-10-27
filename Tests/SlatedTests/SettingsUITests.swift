@@ -201,13 +201,28 @@ let uiValidationTests = Suite(
           expect(!errors(.move(x: "", y: "0", width: "1", height: "1", screen: nil)).isEmpty)
           expect(!errors(.openURL("https://")).isEmpty)
           expect(errors(.openURL("raycast://extensions")).isEmpty)
-          // URL(string:) percent-encodes whitespace in a path, query or user name, but not in the host
-          // or port. The GNOME settings check URLs the same way (linux/tests/prefs/validator.test.mjs).
-          expect(errors(.openURL("https://www.google.com/search?q=hello world")).isEmpty)
-          expect(errors(.openURL("https://user name@example.com/")).isEmpty)
-          expect(!errors(.openURL("https://exa mple.com")).isEmpty)
-          expect(!errors(.openURL("https://example.com ")).isEmpty)
-          expect(!errors(.openURL("https://example.com:80 /x")).isEmpty)
+          // URL(string:) percent-encodes what doesn't belong in a path, query, fragment or user name, but
+          // a host or port must be RFC 3986's (with IDNA for other characters in a host). The GNOME
+          // settings copy that rule and check these same URLs (linux/tests/prefs/validator.test.mjs), so
+          // a change in Foundation shows up here first.
+          let fullURLs = [
+            "https://www.google.com/search?q=hello world", "https://example.com/a b", "https://example.com/a\tb",
+            "https://example.com/a\nb", "https://example.com/ ", "mailto:me @example.com", "https://example.com/#a b",
+            "https://user name@example.com/", "file:///home/me/a b.txt", "https://example.com?q=a b",
+            "obsidian://open?vault=My Notes", "https://example.com/\u{00A0}x", "slack://open",
+            "http://localhost:3000/", "https://[::1]:8080/", "https://example.com:/x", "https://exa%41mple.com",
+            "https://münchen.de/", "https://例え.テスト/", "https://exa\u{FEFF}mple.com", "https://exa\u{200B}mple.com",
+          ]
+          let notFullURLs = [
+            "https://example.com ", " https://example.com", "https://exa mple.com", "https://a\nb", "https://",
+            "https:", "https:// example.com", "ht tp://example.com", "https://example.com:80 /x",
+            "https://exa\u{00A0}mple.com", "https://{host}/path", "https://localhost:port/", "https://example.com:8o8o/",
+            "https://[::1/", "https://[::1]x/", "https://exa|mple.com/", "https://exa%mple.com",
+            "https://exa\u{0085}mple.com", "https://exa\u{3000}mple.com", "https://exa\u{FF1A}mple.com",
+            "https://exa\u{200E}mple.com",
+          ]
+          for url in fullURLs { expect(errors(.openURL(url)).isEmpty, url.debugDescription) }
+          for url in notFullURLs { expect(!errors(.openURL(url)).isEmpty, url.debugDescription) }
           expect(!errors(.chain([])).isEmpty)
           expect(errors(.chain([.focusApp("")])).first?.hasPrefix("Step 1:") ?? false)
           expect(!errors(.hide(.apps([]))).isEmpty)
