@@ -116,8 +116,46 @@ func importerChecks() throws {
   expectEqual(Dictionary(uniqueKeysWithValues: real.bindings.map { ($0.keys, $0.action) }), starter)
 }
 
+/// Importing turns the Slate files off when nothing was skipped (Engine.importSlateConfigs), so anything
+/// the import doesn't carry over must be listed as skipped, or it would silently stop running.
+@MainActor
+func importerReportsWhatItLeavesBehind() throws {
+  let script = """
+    slate.bind("a:ctrl", slate.operation("push", {"direction": "left"}));
+    slate.on("windowOpened", function (event, win) { win.doOperation("push left"); });
+    slate.on("appActivated", function () {});
+    slate.on("windowOpened", function () {});
+    slate.config("defaultToCurrentScreen", function () { return slate.screenCount() > 1; });
+    slate.config("nudgePercentOf", "windowSize");
+    slate.layout("js", {"Safari": {"operations": [function (win) { win.doOperation("push left"); }]}});
+    slate.layout("plain", {"Safari": {"operations": [slate.operation("push", {"direction": "right"})]}});
+    slate.default(2, function () {});
+    slate.default(["1920x1080", "1440x900"], "plain");
+    """
+  let result = SlateImporter.importJavaScript(path: "/events.js", readFile: { _ in script })
+  expectEqual(result.bindings.count, 1)
+  expectEqual(
+    result.skipped.map(\.keystroke),
+    [
+      #"slate.on("windowOpened")"#, #"slate.on("appActivated")"#, #"slate.config("defaultToCurrentScreen")"#,
+      #"slate.layout("js")"#, "slate.default(2 screens)", "slate.default(1440x900, 1920x1080)",
+    ])
+
+  // A config with only bindings and plain layouts leaves nothing behind.
+  let plain = SlateImporter.importJavaScript(
+    path: "/plain.js",
+    readFile: { _ in
+      #"slate.bind("a:ctrl", "push left"); slate.layout("x", {"Safari": {"operations": ["push up"]}});"#
+    })
+  expect(plain.skipped.isEmpty, "\(plain.skipped)")
+}
+
 let importerTests = Suite(
   "SlateImporter",
   [
-    ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } })
+    ("converts Slate JavaScript bindings to native ones", { try MainActor.assumeIsolated { try importerChecks() } }),
+    (
+      "lists event handlers, JavaScript layouts and defaults as skipped",
+      { try MainActor.assumeIsolated { try importerReportsWhatItLeavesBehind() } }
+    ),
   ])
