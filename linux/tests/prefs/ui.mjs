@@ -856,6 +856,24 @@ async function run(mode) {
     model.deleteLayout(`${taken} 2`);
   });
 
+  await step('a layout copied in config.json is its own: its row edits it, and deleting it keeps the original', async () => {
+    const original = model.configuration.layouts[0];
+    model.update(config => {
+      config.layouts.push({...JSON.parse(JSON.stringify(original)), apps: []});
+    });
+    settings.navigate('layouts');
+    const copies = rowsIn(visible('layouts'), (w, s) => s.props.get('title') === original.name);
+    check(copies.length === 2, `both are listed: ${copies.length}`);
+    activate(copies[1]);
+    const page = visible('layouts');
+    check(!titled(page, 'Adw.ExpanderRow', original.apps[0].app).length, 'the copy\'s editor shows the copy, which has no apps');
+    click(findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Delete Layout')[0]);
+    world.emit(world.report.dialogs[world.report.dialogs.length - 1], 'response', 'accept');
+    await settle();
+    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8')).layouts.filter(l => l.name === original.name);
+    check(onDisk.length === 1 && onDisk[0].apps.length === original.apps.length, `the original stays, with its apps: ${JSON.stringify(onDisk)}`);
+  });
+
   await step('Automation: running now, your automations, recipes and the safety settings', async () => {
     settings.showPane('automation');
     const root = visible('automation');

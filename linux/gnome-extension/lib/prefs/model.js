@@ -596,37 +596,52 @@ export class PrefsModel extends Emitter {
     return name;
   }
 
-  deleteLayout(name) {
+  /**
+   * Where Slated's layout called `name` is in config.layouts: at `index` when the layout there has
+   * that name (a layout copied in config.json shares its name with the original), else the first
+   * with it; -1 when there's none.
+   */
+  layoutIndex(name, index = null) {
+    return layoutIndex(this.draft.layouts, name, index);
+  }
+
+  /** Deletes the layout called `name` (the one at `index`, see layoutIndex). */
+  deleteLayout(name, index = null) {
     this.update(config => {
-      config.layouts = config.layouts.filter(l => l.name !== name);
+      const at = layoutIndex(config.layouts, name, index);
+      if (at >= 0) config.layouts.splice(at, 1);
     });
   }
 
   /**
-   * Why the layout called `name` can't be renamed to `newName`, or null. Shortcuts apply a layout by
-   * its name, so a rename that clashes would move them to the other layout.
+   * Why the layout called `name` (at `index`) can't be renamed to `newName`, or null. Shortcuts apply
+   * a layout by its name, so a rename that clashes would move them to the other layout.
    */
-  layoutNameProblem(name, newName) {
+  layoutNameProblem(name, newName, index = null) {
     if (!String(newName ?? '').trim()) return LAYOUT_NAME_MISSING;
-    const index = this.draft.layouts.findIndex(l => l.name === name);
-    return this.draft.layouts.some((l, i) => i !== index && l.name === newName) ? LAYOUT_NAME_TAKEN : null;
+    if (newName === name) return null;
+    const own = layoutIndex(this.draft.layouts, name, index);
+    return this.draft.layouts.some((l, i) => i !== own && l.name === newName) ? LAYOUT_NAME_TAKEN : null;
   }
 
   /**
-   * Changes a layout; a rename also re-points what applies it: bindings and hotstrings, in any step,
-   * and display defaults. Returns the layout's new name. A rename to an empty name or another
-   * layout's isn't applied (see layoutNameProblem): the shortcuts would follow it to the other
-   * layout, and finding this one by name would find that.
+   * Changes the layout called `name` (the one at `index`, see layoutIndex); a rename also re-points
+   * what applies it: bindings and hotstrings, in any step, and display defaults. Returns the
+   * layout's new name. A rename to an empty name or another layout's isn't applied (see
+   * layoutNameProblem): the shortcuts would follow it to the other layout, and finding this one by
+   * name would find that.
    */
-  setLayout(name, mutate) {
+  setLayout(name, mutate, {index = null} = {}) {
     let newName = name;
     this.update(config => {
-      const layout = config.layouts.find(l => l.name === name);
+      const at = layoutIndex(config.layouts, name, index);
+      const layout = config.layouts[at];
       if (!layout) return;
       mutate(layout);
-      if (layout.name !== name && this.layoutNameProblem(name, layout.name)) layout.name = name;
+      if (layout.name !== name && this.layoutNameProblem(name, layout.name, at)) layout.name = name;
       newName = layout.name;
-      if (newName === name) return;
+      // A copy still has the old name: what applies that name stays with it.
+      if (newName === name || config.layouts.some(l => l.name === name)) return;
       for (const b of config.bindings) b.action = renameLayout(b.action, name, newName);
       for (const h of config.hotstrings) {
         if (h.action !== undefined) h.action = renameLayout(h.action, name, newName);
@@ -684,6 +699,12 @@ export class PrefsModel extends Emitter {
       source: 'prefs',
     });
   }
+}
+
+/** See PrefsModel.layoutIndex. */
+function layoutIndex(layouts, name, index) {
+  if (index !== null && index !== undefined && layouts[index]?.name === name) return index;
+  return layouts.findIndex(l => l.name === name);
 }
 
 /**

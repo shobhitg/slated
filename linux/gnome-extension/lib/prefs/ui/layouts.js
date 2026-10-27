@@ -38,17 +38,21 @@ function appSummary(app) {
 
 /**
  * Pushes the layout editor. `source` is null for Slated's own layouts (editable), or the Slate
- * source the layout comes from (read-only).
+ * source the layout comes from (read-only). `index` is an editable layout's place in
+ * config.layouts: a layout copied in config.json shares its name with the original.
  */
-function pushLayoutEditor(ctx, name, source = null) {
+function pushLayoutEditor(ctx, name, source = null, index = null) {
   const model = ctx.model;
   const editable = source === null;
   let currentName = name;
-  const getLayout = () => (editable
-    ? model.configuration.layouts.find(l => l.name === currentName)
-    : source.layouts.find(l => l.name === currentName));
+  let currentIndex = editable ? model.layoutIndex(name, index) : null;
+  const getLayout = () => {
+    if (!editable) return source.layouts.find(l => l.name === currentName);
+    currentIndex = model.layoutIndex(currentName, currentIndex);
+    return model.configuration.layouts[currentIndex] ?? null;
+  };
   const mutate = fn => {
-    currentName = model.setLayout(currentName, fn);
+    currentName = model.setLayout(currentName, fn, {index: currentIndex});
   };
 
   const page = new Adw.NavigationPage({title: name || 'Layout'});
@@ -58,7 +62,7 @@ function pushLayoutEditor(ctx, name, source = null) {
     header.pack_end(button('', () => confirm(ctx, {
       heading: `Delete “${currentName}”?`, body: 'Shortcuts that apply it will stop working.', accept: 'Delete',
       onAccept: () => {
-        model.deleteLayout(currentName);
+        model.deleteLayout(currentName, currentIndex);
         ctx.toast(`Deleted layout “${currentName}”`);
       },
     }), {icon: 'user-trash-symbolic', classes: ['flat'], tooltip: 'Delete Layout'}));
@@ -72,13 +76,13 @@ function pushLayoutEditor(ctx, name, source = null) {
   let nameProblem = null;
   const nameRow = editable ? entryRow({title: 'Name', text: name, onChange: v => {
     const before = currentName;
-    nameProblem = model.layoutNameProblem(before, v);
+    nameProblem = model.layoutNameProblem(before, v, currentIndex);
     // The model runs its listeners, this page's sync among them, before setLayout returns: look the
     // layout up under its new name from the start, or sync finds no layout and closes the page.
     if (!nameProblem) currentName = v;
     currentName = model.setLayout(before, l => {
       l.name = v;
-    });
+    }, {index: currentIndex});
     showNameIssues();
   }}) : null;
   if (nameRow) top.add(nameRow.row);
@@ -272,7 +276,7 @@ export function createLayoutsPane(ctx) {
 
   const newLayout = () => {
     const name = model.addLayout();
-    pushLayoutEditor(ctx, name);
+    pushLayoutEditor(ctx, name, null, model.layoutIndex(name));
   };
   const empty = emptyState({
     iconName: 'view-dual-symbolic', title: 'No layouts yet',
@@ -283,7 +287,7 @@ export function createLayoutsPane(ctx) {
   stack.add_named(prefs, 'list');
   stack.add_named(empty, 'empty');
 
-  function layoutRow(layout, source) {
+  function layoutRow(layout, source, index = null) {
     const row = new Adw.ActionRow({
       use_markup: false,
       title: layout.name || 'Untitled', subtitle: (layout.apps ?? []).length ? layout.apps.map(a => a.app).join(', ') : 'No apps yet',
@@ -294,13 +298,13 @@ export function createLayoutsPane(ctx) {
     const trigger = model.triggersForLayout(layout.name)[0];
     if (trigger) row.add_suffix(keycaps(trigger.keys, {modal: trigger.modal}));
     row.add_suffix(icon('go-next-symbolic'));
-    row.connect('activated', () => pushLayoutEditor(ctx, layout.name, source));
+    row.connect('activated', () => pushLayoutEditor(ctx, layout.name, source, index));
     return row;
   }
 
   function rebuild() {
     for (const r of slatedRows) slatedGroup.remove(r);
-    slatedRows = model.configuration.layouts.map(l => layoutRow(l, null));
+    slatedRows = model.configuration.layouts.map((l, i) => layoutRow(l, null, i));
     if (!slatedRows.length) slatedRows.push(new Adw.ActionRow({use_markup: false, title: 'None yet', subtitle: 'Use the + button to create one.', activatable: false}));
     for (const r of slatedRows) slatedGroup.add(r);
     for (const g of sourceGroups) prefs.remove(g);

@@ -286,6 +286,26 @@ export default suite('Preferences model', [
     expectEqual(config.defaults.map(d => d.target), ['Coding']);
     expectEqual(model.issues.filter(i => /no layout named/.test(i.message)), [], 'nothing still names the old layout');
   }],
+  ['a layout copied in config.json is its own: editing or deleting the copy spares the original', () => {
+    const copied = () => harness({[CONFIG]: JSON.stringify({
+      layouts: [{name: 'Code', apps: [{app: 'Firefox'}]}, {name: 'Code', apps: [{app: 'Terminal'}]}],
+      bindings: [{id: A, keys: 'hyper+1', action: {op: 'layout', name: 'Code'}}],
+    })});
+    let {model, disk, tick} = copied();
+    model.load();
+    expectEqual(model.layoutIndex('Code', 1), 1);
+    expectEqual(model.layoutNameProblem('Code', 'Code 2', 1), null);
+    expectEqual(model.setLayout('Code', l => {
+      l.name = 'Code 2';
+    }, {index: 1}), 'Code 2');
+    expectEqual(model.configuration.layouts.map(l => `${l.name}: ${l.apps[0].app}`), ['Code: Firefox', 'Code 2: Terminal']);
+    expectEqual(model.binding(A).action.name, 'Code', 'the original still has the name, so its shortcut stays');
+    ({model, disk, tick} = copied());
+    model.load();
+    model.deleteLayout('Code', 1);
+    tick();
+    expectEqual(decodeConfiguration(disk[CONFIG]).layouts.map(l => `${l.name}: ${l.apps[0].app}`), ['Code: Firefox']);
+  }],
   ['a rename waits with its shortcuts while another layout can\'t be saved', () => {
     const bad = {op: 'move', x: 'screenOriginX+', y: '0', width: '10', height: '10'};
     const start = (chat, code = {name: 'Code', apps: []}) => harness({[CONFIG]: JSON.stringify({
