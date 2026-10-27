@@ -302,6 +302,8 @@ extension AppModel {
       layoutNameProblem(newName, renaming: name, at: at) == nil
     else { return name }
     configuration.layouts[at].name = newName
+    // Refused while config.json can't be read (the model said so).
+    guard configuration.layouts[at].name == newName else { return name }
     // A copy still has the old name: what applies that name stays with it.
     if !configuration.layouts.contains(where: { $0.name == name }) {
       renameLayoutReferences(from: name, to: newName, keeping: keeping)
@@ -368,7 +370,10 @@ extension AppModel {
       n += 1
     }
     configuration.layouts.append(WindowLayout(name: name))
-    selectedLayout = .slated(name: name, index: configuration.layouts.count - 1)
+    // Not when refused while config.json can't be read.
+    if configuration.layouts.last?.name == name {
+      selectedLayout = .slated(name: name, index: configuration.layouts.count - 1)
+    }
     return name
   }
 
@@ -377,7 +382,9 @@ extension AppModel {
   func deleteLayout(_ name: String, at index: Int? = nil) {
     guard let at = layoutIndex(name, at: index) else { return }
     let selected = selectedLayoutIndex
+    let count = configuration.layouts.count
     configuration.layouts.remove(at: at)
+    guard configuration.layouts.count < count else { return }  // refused while config.json can't be read
     if let selected, case .slated(let selectedName, _) = selectedLayout {
       selectedLayout = selected == at ? nil : .slated(name: selectedName, index: selected - (selected > at ? 1 : 0))
     }

@@ -111,4 +111,24 @@ let blockedSettingsTests = Suite(
         }
       }
     ),
+    (
+      "a layout can't be renamed, added or deleted meanwhile, and its editor stays open",
+      {
+        try onMain {
+          let services = BreakableServices()
+          let model = AppModel(services: services)  // the preview's one Slated layout, “Coding”
+          model.selectedLayout = .slated(name: "Coding", index: 0)
+          services.broken = true
+          services.fileChanged()
+          var arrivals: [String: Set<LayoutReference>] = [:]
+          expectEqual(model.typeLayoutName("Deep Work", renaming: "Coding", at: 0, arrivals: &arrivals), "Coding")
+          expect(arrivals.isEmpty)
+          model.addLayout()
+          model.deleteLayout("Coding", at: 0)
+          expectEqual(model.configuration.layouts.map(\.name), ["Coding"])
+          expect(model.selectedLayout == .slated(name: "Coding", index: 0), "the editor would close")
+          expect(model.toast?.message.contains("Fix config.json first") ?? false, "not “Deleted layout”")
+        }
+      }
+    ),
   ])
