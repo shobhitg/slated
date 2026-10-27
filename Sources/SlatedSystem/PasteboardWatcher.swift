@@ -13,6 +13,13 @@ public final class PasteboardWatcher {
     public var isSlatedPaste: Bool
     /// Frontmost app when the copy was noticed.
     public var sourceApp: String?
+
+    public init(text: String?, isConcealed: Bool = false, isSlatedPaste: Bool = false, sourceApp: String? = nil) {
+      self.text = text
+      self.isConcealed = isConcealed
+      self.isSlatedPaste = isSlatedPaste
+      self.sourceApp = sourceApp
+    }
   }
 
   /// Types apps use to say "don't record this" (nspasteboard.org) plus older vendor conventions.

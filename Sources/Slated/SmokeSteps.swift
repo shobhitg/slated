@@ -72,6 +72,15 @@ enum SmokeSteps {
       }
       print("auto-repeats running: \(engine.automation.active.count)")
       engine.automation.stopAll(reason: "smoke test")
+    case "copy-a-day-later":
+      // A copy recorded a day after launch: what expired meanwhile goes. Recorded directly; the real
+      // clipboard isn't touched.
+      let later = Date().addingTimeInterval(86_400)
+      engine.clipboard.now = { later }
+      engine.clipboard.record(PasteboardWatcher.Copy(text: "a new copy", sourceApp: "com.example.editor"))
+      let items = engine.clipboard.history.items
+      let expired = items.filter { !$0.pinned && $0.copiedAt < later.addingTimeInterval(-30 * 86_400) }.count
+      print("clipboard after a copy a day later: \(expired) expired, \(items.filter(\.pinned).count) pinned")
     case "move-config-away":
       // The file config.json links to goes away while Slated runs (a branch switch, an unmounted volume).
       let target = engine.store.fileURL.resolvingSymlinksInPath()

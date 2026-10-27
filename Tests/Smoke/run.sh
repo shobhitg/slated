@@ -302,6 +302,24 @@ expect_true "a file listed twice runs its event handler once per event" test "$(
 expect_output "the second listing says it's the same file" "$out" "Same file as ~/.slate.js, which is already loaded"
 expect_true "and its shortcuts aren't bound twice" bash -c '! grep -q "duplicate:" <<<"$1"' _ "$out"
 
+# 11. Clipboard history forgets unpinned items past retentionDays (30 by default) whenever a copy is
+#     recorded, not only when settings are applied (at launch). One is 29.5 days old at launch.
+home=$(new_home)
+mkdir -p "$home/Library/Application Support/Slated"
+/usr/bin/python3 -I - "$home/Library/Application Support/Slated/clipboard.json" <<'PY'
+import json, sys, time
+now = time.time() - 978307200  # seconds since Foundation's reference date, 2001-01-01
+items = [
+    {"id": "11111111-1111-1111-1111-111111111111", "text": "nearly expired", "copiedAt": now - 29.5 * 86400,
+     "pinned": False},
+    {"id": "22222222-2222-2222-2222-222222222222", "text": "pinned", "copiedAt": now - 40 * 86400, "pinned": True},
+]
+json.dump({"items": items}, open(sys.argv[1], "w"))
+PY
+out=$(SLATED_SMOKE_STEPS=copy-a-day-later smoke "$home")
+expect_output "a copy a day later drops what expired meanwhile, and keeps pinned items" "$out" \
+  "clipboard after a copy a day later: 0 expired, 1 pinned"
+
 echo
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]
