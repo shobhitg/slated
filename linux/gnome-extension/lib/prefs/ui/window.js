@@ -165,7 +165,7 @@ export class SlatedSettings {
     this._readStatus();
     this._refreshShell();
     this.model.log('ui.reload');
-    this.toast('Configuration reloaded');
+    this.toast(this.model.loadError ? "config.json still can't be read. Overview shows what to fix." : 'Configuration reloaded');
   }
 
   // --- Building --------------------------------------------------------------------------------------

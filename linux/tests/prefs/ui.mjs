@@ -212,6 +212,9 @@ async function run(mode) {
     settings.showPane('overview');
     const primary = findAll(world, visible('overview'), 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('suggested-action'))[0];
     check(primary && prop(world, primary, 'label') === 'Log Out…', `primary action: ${primary && prop(world, primary, 'label')}`);
+    // With GNOME's keyboard option, Caps Lock is the Hyper modifier, not Ctrl Alt Shift Super.
+    const hyperRow = rowsIn(visible('overview'), (w, s) => s.props.get('title') === 'Hyper Key')[0];
+    check(prop(world, hyperRow, 'subtitle') === 'Caps Lock acts as the Hyper modifier · xkb', `Hyper Key: ${prop(world, hyperRow, 'subtitle')}`);
     click(primary);
     await settle();
     check(shell.calls.includes('Logout'), 'asks the session manager to log out');
@@ -569,6 +572,9 @@ async function run(mode) {
     add.set_text('com.apple.mail');
     world.emit(add, 'apply');
     check(model.hotstring(ID.SHRUG).onlyInApps.includes('com.apple.mail'), 'app filter added');
+    // The extension leaves it out of espanso's file: installing espanso wouldn't make it expand here.
+    const pills = findAll(world, page, 'Gtk.Label', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-pill'));
+    check(pills.map(p => prop(world, p, 'label')).join() === 'Mac only', `its state: ${pills.map(p => prop(world, p, 'label'))}`);
     const where = findAll(world, page, 'Adw.PreferencesGroup', (w, s) => s.props.get('title') === 'Where It Works')[0];
     check(/Mac only/.test(prop(world, where, 'description') ?? ''), 'says app filters are Mac only on GNOME');
     const trigger = titled(page, 'Adw.EntryRow', 'Trigger')[0];
@@ -938,6 +944,27 @@ async function run(mode) {
     world.touch(files.statusFile);
     await settle();
     check(!model.status.running, 'status change adopted');
+  });
+
+  await step('reloading never says it worked while config.json can\'t be read', async () => {
+    const text = fs.readFileSync(files.configFile, 'utf8');
+    fs.writeFileSync(files.configFile, '{"bindings": [');
+    world.touch(files.configFile);
+    await settle();
+    check(model.loadError, 'the broken file is noticed');
+    settings.showPane('general');
+    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and your Slate files')[0]);
+    settings.showPane('slate');
+    click(buttons(visible('slate'), 'Reload')[0]);
+    // Toast titles are Pango markup, so the window escapes them.
+    const toasts = world.report.toasts.slice(-2).map(t => t.replace(/&#39;/g, "'"));
+    check(toasts[0] === "config.json still can't be read. Overview shows what to fix." && /^Reloaded your Slate files\. config\.json still can't/.test(toasts[1]),
+      `toasts: ${toasts.join(' | ')}`);
+    check(fs.readFileSync(files.configFile, 'utf8') === '{"bindings": [', 'and the file is left alone');
+    fs.writeFileSync(files.configFile, text);
+    world.touch(files.configFile);
+    await settle();
+    check(!model.loadError, 'fixed again');
   });
 
   await step('the About dialog has debug information', async () => {

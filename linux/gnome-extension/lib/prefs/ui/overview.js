@@ -178,7 +178,9 @@ export function createOverviewPane(ctx) {
       action: running ? null : actions[summary.action] ?? null,
     });
     const hyperOn = config.keyboard.capsLock === 'hyper';
-    const mods = config.keyboard.hyperModifiers.includes('cmd') ? 'Ctrl Alt Shift Super' : 'Ctrl Alt Shift';
+    // GNOME's keyboard option always sends the Hyper modifier, whatever hyperModifiers says (see Keyboard).
+    const mods = running && status.hyper.mode === 'xkb' ? 'the Hyper modifier'
+      : config.keyboard.hyperModifiers.includes('cmd') ? 'Ctrl Alt Shift Super' : 'Ctrl Alt Shift';
     hyperRow.update({
       value: hyperOn ? `Caps Lock acts as ${mods}${status.hyper.mode !== 'off' && running ? ` · ${status.hyper.mode}` : ''}` : 'Caps Lock is normal',
       state: !hyperOn ? {label: 'Off', style: 'dim'} : running && status.hyper.active ? {label: 'On', style: 'success'}
