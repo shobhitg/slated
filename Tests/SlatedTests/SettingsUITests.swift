@@ -87,7 +87,7 @@ let uiActionTests = Suite(
       }
     ),
     (
-      "thirds that turn with the display are named by position, throws that fill it as maximized",
+      "thirds that turn with the display are named by position, displays above and below by place",
       {
         try onMain {
           // The starter's thirds are the author's Slate thirds, spelled the same way.
@@ -113,13 +113,13 @@ let uiActionTests = Suite(
           let pair = Action.byOrientation(landscape: preset("left-half"), portrait: preset("top-half"))
           expectEqual(ActionDescriber.title(pair), "Left Half / Top Half")
           expectEqual(ActionDescriber.title(.byOrientation(landscape: .undo, portrait: .undo)), "Undo")
-          // Slate's `throw up resize` fills the display; other sizes are just resized.
+          // Slate's `throw up resize` and `throw down`, as the author's file has them.
           expectEqual(
             ActionDescriber.title(.throwWindow(screen: .relative(.up), width: "screenSizeX", height: "screenSizeY")),
-            "Throw to Display Above, Maximized")
+            "Throw to Display Above, Resized")
           expectEqual(
-            ActionDescriber.title(.throwWindow(screen: .index(1), width: "screenSizeX/2", height: "screenSizeY")),
-            "Throw to Display 2, Resized")
+            ActionDescriber.title(.throwWindow(screen: .relative(.down), width: nil, height: nil)),
+            "Throw to Display Below")
         }
       }
     ),

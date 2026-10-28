@@ -17,10 +17,8 @@ enum ActionDescriber {
       default: return "Push \(d.title)"
       }
     case .nudge(let x, let y): return "Nudge \(x), \(y)"
-    case .throwWindow(let screen, let w, let h):
-      // Slate's `throw … resize` fills the display it lands on.
-      let size = w == nil ? "" : w == "screenSizeX" && h == "screenSizeY" ? ", Maximized" : ", Resized"
-      return "Throw to \(screenName(screen))" + size
+    case .throwWindow(let screen, let w, _):
+      return "Throw to \(screenName(screen))" + (w == nil ? "" : ", Resized")
     case .corner(let c, _, _, _): return "\(c.title) Corner"
     case .chain(let ops):
       return ops.isEmpty ? "Empty Chain" : "Cycle " + ops.prefix(3).map(title).joined(separator: " → ")

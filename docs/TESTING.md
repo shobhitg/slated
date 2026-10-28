@@ -262,7 +262,7 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 **Slate compatibility**
 - [ ] `~/.slate.js` loads (the menu shows 21 hotkeys). Editing and saving it reloads within 2 seconds.
 - [ ] Settings → Windows lists each of its function shortcuts by what it does ("Left Half", "First
-      Third", "Throw to Right Display, Maximized"), captioned "JavaScript function"; the detail says
+      Third", "Throw to Right Display, Resized"), captioned "JavaScript function"; the detail says
       it runs a function in `~/.slate.js`. Holding Caps Lock lists them under Windows and Displays,
       not Scripts. Pressing them still runs the functions (`scripts/logs.py --grep script.binding`).
 - [ ] Add a function that checks `win.title()` to a copy of `~/.slate.js`: it stays "JavaScript

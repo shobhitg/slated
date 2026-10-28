@@ -94,6 +94,7 @@ let uiCheatSheetTests = Suite(
           let displays = CheatSheet.hyper(shortcuts, hyperModifiers: .hyper).sections[1].items.map(\.title)
           expectEqual(displays, ["Screen on the left", "Screen above", "Second screen", "Screen on the right"])
           expectEqual(CheatSheet.shortened("Throw to Next Screen", in: .displays), "Next Screen")
+          expectEqual(CheatSheet.shortened("Throw to Display Above, Resized", in: .displays), "Display Above")
           expectEqual(
             CheatSheet.shortened("Throw to the screen on the right", in: .windows), "Throw to the screen on the right")
           expectEqual(CheatSheet.shortened("Throw to ", in: .displays), "Throw to ")
@@ -246,7 +247,7 @@ let uiCheatSheetTests = Suite(
           let sheet = CheatSheet.hyper(shortcuts, hyperModifiers: .hyper)
           expectEqual(sheet.sections.map(\.title), ["Windows", "Displays", "Scripts"])
           expectEqual(
-            sheet.items.map(\.title), ["First Third", "Push Up", "Right Display, Maximized", "JavaScript function"])
+            sheet.items.map(\.title), ["First Third", "Push Up", "Right Display", "JavaScript function"])
           expectEqual(sheet.items.first?.region, WindowPresets.preset("left-third").region)
         }
       }
