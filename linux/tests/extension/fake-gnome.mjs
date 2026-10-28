@@ -504,6 +504,11 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
 
   const Gio = {
     File: {new_for_path: (path) => new FakeFile(path)},
+    FileIcon: class {
+      constructor({file}) {
+        this.file = file;
+      }
+    },
     FileCreateFlags: {NONE: 0, PRIVATE: 1, REPLACE_DESTINATION: 2},
     FileQueryInfoFlags: {NONE: 0},
     FileCopyFlags: {OVERWRITE: 1},

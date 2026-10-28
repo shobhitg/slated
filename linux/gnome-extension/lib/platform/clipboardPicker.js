@@ -285,25 +285,19 @@ export class PickerModel {
   }
 
   togglePin(id = this.selectedId) {
-    if (!id) return;
-    this._actions.togglePin(id);
-    this.refresh();
+    if (id) this._changeHistory(() => this._actions.togglePin(id));
   }
 
   delete(id = this.selectedId) {
     if (!id) return;
     const index = Math.max(this.results.findIndex((item) => item.id === id), 0);
-    this._actions.delete(id);
-    this._refilter(false);
+    this._changeHistory(() => this._actions.delete(id));
     // The next item takes the deleted one's place.
-    if (this.results.length > 0) this.selectedId = this.results[Math.min(index, this.results.length - 1)].id;
-    this.onChange?.('results');
+    if (this.results.length > 0) this.select(this.results[Math.min(index, this.results.length - 1)].id);
   }
 
   clear() {
-    this._actions.clear();
-    this._refilter(false);
-    this.onChange?.('results');
+    this._changeHistory(() => this._actions.clear());
   }
 
   /** Handles a key press ({name, ctrl, shift} from `pickerKey`); false lets the filter field have it. */
@@ -330,6 +324,15 @@ export class PickerModel {
       return true;
     }
     return false;
+  }
+
+  /** Runs an action that changes the history, then refilters unless the service already refreshed the picker. */
+  _changeHistory(action) {
+    const before = this.results;
+    action();
+    if (this.results !== before) return;
+    this._refilter(false);
+    this.onChange?.('results');
   }
 
   _refilter(selectFirst) {
@@ -545,7 +548,7 @@ export class ClipboardPicker {
     const box = new St.BoxLayout({style_class: 'slated-clipboard-row-box', x_expand: true});
     const app = item.sourceApp ? this._app(item.sourceApp) : null;
     if (image) {
-      box.add_child(this._imageActor(image, thumbnailWidth(image), PICKER.thumbnailHeight, 'slated-clipboard-thumbnail'));
+      box.add_child(this._thumbnail(image));
       box.add_child(new St.Label({
         style_class: 'slated-clipboard-text', text: imageTitle(image, app?.name ?? item.sourceApp ?? null), x_expand: true,
         y_align: Clutter.ActorAlign.CENTER,
@@ -569,27 +572,56 @@ export class ClipboardPicker {
   }
 
   /**
-   * An image, aspect-fit in a `width` × `height` box, decoded at that size off the main thread
-   * (St.TextureCache, not cached: a history can hold many screenshots). A placeholder icon when its
-   * file is gone.
+   * A row's thumbnail: the image aspect-fit in a box of its shape, 28 px tall. A file icon, which
+   * St decodes at that size off the main thread and keeps (small, and the file's name is its
+   * content's hash); the box clips the square icon to the image.
    */
-  _imageActor(image, width, height, styleClass) {
-    const bin = new St.Bin({style_class: styleClass, width: this._px(width), height: this._px(height), y_align: Clutter.ActorAlign.CENTER});
+  _thumbnail(image) {
+    const width = thumbnailWidth(image);
+    const height = PICKER.thumbnailHeight;
+    const bin = new St.Bin({
+      style_class: 'slated-clipboard-thumbnail', width: this._px(width), height: this._px(height), clip_to_allocation: true,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
     const path = this._imagePath(image);
+    bin.set_child(
+      path
+        ? new St.Icon({
+          gicon: new Gio.FileIcon({file: Gio.File.new_for_path(path)}), icon_size: Math.max(width, height),
+          x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER,
+        })
+        : this._placeholder());
+    return bin;
+  }
+
+  /**
+   * The selected image at preview size, decoded off the main thread at that size and not kept
+   * (St.TextureCache.load_file_async): one at a time, and a history can hold many screenshots.
+   */
+  _previewImage(image) {
+    const {width, height} = previewImageSize(image);
+    const bin = new St.Bin({
+      style_class: 'slated-clipboard-preview-image', width: this._px(width), height: this._px(height), x_align: Clutter.ActorAlign.CENTER,
+    });
+    const path = this._imagePath(image);
+    let actor = null;
     if (path) {
       try {
-        const actor = St.TextureCache.get_default().load_file_async(
-          Gio.File.new_for_path(path), Math.round(width), Math.round(height), this._scale, this._panel?.get_resource_scale?.() ?? 1);
+        actor = St.TextureCache.get_default().load_file_async(
+          Gio.File.new_for_path(path), width, height, this._scale, this._panel?.get_resource_scale?.() ?? 1);
         actor.set_size(this._px(width), this._px(height));
         actor.content_gravity = Clutter.ContentGravity.RESIZE_ASPECT;
-        bin.set_child(actor);
-        return bin;
       } catch {
-        // Drawn as a placeholder below.
+        actor = null;
       }
     }
-    bin.set_child(new St.Icon({icon_name: 'image-x-generic-symbolic', style_class: 'slated-clipboard-image-placeholder'}));
+    bin.set_child(actor ?? this._placeholder());
     return bin;
+  }
+
+  /** Stands in for an image whose file is gone. */
+  _placeholder() {
+    return new St.Icon({icon_name: 'image-x-generic-symbolic', style_class: 'slated-clipboard-image-placeholder'});
   }
 
   /** Keeps the selected row in view, using the rows' known heights (they may not be laid out yet). */
@@ -630,9 +662,8 @@ export class ClipboardPicker {
     const image = item.image;
     if (this._previewFile !== image.file) {
       this._preview?.destroy();
-      const fitted = previewImageSize(image);
       this._preview = new St.BoxLayout({style_class: 'slated-clipboard-preview', vertical: true, reactive: true});
-      this._preview.add_child(this._imageActor(image, fitted.width, fitted.height, 'slated-clipboard-preview-image'));
+      this._preview.add_child(this._previewImage(image));
       this._preview.add_child(new St.Label({
         style_class: 'slated-clipboard-preview-caption', text: imageDetails(image), x_align: Clutter.ActorAlign.CENTER,
         height: this._px(PREVIEW.captionHeight),

@@ -786,6 +786,18 @@ test('the St picker: a filter with its one hint, one-line rows with Ctrl-numbers
   assert.equal(panel.isOpen, false);
   assert.equal(gnome.state.clipboard, 'banana bread', 'clicking a row pastes it');
 
+  s.showSwitcher();
+  assert.deepEqual(rows().map(rowText), ['apple pie', 'banana bread', 'cherry tart']);
+  key(0xff54); // Down
+  key(0xff08, 4, 22); // Ctrl+Backspace
+  assert.deepEqual(rows().map(rowText), ['apple pie', 'cherry tart']);
+  assert.ok(rows()[1].pseudoClasses.has('selected'), 'the next item takes the deleted one’s place');
+  key(0x70, 4, 33); // Ctrl+P
+  assert.deepEqual(rows().map(rowText), ['cherry tart', 'apple pie'], 'both pinned now, newest first');
+  assert.equal(rows()[0].find((a) => a.style_class === 'slated-clipboard-pin').length, 1);
+  assert.ok(rows()[0].pseudoClasses.has('selected'), 'still selected');
+  panel.close();
+
   s.history.clear({keepPinned: false});
   s.showSwitcher();
   assert.deepEqual(panel._list.children.map((a) => a.text), ['Nothing copied yet']);
@@ -808,9 +820,11 @@ test('the St picker shows an image as a thumbnail and, selected, larger beside t
   assert.equal(imageRow.height, 36, 'image rows are taller');
   assert.equal(imageRow.find((a) => a.style_class === 'slated-clipboard-text')[0].text, 'Image · 1600×900 · Image Viewer');
   const thumbnail = imageRow.find((a) => a.style_class === 'slated-clipboard-thumbnail')[0];
-  assert.deepEqual([thumbnail.width, thumbnail.height], [50, 28]);
+  assert.deepEqual([thumbnail.width, thumbnail.height, thumbnail.clip_to_allocation], [50, 28, true]);
   const path = join(world.images, `${sha256(shot)}.png`);
-  assert.deepEqual(gnome.state.textureLoads[0], {path, width: 50, height: 28, paintScale: 1, resourceScale: 1}, 'decoded at its size');
+  const [icon] = thumbnail.children;
+  assert.deepEqual([icon.gicon.file.path, icon.icon_size], [path, 50], 'a square file icon, clipped to the image’s shape');
+  assert.deepEqual(gnome.state.textureLoads, [], 'nothing decoded at full size');
   assert.equal(textRow.find((a) => a.style_class === 'slated-clipboard-app-icon').length, 1);
   assert.equal(panel._preview, null, 'no preview for text');
 
