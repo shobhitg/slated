@@ -15,7 +15,7 @@ under [Limitations](#limitations): it works only on GNOME, and updates load when
 
 | Part | What it does | Where |
 |---|---|---|
-| Extension | Window management, shortcuts, overlays, Slate configs, the Hyper key, espanso's match file, game automation, clipboard history, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
+| Extension | Window management, shortcuts, overlays, the island, Slate configs, the Hyper key, espanso's match file, game automation, clipboard history, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
 | Engine | Expressions, Slate syntax, window math and config: the JavaScript port of `SlatedCore` | `linux/gnome-extension/lib/core/` |
 | Settings | The libadwaita preferences window: GNOME's version of the Mac settings app | `linux/gnome-extension/prefs.js`, `lib/prefs/` |
 
@@ -105,14 +105,49 @@ app you're typing in on GNOME, so app filters only work on the Mac. A hotstring 
 everywhere. Hotstrings that run Slated actions don't work through espanso. Slated logs once which
 hotstrings it couldn't pass on.
 
+## The island
+
+Like the Mac's notch island, a black shape at the top center of the monitor you're working on shows
+what Slated is doing. It hangs from the top bar on the primary monitor, from the top edge on the
+others, and from the very top over a fullscreen window. It shows:
+
+- **Running automations:** a red dot and a timer. Hover over it to see each one and a Stop button.
+  Only then does it take the pointer; otherwise clicks go to the window below.
+- **The Hyper cheat sheet:** hold Caps Lock for a moment (`island.cheatSheetDelay`, half a second by
+  default) and every Hyper shortcut appears, grouped and in keyboard order, exactly as on the Mac.
+  Shortcuts still work while it's up, and the one you press lights up.
+- **Modal keys:** after a modal key, the island shows it, then lists the keys it offers.
+- **Feedback** with `general.showActionHUD` on ("Left half · Firefox"), and why a shortcut couldn't
+  run (`island.showFailures`).
+
+`"island": {"enabled": false}` brings back the bottom HUD and the red pill
+([CONFIG.md](CONFIG.md#notch-island)).
+
+GNOME tells an extension about keys only through its own shortcuts, never about Caps Lock going down
+or up. So:
+
+- Slated reads the keyboard's modifier state to tell that Caps Lock is held: about 7 times a second,
+  20 while one of the Hyper modifiers is down, and only while the cheat sheet can show (the island
+  and its cheat sheet on, the Hyper key set up, a Hyper shortcut to list). The sheet can appear up to
+  0.15 s after the delay.
+- A key that isn't a Slated shortcut doesn't count as a quick combo: held with Caps Lock past the
+  delay, the sheet still appears.
+- With GNOME's `caps:hyper` option, Hyper shares Super's modifier, so holding Super alone shows the
+  sheet too. keyd doesn't have this problem.
+- With keyd's tap for Escape, letting go of Caps Lock after the sheet showed still sends Escape: keyd
+  decides what a tap is. On the Mac, a hold longer than the delay doesn't.
+
 ## Settings
 
-The settings window has the same sections as the Mac app, listed in a sidebar:
+The settings window has the Mac app's pages, in the same order and with the same names, listed in
+a sidebar. The first time it opens on **Get Started**; afterwards it opens on the Overview, never on
+the page you left it on.
 
 | Section | What's there |
 |---|---|
-| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, a getting-started checklist, and tips |
-| Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
+| Get Started | First-run setup, as on the Mac: welcome, the Hyper key, hotstrings, your Slate config, done. GNOME needs no permission, so instead the Hyper key step recommends keyd (with the `linux/install.sh --hyper-keyd` command until it's set up) and the hotstrings step checks espanso, with "Skip for Now" until it's in sync. The Slate config step loads your Slate files as they are, or offers the starter shortcuts. Done lists what works and a shortcut to try. It leads the sidebar until you finish it (the badge says which step you're on); Overview → What's Next → **Get Started** opens it again |
+| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, tips from your own shortcuts, and what to do next |
+| Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. A `~/.slate.js` function is named by what it does ("First Third", captioned "JavaScript function"), or says why it can't be. Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
 | Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
 | Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, privacy (secrets, excluded apps), and the picker's keys. Shows how many items are saved |
 | Automation | What runs now, your automations, eleven recipes (auto-click, hold a button or key, sprint and crouch toggles, spam a key, click N times, double-click, a walk-then-click macro), the safety settings, and what GNOME does differently |
@@ -151,6 +186,7 @@ turn that back on in Slate Compatibility. Otherwise the Slate files keep loading
 | `~/.local/state/slated/status.json` | Extension | What's running, read by the settings window (format below) |
 | `~/.local/state/slated/slated.log` | Extension and settings | The event log: JSON Lines with the same events as on the Mac (`app.start`, `action.done`, `config.saved`, `ui.*`…) |
 | `~/.local/state/slated/snapshots.json` | Extension | Saved window snapshots |
+| `~/.local/state/slated/settings-window.json` | Settings | The settings window's own state: `{"setupFinished": true}` once Get Started is done (the Mac keeps this in its user defaults). Delete it to see Get Started again |
 | `~/.local/state/slated/clipboard.json` | Extension | Clipboard history, readable only by you (mode 0600), in the Mac app's format. Not written when `clipboard.persist` is off |
 | `~/.local/state/slated/clipboard-images/` | Extension | Copied images, one PNG per image named by its SHA-256, readable only by you (folder 0700, files 0600). A file goes when its item does; with `clipboard.persist` off, they're all removed when Slated stops |
 | `~/.config/espanso/match/slated.yml` | Extension | Your hotstrings, for espanso |
@@ -202,8 +238,10 @@ these to point everything at a throwaway home.
 | Hotstrings | Built in, with per-app filters | Through espanso, which Slated keeps in sync. No per-app filters |
 | `insert-text`, `keystroke`, `open-url`, `shell` actions | ✓ | ✓ |
 | `~/.slate.js`, `~/.slate` | JavaScriptCore | GJS, inside GNOME Shell |
+| `~/.slate.js` functions in Settings and the cheat sheet | Named by what they do ("First Third"), found by running the script on pretend Macs | Settings → Windows: the same names, from the importer's run on pretend desktops |
 | Settings | SwiftUI window | libadwaita window |
 | Status at a glance | Overview in Slated's window | Settings → Overview |
+| First-run setup (Get Started) | Accessibility permission, Hyper key, Slate config | No permission. Hyper key (keyd recommended), espanso for hotstrings, Slate config |
 | Start at login | Login item | Runs with your session while the extension is enabled |
 | Permissions | Accessibility, granted once | None needed |
 | Installing an update | `./install.sh` relaunches the app | Log out and back in (Wayland) or Alt+F2 `r` (Xorg). A nested shell lets you try it first |
@@ -216,7 +254,7 @@ these to point everything at a throwaway home.
 | Clipboard history and its picker | ✓ Text and images, in a small picker at the text caret | ✓ Text and PNG images, in the same picker (Ctrl for ⌘: Ctrl+1–9 · esc), below the text cursor when the app reports it to the input method (Wayland text-input or IBus), else at the pointer. Ctrl+P, Ctrl+Backspace and Ctrl+Shift+Backspace pin, delete and clear there. Rows show plain text: the Mac's color swatches, link hosts and monospaced code aren't drawn yet |
 | Settings → Clipboard | Every item, searchable, with pin, copy and delete | Settings only, and how many items are saved. Pin, delete and clear in the picker |
 | Settings → Automation | Running Now with Stop All | Lists what runs. Stop it with the stop shortcut |
-| Notch island (automation status, Hyper cheat sheet, feedback) | ✓ | Not yet. Its `island` settings are kept as they are |
+| Notch island (automation status, Hyper cheat sheet, feedback) | ✓ | ✓ At the top center, hanging from the top bar. The cheat sheet comes from the same engine code, pinned to the Mac's by golden vectors. Caps Lock's hold is read from the modifier state ([The island](#the-island)) |
 
 ## Limitations
 
@@ -294,7 +332,7 @@ Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
 | `make linux-test-prefs` | The settings logic (model, validation, presets, automation recipes, import, status), plus the whole settings UI driven on mock GTK and libadwaita |
 | `make linux-test-prefs-gjs` | The settings logic tests under GJS |
 | `make linux-test-gtk` | The settings window on real GTK 4 and libadwaita (needs `gjs gir1.2-adw-1 xvfb dbus`) |
-| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: shortcuts, per-app grabs, automation timing and safety stops, clipboard history, status and log (Node 22.15+) |
+| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: shortcuts, per-app grabs, automation timing and safety stops, the island and its cheat sheet, clipboard history, status and log (Node 22.15+) |
 | `make linux-test-installer` | `linux/install.sh` against stand-ins for GNOME's tools, plus `scripts/logs.py`'s log locations |
 | `linux/tests/gnome/run.sh` | The extension in a real GNOME Shell |
 | `node linux/tests/prefs/coverage.mjs` | Which settings code no test runs |

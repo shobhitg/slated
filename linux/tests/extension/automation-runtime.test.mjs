@@ -106,8 +106,8 @@ test('the stop and clipboard shortcuts are registered, and status.json reports a
   assert.deepEqual(s.clipboard, {enabled: true, items: 0});
 });
 
-test('a repeat binding clicks until the stop shortcut; the indicator and status follow', () => {
-  start({bindings: [{keys: 'hyper+f', action: autoClick}]});
+test('a repeat binding clicks until the stop shortcut; with the island off, the pill and status follow', () => {
+  start({bindings: [{keys: 'hyper+f', action: autoClick}], island: {enabled: false}});
   gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
   assert.ok(gnome.press(`${HYPER}f`));
   gnome.loop.advance(250);

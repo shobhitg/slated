@@ -117,6 +117,226 @@
   color: rgba(255, 255, 255, 0.65);
 }
 
+/* --- Island (islandView.js): black, hanging from the top center like the Mac's notch island --- */
+
+.slated-island {
+  background-color: #000000;
+  border-radius: 0 0 20px 20px;
+}
+
+.slated-island-dim {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.slated-island-keycap {
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  text-align: center;
+}
+
+.slated-island-keycap-accent {
+  background-gradient-direction: horizontal;
+  background-gradient-start: #5856d6;
+  background-gradient-end: #e0479e;
+}
+
+/* Where a window went: a screen outline with the region filled in. */
+.slated-island-region {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+}
+
+.slated-island-region-fill {
+  border-radius: 2px;
+  background-gradient-direction: horizontal;
+  background-gradient-start: #6b5efc;
+  background-gradient-end: #c86bfa;
+}
+
+/* Banner: what a shortcut did, or why it couldn't. */
+.slated-island-banner {
+  spacing: 10px;
+  padding: 10px 18px 12px 18px;
+}
+
+.slated-island-banner-icon,
+.slated-island-accent-icon {
+  icon-size: 14px;
+  color: #a78bfa;
+}
+
+.slated-island-warning {
+  icon-size: 14px;
+  color: #ff9f0a;
+}
+
+.slated-island-banner-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.slated-island-banner-app {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Collapsed: running automations, or the active modal key. */
+.slated-island-compact {
+  spacing: 7px;
+  padding: 7px 16px 8px 16px;
+  min-width: 108px;
+}
+
+.slated-island-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #ff453a;
+}
+
+.slated-island-count,
+.slated-island-modal-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.slated-island-compact-icon {
+  icon-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.slated-island-elapsed {
+  min-width: 40px;
+  font-size: 12px;
+  font-weight: 600;
+  font-feature-settings: "tnum";
+  color: rgba(255, 255, 255, 0.9);
+  text-align: right;
+}
+
+/* Hovered while automations run: each one, and Stop. */
+.slated-island-automations {
+  min-width: 344px;
+  padding: 8px 18px 0 18px;
+}
+
+.slated-island-automation-row {
+  spacing: 10px;
+  padding: 7px 0;
+}
+
+.slated-island-automation-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  background-color: rgba(255, 69, 58, 0.2);
+}
+
+.slated-island-automation-glyph {
+  icon-size: 13px;
+  color: #ff453a;
+}
+
+.slated-island-automation-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.slated-island-automation-detail {
+  font-size: 11px;
+  font-feature-settings: "tnum";
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.slated-island-more {
+  padding: 6px 0;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.slated-island-footer {
+  spacing: 8px;
+  padding: 10px 0 16px 0;
+}
+
+.slated-island-stop {
+  padding: 5px 16px;
+  border-radius: 999px;
+  background-color: #ff453a;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.slated-island-stop:hover {
+  background-color: #ff6259;
+}
+
+.slated-island-stop:active {
+  background-color: #d63a31;
+}
+
+/* The cheat sheet: Hyper's shortcuts (or a modal key's), grouped. */
+.slated-island-sheet {
+  padding: 4px 18px 16px 18px;
+}
+
+.slated-island-sheet-header {
+  spacing: 8px;
+  padding: 8px 0 10px 0;
+}
+
+.slated-island-sheet-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.slated-island-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.slated-island-section {
+  padding: 8px 0 3px 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.slated-island-cell {
+  width: 212px;
+  height: 28px;
+  spacing: 8px;
+  padding: 0 6px 0 4px;
+  border-radius: 7px;
+}
+
+.slated-island-cell:highlighted {
+  background-color: rgba(107, 94, 252, 0.35);
+}
+
+.slated-island-cell-icon {
+  icon-size: 11px;
+  color: #a78bfa;
+  width: 21px;
+}
+
+.slated-island-cell-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
 /* --- Clipboard picker: a small list at the text cursor (the Mac's ClipboardPicker) ---------- */
 
 .slated-clipboard-picker,

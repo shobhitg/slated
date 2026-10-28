@@ -6,7 +6,7 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 
-import {bindingTitle, bindingSubtitle, actionTitle, actionDetail, containsAutomation} from '../actions.js';
+import {bindingTitle, bindingSubtitle, actionTitle, actionDetail, containsAutomation, sourceBindingText} from '../actions.js';
 import {RECIPES} from '../automation.js';
 import {PRESETS, PRESET_GROUPS} from '../presets.js';
 import {statePresentation} from '../status.js';
@@ -121,12 +121,12 @@ export function createWindowsPane(ctx) {
   function sourceRow(source, binding) {
     const state = model.sourceBindingState(binding);
     const presentation = statePresentation(state);
-    const title = binding.action ? actionTitle(binding.action) : 'JavaScript Function';
-    const fallback = binding.action ? binding.summary : 'Runs code in your Slate file';
-    const row = new Adw.ActionRow({use_markup: false, title, subtitle: rowSubtitle(presentation, fallback), activatable: true});
+    // A function is named by what it does, as on the Mac ("First Third", captioned "JavaScript function").
+    const text = sourceBindingText(binding);
+    const row = new Adw.ActionRow({use_markup: false, title: text.title, subtitle: rowSubtitle(presentation, text.caption), activatable: true});
     row.set_title_lines(1);
     row.set_subtitle_lines(1);
-    if (binding.action) row.add_prefix(glyph(binding.action));
+    if (text.action) row.add_prefix(glyph(text.action));
     else row.add_prefix(icon('text-x-generic-symbolic', {size: 18}));
     if (presentation.icon) row.add_suffix(icon(presentation.icon, {classes: [presentation.style === 'error' ? 'slated-error-text' : 'slated-warning-text']}));
     row.add_suffix(keycaps(binding.keys, {modal: binding.modal}));
@@ -174,7 +174,10 @@ export function createWindowsPane(ctx) {
         const g = group({title: source.displayPath, suffix,
           description: 'Defined in your Slate file. Open one to see what it does or copy it into Slated.'});
         const rows = source.bindings
-          .filter(b => matches([b.summary, b.action ? actionTitle(b.action) : 'JavaScript function', keysString(b.keys), comboLabel(b.keys, b.modal)]))
+          .filter(b => {
+            const text = sourceBindingText(b);
+            return matches([b.summary, text.title, text.caption, keysString(b.keys), comboLabel(b.keys, b.modal)]);
+          })
           .map(b => sourceRow(source, b));
         if (!rows.length) rows.push(new Adw.ActionRow({use_markup: false, title: 'No matches', activatable: false}));
         for (const row of rows) g.add(row);

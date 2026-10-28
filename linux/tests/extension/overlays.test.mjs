@@ -41,7 +41,8 @@ beforeEach(() => {
   });
   const config = join(home, '.config/slated/config.json');
   mkdirSync(dirname(config), {recursive: true});
-  writeFileSync(config, JSON.stringify({general: {loadSlateConfigs: false, showActionHUD: true}}));
+  // The island off: what a shortcut did shows in the bottom HUD (island.test.mjs covers the island).
+  writeFileSync(config, JSON.stringify({general: {loadSlateConfigs: false, showActionHUD: true}, island: {enabled: false}}));
   runtime = new SlatedRuntime({path: home, metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhit-aida.github.io', core: fakeCore});
   runtime.start();
   gnome.loop.run();
@@ -154,7 +155,7 @@ test('clicking outside the grid panels or pressing a key dismisses the grid', ()
   assert.equal(gnome.state.chrome.size, 0);
 });
 
-test('the HUD shows what just happened near the bottom of the primary screen', () => {
+test('with the island off, the HUD shows what just happened near the bottom of the primary screen', () => {
   twoWindows();
   dbus.RunAction('{"op":"push","direction":"left","style":"bar-resize:screenSizeX/2"}');
   const hud = gnome.modules['resource:///org/gnome/shell/ui/main.js'].uiGroup.children.at(-1);

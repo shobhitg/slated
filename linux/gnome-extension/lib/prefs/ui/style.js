@@ -63,6 +63,14 @@ const CSS = `
 .slated-textview text { background-color: transparent; }
 
 .slated-sidebar-status { padding: 10px 16px; font-size: 0.85em; }
+
+.slated-step-icon { color: @accent_color; }
+.slated-done-badge { min-width: 76px; min-height: 76px; border-radius: 99px; color: @accent_fg_color;
+  background-color: @accent_bg_color; }
+.slated-step-dot { min-width: 7px; min-height: 7px; border-radius: 99px; background-color: alpha(currentColor, 0.14); }
+.slated-step-dot.past { background-color: alpha(currentColor, 0.35); }
+.slated-step-dot.current { min-width: 22px; background-color: @accent_bg_color; }
+.slated-get-started-footer { padding: 10px 18px; }
 `;
 
 let installed = null;

@@ -77,9 +77,15 @@ export class ActionRunner {
     /** Slate settings (`{defaultToCurrentScreen: true, …}`), merged from every source. */
     this.settings = {};
     this.layouts = new Map();
-    /** Something happened worth showing ("Left half · Firefox"). */
+    /**
+     * Something happened worth showing: `(message, report)`, the message like "Left half · Firefox" and
+     * the report {title, app, window, frame, action} for the island (`frame` where the window went, the
+     * top-level `action` for its symbol; null for grid placements).
+     */
     this.onPerformed = null;
     this.onError = null;
+    /** A shortcut or other top-level run failed, with why (the island's failure banner). */
+    this.onFailed = null;
     /** Slate's `relaunch`: reload all configuration. */
     this.onRelaunch = null;
     /** Runs a layout defined in JavaScript. Returns false if there's no such layout. */
@@ -127,11 +133,14 @@ export class ActionRunner {
     if (blocked && this._startsAutomation(action, trigger)) {
       this.log?.record('automation.start_ignored', {reason: blocked, trigger, source}, 'notice');
       // As in _logged, a run inside another (a JavaScript layout step) leaves the outer outcome alone.
-      if (!this._context) this._lastFailure = `Automations don't start while ${blocked}`;
+      if (!this._context) {
+        this._lastFailure = `Automations don't start while ${blocked}`;
+        this.onFailed?.(this._lastFailure);
+      }
       return false;
     }
     return this._logged(
-      {trigger, source, label},
+      {trigger, source, label, action},
       () => this.describe(redactForLog(action)),
       () => this.perform(action, {window, label, chainKey}),
     );
@@ -178,6 +187,8 @@ export class ActionRunner {
     if (outer.context) {
       this._lastApp = outer.app;
       this._lastFailure = outer.failure;
+    } else if (!ok && this._lastFailure) {
+      this.onFailed?.(this._lastFailure);
     }
     return ok;
   }
@@ -593,7 +604,7 @@ export class ActionRunner {
     // moment to resize. Once settled, re-anchor using the size the window really took (keeps
     // bottom/right placements flush with the screen edge), or retry a move that didn't stick.
     this.platform.afterSettle(window, () => this._settle(action, context, window, target, restoring));
-    this._report(label ?? this.describe(action), window);
+    this._report(label ?? this.describe(action), window, target);
     return true;
   }
 
@@ -628,7 +639,7 @@ export class ActionRunner {
     const frame = this.platform.frame(window);
     if (frame) this._pushUndo(window, frame);
     this.platform.setFrame(window, integralRect(target));
-    this._report(label, window);
+    this._report(label, window, integralRect(target));
   }
 
   _pushUndo(window, frame) {
@@ -816,7 +827,8 @@ export class ActionRunner {
 
   // --- Reporting ---------------------------------------------------------------------------------
 
-  _report(what, window = null) {
+  /** Something worked: `what` happened to `window`, which went to `frame` when it was moved. */
+  _report(what, window = null, frame = null) {
     let info = null;
     if (window) {
       try {
@@ -826,7 +838,16 @@ export class ActionRunner {
       }
     }
     if (info?.id) this._lastApp = info.id;
-    this.onPerformed?.(info?.name ? `${what} · ${info.name}` : what);
+    let where = frame;
+    if (!where && window) {
+      try {
+        where = this.platform.frame(window);
+      } catch {
+        where = null;
+      }
+    }
+    const report = {title: what, app: info?.name || null, window, frame: where ?? null, action: this._context?.action ?? null};
+    this.onPerformed?.(info?.name ? `${what} · ${info.name}` : what, report);
   }
 
   _fail(message) {
@@ -840,7 +861,7 @@ export class ActionRunner {
     this._destroyed = true;
     this._undo = [];
     this._chains.clear();
-    this.onPerformed = this.onError = this.onRelaunch = this.externalLayout = null;
+    this.onPerformed = this.onError = this.onFailed = this.onRelaunch = this.externalLayout = null;
     this.automation = this.clipboard = null;
   }
 }

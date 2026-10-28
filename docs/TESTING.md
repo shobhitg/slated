@@ -74,6 +74,7 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
    | `config.json` | `config.json` decoding (JSON5 included, `onlyInApps`, clipboard and automation settings) and the exact text Swift writes. |
    | `starter.json`, `settings.json`, `hotstrings.json` | The starter config; Slate settings; hotstring typing sessions and templates. |
+   | `cheatsheet.json` | The island's cheat sheet (SlatedUI's `CheatSheet`): every kind of action's title, section, region and symbol, names and script summaries, and whole Hyper and modal sheets in keyboard order. |
 
 2. `linux/tests/run.mjs` loads every fixture and checks the JavaScript engine against each case, plus
    handwritten tests for what fixtures can't express. Error messages must match word for word, and the
@@ -315,12 +316,45 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Plugging in or removing a display applies a matching `default` layout.
 - [ ] Changing the keyboard layout (e.g. to AZERTY) keeps letter shortcuts on the labeled keys.
 
+## Manual checklist: GNOME island
+
+Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `lib/platform/island*.js`,
+`hyperHold.js` or the island's styles, with keyd and again with GNOME's `caps:hyper` option.
+- [ ] Holding Caps Lock about half a second shows the cheat sheet hanging from the top bar of the
+      monitor you're working on; letting go hides it at once. Quick Caps Lock+A never shows it.
+- [ ] While the sheet is up, Caps Lock+A still moves the window, and its row lights up. It lists the
+      same sections, order and names as the Mac's for the same `config.json` and `~/.slate.js`.
+- [ ] With "Show what just happened" on, a window shortcut shows "Left half · Firefox" with a glyph of
+      where the window went, on that window's monitor. With nothing focused (click the desktop), it
+      says "No focused window to move".
+- [ ] A running auto-clicker shows a red dot and a timer, over a fullscreen game too (then at the very
+      top). Hovering opens it up; Stop stops it without taking focus from the game. Next to the
+      island, clicks reach the window below, and with nothing running nothing is left to click.
+- [ ] A modal key shows its key in the island, then lists its keys after the delay.
+- [ ] `"island": {"enabled": false}` brings back the bottom HUD and the red pill.
+- [ ] Growing, shrinking and fading look smooth; no black shape stays once there's nothing to show.
+- [ ] In an Xorg session (GNOME 46–48) the island catches clicks only while automations show.
+- [ ] GNOME Shell's CPU use stays flat while idle (the Hyper watcher reads the modifiers about 7 times a
+      second). `scripts/logs.py --grep island` shows `island.cheat_sheet` and `island.stop_clicked`.
+- [ ] Turning the extension off while the sheet or automations show removes everything; turning it
+      back on works.
+
 ## Manual checklist: GNOME settings window
 
 Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extension/prefs.js` or
 `lib/prefs/`, after `linux/install.sh` and a new login.
-- [ ] `gnome-extensions prefs slated@shobhit-aida.github.io` opens the window on the Overview, which
-      says "Everything's running". `linux/install.sh --verify` agrees.
+- [ ] With no `~/.local/state/slated/settings-window.json`, `gnome-extensions prefs
+      slated@shobhit-aida.github.io` opens on Get Started, first in the sidebar with a "1 of 5" badge.
+      The Hyper key step recommends keyd with its command until `linux/install.sh --hyper-keyd` has
+      run, then says keyd is in charge. The hotstrings step says whether espanso is installed and in
+      sync, and its button reads Skip for Now until it is. The Slate config step lists your
+      `~/.slate.js` and its bindings. Done lists Slated running, the Hyper key, hotstrings and
+      shortcuts, and its "Try it now" shortcut moves the settings window.
+- [ ] Start Using Slated lands on the Overview, which says "Everything's running"
+      (`linux/install.sh --verify` agrees), and Get Started leaves the sidebar. Closing and reopening
+      the window opens on the Overview again. What's Next → Get Started opens it from the welcome.
+- [ ] Settings → Windows names your `~/.slate.js` functions by what they do ("First Third", with
+      "JavaScript function" under it), as on the Mac.
 - [ ] Narrowing the window collapses the sidebar into a back button. Light, dark and (on GNOME 47+)
       the accent color all look right.
 - [ ] Recording a shortcut: the first time, GNOME asks whether to let the window take shortcuts.

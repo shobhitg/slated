@@ -1,15 +1,15 @@
 import {suite, expect, expectEqual} from './harness.mjs';
 import {
-  PRESETS, PRESET_GROUPS, presetById, matchingPreset, starterBindings, defaultChain, defaultSequence,
+  PRESETS, PRESET_GROUPS, ORIENTATION_PRESETS, presetById, matchingPreset, starterBindings, defaultChain, defaultSequence,
 } from '../../gnome-extension/lib/prefs/presets.js';
 import {
   KINDS, CATEGORIES, kindOf, kindById, formFromAction, actionFromForm, convertAction, updateAction, actionTitle,
   actionDetail, localDetail, bindingTitle, bindingSubtitle, isWindowGeometry, screenName, appsPhrase, isAutomation,
-  containsAutomation, containsWindowGeometry, isInputStep, INPUT_STEPS, defaultForm,
+  containsAutomation, containsWindowGeometry, isInputStep, INPUT_STEPS, defaultForm, sourceBindingText,
 } from '../../gnome-extension/lib/prefs/actions.js';
 import {actionProblems} from '../../gnome-extension/lib/prefs/validator.js';
 import {canonicalActionLocal} from '../../gnome-extension/lib/prefs/canonical.js';
-import {canonicalAction} from '../../gnome-extension/lib/prefs/engine.js';
+import {canonicalAction, implemented} from '../../gnome-extension/lib/prefs/engine.js';
 
 const half = () => JSON.parse(JSON.stringify(presetById('left-half').action));
 
@@ -145,6 +145,42 @@ export default suite('Presets and actions', [
     expectEqual(actionTitle({op: 'layout', name: ''}), 'Apply Layout');
     expectEqual(screenName('ordered:0'), 'Display 1 (left to right)');
     expectEqual(appsPhrase(['a', 'b', 'c']), 'a & 2 more');
+  }],
+  ['thirds that turn with the display, displays and centered moves are named as on the Mac', () => {
+    const third = presetById('left-third').action;
+    const stacked = {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX', height: 'screenSizeY/3'};
+    expectEqual(matchingPreset({op: 'by-orientation', landscape: third, portrait: stacked})?.id, 'first-third');
+    expectEqual(actionTitle({op: 'by-orientation', landscape: third, portrait: stacked}), 'First Third');
+    expectEqual(ORIENTATION_PRESETS.map(p => p.title), ['First Third', 'Middle Third', 'Last Third', 'First Two Thirds', 'Last Two Thirds']);
+    expect(ORIENTATION_PRESETS.every(p => !PRESETS.includes(p)), 'the pickers offer only the plain presets');
+    // Slate's "*1/3" spelling of a two-thirds offset, side by side and turned.
+    const twoThirds = {op: 'move', x: 'screenOriginX+screenSizeX*1/3', y: 'screenOriginY', width: 'screenSizeX*2/3', height: 'screenSizeY'};
+    expectEqual(matchingPreset(twoThirds)?.id, 'right-two-thirds');
+    expectEqual(actionTitle({op: 'by-orientation', landscape: twoThirds,
+      portrait: {op: 'move', x: 'screenOriginX', y: 'screenOriginY+screenSizeY*1/3', width: 'screenSizeX', height: 'screenSizeY*2/3'}}), 'Last Two Thirds');
+    // Other pairs name both sides, once when they're the same.
+    expectEqual(actionTitle({op: 'by-orientation', landscape: presetById('maximize').action, portrait: presetById('maximize').action}), 'Maximize');
+    expectEqual(screenName('left'), 'Left Display');
+    expectEqual(actionTitle({op: 'throw', screen: 'right', width: 'screenSizeX', height: 'screenSizeY'}), 'Throw to Right Display, Resized');
+    if (implemented('targetFrame')) {
+      const centered = (w, h) => ({op: 'move', x: `screenOriginX+(screenSizeX-screenSizeX*${w})/2`, y: `screenOriginY+(screenSizeY-screenSizeY*${h})/2`,
+        width: `screenSizeX*${w}`, height: `screenSizeY*${h}`});
+      expectEqual(actionTitle(centered(0.5, 0.5)), 'Center, 50%');
+      expectEqual(actionTitle(centered(0.6, 0.8)), 'Center, 60% × 80%');
+      expectEqual(actionTitle({op: 'move', x: 'screenOriginX+10', y: 'screenOriginY', width: 'screenSizeX/2', height: 'screenSizeY'}), 'Move & Resize');
+    }
+  }],
+  ['Slate functions are named by what they do', () => {
+    const half = presetById('left-half').action;
+    expectEqual(sourceBindingText({isFunction: true, probe: () => ({action: half})}),
+      {title: 'Left Half', caption: 'JavaScript function', action: half, described: true});
+    expectEqual(sourceBindingText({isFunction: true, probe: () => ({reason: 'depends on the focused app or window title'})}),
+      {title: 'JavaScript Function', caption: 'Depends on the focused app or window title', action: null, described: false});
+    expectEqual(sourceBindingText({isFunction: true, probe: () => {
+      throw new Error('boom');
+    }}).caption, 'Runs code in your Slate file');
+    expectEqual(sourceBindingText({isFunction: false, action: half, summary: 'push left bar-resize:screenSizeX/2'}),
+      {title: 'Left Half', caption: 'push left bar-resize:screenSizeX/2', action: half, described: false});
   }],
   ['details fall back to Slate-like syntax without the engine', () => {
     expectEqual(localDetail(EXAMPLES.push), 'push up bar-resize:screenSizeY/3 1');

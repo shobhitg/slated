@@ -72,6 +72,7 @@ let files: [FixtureFile] =
     automationFixtures(),
     clipboardFixtures(),
     placementFixtures(),
+    cheatSheetFixtures(),
   ]
 
 do {

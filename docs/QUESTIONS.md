@@ -124,7 +124,8 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
   looking at the cheat sheet never sends Escape (like Karabiner's `to_if_alone` timeout).
 - **Running automations show beside the notch** instead of the red pill; hover to see them and stop
   them. With the island off, the pill comes back.
-- **No GNOME island yet.** Linux keeps the settings; a GNOME version could follow.
+- **The GNOME island hangs from the top bar** of the monitor you're working on (from the top edge on
+  the others and over fullscreen windows) instead of covering the clock at its center.
 
 ## Linux (GNOME) port
 
@@ -174,8 +175,18 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 - **GNOME records copied images as PNG only** (what GNOME apps offer; a Mac history's TIFF files are
   kept and pasted as TIFF), stored and cleaned up like the Mac's. A history file that can't be read
   keeps its images, so fixing the file brings them back.
-- **No notch island on GNOME yet.** Running automations show as a pill at the top of the primary
-  display, like the Mac's classic indicator.
+- **Get Started on GNOME** has the Mac's five steps, with the permission step's place taken by what
+  GNOME needs instead: welcome → Hyper key (recommends keyd) → hotstrings (checks espanso) → Slate
+  config → done. "Finished" lives in `~/.local/state/slated/settings-window.json`, so it isn't
+  shared with the Mac through config.json, and a GNOME setup that predates the page sees it once.
+- **The GNOME island reads Caps Lock's hold from the modifier state**, since GNOME reports no
+  modifier presses: about 7 times a second while idle and 20 while a Hyper modifier is down, only
+  while the cheat sheet can show. So a key that isn't a Slated shortcut doesn't cancel the sheet, and
+  with GNOME's `caps:hyper` option holding Super alone shows it too (keyd doesn't have this).
+- **With keyd's tap for Escape, a long hold still sends Escape** when you let go, unlike the Mac,
+  because keyd decides what a tap is. keyd's `overload_tap_timeout` (in a `[global]` section of
+  `/etc/keyd/slated.conf`, written by `linux/install.sh --hyper-keyd`) could match the Mac; not done
+  yet, since it changes a root-owned file.
 
 
 ## macOS runtime review (2026-10-27)

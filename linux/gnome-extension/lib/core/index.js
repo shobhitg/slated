@@ -132,6 +132,19 @@ export {ClipboardHistory, referenceSeconds, referenceToMilliseconds, foldedConta
  */
 export {PopupPlacement} from './placement.js';
 
+// --- Action names and the island's cheat sheet ------------------------------------------------------
+/**
+ * actionTitle(action) → "Left Half", "Throw to Next Display", "Focus Safari": what the settings UI and the
+ *   island call an action. actionSymbol(action) → its SF Symbol name (the GNOME island maps it to an icon).
+ * actionRegion(action) → where a window action puts the window, as fractions of the screen, or null.
+ * hyperCheatSheet(shortcuts, hyperModifiers) and modalCheatSheet(modal, shortcuts) → {title, isHyper,
+ *   sections: [{title, items: [{id, label, title, region, symbol, keys, extraModifiers}]}]}: the shortcuts
+ *   the island lists, grouped (CHEAT_SHEET_GROUPS) and in keyboard order; shortcuts are
+ *   {keys, modal?, name?, action?, summary?} in registration order (the first for a key wins).
+ */
+export {actionTitle, actionSymbol, actionRegion, secondsTitle} from './actionNames.js';
+export {hyperCheatSheet, modalCheatSheet, cheatSheetGroup, cheatSheetItems, CHEAT_SHEET_GROUPS} from './cheatSheet.js';
+
 // --- Hotstrings -----------------------------------------------------------------------------------
 /**
  * new HotstringMatcher(hotstrings).feed(text, appId) → {hotstring, deleteCount, delimiter} | null;
