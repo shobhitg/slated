@@ -189,6 +189,7 @@ export class SlateSources {
         modal,
         repeats: typeof binding.repeats === 'boolean' ? binding.repeats : repeatOps.includes(binding.action?.op),
         source,
+        action: binding.action ?? null,
         run: () =>
           this._runner.run(binding.action, {chainKey: `${path}#${binding.id ?? index}`, trigger: `hotkey ${id}`, source}),
       };
@@ -199,6 +200,9 @@ export class SlateSources {
       modal: binding.modal,
       repeats: !!binding.repeats,
       source,
+      // What the island's cheat sheet lists: the operation, or the function's summary.
+      action: binding.target.kind === 'action' ? binding.target.action : null,
+      summary: binding.summary ?? null,
       run: () => this._runScriptBinding(engine, binding, source),
     }));
     return [...classic, ...scripts];

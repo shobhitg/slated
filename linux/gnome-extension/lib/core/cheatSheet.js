@@ -53,7 +53,8 @@ function normalize(shortcuts) {
   for (const s of shortcuts ?? []) {
     const keys = comboOf(s?.keys);
     if (!keys) continue;
-    const modal = comboOf(s.modal);
+    // A KeyCombo or config string, or config.json's {keys, toggle}.
+    const modal = comboOf(s.modal?.keys ?? s.modal);
     const id = (modal ? `${formatKeyCombo(modal)} ` : '') + formatKeyCombo(keys);
     out.push({keys, modal, id, name: s.name ?? null, action: canonical(s.action), summary: s.summary ?? null});
   }
