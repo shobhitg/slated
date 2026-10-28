@@ -272,7 +272,7 @@ The GNOME version reads and keeps these settings but doesn't show an island yet.
 
 The picker opens just below the text caret of the app you're typing in (above it near the bottom
 of the screen). When the app doesn't say where its caret is, it opens below the focused field, and
-failing that at the mouse pointer; opened from the menu bar or Settings, at the pointer.
+failing that at the mouse pointer; opened from Slated's own window, at the pointer.
 - Type to filter; ↑↓ (or the pointer) select an item and ↩ or a click pastes it into the app you
   were using (with `pasteAfterSelecting` off, it's only copied).
 - ⌘1–9 picks one of the first nine directly, and esc closes.

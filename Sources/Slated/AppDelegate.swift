@@ -4,21 +4,24 @@ import SlatedCore
 import SlatedSystem
 import SlatedUI
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+/// Slated is a regular app with one main window: Get Started during setup, then Overview and the
+/// other panes. Closing the window leaves Slated running in the background; the Dock icon, opening
+/// it again from Finder or Spotlight, the menu bar icon and Settings… (⌘,) bring the window back, and
+/// ⌘Q quits. Small one-off UI stays separate: alerts, the clipboard switcher and the notch island.
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation {
   let engine = Engine()
   private lazy var services = LiveServices(engine: engine)
   private lazy var model = AppModel(services: services)
   private var statusItem: NSStatusItem?
-  private let popover = NSPopover()
-  private var settingsWindow: NSWindow?
-  private var onboardingWindow: NSWindow?
+  private var mainWindow: NSWindow?
   private var signalSources: [DispatchSourceSignal] = []
   private lazy var clipboardPanel = ClipboardPanel(services: LiveServices.forClipboardSwitcher(engine))
   private var modalActive = false
-  private static let onboardingDoneKey = "onboardingCompleted"
+  /// Accessibility permission as last reported, to notice the moment it's switched on.
+  private var accessibilityGranted = false
 
-  /// Test runs (SLATED_HOME set) never put windows or system dialogs on screen, and never touch the
-  /// keyboard: no event tap, no Caps Lock mapping.
+  /// Test runs (SLATED_HOME set) never put windows or system dialogs on screen, show no Dock icon, and
+  /// never touch the keyboard: no event tap, no Caps Lock mapping.
   private var isTestRun: Bool { ProcessInfo.processInfo.environment["SLATED_HOME"] != nil }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,31 +32,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     if isTestRun {
       engine.allowsKeyboardChanges = false
       engine.mode = "test"
+      NSApp.setActivationPolicy(.accessory)
     }
     engine.start()
     _ = model  // loads the configuration and subscribes to engine changes
+    NSApp.mainMenu = MainMenu.make(for: self)
     setUpStatusItem()
+    accessibilityGranted = engine.status.accessibilityGranted
     engine.onChange { [weak self] in
       self?.refreshStatusIcon()
       self?.clipboardPanel.refresh()
+      self?.noticeAccessibilityGrant()
     }
     engine.clipboard.presentSwitcher = { [weak self] anchor in self?.clipboardPanel.show(at: anchor) }
-    clipboardPanel.didClose = { [weak self] in self?.engine.clipboard.switcherClosed() }
+    clipboardPanel.didClose = { [weak self] intoSlatedWindow in
+      self?.engine.clipboard.switcherClosed(intoSlatedWindow: intoSlatedWindow)
+    }
     engine.onModalChange = { [weak self] modal in
       self?.modalActive = modal != nil
       self?.refreshStatusIcon()
     }
-    observeSettingsNavigation()
+    observeNavigation()
 
-    let onboarded = UserDefaults.standard.bool(forKey: Self.onboardingDoneKey)
-    if !isTestRun && (!onboarded || !Permissions.isAccessibilityTrusted) {
-      showOnboarding()
-      // Ask right away: macOS shows its own "would like to control this computer" prompt with an
-      // Open System Settings button; onboarding notices the grant within a second.
-      if !Permissions.isAccessibilityTrusted {
-        _ = Permissions.requestAccessibility()
-        Log.record("permission.prompted")
-      }
+    guard !isTestRun else { return }
+    // At login Slated starts quietly in the background, unless setup isn't finished.
+    if model.needsSetup || !Self.launchedAsLoginItem {
+      showMainWindow(reason: "launch")
+    }
+    // Ask right away: macOS shows its own "would like to control this computer" prompt with an Open
+    // System Settings button, and Get Started moves on within a second of the switch going on.
+    if !Permissions.isAccessibilityTrusted {
+      _ = Permissions.requestAccessibility()
+      Log.record("permission.prompted")
     }
   }
 
@@ -64,11 +74,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     Log.flush()
   }
 
-  /// Opening Slated again from Finder or Spotlight shows its settings.
+  /// Clicking the Dock icon, or opening Slated again from Finder or Spotlight, shows the main window.
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
     Log.record("app.reopened")
-    showSettings()
+    showMainWindow(reason: "reopen")
     return false
+  }
+
+  /// Closing the window keeps Slated running: its shortcuts work with no window open.
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+  /// Launched by macOS at login (General → Launch at Login) rather than opened by the user.
+  private static var launchedAsLoginItem: Bool {
+    guard let event = NSAppleEventManager.shared().currentAppleEvent else { return false }
+    return event.eventID == AEEventID(kAEOpenApplication)
+      && event.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue
+        == OSType(keyAELaunchedAsLogInItem)
   }
 
   /// `install.sh`, `make run` and logout send SIGTERM, and a terminal running Slated sends SIGINT
@@ -87,74 +108,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
   }
 
-  // MARK: Windows
+  // MARK: Main window
 
-  func showSettings(pane: SettingsPane? = nil) {
-    popover.performClose(nil)
+  /// Brings the main window to the front. Opened from closed it shows Get Started during setup and
+  /// Overview otherwise (`AppModel.prepareToShowMainWindow`); `pane` picks one instead.
+  func showMainWindow(pane: SettingsPane? = nil, reason: String) {
+    let window = mainWindow ?? makeMainWindow()
+    let wasOpen = window.isVisible || window.isMiniaturized
+    model.prepareToShowMainWindow(wasOpen: wasOpen)
     if let pane { model.selectedPane = pane }
-    let window = settingsWindow ?? SlatedUI.makeSettingsWindow(model: model)
-    window.delegate = self
-    settingsWindow = window
-    // A menu-bar-only app can't hold keyboard focus well; act like a regular app while the
-    // settings window is open.
-    NSApp.setActivationPolicy(.regular)
+    if window.isMiniaturized { window.deminiaturize(nil) }
     NSApp.activate()
     window.makeKeyAndOrderFront(nil)
-    Log.record("ui.settings_opened", ["pane": model.selectedPane.rawValue])
-  }
-
-  private func showOnboarding() {
-    popover.performClose(nil)
-    let window =
-      onboardingWindow
-      ?? SlatedUI.makeOnboardingWindow(
-        model: model,
-        openSettings: { [weak self] in self?.showSettings() },
-        onFinish: { [weak self] in self?.finishOnboarding() })
-    window.delegate = self
-    onboardingWindow = window
-    NSApp.setActivationPolicy(.regular)
-    NSApp.activate()
-    window.makeKeyAndOrderFront(nil)
-    // macOS 14's cooperative activation may keep an app launched from a script (./install.sh) behind
-    // the terminal; setup must not hide there.
+    // macOS 14's cooperative activation may keep Slated behind the app in front (the terminal that ran
+    // ./install.sh, System Settings after granting access); the window must not hide there.
     window.orderFrontRegardless()
-    Log.record("ui.onboarding_shown", ["accessibility": Permissions.isAccessibilityTrusted])
+    if !wasOpen {
+      Log.record(
+        "ui.settings_opened",
+        ["pane": model.selectedPane.rawValue, "reason": reason, "accessibility": Permissions.isAccessibilityTrusted])
+    }
   }
 
-  private func finishOnboarding() {
-    UserDefaults.standard.set(true, forKey: Self.onboardingDoneKey)
-    Log.record("ui.onboarding_finished", ["accessibility": Permissions.isAccessibilityTrusted])
-    onboardingWindow?.close()
+  private func makeMainWindow() -> NSWindow {
+    let window = SlatedUI.makeMainWindow(model: model)
+    window.delegate = self
+    mainWindow = window
+    return window
   }
 
   func windowWillClose(_ notification: Notification) {
-    guard let window = notification.object as? NSWindow else { return }
-    if window === settingsWindow {
-      model.saveNow()
-      Log.record("ui.settings_closed")
-    }
-    if window === onboardingWindow && !UserDefaults.standard.bool(forKey: Self.onboardingDoneKey) {
-      Log.record("ui.onboarding_dismissed")
-    }
-    // Back to menu-bar-only once no Slated window is showing.
-    DispatchQueue.main.async { [weak self] in
-      let visible = [self?.settingsWindow, self?.onboardingWindow].contains { $0?.isVisible == true }
-      if !visible { NSApp.setActivationPolicy(.accessory) }
-    }
+    guard (notification.object as? NSWindow) === mainWindow else { return }
+    model.saveNow()
+    Log.record("ui.settings_closed", ["pane": model.selectedPane.rawValue])
   }
 
-  /// Logs settings-pane switches (the settings UI publishes its selection on the model).
-  private func observeSettingsNavigation() {
+  /// Accessibility was just switched on (in System Settings, which is in front): bring the main window
+  /// back. Get Started has moved past its permission step by now.
+  private func noticeAccessibilityGrant() {
+    let granted = engine.status.accessibilityGranted
+    defer { accessibilityGranted = granted }
+    guard granted, !accessibilityGranted, !isTestRun else { return }
+    showMainWindow(reason: "accessibility_granted")
+  }
+
+  /// Logs pane switches (the window publishes its selection on the model).
+  private func observeNavigation() {
     withObservationTracking {
       _ = model.selectedPane
     } onChange: { [weak self] in
       DispatchQueue.main.async {
         guard let self else { return }
-        if self.settingsWindow?.isVisible == true {
+        if self.mainWindow?.isVisible == true {
           Log.record("ui.pane", ["pane": self.model.selectedPane.rawValue])
         }
-        self.observeSettingsNavigation()
+        self.observeNavigation()
       }
     }
   }
@@ -166,17 +174,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     item.button?.target = self
     item.button?.action = #selector(statusItemClicked(_:))
     item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    item.button?.toolTip = "Slated: click to open, right-click for the menu"
     statusItem = item
-
-    popover.behavior = .transient
-    popover.animates = true
-    popover.contentViewController = SlatedUI.makeMenuBarViewController(
-      model: model,
-      actions: MenuBarActions(
-        openSettings: { [weak self] in self?.showSettings() },
-        quit: { [weak self] in self?.quit() },
-        showOnboarding: { [weak self] in self?.showOnboarding() },
-        dismiss: { [weak self] in self?.popover.performClose(nil) }))
     refreshStatusIcon()
   }
 
@@ -194,22 +193,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     statusItem?.button?.image = image
   }
 
-  /// Left click: the popover. Right click (or ⌃-click): a classic menu with power-user actions.
+  /// Left click: the main window. Right click (or ⌃-click): a small classic menu.
   @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
     let event = NSApp.currentEvent
     if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
       Log.record("menu.opened")
-      showClassicMenu()
-    } else if popover.isShown {
-      popover.performClose(nil)
+      showStatusMenu()
     } else {
-      Log.record("ui.popover_opened")
-      popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
-      popover.contentViewController?.view.window?.makeKey()
+      Log.record("menu.status_item_clicked")
+      showMainWindow(reason: "status_item")
     }
   }
 
-  private func showClassicMenu() {
+  private func showStatusMenu() {
     let status = engine.status
     let menu = NSMenu()
     let header = NSMenuItem(
@@ -223,19 +219,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       menu.addItem(item)
     }
     menu.addItem(.separator())
-    menu.addItem(withTitle: "Settings…", action: #selector(openSettingsFromMenu), keyEquivalent: ",").target = self
+    menu.addItem(withTitle: "Open Slated", action: #selector(openMainWindowFromMenu), keyEquivalent: "").target = self
     if !status.accessibilityGranted {
       menu.addItem(withTitle: "Grant Accessibility Access…", action: #selector(grantAccess), keyEquivalent: "").target =
         self
     }
-    let hyper = menu.addItem(withTitle: "Caps Lock → Hyper Key", action: #selector(toggleHyper), keyEquivalent: "")
-    hyper.target = self
-    hyper.state = engine.configuration.keyboard.capsLock == .hyper ? .on : .off
-    let pause = menu.addItem(withTitle: "Pause Slated", action: #selector(togglePause), keyEquivalent: "")
-    pause.target = self
-    pause.state = engine.isPaused ? .on : .off
+    menu.addItem(withTitle: "Caps Lock → Hyper Key", action: #selector(toggleHyper), keyEquivalent: "").target = self
+    menu.addItem(withTitle: "Pause Slated", action: #selector(togglePause), keyEquivalent: "").target = self
     menu.addItem(.separator())
-    if engine.configuration.general.loadSlateConfigs && engine.sources.sources.contains(where: { $0.loaded }) {
+    if canImportSlate {
       menu.addItem(withTitle: "Import Slate Config into Slated…", action: #selector(importSlate), keyEquivalent: "")
         .target = self
     }
@@ -246,7 +238,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     menu.addItem(withTitle: "Quit Slated", action: #selector(quitFromMenu), keyEquivalent: "q").target = self
     statusItem?.menu = menu
     statusItem?.button?.performClick(nil)
-    statusItem?.menu = nil  // keep left clicks for the popover
+    statusItem?.menu = nil  // keep left clicks for the main window
+  }
+
+  // MARK: Menu commands (the menu bar's menus and the status item's)
+
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    switch item.action {
+    case #selector(togglePause): item.state = engine.isPaused ? .on : .off
+    case #selector(toggleHyper): item.state = engine.configuration.keyboard.capsLock == .hyper ? .on : .off
+    case #selector(importSlate): return canImportSlate
+    default: break
+    }
+    return true
+  }
+
+  /// Slate files are loaded, so there's something to import.
+  private var canImportSlate: Bool {
+    engine.configuration.general.loadSlateConfigs && engine.sources.sources.contains(where: { $0.loaded })
   }
 
   private func quit() {
@@ -255,18 +264,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     NSApp.terminate(nil)
   }
 
-  @objc private func openSettingsFromMenu() {
+  @objc func openMainWindowFromMenu() {
     Log.record("menu.settings")
-    showSettings()
+    showMainWindow(reason: "menu")
   }
 
-  @objc private func quitFromMenu() {
+  @objc func showAbout() {
+    Log.record("menu.about")
+    showMainWindow(pane: .about, reason: "about")
+  }
+
+  @objc func showGetStartedFromMenu() {
+    Log.record("menu.get_started")
+    showMainWindow(reason: "get_started")
+    model.showGetStarted()
+  }
+
+  @objc func quitFromMenu() {
     Log.record("menu.quit")
     quit()
   }
 
+  /// Get Started's permission step, and macOS's prompt and System Settings on top of it.
   @objc private func grantAccess() {
     Log.record("menu.grant_access")
+    showMainWindow(reason: "grant_access")
+    model.showGetStarted()
     Permissions.requestAccessibility()
     Permissions.openAccessibilitySettings()
   }
@@ -282,17 +305,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
   }
 
-  @objc private func togglePause() {
+  @objc func togglePause() {
     Log.record("menu.toggle_pause", ["pause": !engine.isPaused])
     engine.setPaused(!engine.isPaused)
   }
 
-  @objc private func reload() {
+  @objc func reload() {
     Log.record("menu.reload")
     engine.reload()
   }
 
-  @objc private func importSlate() {
+  @objc func importSlate() {
     Log.record("menu.import_slate")
     let alert = NSAlert()
     do {
@@ -308,12 +331,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     alert.runModal()
   }
 
-  @objc private func openConfig() {
+  @objc func openConfig() {
     Log.record("menu.open_config")
     NSWorkspace.shared.open(engine.store.fileURL)
   }
 
-  @objc private func showLog() {
+  @objc func showLog() {
     Log.record("menu.show_log")
     NSWorkspace.shared.activateFileViewerSelecting([Log.fileURL])
   }

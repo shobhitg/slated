@@ -107,9 +107,34 @@ public enum SlateImporter {
       problems: problems, diagnostics: loaded.diagnostics)
   }
 
-  private enum Probe {
+  /// What trying a bound function on the pretend Macs found.
+  public enum Probe: Hashable, Sendable {
+    /// Every run did this one operation, or a `by-orientation` pair when the orientations differ.
     case converted(Action)
+    /// Why it needs JavaScript, e.g. "depends on the focused app or window title".
     case skipped(String)
+  }
+
+  /// What each bound function in a Slate JavaScript config does, found the way the import finds it,
+  /// so the file's shortcuts can be listed as "Left Half" instead of "JavaScript function".
+  ///
+  /// The file runs again, in an engine of its own on the pretend Macs: the script the app runs keeps
+  /// its state, and nothing happens on this Mac. Nothing is described when the file runs shell
+  /// commands or changes windows while loading, since it may then set itself up differently here.
+  public static func describeFunctions(
+    path: String, readFile: @escaping (String) -> String? = { try? String(contentsOfFile: $0, encoding: .utf8) }
+  ) -> FunctionDescriptions {
+    let host = ProbeHost()
+    let engine = SlateScriptEngine(host: host, readFile: readFile)
+    let loaded = engine.load(path: path)
+    if host.effects.contains(.shell) { return FunctionDescriptions(problem: FunctionDescriptions.shellWhileLoading) }
+    if !host.effects.isEmpty { return FunctionDescriptions(problem: FunctionDescriptions.windowsWhileLoading) }
+    var probes: [FunctionDescriptions.Site: Probe] = [:]
+    for binding in loaded.bindings where binding.target.action == nil {
+      let site = FunctionDescriptions.Site(binding)
+      if probes[site] == nil { probes[site] = probe(binding, engine: engine, host: host) }
+    }
+    return FunctionDescriptions(probes: probes)
   }
 
   /// Runs a bound function on every pretend Mac in `ProbeSetup.orientations`; see the type's
@@ -146,6 +171,35 @@ public enum SlateImporter {
     case .count(let count): return count == 1 ? "1 screen" : "\(count) screens"
     case .resolutions(let resolutions): return resolutions.joined(separator: ", ")
     }
+  }
+}
+
+/// What `SlateImporter.describeFunctions` found for one file.
+public struct FunctionDescriptions: Sendable {
+  /// Why none of the file's functions could be tried, e.g. "the file runs shell commands while loading".
+  public var problem: String?
+  var probes: [Site: SlateImporter.Probe] = [:]
+
+  static let shellWhileLoading = "the file runs shell commands while loading"
+  static let windowsWhileLoading = "the file moves or focuses windows while loading"
+
+  /// Where a `slate.bind` was made, which identifies it in another load of the same file.
+  struct Site: Hashable {
+    var keys: KeyCombo
+    var modal: ModalKey?
+    var file: String?
+    var line: Int?
+
+    init(_ binding: ScriptBinding) {
+      (keys, modal, file, line) = (binding.keys, binding.modal, binding.file, binding.line)
+    }
+  }
+
+  /// What `binding`, from another load of the same file, does. Matched by its keys and where it was
+  /// bound, since a script can bind differently on another Mac; `nil` when this load didn't bind it.
+  public func probe(for binding: ScriptBinding) -> SlateImporter.Probe? {
+    if let problem { return .skipped(problem) }
+    return probes[Site(binding)]
   }
 }
 

@@ -1,51 +1,35 @@
 import SlatedCore
 import SwiftUI
 
-/// The steps of the first-run flow, in order.
-@_spi(Snapshots) public enum OnboardingStep: Int, CaseIterable, Sendable {
-  case welcome, accessibility, hyperKey, slateConfig, done
-}
-
-/// A short first-run flow: welcome, Accessibility permission, Hyper key, Slate config, done.
-struct OnboardingView: View {
-  @Bindable var model: AppModel
-  @State private var step: OnboardingStep
+/// Get Started, the main window's setup page: welcome, Accessibility permission, Hyper key, Slate
+/// config, done. The step lives on the model (`getStartedStep`), so the app can move it on when
+/// Accessibility is granted, and the window reopens where the user left off.
+struct GetStartedPane: View {
+  @Environment(AppModel.self) private var model
   @State private var forward = true
-  var openSettings: (() -> Void)?
-  var onFinish: () -> Void
-
-  init(
-    model: AppModel, initialStep: OnboardingStep = .welcome, openSettings: (() -> Void)? = nil,
-    onFinish: @escaping () -> Void
-  ) {
-    self.model = model
-    self._step = State(initialValue: initialStep)
-    self.openSettings = openSettings
-    self.onFinish = onFinish
-  }
 
   var body: some View {
+    let step = model.getStartedStep
     VStack(spacing: 0) {
       ZStack {
-        stepView
+        stepView(step)
           .id(step)
           .transition(
             .asymmetric(
               insertion: .offset(x: forward ? 40 : -40).combined(with: .opacity),
               removal: .offset(x: forward ? -40 : 40).combined(with: .opacity)))
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .padding(.horizontal, 48)
-      .padding(.top, 36)
-      footer
+      .frame(maxWidth: 660, maxHeight: .infinity)
+      .frame(maxWidth: .infinity)
+      .padding(.horizontal, 40)
+      .padding(.top, 24)
+      footer(step)
     }
-    .background(OnboardingBackdrop())
-    .environment(model)
-    .tint(Theme.accent)
-    .frame(width: SlatedUI.onboardingWindowSize.width, height: SlatedUI.onboardingWindowSize.height)
+    .background(GetStartedBackdrop())
+    .animation(Theme.spring, value: step)
   }
 
-  @ViewBuilder private var stepView: some View {
+  @ViewBuilder private func stepView(_ step: GetStartedStep) -> some View {
     switch step {
     case .welcome: WelcomeStep()
     case .accessibility: AccessibilityStep()
@@ -55,27 +39,22 @@ struct OnboardingView: View {
     }
   }
 
-  private var footer: some View {
-    // Equal flexible sides keep the progress dots centered whatever the button titles are.
+  private func footer(_ step: GetStartedStep) -> some View {
+    // Equal flexible sides keep the progress dots centered whatever the button titles are. (A stack, not
+    // a Group: an empty Group takes no space, which pushed the dots to the left on the first step.)
     HStack(spacing: 12) {
-      Group {
+      HStack {
         if step != .welcome && step != .done {
           Button("Back") { go(-1) }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .keyboardShortcut(.cancelAction)
-        } else if step == .done, let openSettings {
-          Button("Open Settings") {
-            openSettings()
-            onFinish()
-          }
-          .buttonStyle(.softLarge)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       ProgressDots(step: step)
-      Button(primaryTitle) {
-        if step == .done { onFinish() } else { go(1) }
+      Button(primaryTitle(step)) {
+        if step == .done { model.finishGetStarted() } else { go(1) }
       }
       .buttonStyle(.gradientLarge)
       .keyboardShortcut(.defaultAction)
@@ -85,9 +64,9 @@ struct OnboardingView: View {
     .padding(.vertical, 20)
   }
 
-  private var primaryTitle: String {
+  private func primaryTitle(_ step: GetStartedStep) -> String {
     switch step {
-    case .welcome: return "Get Started"
+    case .welcome: return "Set Up Slated"
     case .accessibility: return model.runtimeStatus.accessibilityGranted ? "Continue" : "Skip for Now"
     case .hyperKey, .slateConfig: return "Continue"
     case .done: return "Start Using Slated"
@@ -95,18 +74,18 @@ struct OnboardingView: View {
   }
 
   private func go(_ delta: Int) {
-    guard let next = OnboardingStep(rawValue: step.rawValue + delta) else { return }
+    guard let next = GetStartedStep(rawValue: model.getStartedStep.rawValue + delta) else { return }
     forward = delta > 0
-    withAnimation(Theme.spring) { step = next }
+    withAnimation(Theme.spring) { model.getStartedStep = next }
   }
 }
 
 private struct ProgressDots: View {
-  let step: OnboardingStep
+  let step: GetStartedStep
 
   var body: some View {
     HStack(spacing: 6) {
-      ForEach(OnboardingStep.allCases, id: \.self) { item in
+      ForEach(GetStartedStep.allCases, id: \.self) { item in
         Capsule()
           .fill(
             item == step
@@ -118,12 +97,12 @@ private struct ProgressDots: View {
     }
     .animation(Theme.spring, value: step)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("Step \(step.rawValue + 1) of \(OnboardingStep.allCases.count)")
+    .accessibilityLabel("Step \(step.rawValue + 1) of \(GetStartedStep.allCases.count)")
   }
 }
 
-/// Soft accent light behind the onboarding content.
-private struct OnboardingBackdrop: View {
+/// Soft accent light behind the Get Started content.
+private struct GetStartedBackdrop: View {
   var body: some View {
     ZStack {
       Theme.paneBackground

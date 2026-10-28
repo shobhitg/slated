@@ -24,7 +24,7 @@ Primary user: the author, daily, for a few months before a public release. Open 
 | Topic | Decision | Why |
 |---|---|---|
 | License | MIT | Author's choice. |
-| Shape | One menu-bar agent app, `Slated.app` (`LSUIElement`), AppKit shell + SwiftUI windows | Accessibility permission is granted per signed app bundle. |
+| Shape | One regular app, `Slated.app`: always in the Dock, one main window (Get Started during setup, then the panes) that a menu bar icon also opens; AppKit shell + SwiftUI. Closing the window keeps it running | Accessibility permission is granted per signed app bundle. A menu-bar-only agent with separate windows confused the author (2026-10-27). |
 | Build | SwiftPM + `Makefile`; `scripts/bundle.sh` assembles and signs the `.app`. No Xcode project | Machine has only the Command Line Tools; plain-text project files. |
 | Platform | macOS 14+, Swift 6 language mode, Apple Silicon first (universal for releases) | |
 | Native config | JSON at `~/.config/slated/config.json` (`SlatedConfiguration`), read with JSON5 allowed | The UI must write it; Codable round-trips with zero dependencies. |
@@ -38,6 +38,7 @@ Primary user: the author, daily, for a few months before a public release. Open 
 | Defaults | First run: an existing Slate config is the default (loaded as-is); otherwise `SlatedConfiguration.starter`, the author's `~/.slate.js` in native form (a test checks they match) | The author asked for their Slate config to be the default; JavaScript isn't required. |
 | Linux | A GNOME Shell extension (GNOME 46–51, Wayland; 50–51 untested) in `linux/`: JavaScript port of the engine in `lib/core/` pinned to Swift by golden vectors (`fixtures/`, `make fixtures`), platform layer in `lib/platform/`, libadwaita prefs; hotstrings via espanso, Hyper via keyd (recommended, the author's choice) with xkb `caps:hyper` as the fallback | Wayland lets only the compositor manage windows, grab shortcuts or overlay UI. Same `config.json` on both platforms. |
 | Notch island | A borderless, non-activating panel at the top center of the active display (`Overlays/IslandPresenter`), drawn by `SlatedUI/Island`. Ordered out when idle; never takes focus; takes clicks only while the pointer is over running automations | Uses the notch's dead space with public API only; must never get in the way of the app you're in. |
+| UI parity | The Mac and GNOME UIs mirror each other: the same main-window pages and first-run flow, the same minimal clipboard picker, and the island (at the top center on Linux). Platform differences only where the platform forces them | The author's plan (2026-10-27): one product on both systems. |
 | Scripting | JavaScript (JavaScriptCore) only for Slate compatibility; everyday config is JSON + the UI. `by-orientation` covers the one bit of logic the author's script had | Author doesn't need JS; JSC is built in if real scripting is ever wanted. |
 
 ## Architecture
@@ -50,9 +51,9 @@ Sources/
                  event tap, Hyper key, text injection, permissions.
   SlatedScript/  Slate's JavaScript API (`slate.*`, `S.*`) on JavaScriptCore, talking to the app
                  through a host protocol.
-  SlatedUI/      SwiftUI: settings window, onboarding, menu bar content. Talks to the app only through
+  SlatedUI/      SwiftUI: the main window (sidebar, panes, Get Started). Talks to the app only through
                  the `AppServices` protocol (AppServices.swift); `PreviewServices` provides sample data.
-  Slated/        The app: AppDelegate hosts the UI (status item + popover, settings window, onboarding);
+  Slated/        The app: AppDelegate hosts the UI (main window, menus, status item);
                  Engine wires config → triggers (hotkeys, hotstrings, Hyper) → actions; Overlays/
                  (grid, hints, clipboard switcher, notch island, HUD); Logging/.
   SlatedUISnapshots/  Renders the UI to PNGs with PreviewServices (`make snapshots`) for visual review.

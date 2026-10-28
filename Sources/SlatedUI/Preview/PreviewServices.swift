@@ -5,7 +5,7 @@ import SlatedCore
 ///
 /// It behaves like the real app where that's cheap: saving recomputes hotkey statuses (duplicates
 /// included), pausing and the switches update `RuntimeStatus`, and requesting Accessibility
-/// permission "grants" it after a moment so the onboarding flow can be clicked through.
+/// permission "grants" it after a moment so Get Started can be clicked through.
 @MainActor
 public final class PreviewServices: AppServices {
   public enum Scenario: Sendable {
@@ -23,12 +23,15 @@ public final class PreviewServices: AppServices {
   public private(set) var configuration: SlatedConfiguration
   public private(set) var status: RuntimeStatus
   public private(set) var hotkeysSuspended = false
+  /// Not yet on a first run.
+  public var setupFinished: Bool
   private var sources: [SlateSource]
   private let scenario: Scenario
   private var handlers: [@MainActor () -> Void] = []
 
   public init(scenario: Scenario = .configured) {
     self.scenario = scenario
+    setupFinished = scenario != .firstRun
     let slateJS = NSHomeDirectory() + "/.slate.js"
     let classic = NSHomeDirectory() + "/.slate"
     switch scenario {
@@ -102,9 +105,16 @@ public final class PreviewServices: AppServices {
   public func requestAccessibilityPermission() {
     Task { [weak self] in
       try? await Task.sleep(for: .seconds(1.5))
-      self?.status.accessibilityGranted = true
-      self?.notify()
+      self?.setAccessibilityGranted(true)
     }
+  }
+
+  /// Turns Accessibility permission on or off, as the app reports it when the user flips the switch
+  /// in System Settings.
+  public func setAccessibilityGranted(_ granted: Bool) {
+    status.accessibilityGranted = granted
+    recomputeStatus()
+    notify()
   }
 
   public func openAccessibilitySettings() {}

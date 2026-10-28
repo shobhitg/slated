@@ -1,7 +1,7 @@
 import SlatedCore
 import SwiftUI
 
-/// A read-only binding from a Slate file, with "Copy into Slated" when its action is static.
+/// A read-only binding from a Slate file, with "Copy into Slated" when Slated can tell what it does.
 struct SourceBindingDetail: View {
   let source: SlateSource
   let binding: SourceBinding
@@ -68,7 +68,7 @@ struct SourceBindingDetail: View {
           .background(Theme.well, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
       }
       VStack(alignment: .leading, spacing: 4) {
-        Text(binding.action.map(ActionDescriber.title) ?? "JavaScript Function")
+        Text(binding.title)
           .font(.system(size: 19, weight: .bold))
           .tracking(-0.2)
         HStack(spacing: 8) {
@@ -83,6 +83,13 @@ struct SourceBindingDetail: View {
   }
 
   @ViewBuilder private var copyCard: some View {
+    if binding.function == .described {
+      Notice(
+        style: .info, title: "Runs a function in \(source.displayName)",
+        message:
+          "Slated tried the function on a few test setups to show what it does; the shortcut still runs your JavaScript. Edit it in \(source.displayName), and Slated reloads the file when it changes.",
+        symbol: "curlybraces")
+    }
     if binding.action != nil {
       HStack(alignment: .center, spacing: 14) {
         IconTile(symbol: "square.and.arrow.down.on.square", tint: SettingsPane.slate.tint, size: 32)
@@ -105,10 +112,11 @@ struct SourceBindingDetail: View {
       }
       .cardStyle()
     } else {
+      let why = binding.undescribedReason.map { " (\($0))" } ?? ""
       Notice(
         style: .info, title: "This shortcut runs JavaScript",
         message:
-          "Slated can't show or copy what a function does. Edit it in \(source.displayName); Slated reloads the file when it changes.",
+          "Slated can't show or copy what this function does\(why). Edit it in \(source.displayName); Slated reloads the file when it changes.",
         symbol: "curlybraces")
     }
   }

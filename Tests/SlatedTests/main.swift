@@ -21,6 +21,7 @@ let suites: [Suite] = [
   starterTests,
   starterSlateJSTests,
   importerTests,
+  slateDescriptionTests,
   expressionTests,
   slateSyntaxTests,
   slateConfigParserTests,
@@ -46,6 +47,7 @@ let suites: [Suite] = [
   logRedactionTests,
   macOSContractTests,
   uiHostingContractTests,
+  uiGetStartedTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first

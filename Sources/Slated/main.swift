@@ -25,6 +25,14 @@ if CommandLine.arguments.contains("--smoke") {
     for source in engine.sources.sources {
       print("source:", source.path, source.loaded ? "loaded" : "not loaded", "\(source.bindings.count) bindings")
       for d in source.diagnostics { print("  ", d) }
+      // As Settings lists them: what each shortcut does, even when it runs a function.
+      for binding in source.bindings {
+        switch binding.function {
+        case nil: print("  ", "\(binding.id): \(binding.title)")
+        case .described: print("  ", "\(binding.id): \(binding.title) (a function)")
+        case .undescribed(let reason): print("  ", "\(binding.id): \(binding.title) (\(reason ?? "unknown"))")
+        }
+      }
     }
     print("hotkeys:", status.hotkeys.count, "registered,", status.hotkeys.values.filter { $0 == .active }.count, "active")
     for (key, value) in status.hotkeys.sorted(by: { $0.key < $1.key }) where value != .active {
@@ -52,7 +60,7 @@ if CommandLine.arguments.contains("--smoke") {
   app.run()
 }
 
+// A regular app (Dock icon, menus, Cmd-Tab) with one main window; see AppDelegate.
 let delegate = AppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.accessory)
 app.run()

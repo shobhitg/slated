@@ -96,10 +96,12 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 ## Settings UI: decisions and open items
 
 - **Hotstrings on/off switch** is saved in `config.json` as `general.hotstringsEnabled`, so it
-  survives restarts and can be set by hand. **Pause Slated** (menu bar) lasts only until you resume
+  survives restarts and can be set by hand. **Pause Slated** (Slated menu, menu bar icon) lasts only until you resume
   or relaunch.
-- **Menu bar:** left click opens the status panel; right click opens a classic menu with power-user
-  items (Import Slate Config, Open Config File, Show Log).
+- **One main window (2026-10-27, the author's call):** Slated is a regular app, always in the Dock.
+  Setup is Get Started, a page of the main window; closing the window keeps Slated running.
+- **Menu bar icon:** left click opens the main window; right click opens a small classic menu
+  (Pause, Reload, Import Slate Config, Open Config File, Show Log, Quit).
 - **Not built yet:**
   - an editor for Slate's display-change defaults (`default` / `ScreenDefault`);
   - reordering layouts by drag;
@@ -222,8 +224,8 @@ such as "ﬃ"), and keyd started by hand (not through systemd) isn't noticed on 
   The hint in the picker says "⌘1–9 · esc".
 - **The pointer selects the row under it** (one highlight, like a menu), except while it rests where
   it was when a key moved the selection, so the list scrolling under it doesn't steal it.
-- **Opened from Settings or the menu bar, the picker opens at the pointer:** the caret of the app you
-  were in is behind Slated's windows. It still pastes into that app.
+- **Opened from Slated's window, the picker opens at the pointer:** the caret of the app you
+  were in is behind that window. It still pastes into that app.
 - **A copy with text and an image counts as text** (spreadsheet cells, Finder files carry a picture of
   themselves). Images over 20 MB aren't kept (an uncompressed TIFF of a 5K screen is about 60 MB;
   as PNG, a few MB).

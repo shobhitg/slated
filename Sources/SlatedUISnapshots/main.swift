@@ -1,6 +1,6 @@
 // Renders Slated's UI with sample data (`PreviewServices`) to PNGs, in light and dark appearance:
-// every settings pane plus empty, first-run and error states, every onboarding step, the menu bar
-// popover and a component gallery. Also writes contact sheets of each run.
+// every pane of the main window plus empty, first-run and error states, every Get Started step, the
+// clipboard switcher, the notch island and a component gallery. Also writes contact sheets of each run.
 //
 //   swift run SlatedUISnapshots <output-dir> [name-filter] [--scale 1|2]
 //   swift run SlatedUISnapshots --probe [output-dir]     # what can cacheDisplay capture here?
@@ -59,13 +59,13 @@ func settings(
   configure: @escaping @MainActor (AppModel) -> Void = { _ in },
   services prepare: @escaping @MainActor (PreviewServices) -> Void = { _ in }
 ) -> Shot {
-  Shot(name: name, size: SlatedUI.settingsWindowSize) {
+  Shot(name: name, size: SlatedUI.mainWindowSize) {
     let services = PreviewServices(scenario: scenario)
     prepare(services)
     let model = AppModel(services: services)
     model.selectedPane = pane
     configure(model)
-    return AnyView(SlatedUI.makeSettingsView(model: model, layout: .flat))
+    return AnyView(SlatedUI.makeMainView(model: model))
   }
 }
 
@@ -82,10 +82,11 @@ func selectBinding(named name: String) -> @MainActor (AppModel) -> Void {
   }
 }
 
-func selectSourceBinding(summary: String) -> @MainActor (AppModel) -> Void {
+/// Selects the first Slate binding whose summary ("throw 1 resize") or title ("Middle Third") is `text`.
+func selectSourceBinding(_ text: String) -> @MainActor (AppModel) -> Void {
   { model in
     for source in model.sources {
-      if let binding = source.bindings.first(where: { $0.summary == summary }) {
+      if let binding = source.bindings.first(where: { $0.summary == text || $0.title == text }) {
         model.selectedBinding = .source(path: source.path, id: binding.id)
         return
       }
@@ -99,9 +100,10 @@ var shots: [Shot] = [
   settings("settings-windows-chain", pane: .windows, configure: selectBinding(named: "Cycle Left")),
   settings("settings-windows-failed", pane: .windows, configure: selectBinding(named: "Window Hints")),
   settings("settings-windows-duplicate", pane: .windows, configure: selectBinding(named: "Almost Maximize")),
-  settings("settings-windows-source", pane: .windows, configure: selectSourceBinding(summary: "throw 1 resize")),
-  settings(
-    "settings-windows-javascript", pane: .windows, configure: selectSourceBinding(summary: "JavaScript function")),
+  settings("settings-windows-source", pane: .windows, configure: selectSourceBinding("throw 1 resize")),
+  // A function Slated could describe by trying it, and one it couldn't.
+  settings("settings-windows-function", pane: .windows, configure: selectSourceBinding("Middle Third")),
+  settings("settings-windows-javascript", pane: .windows, configure: selectSourceBinding("JavaScript Function")),
   settings("settings-windows-new", pane: .windows) { model in model.newBinding() },
   settings("settings-hotstrings", pane: .hotstrings) { model in
     model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
@@ -143,25 +145,11 @@ var shots: [Shot] = [
   settings("state-broken-config", scenario: .brokenConfig, pane: .overview),
 ]
 
-for step in OnboardingStep.allCases {
+// Get Started, on a first run: each step, in the main window.
+for step in GetStartedStep.allCases {
   shots.append(
-    Shot(name: "onboarding-\(step.rawValue + 1)-\(step)", size: SlatedUI.onboardingWindowSize) {
-      let model = AppModel(services: PreviewServices(scenario: .firstRun))
-      return AnyView(SlatedUI.makeOnboardingView(model: model, step: step))
-    })
-}
-
-for (name, scenario, paused, automations) in [
-  ("menubar", PreviewServices.Scenario.configured, false, false), ("menubar-firstrun", .firstRun, false, false),
-  ("menubar-paused", .configured, true, false), ("menubar-automation", .configured, false, true),
-] {
-  shots.append(
-    Shot(name: name, size: CGSize(width: SlatedUI.menuBarWidth, height: 0)) {
-      let services = PreviewServices(scenario: scenario)
-      if paused { services.setPaused(true) }
-      if automations { running(services) }
-      let model = AppModel(services: services)
-      return AnyView(SlatedUI.makeMenuBarView(model: model, actions: MenuBarActions(openSettings: {}, quit: {})))
+    settings("getstarted-\(step.rawValue + 1)-\(step)", scenario: .firstRun, pane: .getStarted) { model in
+      model.getStartedStep = step
     })
 }
 
@@ -222,7 +210,7 @@ var rendered: [Bool: [(name: String, image: NSBitmapImageRep)]] = [false: [], tr
 var blank: [String] = []
 for shot in shots where filter.map({ shot.name.contains($0) }) ?? true {
   var size = shot.size
-  if size == SlatedUI.settingsWindowSize, let tallHeight { size.height = tallHeight }
+  if size == SlatedUI.mainWindowSize, let tallHeight { size.height = tallHeight }
   for dark in [false, true] {
     let name = "\(shot.name)-\(dark ? "dark" : "light")"
     let image = Renderer.render(shot.make(), size: size, dark: dark, options: Renderer.Options(scale: scale))

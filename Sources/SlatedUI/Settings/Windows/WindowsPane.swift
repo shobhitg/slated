@@ -127,7 +127,7 @@ private struct BindingList: View {
       ScrollViewReader { proxy in
         list
           .onChange(of: model.selectedBinding, initial: true) { _, selection in
-            // Bring programmatic selections (new, copied, opened from the menu bar) into view.
+            // Bring programmatic selections (new, copied, opened from Overview) into view.
             if let selection { proxy.scrollTo(selection) }
           }
       }
@@ -237,7 +237,7 @@ private struct BindingList: View {
 
   private func filtered(_ source: SlateSource) -> [SourceBinding] {
     guard !query.isEmpty else { return source.bindings }
-    return source.bindings.filter { matches([$0.summary, $0.keys.display(), $0.keys.string]) }
+    return source.bindings.filter { matches([$0.title, $0.summary, $0.keys.display(), $0.keys.string]) }
   }
 
   private func matches(_ fields: [String]) -> Bool {
@@ -366,7 +366,7 @@ private struct SourceBindingRow: View {
           .background(Theme.well, in: RoundedRectangle(cornerRadius: 3.5, style: .continuous))
       }
       VStack(alignment: .leading, spacing: 2) {
-        Text(binding.action.map(ActionDescriber.title) ?? "JavaScript Function")
+        Text(binding.title)
           .font(.system(size: 13, weight: .medium))
           .lineLimit(1)
         HStack(spacing: 4) {
@@ -374,7 +374,7 @@ private struct SourceBindingRow: View {
             Image(systemName: badge.symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(badge.color)
             Text(badge.text).foregroundStyle(badge.color)
           } else {
-            Text(binding.action == nil ? "Runs code in your Slate file" : binding.summary).foregroundStyle(.secondary)
+            Text(binding.caption).foregroundStyle(.secondary)
           }
         }
         .font(.system(size: 11))
@@ -436,7 +436,7 @@ extension BindingState {
     case .imported:
       return "Imported into Slated's own shortcuts, where you can change it. "
         + "Slated ignores this copy in your Slate file."
-    case .paused: return "Slated is paused from the menu bar."
+    case .paused: return "Slated is paused."
     default: return nil
     }
   }

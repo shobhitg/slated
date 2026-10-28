@@ -96,7 +96,7 @@ private struct HeroCard: View {
       return
         "Slated can't read your configuration file, so it keeps running what it last loaded. Settings are read-only until the file is fixed."
     }
-    if status.paused { return "Shortcuts, the Hyper key and hotstrings are off until you resume from the menu bar." }
+    if status.paused { return "Shortcuts, the Hyper key and hotstrings are off until you resume them." }
     if !status.accessibilityGranted {
       return
         "Slated needs Accessibility access to move windows and type hotstrings. Your shortcuts are ready the moment you allow it."
@@ -206,7 +206,7 @@ private struct StatusGrid: View {
   private var clipboardDetail: String {
     let clipboard = model.configuration.clipboard
     guard clipboard.enabled else { return "Copies aren't remembered" }
-    guard let shortcut = clipboard.shortcut else { return "Open it from the menu bar" }
+    guard let shortcut = clipboard.shortcut else { return "No shortcut: open it from here" }
     return "\(shortcut.display()) to search and paste"
   }
 
@@ -451,7 +451,16 @@ private struct NextSteps: View {
     let steps = self.steps
     if !steps.isEmpty {
       VStack(alignment: .leading, spacing: 10) {
-        SectionHeader("What's Next", symbol: "arrow.forward.circle")
+        SectionHeader(title: "What's Next", symbol: "arrow.forward.circle") {
+          // Get Started leaves the sidebar once setup is done; it's still here.
+          Button {
+            model.showGetStarted()
+          } label: {
+            Label("Get Started", systemImage: SettingsPane.getStarted.symbol)
+          }
+          .buttonStyle(.link)
+          .font(.system(size: 12))
+        }
         HStack(alignment: .top, spacing: 12) {
           ForEach(steps, id: \.title) { step in
             Button(action: step.run) {

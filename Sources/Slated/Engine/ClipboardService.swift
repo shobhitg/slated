@@ -31,8 +31,10 @@ final class ClipboardService {
   private var previousApp: NSRunningApplication?
   private var forgetPreviousApp: DispatchWorkItem?
   /// The last app in front that wasn't Slated: the target when the switcher opens from Slated's own
-  /// windows (Settings, the menu bar panel).
+  /// window.
   private var lastExternalApp: NSRunningApplication?
+  /// Slated was the app in front when the switcher opened (from its main window).
+  private var openedFromSlated = false
   private var activationObserver: NSObjectProtocol?
   private let fileURL = URL(fileURLWithPath: SlatedPaths.home)
     .appendingPathComponent("Library/Application Support/Slated/clipboard.json")
@@ -176,11 +178,12 @@ final class ClipboardService {
     // Closed and reopened within half a second: that close mustn't forget this target.
     forgetPreviousApp?.cancel()
     let front = NSWorkspace.shared.frontmostApplication
-    let fromSlated = front?.bundleIdentifier == Bundle.main.bundleIdentifier
-    previousApp = fromSlated ? lastExternalApp : front
+    openedFromSlated = front?.bundleIdentifier == Bundle.main.bundleIdentifier
+    previousApp = openedFromSlated ? lastExternalApp : front
     // Where you're typing: the caret, else the focused field, else the pointer. Opened from Slated's
-    // own windows (Settings, the menu bar panel), the pointer: the app you were in is behind them.
-    let typing = fromSlated ? nil : front.flatMap { Accessibility.typingLocation(pid: $0.processIdentifier) }
+    // own window, the pointer: the app you were in is behind it.
+    let typing =
+      openedFromSlated ? nil : front.flatMap { Accessibility.typingLocation(pid: $0.processIdentifier) }
     Log.record(
       "clipboard.switcher_opened",
       [
@@ -246,16 +249,17 @@ final class ClipboardService {
     return FileManager.default.fileExists(atPath: url.path) ? url : nil
   }
 
-  /// The switcher closed. A paste or copy it triggered runs right after, so forget the target a
-  /// moment later rather than immediately.
-  func switcherClosed() {
+  /// The switcher closed; `intoSlatedWindow` when a click into Slated's own window closed it. A paste
+  /// or copy it triggered runs right after, so forget the target a moment later rather than
+  /// immediately.
+  func switcherClosed(intoSlatedWindow: Bool) {
     forgetPreviousApp?.cancel()
     // Closed without a pick (Esc): give the keyboard back to the app you were in, as the hints and
     // grid overlays do; the switcher made Slated the active app. A pick has taken `previousApp` by
-    // now. Clicking into another app, or into a Slated window (Settings makes Slated a regular app),
-    // leaves you there.
+    // now. Opened from Slated's window, or closed by clicking into it or into another app: stay there.
+    let returnToApp = !openedFromSlated && !intoSlatedWindow
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-      guard let app = self?.previousApp, NSApp.isActive, NSApp.activationPolicy() == .accessory else { return }
+      guard returnToApp, let app = self?.previousApp, NSApp.isActive else { return }
       Log.record("clipboard.switcher_dismissed", ["returnedTo": app.bundleIdentifier ?? "unknown"])
       app.activate()
     }

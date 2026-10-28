@@ -27,7 +27,7 @@ final class Engine {
   private(set) var warnings: [String] = []
   private var changeHandlers: [() -> Void] = []
   private var permissionTimer: Timer?
-  /// "Pause Slated" from the menu bar.
+  /// "Pause Slated" from the menus.
   private var pausedByUser = false
   /// While the settings window records a shortcut or the hotstring "try it" field has focus.
   private var suspendedForRecording = false
@@ -478,9 +478,7 @@ final class Engine {
       // Imported shortcuts are already listed as Slated's own (see apply).
       let imported = Set(config.general.importedSlateShortcuts)
       for source in sources.sources where source.loaded {
-        result += source.bindings.filter { !imported.contains($0.id) }.map {
-          CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, action: $0.action, summary: $0.summary)
-        }
+        result += source.bindings.filter { !imported.contains($0.id) }.map(CheatSheet.Shortcut.init)
       }
     }
     if config.clipboard.enabled, let keys = config.clipboard.shortcut {

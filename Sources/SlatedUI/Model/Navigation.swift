@@ -1,7 +1,9 @@
 import Foundation
 
-/// The panes of the settings window.
+/// The panes of the main window.
 public enum SettingsPane: String, CaseIterable, Identifiable, Hashable, Sendable {
+  /// First-run setup (`GetStartedStep`). In the sidebar while setup isn't finished, and while open.
+  case getStarted
   case overview
   case windows
   case hotstrings
@@ -17,6 +19,7 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Hashable, Sendable
 
   public var title: String {
     switch self {
+    case .getStarted: return "Get Started"
     case .overview: return "Overview"
     case .windows: return "Windows"
     case .hotstrings: return "Hotstrings"
@@ -29,6 +32,11 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Hashable, Sendable
     case .about: return "About"
     }
   }
+}
+
+/// The steps of Get Started, in order.
+public enum GetStartedStep: Int, CaseIterable, Sendable {
+  case welcome, accessibility, hyperKey, slateConfig, done
 }
 
 /// Which binding is selected in Settings → Windows.
@@ -47,7 +55,7 @@ public enum LayoutSelection: Hashable, Sendable {
   case source(path: String, name: String)
 }
 
-/// A short confirmation shown at the bottom of the settings window.
+/// A short confirmation shown at the bottom of the main window.
 struct Toast: Identifiable, Equatable {
   enum Style { case success, info, failure }
 

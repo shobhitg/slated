@@ -30,7 +30,7 @@ class LiveServices: AppServices {
 
   func runningApplications() -> [AppInfo] {
     NSWorkspace.shared.runningApplications
-      .filter { $0.activationPolicy == .regular }
+      .filter { $0.activationPolicy == .regular && $0 != NSRunningApplication.current }
       .map { AppInfo(name: $0.localizedName ?? "Unknown", bundleID: $0.bundleIdentifier, path: $0.bundleURL?.path) }
       .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
   }
@@ -75,6 +75,17 @@ class LiveServices: AppServices {
   }
 
   func setLaunchAtLogin(_ enabled: Bool) throws { try engine.setLaunchAtLogin(enabled) }
+
+  /// Under the key the old onboarding window used, so a Mac that finished it isn't asked again.
+  static let setupFinishedKey = "onboardingCompleted"
+
+  var setupFinished: Bool {
+    get { UserDefaults.standard.bool(forKey: Self.setupFinishedKey) }
+    set {
+      UserDefaults.standard.set(newValue, forKey: Self.setupFinishedKey)
+      if newValue { Log.record("ui.get_started_finished", ["accessibility": Permissions.isAccessibilityTrusted]) }
+    }
+  }
 
   func onChange(_ handler: @escaping @MainActor () -> Void) { engine.onChange(handler) }
 
