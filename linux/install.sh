@@ -352,7 +352,7 @@ keyd_older_than() {
   [ -n "$have" ] || return 1
   IFS=. read -r major minor patch <<<"$have"
   IFS=. read -r want_major want_minor want_patch <<<"$1"
-  [ $((major * 1000000 + minor * 1000 + patch)) -lt $((want_major * 1000000 + want_minor * 1000 + want_patch)) ]
+  [ $((10#$major * 1000000 + 10#$minor * 1000 + 10#$patch)) -lt $((10#$want_major * 1000000 + 10#$want_minor * 1000 + 10#$want_patch)) ]
 }
 # Caps Lock as Hyper is wanted, or will be: a first run without a Slate config starts with it on.
 config_wants_hyper() {
