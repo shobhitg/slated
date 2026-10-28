@@ -260,7 +260,7 @@ The GNOME version reads and keeps these settings but doesn't show an island yet.
 ```jsonc
 "clipboard": {
   "enabled": true,
-  "shortcut": "cmd+shift+v",      // opens the switcher; null turns it off
+  "shortcut": "cmd+shift+v",      // opens the picker; null turns it off
   "maxItems": 200,
   "persist": true,                // kept across restarts, readable only by you
   "retentionDays": 30,            // pinned items are kept regardless
@@ -270,14 +270,27 @@ The GNOME version reads and keeps these settings but doesn't show an island yet.
 }
 ```
 
-In the switcher:
-- ↑↓ select an item and ↩ pastes it into the app you were using.
-- ⌘1–9 picks an item directly.
-- ⌘C copies without pasting, ⌘P pins, ⌘⌫ deletes, and esc closes.
+The picker opens just below the text caret of the app you're typing in (above it near the bottom
+of the screen). When the app doesn't say where its caret is, it opens below the focused field, and
+failing that at the mouse pointer; opened from the menu bar or Settings, at the pointer.
+- Type to filter; ↑↓ (or the pointer) select an item and ↩ or a click pastes it into the app you
+  were using (with `pasteAfterSelecting` off, it's only copied).
+- ⌘1–9 picks one of the first nine directly, and esc closes.
+- Pinned items come first. Pin, copy, delete, search and browse everything in Settings → Clipboard.
 
-**On Linux (GNOME)** the switcher uses Ctrl where the Mac uses ⌘ (Ctrl+1–9, Ctrl+C, Ctrl+P,
-Ctrl+Backspace), and Ctrl+Shift+Backspace clears everything but pinned items. Picking an item pastes
-with Ctrl+V, or Ctrl+Shift+V in terminals.
+Copied images (PNG or TIFF without text: screenshots, Copy Image in a browser, Preview) are kept
+too, up to 20 MB each, as files readable only by you in
+`~/Library/Application Support/Slated/clipboard-images/`. A row shows a thumbnail; selecting it
+shows the image larger beside the picker. Searching matches text only. Deleting, clearing or
+expiring an image deletes its file, and with `persist` off they're deleted at quit. In clipboard.json
+an image is an item with empty `text` and an `image` object (`file`, `width`, `height`, `bytes`).
+
+**On the Mac** the old switcher's ⌘C, ⌘P and ⌘⌫ are gone: copy, pin and delete in Settings.
+
+**On Linux (GNOME)** the history opens in a switcher (↑↓, ↩, esc, and Ctrl+1–9, Ctrl+C copy,
+Ctrl+P pin, Ctrl+Backspace delete), and Ctrl+Shift+Backspace clears everything but pinned items.
+Picking an item pastes with Ctrl+V, or Ctrl+Shift+V in terminals. It records and lists text only;
+image items in a clipboard.json from the Mac are kept, not shown.
 - The default shortcut `cmd+shift+v` is Super+Shift+V.
 - History is kept in `~/.local/state/slated/clipboard.json`, readable only by you, in the same format
   as on the Mac.
@@ -287,8 +300,8 @@ with Ctrl+V, or Ctrl+Shift+V in terminals.
   upper- and lowercase letters plus a digit or symbol. On the Mac, Chrome and Firefox mark them.
 - `excludedApps` takes GNOME app ids, such as `org.keepassxc.KeePassXC` or `com.bitwarden.desktop`.
 - Only text is kept, not images or files.
-- Slated's Settings → Clipboard edits all of these and shows how many items are saved; the items
-  themselves are in the switcher.
+- Slated's Settings → Clipboard edits all of these and shows how many items are saved; on GNOME
+  the items themselves are in the switcher.
 
 ## Hotstrings
 

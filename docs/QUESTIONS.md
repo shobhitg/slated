@@ -215,3 +215,17 @@ Made while fixing what the review found; each is easy to change if you disagree.
 
 Known small gaps left open: rare clipboard-search differences between the Mac and GNOME (ligatures
 such as "ﬃ"), and keyd started by hand (not through systemd) isn't noticed on GNOME.
+
+## Clipboard picker and images (2026-10-27): decisions
+
+- **⌘1–9 pick, not bare 1–9:** the filter takes typing at once, so digits filter (dates, prices).
+  The hint in the picker says "⌘1–9 · esc".
+- **The pointer selects the row under it** (one highlight, like a menu), except while it rests where
+  it was when a key moved the selection, so the list scrolling under it doesn't steal it.
+- **Opened from Settings or the menu bar, the picker opens at the pointer:** the caret of the app you
+  were in is behind Slated's windows. It still pastes into that app.
+- **A copy with text and an image counts as text** (spreadsheet cells, Finder files carry a picture of
+  themselves). Images over 20 MB aren't kept (an uncompressed TIFF of a 5K screen is about 60 MB;
+  as PNG, a few MB).
+- **The picker still makes Slated the active app while it's open** (as the switcher did), so the
+  app you're in shows as inactive for that moment; pasting brings it back first.

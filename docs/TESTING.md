@@ -4,7 +4,7 @@
 
 | Layer | Where | Run | What it covers |
 |---|---|---|---|
-| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, repeat timing), the settings app's view models (validation, editors, layouts, clipboard switcher, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction). |
+| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, repeat timing), the settings app's view models (validation, editors, layouts, clipboard picker and its placement, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction). |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
@@ -67,7 +67,7 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `operations.json` | Every operation form and error (automation and clipboard history included); canonical Action JSON; `format`; Action decoding. |
    | `keys.json` | Key combos (parse, canonical string, display), key names (modifier keys, mouse buttons 3–5), Slate keystrokes. |
    | `automation.json` | `press`/`hold` inputs, `RepeatSchedule` timing with fixed random values, `Action.isAutomation`. |
-   | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear), Foundation's case- and diacritic-insensitive search, and the clipboard.json the Mac app writes. |
+   | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear, images), Foundation's case- and diacritic-insensitive search, and the clipboard.json the Mac app writes (image items too). |
    | `screens.json` | Screen setups, screen references and their resolution, ordering. |
    | `frames.json` | `targetFrame` for every geometry operation × setup × window × settings, and `targetOrigin`. |
    | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
@@ -208,16 +208,37 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 **Clipboard history**
 - [ ] Copying text in a few apps adds it to Settings → Clipboard, newest first. Copying a password
       from 1Password, Bitwarden or Keychain Access doesn't.
-- [ ] ⇧⌘V opens the switcher over the app you're in. ↩ pastes the selected item into that app; ⌘1–9,
-      search, ⌘P pin and ⌘⌫ delete work.
-- [ ] Opening the switcher from the menu bar panel or Settings still pastes into the last app you used,
+- [ ] ⇧⌘V opens the small picker just below the text caret, its left edge at the caret, in:
+      TextEdit, Safari (a text field on a page, and the address bar), VS Code (an editor), Terminal
+      (at the prompt). `clipboard.switcher_opened` in the log says `"anchor":"caret"`; an app that
+      reports no caret says `"element"` (below the focused field) or `"pointer"`.
+- [ ] Near the bottom of the screen it opens above the caret; near the right edge it moves left; it
+      never covers the menu bar or the Dock. With two displays it opens on the caret's display.
+- [ ] Where no text is focused (Finder with no rename, the desktop) it opens at the mouse pointer;
+      from the menu bar panel or Settings → Open Picker, at the pointer too.
+- [ ] Typing filters at once; ↑↓, ↩ pastes the selected item into the app you were in, a click pastes
+      the row, ⌘1–9 pastes that row, esc closes and typing goes straight back to the app. Pinned
+      items are at the top with a pin.
+- [ ] Moving the mouse over a row selects it; scrolling with the arrow keys under a mouse that isn't
+      moving keeps the selection where the keys put it.
+- [ ] Opening the picker from the menu bar panel or Settings still pastes into the last app you used,
       not into Slated.
 - [ ] ⇧⌘V, Esc, ⇧⌘V again right away, then pick an item a second later: it pastes into your app.
-- [ ] Esc closes the switcher and typing goes straight back to the app you were in, also when the
-      switcher was opened from the menu bar panel. Clicking another app's window instead leaves you in
+- [ ] Esc closes the picker and typing goes straight back to the app you were in, also when the
+      picker was opened from the menu bar panel. Clicking another app's window instead leaves you in
       that app; opened from Settings, Esc leaves you in Settings.
-- [ ] Quit the app you were in while the switcher is open, then pick an item: nothing is pasted
+- [ ] Quit the app you were in while the picker is open, then pick an item: nothing is pasted
       anywhere (`clipboard.paste_skipped` in the log), and the item is on the clipboard.
+- [ ] Images: take a screenshot to the clipboard (⌃⇧⌘4), Copy Image in Safari, and copy an image in
+      Preview. Each shows up once as "Image · width×height · app" with a thumbnail, also in
+      Settings → Clipboard. Copying cells in Numbers records their text, not a picture of them.
+- [ ] Selecting an image row (arrow keys or the mouse) shows it at about 240 pt beside the picker, on
+      screen even when the picker is at the right edge; it never takes the keyboard or clicks, and
+      goes away on a text row or when the picker closes. Picking it pastes the image into TextEdit
+      (rich text), Notes, Keynote or Slack.
+- [ ] `~/Library/Application Support/Slated/clipboard-images` is `drwx------` and its files
+      `-rw-------`. Deleting an image in Settings (or Clear History) removes its file. The log's
+      `clipboard.captured` for an image has only `bytes`, `width` and `height`.
 - [ ] After a restart the history is still there (with "Keep across restarts" on).
       `~/Library/Application Support/Slated/clipboard.json` is readable only by you (`-rw-------`).
 

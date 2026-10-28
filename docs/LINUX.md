@@ -212,8 +212,8 @@ these to point everything at a throwaway home.
 | Mouse buttons 3–5 as shortcuts | ✓ | Not possible in GNOME. Map them to F13–F20 with keyd |
 | Shortcuts only in some apps (`onlyInApps`) | Bundle ids | Desktop ids or WM_CLASS. Grabbed only while the app has focus |
 | Automation safety: stop shortcut, stop on app switch, time limit, the "running" indicator | ✓ | ✓ The overview counts as leaving the app, and while it's open, shortcuts that would start an automation are ignored (stopping one still works). A macro waiting on a `wait` counts as running even when it holds nothing. Disabling, locking the screen, going to sleep (logind's PrepareForSleep) and config reloads release everything |
-| Clipboard history and its switcher | ✓ | ✓ Text only. Ctrl instead of ⌘ in the switcher |
-| Settings → Clipboard | Recent items with pin, copy and delete | Settings only, and how many items are saved. Pin, delete and clear in the switcher |
+| Clipboard history and its picker | ✓ Text and images, in a small picker at the text caret | ✓ Text only, in a switcher with Ctrl+1–9, Ctrl+C, Ctrl+P and Ctrl+Backspace. Image items in a clipboard.json from the Mac are kept (the core reads and writes them) but not shown |
+| Settings → Clipboard | Every item, searchable, with pin, copy and delete | Settings only, and how many items are saved. Pin, delete and clear in the switcher |
 | Settings → Automation | Running Now with Stop All | Lists what runs. Stop it with the stop shortcut |
 | Notch island (automation status, Hyper cheat sheet, feedback) | ✓ | Not yet. Its `island` settings are kept as they are |
 

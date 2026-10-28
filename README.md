@@ -17,8 +17,9 @@ other tools for:
   extension needed.
 - **Hotstrings** (from Keyboard Maestro): type `;shrug` and get `¯\_(ツ)_/¯`. Placeholders like
   `{date}` and `{clipboard}`, per-app filters, and a choice of typing or pasting.
-- **Clipboard history** (like Keyboard Maestro's): ⇧⌘V opens a searchable switcher; pin items,
-  paste into the app you were in. Passwords that apps mark as secret are skipped.
+- **Clipboard history** (like Keyboard Maestro's), text and images: ⇧⌘V opens a small picker right
+  at the text caret; type to filter, ↩ or ⌘1–9 pastes into the app you were in. Pin, delete and
+  browse in Settings. Passwords that apps mark as secret are skipped.
 - **Game automation** (like AutoHotkey, without a scripting language): auto-click, hold a mouse
   button or key, repeat while held or a set number of times, short macros with waits. A stop
   shortcut and automatic stops (switching apps, sleep, a time limit) make sure nothing stays held.
