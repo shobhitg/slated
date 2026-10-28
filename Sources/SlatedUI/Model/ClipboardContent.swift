@@ -170,19 +170,14 @@ enum ClipboardContent {
       lines: max(1, text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).count))
   }
 
-  /// "now", "5m", "2h", "3d", or a short date: compact ages for dense rows.
-  static func shortAge(of date: Date, now: Date) -> String {
-    let seconds = max(0, now.timeIntervalSince(date))
-    switch seconds {
-    case ..<60: return "now"
-    case ..<3_600: return "\(Int(seconds / 60))m"
-    case ..<86_400: return "\(Int(seconds / 3_600))h"
-    case ..<(7 * 86_400): return "\(Int(seconds / 86_400))d"
-    default:
-      let formatter = DateFormatter()
-      formatter.setLocalizedDateFormatFromTemplate("MMM d")
-      return formatter.string(from: date)
-    }
+  /// An image as a row reads: "Image · 1280×720 · Safari".
+  static func imageTitle(_ image: ClipboardImage, app: String?) -> String {
+    (["Image", "\(image.width)×\(image.height)"] + (app.map { [$0] } ?? [])).joined(separator: " · ")
+  }
+
+  /// Under a preview: "1280×720 · 245 KB".
+  static func imageDetails(_ image: ClipboardImage) -> String {
+    "\(image.width)×\(image.height) · \(Int64(image.bytes).formatted(.byteCount(style: .file)))"
   }
 
   /// Display names for the password managers Slated excludes by default, which may not be installed.
@@ -195,49 +190,6 @@ enum ClipboardContent {
     "com.lastpass.LastPass": "LastPass",
     "com.dashlane.dashlanephonefinal": "Dashlane",
   ]
-}
-
-/// The switcher's list groups: pinned items first, then by when they were copied.
-enum ClipboardSection: String, Hashable, CaseIterable {
-  case pinned, today, yesterday, thisWeek, earlier
-
-  var title: String {
-    switch self {
-    case .pinned: return "Pinned"
-    case .today: return "Today"
-    case .yesterday: return "Yesterday"
-    case .thisWeek: return "Previous 7 Days"
-    case .earlier: return "Earlier"
-    }
-  }
-
-  static func section(for item: ClipboardItem, now: Date, calendar: Calendar = .current) -> ClipboardSection {
-    if item.pinned { return .pinned }
-    if calendar.isDate(item.copiedAt, inSameDayAs: now) { return .today }
-    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
-      calendar.isDate(item.copiedAt, inSameDayAs: yesterday)
-    {
-      return .yesterday
-    }
-    if now.timeIntervalSince(item.copiedAt) < 7 * 86_400 { return .thisWeek }
-    return .earlier
-  }
-
-  /// Consecutive runs of `items` (already in display order) that share a section.
-  static func group(_ items: [ClipboardItem], now: Date, calendar: Calendar = .current) -> [(
-    section: ClipboardSection, items: [ClipboardItem]
-  )] {
-    var groups: [(section: ClipboardSection, items: [ClipboardItem])] = []
-    for item in items {
-      let section = section(for: item, now: now, calendar: calendar)
-      if groups.last?.section == section {
-        groups[groups.count - 1].items.append(item)
-      } else {
-        groups.append((section, [item]))
-      }
-    }
-    return groups
-  }
 }
 
 /// Choices for the clipboard settings pickers. A hand-edited value that isn't one of them is kept

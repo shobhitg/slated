@@ -129,6 +129,52 @@ let clipboardHistoryTests = Suite(
         expect(h.items.isEmpty)
       }
     ),
+    (
+      "images: deduped by file, never matched by a search, and listed in imageFiles until they go",
+      {
+        var h = ClipboardHistory()
+        let t = Date(timeIntervalSince1970: 0)
+        let shot = ClipboardImage(file: "aa.png", width: 1280, height: 720, bytes: 245_000)
+        expect(h.add(image: shot, from: "com.apple.Safari", at: t, limit: 3))
+        h.add("notes", at: t, limit: 3)
+        expect(!h.add(image: ClipboardImage(file: "", width: 1, height: 1, bytes: 1), at: t, limit: 3))
+        expect(!h.add(image: ClipboardImage(file: "zero.png", width: 0, height: 9, bytes: 1), at: t, limit: 3))
+        h.togglePin(id: try require(h.items.last).id)
+        h.add(image: shot, from: "com.apple.Preview", at: t.addingTimeInterval(5), limit: 3)
+        expectEqual(h.items.count, 2)
+        expectEqual(h.items[0].image, shot)
+        expect(h.items[0].pinned, "copied again keeps its pin")
+        expectEqual(h.items[0].sourceApp, "com.apple.Preview")
+        expectEqual(h.search("png").map(\.text), [])
+        expectEqual(h.search("").count, 2)
+        expectEqual(h.imageFiles, ["aa.png"])
+        h.add(image: ClipboardImage(file: "bb.tiff", width: 2, height: 2, bytes: 64), at: t, limit: 1)
+        expectEqual(h.items.map { $0.image?.file ?? $0.text }, ["bb.tiff", "aa.png"])  // the limit spares the pinned image
+        h.clear()
+        expectEqual(h.imageFiles, ["aa.png"])
+        h.clear(keepPinned: false)
+        expect(h.imageFiles.isEmpty)
+      }
+    ),
+    (
+      "histories saved before images were kept still read, and text items save as they always have",
+      {
+        let old = #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"hi","copiedAt":1,"pinned":false}]}"#
+        let history = try JSONDecoder().decode(ClipboardHistory.self, from: Data(old.utf8))
+        expectEqual(history.items.map(\.text), ["hi"])
+        expect(history.items[0].image == nil)
+        let saved = try JSONSerialization.jsonObject(with: JSONEncoder().encode(history)) as? [String: [[String: Any]]]
+        expectEqual(saved?["items"]?.first.map { Set($0.keys) }, ["id", "text", "copiedAt", "pinned"])
+
+        var withImage = history
+        withImage.add(
+          image: ClipboardImage(file: "cc.png", width: 3, height: 4, bytes: 5),
+          at: Date(timeIntervalSinceReferenceDate: 9),
+          limit: 9)
+        let roundTrip = try JSONDecoder().decode(ClipboardHistory.self, from: JSONEncoder().encode(withImage))
+        expectEqual(roundTrip, withImage)
+      }
+    ),
   ])
 
 let repeatScheduleTests = Suite(

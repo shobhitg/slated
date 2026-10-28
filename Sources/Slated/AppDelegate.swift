@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
       self?.clipboardPanel.refresh()
       self?.noticeAccessibilityGrant()
     }
-    engine.clipboard.presentSwitcher = { [weak self] in self?.clipboardPanel.show() }
+    engine.clipboard.presentSwitcher = { [weak self] anchor in self?.clipboardPanel.show(at: anchor) }
     clipboardPanel.didClose = { [weak self] intoSlatedWindow in
       self?.engine.clipboard.switcherClosed(intoSlatedWindow: intoSlatedWindow)
     }

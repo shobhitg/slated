@@ -2,7 +2,8 @@ import SlatedCore
 import SwiftUI
 
 /// Clipboard history (Keyboard Maestro's clipboard switcher): the switch and shortcut, how much to
-/// keep, privacy, and the most recent items with pin, copy and delete.
+/// keep, privacy, and the history itself to search and browse, with pin, copy and delete. The picker
+/// (⇧⌘V) only picks.
 struct ClipboardPane: View {
   @Environment(AppModel.self) private var model
 
@@ -82,7 +83,7 @@ private struct ClipboardHero: View {
             Button {
               model.showClipboardHistory()
             } label: {
-              Label("Open Switcher", systemImage: "list.clipboard")
+              Label("Open Picker", systemImage: "list.clipboard")
             }
             .buttonStyle(.gradient)
           } else {
@@ -111,12 +112,12 @@ private struct ClipboardHero: View {
     let settings = model.configuration.clipboard
     guard settings.enabled else {
       return
-        "Turn it on and Slated remembers the last \(settings.maxItems) things you copy, ready to search and paste again. Passwords are never recorded."
+        "Turn it on and Slated remembers the last \(settings.maxItems) things you copy, text and images, ready to paste again. Passwords are never recorded."
     }
     let paste =
       settings.pasteAfterSelecting
-      ? "Type to search, then press Return to paste into the app you were in."
-      : "Type to search, then press Return to copy it, ready to paste yourself."
+      ? "It opens where you're typing: type to filter, then press Return to paste."
+      : "It opens where you're typing: type to filter, then press Return to copy, ready to paste yourself."
     return settings.shortcut == nil
       ? "There's no shortcut, so open it from Overview or with a binding that runs Clipboard History. \(paste)"
       : paste
@@ -140,8 +141,8 @@ private struct ShortcutCard: View {
     SettingsCard(title: "Shortcut", symbol: "command") {
       VStack(alignment: .leading, spacing: 0) {
         SettingRow(
-          title: "Open the switcher",
-          subtitle: "Works in any app. Clear it to open the switcher only from Overview.",
+          title: "Open the picker",
+          subtitle: "Works in any app. Clear it to open the picker only from Overview.",
           symbol: "list.clipboard", tint: SettingsPane.clipboard.tint
         ) {
           OptionalShortcutRecorder(
@@ -289,13 +290,18 @@ private struct PrivacyCard: View {
 private struct RecentItems: View {
   @Environment(AppModel.self) private var model
   @State private var confirmClear = false
+  @State private var search = ""
+  @State private var showAll = false
 
   private let limit = 8
 
   var body: some View {
     let items = model.clipboardItems
+    // A search lists every match, pinned first; without one, the newest few until "Show All".
+    let matches = search.isEmpty ? items : ClipboardHistory(items: items).search(search)
+    let shown = search.isEmpty && !showAll ? Array(items.prefix(limit)) : matches
     VStack(alignment: .leading, spacing: 10) {
-      SectionHeader(title: "Recent", symbol: "clock") {
+      SectionHeader(title: "Items", symbol: "clock") {
         if !items.isEmpty {
           HStack(spacing: 8) {
             Button("Clear History…") { confirmClear = true }
@@ -306,7 +312,7 @@ private struct RecentItems: View {
             Button {
               model.showClipboardHistory()
             } label: {
-              Label("Open Switcher", systemImage: "arrow.up.forward.app")
+              Label("Open Picker", systemImage: "arrow.up.forward.app")
             }
             .buttonStyle(.soft)
             .controlSize(.small)
@@ -322,20 +328,33 @@ private struct RecentItems: View {
         .cardStyle(padding: 0)
       } else {
         VStack(spacing: 0) {
-          ForEach(Array(items.prefix(limit).enumerated()), id: \.element.id) { index, item in
-            if index > 0 { CardDivider(inset: 56) }
-            RecentClipRow(item: item)
-          }
           if items.count > limit {
+            SearchField(prompt: "Search clipboard history", text: $search)
+              .padding(.horizontal, 12)
+              .padding(.vertical, 8)
             CardDivider(inset: 0)
-            HStack {
-              Text("\(items.count - limit) more in the switcher").font(.system(size: 11.5)).foregroundStyle(.secondary)
-              Spacer()
-              if let shortcut = model.configuration.clipboard.shortcut, model.configuration.clipboard.enabled {
-                KeyComboView(combo: shortcut, size: .small)
-              }
+          }
+          if shown.isEmpty {
+            Text("No text matches “\(search)”. Images aren't searched.")
+              .font(.system(size: 12))
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity)
+              .padding(.vertical, 18)
+          }
+          LazyVStack(spacing: 0) {
+            ForEach(Array(shown.enumerated()), id: \.element.id) { index, item in
+              if index > 0 { CardDivider(inset: 56) }
+              RecentClipRow(item: item)
             }
-            .padding(.horizontal, 16)
+          }
+          if search.isEmpty && items.count > limit {
+            CardDivider(inset: 0)
+            Button(showAll ? "Show Fewer" : "Show All \(items.count) Items") {
+              withAnimation(Theme.snappy) { showAll.toggle() }
+            }
+            .buttonStyle(.borderless)
+            .font(.system(size: 12, weight: .medium))
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
           }
         }
@@ -356,11 +375,11 @@ private struct RecentItems: View {
     let settings = model.configuration.clipboard
     guard settings.enabled else { return "Clipboard history is off, so nothing is being recorded." }
     let open = settings.shortcut.map { " Press \($0.display()) to bring it back." } ?? ""
-    return "Copy some text in any app and it shows up here.\(open)"
+    return "Copy some text or an image in any app and it shows up here.\(open)"
   }
 }
 
-/// One recent item: source app, preview, age, and pin, copy and delete.
+/// One item: source app (an image's thumbnail), preview, age, and pin, copy and delete.
 private struct RecentClipRow: View {
   let item: ClipboardItem
   @Environment(AppModel.self) private var model
@@ -368,7 +387,12 @@ private struct RecentClipRow: View {
 
   var body: some View {
     HStack(spacing: 12) {
-      ClipSourceIcon(item: item, size: 26)
+      if let image = item.image {
+        ClipThumbnail(image: image, url: model.clipboardImageURL(image))
+          .frame(width: 26, height: 26)
+      } else {
+        ClipSourceIcon(item: item, size: 26)
+      }
       VStack(alignment: .leading, spacing: 2) {
         ClipPreviewLine(item: item, fontSize: 12.5)
         HStack(spacing: 5) {
@@ -409,6 +433,10 @@ private struct RecentClipRow: View {
     var parts: [String] = []
     if let app = item.sourceApp { parts.append(model.appName(bundleID: app)) }
     parts.append(item.copiedAt.formatted(.relative(presentation: .named)))
+    if let image = item.image {
+      parts.append(Int64(image.bytes).formatted(.byteCount(style: .file)))
+      return parts.joined(separator: " · ")
+    }
     let kind = ClipboardContent.kind(of: item.text)
     if kind != .text { parts.append(kind.title) }
     let stats = ClipboardContent.stats(item.text)

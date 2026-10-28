@@ -51,12 +51,12 @@
     static var previews: some View { ComponentGallery() }
   }
 
-  struct ClipboardSwitcherPreviews: PreviewProvider {
+  struct ClipboardPickerPreviews: PreviewProvider {
     static var previews: some View {
-      ClipboardSwitcherView(model: ClipboardSwitcherModel(services: PreviewServices()))
-        .previewDisplayName("Clipboard switcher")
-      ClipboardSwitcherView(model: ClipboardSwitcherModel(services: PreviewServices(scenario: .empty)))
-        .previewDisplayName("Clipboard switcher, empty")
+      ClipboardPickerView(model: ClipboardPickerModel(services: PreviewServices()))
+        .previewDisplayName("Clipboard picker")
+      ClipboardPickerView(model: ClipboardPickerModel(services: PreviewServices(scenario: .empty)))
+        .previewDisplayName("Clipboard picker, empty")
     }
   }
 

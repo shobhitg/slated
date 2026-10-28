@@ -264,9 +264,21 @@ enum PreviewData {
       ("~/Library/Application Support/Slated", "com.apple.finder", 6 * day, false),
       ("42.50", "com.apple.Safari", 9 * day, false),
     ]
-    return samples.map { text, app, ago, pinned in
+    var items = samples.map { text, app, ago, pinned in
       ClipboardItem(text: text, copiedAt: now.addingTimeInterval(-ago), sourceApp: app, pinned: pinned)
     }
+    // Two images: a screenshot copied from Safari and a photo from Preview.
+    items.insert(
+      ClipboardItem(
+        text: "", copiedAt: now.addingTimeInterval(-8 * minute), sourceApp: "com.apple.Safari",
+        image: PreviewImages.screenshot),
+      at: 2)
+    items.insert(
+      ClipboardItem(
+        text: "", copiedAt: now.addingTimeInterval(-28 * hour), sourceApp: "com.apple.Preview",
+        image: PreviewImages.photo),
+      at: 9)
+    return items
   }
 
   // MARK: Automation

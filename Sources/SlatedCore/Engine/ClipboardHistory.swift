@@ -1,26 +1,54 @@
 import Foundation
 
-/// One remembered clipboard entry.
+/// A copied image. The app keeps its bytes in a file of their own; the history only names it.
+public struct ClipboardImage: Hashable, Sendable, Codable {
+  /// The file's name in the clipboard images folder: the SHA-256 of its bytes plus the type's
+  /// extension (`.png`, `.tiff`), so the same image copied twice is one file and one item.
+  public var file: String
+  /// Size in pixels.
+  public var width: Int
+  public var height: Int
+  /// Size of the file.
+  public var bytes: Int
+
+  public init(file: String, width: Int, height: Int, bytes: Int) {
+    self.file = file
+    self.width = width
+    self.height = height
+    self.bytes = bytes
+  }
+}
+
+/// One remembered clipboard entry: text, or an image (then `text` is empty).
 public struct ClipboardItem: Hashable, Sendable, Codable, Identifiable {
   public var id: UUID
+  /// The copied text; empty for an image.
   public var text: String
   public var copiedAt: Date
   /// Bundle identifier of the app it was copied from, when known.
   public var sourceApp: String?
   /// Pinned items stay at hand: they survive limits, retention and "Clear".
   public var pinned: Bool
+  /// Set for a copied image. Optional, so histories saved before images were kept still read (as text).
+  public var image: ClipboardImage?
 
-  public init(id: UUID = UUID(), text: String, copiedAt: Date, sourceApp: String? = nil, pinned: Bool = false) {
+  public init(
+    id: UUID = UUID(), text: String, copiedAt: Date, sourceApp: String? = nil, pinned: Bool = false,
+    image: ClipboardImage? = nil
+  ) {
     self.id = id
     self.text = text
     self.copiedAt = copiedAt
     self.sourceApp = sourceApp
     self.pinned = pinned
+    self.image = image
   }
+
+  public var isImage: Bool { image != nil }
 }
 
 /// The clipboard history itself: newest first, de-duplicated, bounded. Pure value type; the app adds
-/// pasteboard watching and persistence.
+/// pasteboard watching, persistence and the image files (`imageFiles` says which are still needed).
 public struct ClipboardHistory: Hashable, Sendable, Codable {
   public private(set) var items: [ClipboardItem]
 
@@ -32,7 +60,7 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
   public mutating func add(_ text: String, from app: String? = nil, at date: Date, limit: Int) -> Bool {
     guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
     var pinned = false
-    if let existing = items.firstIndex(where: { $0.text == text }) {
+    if let existing = items.firstIndex(where: { !$0.isImage && $0.text == text }) {
       pinned = items[existing].pinned
       items.remove(at: existing)
     }
@@ -40,6 +68,25 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
     enforce(limit: limit)
     return true
   }
+
+  /// Records a copied image. Returns false for one without a file or pixels. Copying the same image
+  /// again (the same file, so the same bytes) moves it to the top, keeping its pin, as text does.
+  @discardableResult
+  public mutating func add(image: ClipboardImage, from app: String? = nil, at date: Date, limit: Int) -> Bool {
+    guard !image.file.isEmpty, image.width > 0, image.height > 0 else { return false }
+    var pinned = false
+    if let existing = items.firstIndex(where: { $0.image?.file == image.file }) {
+      pinned = items[existing].pinned
+      items.remove(at: existing)
+    }
+    items.insert(ClipboardItem(text: "", copiedAt: date, sourceApp: app, pinned: pinned, image: image), at: 0)
+    enforce(limit: limit)
+    return true
+  }
+
+  /// The image files the history refers to. Any other file in the images folder can go: its item was
+  /// deleted, pruned, pushed out or cleared.
+  public var imageFiles: Set<String> { Set(items.compactMap { $0.image?.file }) }
 
   /// Drops the oldest unpinned items beyond `limit`.
   public mutating func enforce(limit: Int) {
@@ -72,10 +119,12 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
   }
 
   /// Items matching every word of `query` (case- and diacritic-insensitive), newest first, pinned
-  /// items first. An empty query returns everything.
+  /// items first. An empty query returns everything. Only text is searched, so a query never
+  /// matches an image.
   public func search(_ query: String) -> [ClipboardItem] {
     let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
-    let matches = words.isEmpty
+    let matches =
+      words.isEmpty
       ? items
       : items.filter { item in
         words.allSatisfy { item.text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }

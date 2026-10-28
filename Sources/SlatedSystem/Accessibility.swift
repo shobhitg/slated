@@ -104,6 +104,28 @@ public enum Accessibility {
     return elements.map { AXWindow(element: $0, pid: pid) }
   }
 
+  /// Where typing goes in an app: the rectangle of its text caret, or of the focused element when the
+  /// app doesn't say where the caret is. Top-left-origin global coordinates. Nil without
+  /// Accessibility, or when the app has no focused element worth placing anything by.
+  public static func typingLocation(pid: pid_t) -> TypingLocation? {
+    let app = AXUIElementCreateApplication(pid)
+    // A popup waits on this: a busy app gets a quarter of a second, not the usual second.
+    AXUIElementSetMessagingTimeout(app, 0.25)
+    guard let focused = app.element(kAXFocusedUIElementAttribute) else { return nil }
+    AXUIElementSetMessagingTimeout(focused, 0.25)
+    let screens = Screens.current().map(\.frame)
+    if let caret = focused.caretRect(), PopupPlacement.isUsable(caret, on: screens) {
+      return TypingLocation(rect: caret, source: .caret)
+    }
+    if let origin = focused.point(kAXPositionAttribute), let size = focused.size(kAXSizeAttribute) {
+      let frame = CGRect(origin: origin, size: size)
+      if PopupPlacement.isUsable(frame, maxHeight: TypingLocation.maxElementHeight, on: screens) {
+        return TypingLocation(rect: frame, source: .element)
+      }
+    }
+    return nil
+  }
+
   /// Visible, standard windows of every regular app.
   public static func allWindows() -> [AXWindow] {
     NSWorkspace.shared.runningApplications
@@ -111,6 +133,23 @@ public enum Accessibility {
       .flatMap { windows(of: $0.processIdentifier) }
       .filter { $0.isStandard && !$0.isMinimized }
   }
+}
+
+/// Where typing goes in an app (`Accessibility.typingLocation(pid:)`).
+public struct TypingLocation: Equatable, Sendable {
+  public enum Source: String, Sendable {
+    /// The caret itself (or the selection), from the focused element's selected text range.
+    case caret
+    /// The focused element's frame: the app doesn't report its caret.
+    case element
+  }
+
+  /// Taller focused elements (a whole editor, a web page) aren't used: they say little about where
+  /// you're typing.
+  public static let maxElementHeight: CGFloat = 240
+
+  public var rect: CGRect
+  public var source: Source
 }
 
 // MARK: - AXUIElement helpers
@@ -141,6 +180,41 @@ extension AXUIElement {
     guard let value = value(attribute), CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
     var size = CGSize.zero
     return AXValueGetValue(value as! AXValue, .cgSize, &size) ? size : nil
+  }
+
+  /// The caret's rectangle (or the selection's) from the selected text range. Some apps answer only
+  /// for a range of at least one character: then the edge of the character before the caret, or of
+  /// the one after it.
+  fileprivate func caretRect() -> CGRect? {
+    guard let value = value(kAXSelectedTextRangeAttribute), CFGetTypeID(value) == AXValueGetTypeID() else {
+      return nil
+    }
+    var range = CFRange()
+    guard AXValueGetValue(value as! AXValue, .cfRange, &range), range.location >= 0 else { return nil }
+    if let rect = bounds(for: range), rect.height > 0 { return rect }
+    guard range.length == 0 else { return nil }
+    if range.location > 0, let before = bounds(for: CFRange(location: range.location - 1, length: 1)),
+      before.height > 0
+    {
+      return CGRect(x: before.maxX, y: before.minY, width: 0, height: before.height)
+    }
+    if let after = bounds(for: CFRange(location: range.location, length: 1)), after.height > 0 {
+      return CGRect(x: after.minX, y: after.minY, width: 0, height: after.height)
+    }
+    return nil
+  }
+
+  fileprivate func bounds(for range: CFRange) -> CGRect? {
+    var range = range
+    guard let rangeValue = AXValueCreate(.cfRange, &range) else { return nil }
+    var result: CFTypeRef?
+    guard
+      AXUIElementCopyParameterizedAttributeValue(
+        self, kAXBoundsForRangeParameterizedAttribute as CFString, rangeValue, &result) == .success,
+      let result, CFGetTypeID(result) == AXValueGetTypeID()
+    else { return nil }
+    var rect = CGRect.zero
+    return AXValueGetValue(result as! AXValue, .cgRect, &rect) ? rect : nil
   }
 
   fileprivate func isSettable(_ attribute: String) -> Bool {

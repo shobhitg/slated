@@ -312,6 +312,34 @@ test('pin, delete and clear (which keeps pinned items)', () => {
   s.stop();
 });
 
+test('images copied on the Mac are kept through a load and save, but the switcher lists only text', () => {
+  const image = {file: 'ab.png', width: 1280, height: 720, bytes: 245000};
+  mkdirSync(dirname(world.path), {recursive: true});
+  const id = (n) => `00000000-0000-4000-8000-00000000000${n}`;
+  writeFileSync(
+    world.path,
+    JSON.stringify({
+      items: [
+        {id: id(1), text: '', copiedAt: Core.referenceSeconds(NOW) - 2, pinned: true, image},
+        {id: id(2), text: 'words', copiedAt: Core.referenceSeconds(NOW) - 3, pinned: false},
+      ],
+    }),
+  );
+  const s = service();
+  assert.deepEqual(s.history.items.map((i) => i.image ?? i.text), [image, 'words']);
+  s.switcherModel.reset();
+  assert.deepEqual(s.switcherModel.results.map((i) => i.text), ['words']);
+  assert.equal(s.switcherModel.isEmpty, false);
+  gnome.copy('new');
+  gnome.loop.advance(1000);
+  const saved = JSON.parse(readFileSync(world.path, 'utf8'));
+  assert.deepEqual(saved.items.map((i) => i.image ?? i.text), ['new', image, 'words']);
+  s.history.remove(id(2));
+  s.history.remove(s.history.items[0].id);
+  assert.equal(s.switcherModel.isEmpty, true, 'only an image left: nothing to show');
+  s.stop();
+});
+
 test('the switcher model: search, selection, keys and Ctrl+1–9', () => {
   const calls = [];
   let history = new Core.ClipboardHistory();

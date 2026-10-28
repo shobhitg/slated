@@ -1,13 +1,16 @@
 // Clipboard history (port of ClipboardHistory.swift): newest first, de-duplicated, bounded, with
 // pinning, retention and search. Pure; the GNOME extension adds watching the clipboard and saving.
 //
-// Items are {id, text, copiedAt, sourceApp, pinned}, exactly the Mac app's clipboard.json entries:
-// `copiedAt` is in Swift's Date encoding (seconds since 2001-01-01 UTC, see `referenceSeconds`),
-// `id` an uppercase UUID, `sourceApp` the app it was copied from or null.
+// Items are {id, text, copiedAt, sourceApp, pinned, image?}, exactly the Mac app's clipboard.json
+// entries: `copiedAt` is in Swift's Date encoding (seconds since 2001-01-01 UTC, see
+// `referenceSeconds`), `id` an uppercase UUID, `sourceApp` the app it was copied from or null.
+// `image` ({file, width, height, bytes}) marks a copied image, whose `text` is empty. The Mac app
+// records images; GNOME only keeps them (its switcher lists text), so a history read from the Mac
+// survives a round trip.
 
 import {SlatedError} from './errors.js';
 import {randomUUID} from './config.js';
-import {asDouble, isNumberValue} from './json.js';
+import {asDouble, asInt, isNumberValue} from './json.js';
 import {splitCharacters} from './model.js';
 import {graphemes, isWhitespace, stringEquals, trimWhitespaceAndNewlines} from './text.js';
 
@@ -39,6 +42,7 @@ export class ClipboardHistory {
       copiedAt: item.copiedAt,
       sourceApp: item.sourceApp ?? null,
       pinned: !!item.pinned,
+      ...(item.image ? {image: copyImage(item.image)} : {}),
     }));
     this._newId = newId;
   }
@@ -57,7 +61,7 @@ export class ClipboardHistory {
   add(text, {app = null, at, limit}) {
     if (trimWhitespaceAndNewlines(text) === '') return false;
     let pinned = false;
-    const existing = this._items.findIndex((item) => stringEquals(item.text, text));
+    const existing = this._items.findIndex((item) => !item.image && stringEquals(item.text, text));
     if (existing >= 0) {
       pinned = this._items[existing].pinned;
       this._items.splice(existing, 1);
@@ -65,6 +69,30 @@ export class ClipboardHistory {
     this._items.unshift({id: this._newId(), text, copiedAt: at, sourceApp: app ?? null, pinned});
     this.enforce(limit);
     return true;
+  }
+
+  /**
+   * Records a copied image ({file, width, height, bytes}). Returns false for one without a file or
+   * pixels. The same file copied again moves to the top with a new id, keeping its pin.
+   * @param {{file: string, width: number, height: number, bytes: number}} image
+   * @param {{app?: string|null, at: number, limit: number}} options  `at` in Swift's Date encoding.
+   */
+  addImage(image, {app = null, at, limit}) {
+    if (image.file === '' || !(image.width > 0) || !(image.height > 0)) return false;
+    let pinned = false;
+    const existing = this._items.findIndex((item) => item.image?.file === image.file);
+    if (existing >= 0) {
+      pinned = this._items[existing].pinned;
+      this._items.splice(existing, 1);
+    }
+    this._items.unshift({id: this._newId(), text: '', copiedAt: at, sourceApp: app ?? null, pinned, image: copyImage(image)});
+    this.enforce(limit);
+    return true;
+  }
+
+  /** The text items, for a switcher that doesn't show images (GNOME's). */
+  get textItems() {
+    return this._items.filter((item) => !item.image);
   }
 
   /** Drops the oldest unpinned items beyond `limit` (at least 1). */
@@ -118,13 +146,14 @@ export class ClipboardHistory {
     return [...matches.filter((item) => item.pinned), ...matches.filter((item) => !item.pinned)];
   }
 
-  /** The Codable form the Mac app writes to clipboard.json: {"items": [{id, text, copiedAt, sourceApp?, pinned}]}. */
+  /** The Codable form the Mac app writes to clipboard.json: {"items": [{id, text, copiedAt, sourceApp?, pinned, image?}]}. */
   toJSON() {
     return {
       items: this._items.map((item) => {
         const out = {id: item.id, text: item.text, copiedAt: item.copiedAt};
         if (item.sourceApp !== null && item.sourceApp !== undefined) out.sourceApp = item.sourceApp;
         out.pinned = item.pinned;
+        if (item.image) out.image = copyImage(item.image);
         return out;
       }),
     };
@@ -143,6 +172,8 @@ export class ClipboardHistory {
     return new ClipboardHistory(items, options);
   }
 }
+
+const copyImage = (image) => ({file: image.file, width: image.width, height: image.height, bytes: image.bytes});
 
 // --- Decoding (Swift's synthesized Decodable for ClipboardItem) ------------------------------------
 
@@ -187,7 +218,24 @@ function decodeItem(value, path) {
     if (typeof v !== 'boolean') throw mismatch(p, 'Bool', v);
     return v;
   });
-  return {id, text, copiedAt, sourceApp, pinned};
+  // Optional: histories written before images were kept have no `image`, and null reads as none.
+  if (object.image === undefined || object.image === null) return {id, text, copiedAt, sourceApp, pinned};
+  return {id, text, copiedAt, sourceApp, pinned, image: decodeImage(object.image, [...path, 'image'])};
+}
+
+function decodeImage(value, path) {
+  const object = keyed(value, path);
+  const file = required(object, 'file', path, (v, p) => {
+    if (typeof v !== 'string') throw mismatch(p, 'String', v);
+    return v;
+  });
+  const int = (key) =>
+    required(object, key, path, (v, p) => {
+      const n = isNumberValue(v) ? asInt(v) : null;
+      if (n === null) throw mismatch(p, 'Int', v);
+      return n;
+    });
+  return {file, width: int('width'), height: int('height'), bytes: int('bytes')};
 }
 
 // --- Search (Foundation's case- and diacritic-insensitive `range(of:)`) ----------------------------

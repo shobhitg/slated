@@ -77,12 +77,15 @@ private func at(_ seconds: Double) -> Date { Date(timeIntervalSinceReferenceDate
 private let day: Double = 86_400
 private let t0: Double = 800_000_000
 
-/// One step of a clipboard session. Items are named by text; ids Swift generates are random.
+/// One step of a clipboard session. Items are named by text (images by file); ids Swift generates are
+/// random.
 private enum ClipStep {
   case add(String, app: String? = nil, at: Double, limit: Int = 200)
+  case addImage(
+    String, width: Int = 64, height: Int = 32, bytes: Int = 900, app: String? = nil, at: Double, limit: Int = 200)
   case enforce(Int)
   case prune(days: Int, now: Double)
-  /// Removes or pins the item with this text (by its current id).
+  /// Removes or pins the item with this text, or the image with this file (by its current id).
   case remove(String)
   case togglePin(String)
   /// An id that isn't in the history.
@@ -175,6 +178,29 @@ private let clipSessions: [ClipSession] = [
       item(4, "Beta delta", at: t0 + 2, pinned: true), item(5, "epsilon", at: t0 + 1),
     ],
     steps: [.search("beta"), .search(""), .search("  "), .search("gamma beta"), .search("zzz"), .search("e")]),
+  ClipSession(
+    name: "images: copied again moves to the top with its pin; a query never matches one",
+    steps: [
+      .addImage("a.png", width: 1280, height: 720, bytes: 245_000, app: "com.apple.Safari", at: t0),
+      .add("png text", at: t0 + 1), .addImage("b.tiff", at: t0 + 2),
+      .addImage("a.png", width: 1280, height: 720, bytes: 245_000, at: t0 + 3), .togglePin("a.png"),
+      .addImage("a.png", width: 1280, height: 720, bytes: 245_000, app: "com.apple.Preview", at: t0 + 4),
+      .search(""), .search("png"), .search("a"), .search("image"),
+    ]),
+  ClipSession(
+    name: "images without a file or pixels aren't kept; text and images never merge",
+    steps: [
+      .addImage("", at: t0), .addImage("w.png", width: 0, at: t0), .addImage("h.png", height: -1, at: t0),
+      .add("", at: t0), .addImage("x.png", at: t0 + 1), .add("x.png", at: t0 + 2), .addImage("x.png", at: t0 + 3),
+    ]),
+  ClipSession(
+    name: "images count toward the limit and retention, and go with remove and clear",
+    steps: [
+      .addImage("1.png", at: t0, limit: 2), .add("two", at: t0 + 1, limit: 2),
+      .addImage("3.png", at: t0 + 2, limit: 2), .togglePin("3.png"), .addImage("4.tiff", at: t0 + day, limit: 2),
+      .add("five", at: t0 + day + 1, limit: 2), .prune(days: 1, now: t0 + 2 * day + 0.5), .remove("five"),
+      .clear(keepPinned: true), .addImage("6.png", at: t0 + 3 * day), .clear(keepPinned: false),
+    ]),
 ]
 
 /// A fixed history for `search`, with texts that test case and diacritic folding.
@@ -222,13 +248,21 @@ private let searchQueries: [String] = [
   "\u{1100}\u{1161}\u{11A8}", "\u{F900}", "\u{8C48}", "\u{1FBF}",
 ]
 
+/// Whether a session step's `key` names this item: its text, or its image's file.
+private func named(_ item: ClipboardItem, _ key: String) -> Bool {
+  item.image.map { $0.file == key } ?? (item.text == key)
+}
+
+/// Items without their ids; `image` only for images, so text items list as they always have.
 private func historyItemsJ(_ history: ClipboardHistory) -> J {
   .array(
     history.items.map { item in
-      [
+      var entry: [String: J] = [
         "text": .string(item.text), "app": .optional(item.sourceApp),
         "copiedAt": .number(item.copiedAt.timeIntervalSinceReferenceDate), "pinned": .bool(item.pinned),
       ]
+      if let image = item.image { entry["image"] = toJ(image) }
+      return .object(entry)
     })
 }
 
@@ -249,6 +283,17 @@ private let codingInputs: [String] = [
   #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"x","copiedAt":1,"pinned":"yes"}]}"#,
   #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"x","copiedAt":1,"pinned":false,"sourceApp":7}]}"#,
   #"{"items":{}}"#, #"{}"#, #"[]"#, #"{"items":[null]}"#, #"{"items":null}"#,
+  // Images. Files written before images were kept have no `image` key and read as before (above).
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"sourceApp":"com.apple.Safari","pinned":true,"image":{"file":"ab.png","width":1280,"height":720,"bytes":245000}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"t","copiedAt":1,"pinned":false,"image":null},{"id":"00000000-0000-4000-8000-000000000002","text":"","copiedAt":2,"pinned":false,"image":{"file":"c.tiff","width":1,"height":2,"bytes":3,"hash":"x"}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"file":"ab.png","width":1280,"height":720}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"width":1,"height":1,"bytes":1}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"file":"a.png","width":"1280","height":720,"bytes":1}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"file":"a.png","width":12.5,"height":720,"bytes":1}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"file":7,"width":1,"height":1,"bytes":1}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":"a.png"}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":[]}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","copiedAt":1,"pinned":false,"image":{"file":"a.png","width":1,"height":1,"bytes":1}}]}"#,
 ]
 
 func clipboardFixtures() -> FixtureFile {
@@ -260,18 +305,24 @@ func clipboardFixtures() -> FixtureFile {
       case .add(let text, let app, let seconds, let limit):
         result["add"] = ["text": .string(text), "app": .optional(app), "at": .number(seconds), "limit": .int(limit)]
         result["added"] = .bool(history.add(text, from: app, at: at(seconds), limit: limit))
+      case .addImage(let file, let width, let height, let bytes, let app, let seconds, let limit):
+        let image = ClipboardImage(file: file, width: width, height: height, bytes: bytes)
+        result["addImage"] = [
+          "image": toJ(image), "app": .optional(app), "at": .number(seconds), "limit": .int(limit),
+        ]
+        result["added"] = .bool(history.add(image: image, from: app, at: at(seconds), limit: limit))
       case .enforce(let limit):
         result["enforce"] = .int(limit)
         history.enforce(limit: limit)
       case .prune(let days, let now):
         result["prune"] = ["days": .int(days), "now": .number(now)]
         history.prune(olderThanDays: days, now: at(now))
-      case .remove(let text):
-        result["remove"] = .string(text)
-        history.remove(id: history.items.first { $0.text == text }!.id)
-      case .togglePin(let text):
-        result["togglePin"] = .string(text)
-        history.togglePin(id: history.items.first { $0.text == text }!.id)
+      case .remove(let key):
+        result["remove"] = .string(key)
+        history.remove(id: history.items.first { named($0, key) }!.id)
+      case .togglePin(let key):
+        result["togglePin"] = .string(key)
+        history.togglePin(id: history.items.first { named($0, key) }!.id)
       case .removeUnknown:
         result["removeUnknown"] = true
         history.remove(id: uuid(999))
