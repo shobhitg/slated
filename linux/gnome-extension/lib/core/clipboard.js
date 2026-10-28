@@ -4,9 +4,8 @@
 // Items are {id, text, copiedAt, sourceApp, pinned, image?}, exactly the Mac app's clipboard.json
 // entries: `copiedAt` is in Swift's Date encoding (seconds since 2001-01-01 UTC, see
 // `referenceSeconds`), `id` an uppercase UUID, `sourceApp` the app it was copied from or null.
-// `image` ({file, width, height, bytes}) marks a copied image, whose `text` is empty. The Mac app
-// records images; GNOME only keeps them (its switcher lists text), so a history read from the Mac
-// survives a round trip.
+// `image` ({file, width, height, bytes}) marks a copied image, whose `text` is empty; the apps keep
+// its bytes in a file of that name beside the history.
 
 import {SlatedError} from './errors.js';
 import {randomUUID} from './config.js';
@@ -90,9 +89,9 @@ export class ClipboardHistory {
     return true;
   }
 
-  /** The text items, for a switcher that doesn't show images (GNOME's). */
-  get textItems() {
-    return this._items.filter((item) => !item.image);
+  /** The image files the history names (Swift's `imageFiles`): any other stored image can go. */
+  get imageFiles() {
+    return new Set(this._items.filter((item) => item.image).map((item) => item.image.file));
   }
 
   /** Drops the oldest unpinned items beyond `limit` (at least 1). */

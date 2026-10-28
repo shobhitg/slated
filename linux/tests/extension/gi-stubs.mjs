@@ -19,6 +19,7 @@ const NAMED_EXPORTS = {
     "export const PACKAGE_VERSION = fake?.PACKAGE_VERSION ?? '47.0';\nexport const PACKAGE_NAME = 'gnome-shell';",
   'resource:///org/gnome/shell/ui/status/keyboard.js': 'export const getInputSourceManager = fake?.getInputSourceManager ?? stub;',
   'resource:///org/gnome/shell/misc/loginManager.js': 'export const getLoginManager = fake?.getLoginManager ?? stub;',
+  'resource:///org/gnome/shell/misc/ibusManager.js': 'export const getIBusManager = fake?.getIBusManager ?? stub;',
   'resource:///org/gnome/shell/ui/main.js': [
     'wm',
     'layoutManager',
