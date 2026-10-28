@@ -122,6 +122,15 @@ export {parseSyntheticInput, formatSyntheticInput, RepeatSchedule, MOUSE_BUTTONS
  */
 export {ClipboardHistory, referenceSeconds, referenceToMilliseconds, foldedContains} from './clipboard.js';
 
+// --- Popup placement ------------------------------------------------------------------------------
+/**
+ * PopupPlacement.below(anchor, size, visibleFrame, gap = 4) → Rect: the clipboard picker under the caret
+ *   (above it near the bottom of the screen). PopupPlacement.beside(target, row, size, visibleFrame, gap = 6)
+ *   → Rect: the image preview beside the picker. Also clamp(rect, bounds), screen(anchor, screens) →
+ *   ScreenInfo | null, and isUsable(rect, screenFrames, {maxHeight}) for a caret an app reported.
+ */
+export {PopupPlacement} from './placement.js';
+
 // --- Hotstrings -----------------------------------------------------------------------------------
 /**
  * new HotstringMatcher(hotstrings).feed(text, appId) → {hotstring, deleteCount, delimiter} | null;

@@ -41,6 +41,13 @@
       "format": 159,
       "parse": 597
     },
+    "placement.json": {
+      "below": 383,
+      "beside": 242,
+      "clamp": 14,
+      "isUsable": 198,
+      "screen": 120
+    },
     "screens.json": {
       "containing": 110,
       "orderedLeftToRight": 14,
@@ -73,7 +80,7 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 17225,
+  "totalVectors": 18182,
   "vectors": {
     "automation.json": 103,
     "clipboard.json": 226,
@@ -83,6 +90,7 @@
     "hotstrings.json": 846,
     "keys.json": 375,
     "operations.json": 999,
+    "placement.json": 957,
     "screens.json": 2842,
     "settings.json": 85,
     "slate-config.json": 56,

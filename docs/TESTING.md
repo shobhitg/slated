@@ -68,6 +68,7 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `keys.json` | Key combos (parse, canonical string, display), key names (modifier keys, mouse buttons 3–5), Slate keystrokes. |
    | `automation.json` | `press`/`hold` inputs, `RepeatSchedule` timing with fixed random values, `Action.isAutomation`. |
    | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear, images), Foundation's case- and diacritic-insensitive search, and the clipboard.json the Mac app writes (image items too). |
+   | `placement.json` | `PopupPlacement`: the clipboard picker below the caret or pointer (above near the bottom), its image preview beside it, clamping, the screen showing an anchor, and which caret rects apps report are usable (CoreGraphics' edge and empty-rect rules). |
    | `screens.json` | Screen setups, screen references and their resolution, ordering. |
    | `frames.json` | `targetFrame` for every geometry operation × setup × window × settings, and `targetOrigin`. |
    | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
