@@ -167,8 +167,10 @@ public protocol AppServices: AnyObject {
   func togglePinClipboardItem(id: UUID)
   /// Removes everything except pinned items.
   func clearClipboardHistory()
-  /// Opens the clipboard switcher panel.
+  /// Opens the clipboard picker.
   func showClipboardHistory()
+  /// A copied image's file, for thumbnails and previews; nil when it has none (any more).
+  func clipboardImageURL(_ image: ClipboardImage) -> URL?
 
   // MARK: Automation
 
@@ -195,4 +197,9 @@ public struct ActiveAutomation: Identifiable, Hashable, Sendable {
     self.startedAt = startedAt
     self.repetitions = repetitions
   }
+}
+
+extension AppServices {
+  /// No images by default (test doubles).
+  public func clipboardImageURL(_ image: ClipboardImage) -> URL? { nil }
 }

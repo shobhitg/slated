@@ -389,6 +389,21 @@ out=$(SLATED_SMOKE_STEPS=copy-a-day-later smoke "$home")
 expect_output "a copy a day later drops what expired meanwhile, and keeps pinned items" "$out" \
   "clipboard after a copy a day later: 0 expired, 1 pinned"
 
+# 11b. Copied images: stored once in a private file, put back on a (private) pasteboard, deleted with
+#      their item. A file no item refers to (left by a crash) goes at launch. The log never names one.
+home=$(new_home)
+images="$home/Library/Application Support/Slated/clipboard-images"
+mkdir -p "$images"
+printf 'left behind' >"$images/0123abcd.png"
+out=$(SLATED_SMOKE_STEPS=clipboard-images smoke "$home")
+expect_true "an image file no item refers to is deleted at launch" test ! -e "$images/0123abcd.png"
+expect_output "an image copied twice is one item and one private file" "$out" \
+  "clipboard images: 1 item, 1 file, mode 600, 64×40"
+expect_output "picking it puts the same bytes back on the clipboard" "$out" "clipboard image put back: the same bytes"
+expect_output "deleting it deletes its file" "$out" "clipboard images after deleting it: 0 files"
+expect_true "the log has the image's size, never its file" bash -c \
+  'grep -q "\"kind\":\"image\"" <<<"$1" && ! grep -qE "[0-9a-f]{64}|\.png" <<<"$1"' _ "$(log_of "$home")"
+
 # 12. Saved snapshots (`snapshot … save`) keep a SHA-256 of each window title, never the title. A file
 #     saved before that, with titles, is read and rewritten at launch.
 home=$(new_home)

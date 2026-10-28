@@ -169,7 +169,11 @@ public final class PreviewServices: AppServices {
     guard let item = clipboard.items.first(where: { $0.id == id }) else { return }
     pastedClipboardItems.append(id)
     // Like the app: the item moves to the top, keeping its pin.
-    clipboard.add(item.text, from: item.sourceApp, at: Date(), limit: configuration.clipboard.maxItems)
+    if let image = item.image {
+      clipboard.add(image: image, from: item.sourceApp, at: Date(), limit: configuration.clipboard.maxItems)
+    } else {
+      clipboard.add(item.text, from: item.sourceApp, at: Date(), limit: configuration.clipboard.maxItems)
+    }
     notifyChange()
   }
   public func deleteClipboardItem(id: UUID) {
@@ -185,6 +189,7 @@ public final class PreviewServices: AppServices {
     notifyChange()
   }
   public func showClipboardHistory() {}
+  public func clipboardImageURL(_ image: ClipboardImage) -> URL? { PreviewImages.url(for: image) }
   public func activeAutomations() -> [ActiveAutomation] { automations }
   public func stopAutomations() {
     automations = []

@@ -98,6 +98,8 @@ enum SmokeSteps {
       // What the clipboard switcher says Return does, with the services the app gives it.
       let model = ClipboardSwitcherModel(services: LiveServices.forClipboardSwitcher(engine))
       print("switcher: Return \(model.pasteAfterSelecting ? "pastes" : "copies")")
+    case "clipboard-images":
+      clipboardImages(engine)
     case "import-slate":
       // "Import Slate Config into Slated…" in the menu bar; prints what its alert says.
       do {
@@ -185,6 +187,40 @@ enum SmokeSteps {
           + "\(running ? "running" : "not running"), its last step \(ran ? "ran" : "dropped")")
       macroStops(engine, Array(scenarios.dropFirst()))
     }
+  }
+
+  /// A screenshot copied twice, put back on the clipboard and deleted, through a clipboard service of
+  /// its own on a private pasteboard: the real clipboard isn't touched.
+  private static func clipboardImages(_ engine: Engine) {
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.github.slated.smoke.\(UUID().uuidString)"))
+    defer { pasteboard.releaseGlobally() }
+    let service = ClipboardService(pasteboard: pasteboard)
+    service.apply(engine.configuration.clipboard)
+    let context = CGContext(
+      data: nil, width: 64, height: 40, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(red: 0.4, green: 0.3, blue: 0.9, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: 64, height: 40))
+    let png = NSBitmapImageRep(cgImage: context.makeImage()!).representation(using: .png, properties: [:])!
+    let copy = PasteboardWatcher.Copy(text: nil, image: .init(data: png, type: .png), sourceApp: "com.example.browser")
+    service.record(copy)
+    service.record(copy)
+    let directory = service.images.directory.path
+    let files = { (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? [] }
+    let mode = files().first.flatMap {
+      (try? FileManager.default.attributesOfItem(atPath: "\(directory)/\($0)")[.posixPermissions]) as? NSNumber
+    }
+    let images = service.history.items.filter(\.isImage)
+    print(
+      "clipboard images: \(images.count) item, \(files().count) file, mode \(String(mode?.intValue ?? 0, radix: 8)), "
+        + "\(images.first.map { "\($0.image!.width)×\($0.image!.height)" } ?? "none")")
+    guard let item = images.first else { return }
+    service.copy(id: item.id)
+    print("clipboard image put back: \(pasteboard.data(forType: .png) == png ? "the same bytes" : "different bytes")")
+    // Putting it back moved it to the top, as a new item.
+    service.delete(id: service.history.items.first(where: \.isImage)?.id ?? item.id)
+    print("clipboard images after deleting it: \(files().count) files")
+    service.stop()
   }
 
   /// As when another app comes to the front.

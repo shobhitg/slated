@@ -100,6 +100,8 @@ class LiveServices: AppServices {
     engine.clipboard.showSwitcher()
   }
 
+  func clipboardImageURL(_ image: ClipboardImage) -> URL? { engine.clipboard.imageURL(image) }
+
   // MARK: Automation
 
   func activeAutomations() -> [ActiveAutomation] { engine.automation.active }

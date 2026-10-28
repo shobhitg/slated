@@ -123,7 +123,8 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
   /// matches an image.
   public func search(_ query: String) -> [ClipboardItem] {
     let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
-    let matches = words.isEmpty
+    let matches =
+      words.isEmpty
       ? items
       : items.filter { item in
         words.allSatisfy { item.text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }

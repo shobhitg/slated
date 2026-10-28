@@ -168,7 +168,8 @@ let clipboardHistoryTests = Suite(
 
         var withImage = history
         withImage.add(
-          image: ClipboardImage(file: "cc.png", width: 3, height: 4, bytes: 5), at: Date(timeIntervalSinceReferenceDate: 9),
+          image: ClipboardImage(file: "cc.png", width: 3, height: 4, bytes: 5),
+          at: Date(timeIntervalSinceReferenceDate: 9),
           limit: 9)
         let roundTrip = try JSONDecoder().decode(ClipboardHistory.self, from: JSONEncoder().encode(withImage))
         expectEqual(roundTrip, withImage)
