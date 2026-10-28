@@ -112,7 +112,7 @@ The settings window has the same sections as the Mac app, listed in a sidebar:
 | Section | What's there |
 |---|---|
 | Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, a getting-started checklist, and tips |
-| Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
+| Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. A `~/.slate.js` function is named by what it does ("First Third", captioned "JavaScript function"), or says why it can't be. Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
 | Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
 | Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, privacy (secrets, excluded apps), and the switcher's keys. Shows how many items are saved |
 | Automation | What runs now, your automations, eleven recipes (auto-click, hold a button or key, sprint and crouch toggles, spam a key, click N times, double-click, a walk-then-click macro), the safety settings, and what GNOME does differently |
@@ -201,6 +201,7 @@ these to point everything at a throwaway home.
 | Hotstrings | Built in, with per-app filters | Through espanso, which Slated keeps in sync. No per-app filters |
 | `insert-text`, `keystroke`, `open-url`, `shell` actions | ✓ | ✓ |
 | `~/.slate.js`, `~/.slate` | JavaScriptCore | GJS, inside GNOME Shell |
+| `~/.slate.js` functions in Settings and the cheat sheet | Named by what they do ("First Third"), found by running the script on pretend Macs | Settings → Windows: the same names, from the importer's run on pretend desktops |
 | Settings | SwiftUI window | libadwaita window |
 | Status at a glance | Overview in Slated's window | Settings → Overview |
 | Start at login | Login item | Runs with your session while the extension is enabled |

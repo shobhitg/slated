@@ -517,7 +517,13 @@ async function run(mode) {
 
   await step('read-only Slate bindings show what their function does, and copy into Slated', async () => {
     const root = visible('windows');
-    const source = rowsIn(root, (w, s) => s.props.get('title') === 'JavaScript Function')[0];
+    // Every function in the fixture always does the same thing: each is named by what it does, as on the Mac.
+    check(!rowsIn(root, (w, s) => s.props.get('title') === 'JavaScript Function').length, 'no function left undescribed');
+    const described = rowsIn(root, (w, s) => s.props.get('subtitle') === 'JavaScript function').map(r => prop(world, r, 'title'));
+    for (const title of ['Middle Third', 'Last Two Thirds', 'Center, 50%', 'Throw to Left Display, Resized']) {
+      check(described.includes(title), `"${title}" among the functions: ${described.join(', ')}`);
+    }
+    const source = rowsIn(root, (w, s) => s.props.get('title') === 'Last Two Thirds')[0];
     activate(source);
     const page = visible('windows');
     const copy = findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('label') === 'Copy into Slated')[0];
