@@ -420,3 +420,26 @@ let uiIslandModelTests = Suite(
       }
     ),
   ])
+
+let uiCenteredTitleTests = Suite(
+  "UICenteredTitles",
+  [
+    (
+      "a centered move is named by its size, as the author's ' and return shortcuts are",
+      {
+        try MainActor.assumeIsolated {
+          let center = Action.move(
+            x: "screenOriginX+screenSizeX/4", y: "screenOriginY+screenSizeY/4", width: "screenSizeX/2",
+            height: "screenSizeY/2", screen: nil)
+          expectEqual(ActionDescriber.title(center), "Center, 50%")
+          let large = Action.move(
+            x: "screenOriginX+screenSizeX/8", y: "screenOriginY+screenSizeY/8", width: "screenSizeX/1.3",
+            height: "screenSizeY/1.3", screen: nil)
+          expectEqual(ActionDescriber.title(large), "Center, 77%")
+          let offCenter = Action.move(
+            x: "screenOriginX", y: "screenOriginY", width: "screenSizeX/3", height: "screenSizeY", screen: nil)
+          expect(ActionDescriber.title(offCenter) != "Center, 33% × 100%")
+        }
+      }
+    )
+  ])

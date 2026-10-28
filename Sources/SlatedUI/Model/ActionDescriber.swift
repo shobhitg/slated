@@ -8,7 +8,14 @@ enum ActionDescriber {
   static func title(_ action: Action) -> String {
     if let preset = WindowPresets.matching(action) { return preset.title }
     switch action {
-    case .move: return "Move & Resize"
+    case .move:
+      // Name a centered placement by its size ("Center, 50%"), which says what it does.
+      if let r = CheatSheet.region(for: action), abs(r.midX - 0.5) < 0.02, abs(r.midY - 0.5) < 0.02 {
+        let w = Int((r.width * 100).rounded()), h = Int((r.height * 100).rounded())
+        if w >= 99 && h >= 99 { return "Maximize" }
+        return w == h ? "Center, \(w)%" : "Center, \(w)% × \(h)%"
+      }
+      return "Move & Resize"
     case .resize(let w, let h, _): return "Resize \(w) × \(h)"
     case .push(let d, let style, _):
       switch style {

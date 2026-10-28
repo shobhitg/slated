@@ -38,6 +38,7 @@ let suites: [Suite] = [
   islandSettingsTests,
   uiCheatSheetTests,
   uiIslandModelTests,
+  uiCenteredTitleTests,
   hidRemapperTests,
   keyboardTapTests,
   pasteboardTests,
