@@ -92,11 +92,12 @@ export class SwitcherModel {
   }
 
   get results() {
-    return this._history().search(this.query, {maxCharacters: SEARCH_LIMIT});
+    // Text only: images copied on the Mac are kept in the history but not shown here yet.
+    return this._history().search(this.query, {maxCharacters: SEARCH_LIMIT}).filter((item) => !item.image);
   }
 
   get isEmpty() {
-    return this._history().items.length === 0;
+    return this._history().textItems.length === 0;
   }
 
   reset() {

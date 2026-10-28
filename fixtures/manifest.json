@@ -7,9 +7,9 @@
       "syntheticInputs": 66
     },
     "clipboard.json": {
-      "coding": 19,
+      "coding": 29,
       "search": 183,
-      "sessions": 11
+      "sessions": 14
     },
     "config.json": {
       "decode": 636
@@ -73,10 +73,10 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 17212,
+  "totalVectors": 17225,
   "vectors": {
     "automation.json": 103,
-    "clipboard.json": 213,
+    "clipboard.json": 226,
     "config.json": 636,
     "expressions.json": 876,
     "frames.json": 9978,

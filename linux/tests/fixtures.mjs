@@ -513,23 +513,31 @@ export const checkers = {
   }),
 
   'clipboard.json': (data) => {
-    const itemsOf = (history) => history.items.map((i) => ({text: i.text, app: i.sourceApp, copiedAt: i.copiedAt, pinned: i.pinned}));
+    const itemsOf = (history) =>
+      history.items.map((i) => ({text: i.text, app: i.sourceApp, copiedAt: i.copiedAt, pinned: i.pinned, ...(i.image ? {image: i.image} : {})}));
     let counter = 0;
     const newId = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`;
     /** Items listed in a fixture (no ids) as history items, with made-up ids. */
     const fromFixture = (items) =>
-      new core.ClipboardHistory(items.map((i) => ({id: newId(), text: i.text, copiedAt: i.copiedAt, sourceApp: i.app, pinned: i.pinned})), {newId});
+      new core.ClipboardHistory(
+        items.map((i) => ({id: newId(), text: i.text, copiedAt: i.copiedAt, sourceApp: i.app, pinned: i.pinned, image: i.image})),
+        {newId},
+      );
     return {
       sessions() {
         for (const session of data.sessions) {
           countCheck();
           const history = fromFixture(session.start);
-          const idOf = (text) => history.items.find((i) => i.text === text)?.id;
+          // Steps name items by text, images by file.
+          const idOf = (key) => history.items.find((i) => (i.image ? i.image.file === key : i.text === key))?.id;
           session.steps.forEach((step, i) => {
             const label = `${session.name}, step ${i}`;
             if (step.add) {
               const added = history.add(step.add.text, {app: step.add.app, at: step.add.at, limit: step.add.limit});
               expectEqual(added, step.added, `${label}: add ${show(step.add.text)}`);
+            } else if (step.addImage) {
+              const {image, app, at, limit} = step.addImage;
+              expectEqual(history.addImage(image, {app, at, limit}), step.added, `${label}: add image ${show(image.file)}`);
             } else if (step.enforce !== undefined) history.enforce(step.enforce);
             else if (step.prune) history.prune(step.prune.days, step.prune.now);
             else if (step.remove !== undefined) history.remove(idOf(step.remove));

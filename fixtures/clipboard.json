@@ -18,7 +18,17 @@
     {"error":{"exact":false,"kind":"decoding"},"json":"{}"},
     {"error":{"exact":false,"kind":"decoding"},"json":"[]"},
     {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[null]}"},
-    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":null}"}
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":null}"},
+    {"history":{"items":[{"copiedAt":1,"id":"00000000-0000-4000-8000-000000000001","image":{"bytes":245000,"file":"ab.png","height":720,"width":1280},"pinned":true,"sourceApp":"com.apple.Safari","text":""}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"sourceApp\":\"com.apple.Safari\",\"pinned\":true,\"image\":{\"file\":\"ab.png\",\"width\":1280,\"height\":720,\"bytes\":245000}}]}"},
+    {"history":{"items":[{"copiedAt":1,"id":"00000000-0000-4000-8000-000000000001","pinned":false,"text":"t"},{"copiedAt":2,"id":"00000000-0000-4000-8000-000000000002","image":{"bytes":3,"file":"c.tiff","height":2,"width":1},"pinned":false,"text":""}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"t\",\"copiedAt\":1,\"pinned\":false,\"image\":null},{\"id\":\"00000000-0000-4000-8000-000000000002\",\"text\":\"\",\"copiedAt\":2,\"pinned\":false,\"image\":{\"file\":\"c.tiff\",\"width\":1,\"height\":2,\"bytes\":3,\"hash\":\"x\"}}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"ab.png\",\"width\":1280,\"height\":720}}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"width\":1,\"height\":1,\"bytes\":1}}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"a.png\",\"width\":\"1280\",\"height\":720,\"bytes\":1}}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"a.png\",\"width\":12.5,\"height\":720,\"bytes\":1}}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":7,\"width\":1,\"height\":1,\"bytes\":1}}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":\"a.png\"}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":[]}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"a.png\",\"width\":1,\"height\":1,\"bytes\":1}}]}"}
   ],
   "description": "ClipboardHistory: sessions of add (dedupe, limit), enforce, prune (retention), remove, togglePin, clear and search with fixed dates (seconds since 2001-01-01, as Swift's Date encodes them); search over a fixed history (case- and diacritic-insensitive, pinned first); and the Codable form the Mac app writes to clipboard.json (`history`, or `error` for files it can't read). Items are listed without their ids, which Swift generates at random.",
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
@@ -474,6 +484,52 @@
         {"items":[{"app":null,"copiedAt":800000005,"pinned":false,"text":"alpha beta"},{"app":null,"copiedAt":800000004,"pinned":true,"text":"beta gamma"},{"app":null,"copiedAt":800000003,"pinned":false,"text":"gamma"},{"app":null,"copiedAt":800000002,"pinned":true,"text":"Beta delta"},{"app":null,"copiedAt":800000001,"pinned":false,"text":"epsilon"}],"results":["beta gamma"],"search":"gamma beta"},
         {"items":[{"app":null,"copiedAt":800000005,"pinned":false,"text":"alpha beta"},{"app":null,"copiedAt":800000004,"pinned":true,"text":"beta gamma"},{"app":null,"copiedAt":800000003,"pinned":false,"text":"gamma"},{"app":null,"copiedAt":800000002,"pinned":true,"text":"Beta delta"},{"app":null,"copiedAt":800000001,"pinned":false,"text":"epsilon"}],"results":[],"search":"zzz"},
         {"items":[{"app":null,"copiedAt":800000005,"pinned":false,"text":"alpha beta"},{"app":null,"copiedAt":800000004,"pinned":true,"text":"beta gamma"},{"app":null,"copiedAt":800000003,"pinned":false,"text":"gamma"},{"app":null,"copiedAt":800000002,"pinned":true,"text":"Beta delta"},{"app":null,"copiedAt":800000001,"pinned":false,"text":"epsilon"}],"results":["beta gamma","Beta delta","alpha beta","epsilon"],"search":"e"}
+      ]
+    },
+    {
+      "name": "images: copied again moves to the top with its pin; a query never matches one",
+      "start": [],
+      "steps": [
+        {"addImage":{"app":"com.apple.Safari","at":800000000,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"limit":200},"added":true,"items":[{"app":"com.apple.Safari","copiedAt":800000000,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":false,"text":""}]},
+        {"add":{"app":null,"at":800000001,"limit":200,"text":"png text"},"added":true,"items":[{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"},{"app":"com.apple.Safari","copiedAt":800000000,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":false,"text":""}]},
+        {"addImage":{"app":null,"at":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"},{"app":"com.apple.Safari","copiedAt":800000000,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":false,"text":""}]},
+        {"addImage":{"app":null,"at":800000003,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000003,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":false,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"}]},
+        {"items":[{"app":null,"copiedAt":800000003,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":true,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"}],"togglePin":"a.png"},
+        {"addImage":{"app":"com.apple.Preview","at":800000004,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"limit":200},"added":true,"items":[{"app":"com.apple.Preview","copiedAt":800000004,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":true,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"}]},
+        {"items":[{"app":"com.apple.Preview","copiedAt":800000004,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":true,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"}],"results":["","","png text"],"search":""},
+        {"items":[{"app":"com.apple.Preview","copiedAt":800000004,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":true,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"}],"results":["png text"],"search":"png"},
+        {"items":[{"app":"com.apple.Preview","copiedAt":800000004,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":true,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"}],"results":[],"search":"a"},
+        {"items":[{"app":"com.apple.Preview","copiedAt":800000004,"image":{"bytes":245000,"file":"a.png","height":720,"width":1280},"pinned":true,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"b.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"png text"}],"results":[],"search":"image"}
+      ]
+    },
+    {
+      "name": "images without a file or pixels aren't kept; text and images never merge",
+      "start": [],
+      "steps": [
+        {"addImage":{"app":null,"at":800000000,"image":{"bytes":900,"file":"","height":32,"width":64},"limit":200},"added":false,"items":[]},
+        {"addImage":{"app":null,"at":800000000,"image":{"bytes":900,"file":"w.png","height":32,"width":0},"limit":200},"added":false,"items":[]},
+        {"addImage":{"app":null,"at":800000000,"image":{"bytes":900,"file":"h.png","height":-1,"width":64},"limit":200},"added":false,"items":[]},
+        {"add":{"app":null,"at":800000000,"limit":200,"text":""},"added":false,"items":[]},
+        {"addImage":{"app":null,"at":800000001,"image":{"bytes":900,"file":"x.png","height":32,"width":64},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000001,"image":{"bytes":900,"file":"x.png","height":32,"width":64},"pinned":false,"text":""}]},
+        {"add":{"app":null,"at":800000002,"limit":200,"text":"x.png"},"added":true,"items":[{"app":null,"copiedAt":800000002,"pinned":false,"text":"x.png"},{"app":null,"copiedAt":800000001,"image":{"bytes":900,"file":"x.png","height":32,"width":64},"pinned":false,"text":""}]},
+        {"addImage":{"app":null,"at":800000003,"image":{"bytes":900,"file":"x.png","height":32,"width":64},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000003,"image":{"bytes":900,"file":"x.png","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000002,"pinned":false,"text":"x.png"}]}
+      ]
+    },
+    {
+      "name": "images count toward the limit and retention, and go with remove and clear",
+      "start": [],
+      "steps": [
+        {"addImage":{"app":null,"at":800000000,"image":{"bytes":900,"file":"1.png","height":32,"width":64},"limit":2},"added":true,"items":[{"app":null,"copiedAt":800000000,"image":{"bytes":900,"file":"1.png","height":32,"width":64},"pinned":false,"text":""}]},
+        {"add":{"app":null,"at":800000001,"limit":2,"text":"two"},"added":true,"items":[{"app":null,"copiedAt":800000001,"pinned":false,"text":"two"},{"app":null,"copiedAt":800000000,"image":{"bytes":900,"file":"1.png","height":32,"width":64},"pinned":false,"text":""}]},
+        {"addImage":{"app":null,"at":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"limit":2},"added":true,"items":[{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"two"}]},
+        {"items":[{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"two"}],"togglePin":"3.png"},
+        {"addImage":{"app":null,"at":800086400,"image":{"bytes":900,"file":"4.tiff","height":32,"width":64},"limit":2},"added":true,"items":[{"app":null,"copiedAt":800086400,"image":{"bytes":900,"file":"4.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"two"}]},
+        {"add":{"app":null,"at":800086401,"limit":2,"text":"five"},"added":true,"items":[{"app":null,"copiedAt":800086401,"pinned":false,"text":"five"},{"app":null,"copiedAt":800086400,"image":{"bytes":900,"file":"4.tiff","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""}]},
+        {"items":[{"app":null,"copiedAt":800086401,"pinned":false,"text":"five"},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""}],"prune":{"days":1,"now":800172800.5}},
+        {"items":[{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""}],"remove":"five"},
+        {"clear":true,"items":[{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""}]},
+        {"addImage":{"app":null,"at":800259200,"image":{"bytes":900,"file":"6.png","height":32,"width":64},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800259200,"image":{"bytes":900,"file":"6.png","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""}]},
+        {"clear":false,"items":[]}
       ]
     }
   ]
