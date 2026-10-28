@@ -374,6 +374,12 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
       the imported bindings show "Imported" in the Slate list, and deleting one in Shortcuts frees its
       keys (the extension no longer registers the file's copy).
 - [ ] Turning "Slated is on" off and on in General disables and enables the extension.
+- [ ] General → Island: turning "Show the island" off greys out its other three rows, and within a
+      second feedback and running automations move to the bottom banner and the red pill; on again,
+      they're back in the island. With
+      "Hold Caps Lock to see your shortcuts" off, holding Caps Lock shows nothing and the delay is
+      greyed out. Short makes the sheet appear sooner than Long. With "Explain shortcuts that can't
+      run" off, a window shortcut with nothing focused shows no reason.
 - [ ] Hotstrings: with espanso running, a new hotstring appears in `~/.config/espanso/match/slated.yml`
       and expands in another app.
 - [ ] Automation: adding Auto-Click Left asks for a shortcut (F6 is suggested). Pressing it in a game

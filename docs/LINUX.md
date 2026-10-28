@@ -120,7 +120,8 @@ others, and from the very top over a fullscreen window. It shows:
 - **Feedback** with `general.showActionHUD` on ("Left half · Firefox"), and why a shortcut couldn't
   run (`island.showFailures`).
 
-`"island": {"enabled": false}` brings back the bottom HUD and the red pill
+Settings → General → Island has the Mac's switches and the cheat-sheet delay. Turning the island
+off (`"island": {"enabled": false}`) brings back the bottom HUD and the red pill
 ([CONFIG.md](CONFIG.md#notch-island)).
 
 GNOME tells an extension about keys only through its own shortcuts, never about Caps Lock going down
@@ -154,7 +155,7 @@ the page you left it on.
 | Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh |
 | Layouts | Arrange several apps at once. Layouts from Slate files are read-only |
 | Slate Compatibility | Your Slate files' status and problems, **Import into Slated**, and which files to load |
-| General | Turn Slated on or off, the action banner, window behavior, where the config and log are, and this build |
+| General | Turn Slated on or off, the action banner, the island (on or off, the Caps Lock cheat sheet and its delay, explaining shortcuts that can't run), window behavior, where the config and log are, and this build |
 | About | Version, credits, license, and debug information for bug reports |
 
 Adding a recipe makes an ordinary shortcut and opens its editor with the shortcut recorder running;

@@ -86,7 +86,7 @@ function makeHome() {
     // Hand-edited values the Clipboard and Automation pages offer as their own choices and keep.
     clipboard: {maxItems: 42, shortcut: null},
     automation: {showIndicator: false},
-    // The Mac's notch island: no GNOME page edits it, but a save must keep it for the Mac.
+    // The island, off, with the Long delay: General shows it, and saving other pages keeps it.
     island: {enabled: false, cheatSheetDelay: 0.8},
   };
   fs.mkdirSync(path.join(home, '.config/slated'), {recursive: true});
@@ -359,7 +359,7 @@ async function run(mode) {
     check(saved.clipboard.maxItems === 42 && saved.clipboard.shortcut === null && saved.automation.showIndicator === false,
       'the clipboard and automation sections were kept');
     check(saved.island.enabled === false && saved.island.cheatSheetDelay === 0.8 && saved.island.cheatSheet === true,
-      'the Mac island section was kept');
+      'the island section was kept');
   });
 
   await step('the action editor: every kind, its parameters, presets', async () => {
@@ -779,6 +779,70 @@ async function run(mode) {
     check(world.report.clipboard.length >= 2, 'commands copy to the clipboard');
     click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('label') === 'Open Log')[0]);
     check(world.report.launches.some(l => l.file === files.logFile), 'Open Log launches the log');
+  });
+
+  await step('General: the island group edits config.json, and its rows follow its switches', async () => {
+    settings.showPane('general');
+    const row = (cls, title) => titled(visible('general'), cls, title)[0];
+    const show = row('Adw.SwitchRow', 'Show the island');
+    const sheet = row('Adw.SwitchRow', 'Hold Caps Lock to see your shortcuts');
+    const delay = row('Adw.ComboRow', 'Cheat sheet delay');
+    const failures = row('Adw.SwitchRow', "Explain shortcuts that can't run");
+    const enabled = r => prop(world, r, 'sensitive') !== false;
+    const choices = () => {
+      const list = prop(world, delay, 'model');
+      return Array.from({length: list.get_n_items()}, (_, i) => list.get_string(i));
+    };
+    const saved = () => decodeConfiguration(fs.readFileSync(files.configFile, 'utf8')).island;
+    // The fixture's island is off, with the Long delay.
+    check(prop(world, show, 'active') === false && prop(world, sheet, 'active') === true && prop(world, failures, 'active') === true,
+      'the switches show config.json');
+    check(choices().join() === 'Short,Medium,Long' && prop(world, delay, 'selected') === 2, `Long is selected: ${choices()}`);
+    check(!enabled(sheet) && !enabled(delay) && !enabled(failures), 'with the island off, the other rows are disabled');
+    check(enabled(show), '...but not the island switch');
+    show.set_active(true);
+    check(model.configuration.island.enabled === true, 'island on');
+    check(enabled(sheet) && enabled(delay) && enabled(failures), 'with the island on, every row can be changed');
+    sheet.set_active(false);
+    check(model.configuration.island.cheatSheet === false, 'cheat sheet off');
+    check(!enabled(delay) && enabled(sheet) && enabled(failures), 'with the cheat sheet off, only the delay is disabled');
+    await settle();
+    check(saved().enabled === true && saved().cheatSheet === false, `saved to config.json: ${JSON.stringify(saved())}`);
+    sheet.set_active(true);
+    check(enabled(delay), 'the delay can be changed again');
+    delay.set_selected(0);
+    failures.set_active(false);
+    await settle();
+    check(saved().cheatSheetDelay === 0.3 && saved().showFailures === false && saved().cheatSheet === true,
+      `the delay and failures saved: ${JSON.stringify(saved())}`);
+    check(fs.readFileSync(files.logFile, 'utf8').includes('island: enabled true, cheatSheet true, cheatSheetDelay 0.3, showFailures false'),
+      'config.saved names the island change');
+    // A delay set by hand (or on the Mac) is offered as its own choice.
+    const onDisk = JSON.parse(fs.readFileSync(files.configFile, 'utf8'));
+    fs.writeFileSync(files.configFile, JSON.stringify({...onDisk, island: {...onDisk.island, cheatSheetDelay: 1.25}}));
+    model.syncFromDisk();
+    check(choices().join() === 'Short,Medium,Long,1.25 seconds' && prop(world, delay, 'selected') === 3, `a hand-set delay: ${choices()}`);
+    delay.set_selected(1);
+    await settle();
+    check(saved().cheatSheetDelay === 0.5, 'Medium saved');
+    // keyd's tap for Escape stops at the delay, once the installer writes keyd's config again.
+    const statusText = fs.readFileSync(files.statusFile, 'utf8');
+    const withHyperMode = mode => model.setStatusText(JSON.stringify({...JSON.parse(statusText), hyper: {wanted: true, mode, active: true}}));
+    const plain = prop(world, delay, 'subtitle');
+    model.update(config => {
+      config.keyboard.capsLockAlone = 'escape';
+    });
+    withHyperMode('keyd');
+    const keyd = prop(world, delay, 'subtitle');
+    check(keyd.startsWith(plain) && keyd.includes("doesn't send Escape") && keyd.includes('linux/install.sh --hyper-keyd again'), `keyd: ${keyd}`);
+    withHyperMode('xkb');
+    check(prop(world, delay, 'subtitle') === plain && !plain.includes('keyd'), `GNOME's option has no tap to time: ${plain}`);
+    model.setStatusText(statusText);
+    model.update(config => {
+      config.keyboard.capsLockAlone = 'nothing';
+    });
+    show.set_active(false);
+    check(!enabled(sheet) && !enabled(delay) && !enabled(failures), 'off again: disabled again');
   });
 
   await step('the preview steps through a chain and starts from a clicked display', async () => {
