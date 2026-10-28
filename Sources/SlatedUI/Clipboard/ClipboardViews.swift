@@ -1,11 +1,11 @@
 import SlatedCore
 import SwiftUI
 
-// Clipboard pieces shared by the switcher and Settings → Clipboard: a kind-aware one-line preview,
+// Clipboard pieces shared by the picker and Settings → Clipboard: a kind-aware one-line preview,
 // the kind badge, a color swatch, and the fanned stack of recent items used as an illustration.
 
 /// A clipboard item on one line, styled by what it is: a link's host, a color's swatch, code in
-/// monospace.
+/// monospace, an image's size.
 struct ClipPreviewLine: View {
   let item: ClipboardItem
   var fontSize: CGFloat = 13
@@ -18,6 +18,10 @@ struct ClipPreviewLine: View {
     let secondary: Color = inverted ? .white.opacity(0.75) : .secondary
     HStack(spacing: 6) {
       switch kind {
+      case _ where item.isImage:
+        Text(item.image.map { ClipboardContent.imageTitle($0, app: nil) } ?? "")
+          .font(.system(size: fontSize))
+          .foregroundStyle(primary)
       case .color:
         ColorSwatch(hex: item.text.trimmingCharacters(in: .whitespacesAndNewlines), size: fontSize + 1)
         Text(item.text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
@@ -66,7 +70,13 @@ struct ClipSourceIcon: View {
   var size: CGFloat = 26
 
   var body: some View {
-    if let app = item.sourceApp {
+    if item.isImage && item.sourceApp == nil {
+      Image(systemName: "photo")
+        .font(.system(size: size * 0.42, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .frame(width: size, height: size)
+        .background(Theme.well, in: RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
+    } else if let app = item.sourceApp {
       AppIconView(bundleID: app, size: size)
     } else {
       Image(systemName: ClipboardContent.kind(of: item.text).symbol)

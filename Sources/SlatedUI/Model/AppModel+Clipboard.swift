@@ -80,6 +80,9 @@ extension AppModel {
 
   func showClipboardHistory() { services.showClipboardHistory() }
 
+  /// A copied image's file, for thumbnails.
+  func clipboardImageURL(_ image: ClipboardImage) -> URL? { services.clipboardImageURL(image) }
+
   /// Puts ⇧⌘V back after the shortcut was cleared.
   func restoreDefaultClipboardShortcut() { configuration.clipboard.shortcut = ClipboardSettings().shortcut }
 

@@ -271,6 +271,27 @@ let uiClipboardTests = Suite(
       }
     ),
     (
+      "Settings lists images with their thumbnails, and pins, copies and deletes them like text",
+      {
+        try onMain {
+          let services = PreviewServices()
+          let model = AppModel(services: services)
+          let image = try require(model.clipboardItems.first(where: \.isImage))
+          let url = try require(model.clipboardImageURL(try require(image.image)))
+          expect(FileManager.default.fileExists(atPath: url.path))
+          model.togglePinClipboardItem(image.id)
+          expect(model.clipboardItems.first { $0.id == image.id }?.pinned == true)
+          model.copyClipboardItem(image.id)
+          expectEqual(model.clipboardItems.first?.image, image.image)  // copied to the top, still an image
+          expect(model.clipboardItems.first?.pinned == true)
+          let copied = try require(model.clipboardItems.first)
+          model.deleteClipboardItem(copied.id)
+          expect(!model.clipboardItems.contains { $0.image == image.image })
+          expect(model.clipboardImageURL(ClipboardImage(file: "gone.png", width: 1, height: 1, bytes: 1)) == nil)
+        }
+      }
+    ),
+    (
       "excluded apps offer the default password managers first, then running apps",
       {
         try onMain {
