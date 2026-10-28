@@ -66,6 +66,25 @@ expect_output "~/.slate.js loads all its bindings" "$out" "source: ~/.slate.js l
 # 4 from the file, plus Slated's clipboard switcher (⇧⌘V) and automation stop (Hyper+Esc).
 expect_output "~/.slate.js bindings are registered as hotkeys" "$out" "hotkeys: 6 registered"
 expect_output "the event log records the Slate file" "$(log_of "$home")" '"bindings":4,"kind":"javascript"'
+# Every shortcut in it runs a function; each is listed by what it does, as Settings shows it.
+expect_output "a function is listed by what it does" "$out" "hyper+a: Left Half (a function)"
+expect_output "a function that differs by orientation names both" "$out" \
+  "hyper+f: Push Left / Top Left Corner (a function)"
+expect_output "the cheat sheet groups functions by what they do" "$out" \
+  "cheat sheet: 5 Hyper shortcuts (Windows, Automation)"
+expect_output "the event log records how many functions it could describe" "$(log_of "$home")" \
+  '"data":{"described":4,"functions":4'
+
+# 2a. A third that turns with the display is named by position; a function whose result depends on
+#     the window stays "JavaScript Function", with the reason.
+home=$(new_home)
+cp "$FIXTURES/slate-functions.js" "$home/.slate.js"
+out=$(smoke "$home")
+expect_output "thirds that turn with the display read naturally" "$out" "hyper+f: First Third (a function)"
+expect_output "a function Slated can't describe says why" "$out" \
+  "hyper+t: JavaScript Function (depends on the focused app or window title)"
+expect_output "the cheat sheet lists the third under Windows and the rest under Scripts" "$out" \
+  "cheat sheet: 3 Hyper shortcuts (Windows, Automation, Scripts)"
 
 # 2b. With "Load Slate config files" off, the files are still listed, as not loaded, so onboarding and
 #     Settings can offer to turn loading back on. None of their shortcuts are registered.

@@ -26,6 +26,12 @@ public struct CheatSheet: Hashable, Sendable {
     }
 
     var id: String { (modal.map { $0.string + " " } ?? "") + keys.string }
+
+    /// A Slate file's shortcut, listed by what it does, as in Settings: a function Slated can
+    /// describe goes under its real section ("First Third" under Windows), not under Scripts.
+    public init(_ source: SourceBinding) {
+      self.init(keys: source.keys, modal: source.modal?.keys, action: source.action, summary: source.summary)
+    }
   }
 
   public struct Item: Hashable, Sendable, Identifiable {
@@ -116,9 +122,12 @@ public struct CheatSheet: Hashable, Sendable {
   }
 
   /// Drops what the section title already says: under Displays, "Throw to the screen on the right"
-  /// reads "Screen on the right".
+  /// reads "Screen on the right". "Throw to Display Above, Resized" reads "Display Above": at a glance
+  /// it's where the window goes that matters, and the columns are narrow.
   static func shortened(_ title: String, in group: Group) -> String {
     guard group == .displays else { return title }
+    var title = title
+    if title.hasSuffix(", Resized") { title.removeLast(", Resized".count) }
     for prefix in ["Throw to the ", "Throw to "] where title.hasPrefix(prefix) && title.count > prefix.count {
       let rest = title.dropFirst(prefix.count)
       return rest.prefix(1).uppercased() + rest.dropFirst()

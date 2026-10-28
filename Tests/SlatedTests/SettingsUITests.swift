@@ -88,6 +88,43 @@ let uiActionTests = Suite(
       }
     ),
     (
+      "thirds that turn with the display are named by position, displays above and below by place",
+      {
+        try onMain {
+          // The starter's thirds are the author's Slate thirds, spelled the same way.
+          let turning = StarterBindings.all.filter {
+            if case .byOrientation = $0.action { return true }
+            return false
+          }
+          expectEqual(
+            turning.map { ActionDescriber.title($0.action) },
+            ["First Third", "Middle Third", "Last Third", "First Two Thirds", "Last Two Thirds"])
+          for binding in turning {
+            guard case .byOrientation(let landscape, _) = binding.action else { continue }
+            // The glyph shows where the window goes on a landscape display, as the cheat sheet does.
+            expectEqual(WindowPresets.matching(binding.action)?.region, WindowPresets.matching(landscape)?.region)
+          }
+          for preset in WindowPresets.orientation {
+            expectEqual(WindowPresets.matching(preset.action)?.id, preset.id)
+            for alias in preset.aliases { expectEqual(WindowPresets.matching(alias)?.id, preset.id) }
+          }
+          // The pickers offer only the plain presets.
+          expect(Set(WindowPresets.orientation.map(\.id)).isDisjoint(with: WindowPresets.all.map(\.id)))
+          // Other pairs name both sides, once when they're the same.
+          let pair = Action.byOrientation(landscape: preset("left-half"), portrait: preset("top-half"))
+          expectEqual(ActionDescriber.title(pair), "Left Half / Top Half")
+          expectEqual(ActionDescriber.title(.byOrientation(landscape: .undo, portrait: .undo)), "Undo")
+          // Slate's `throw up resize` and `throw down`, as the author's file has them.
+          expectEqual(
+            ActionDescriber.title(.throwWindow(screen: .relative(.up), width: "screenSizeX", height: "screenSizeY")),
+            "Throw to Display Above, Resized")
+          expectEqual(
+            ActionDescriber.title(.throwWindow(screen: .relative(.down), width: nil, height: nil)),
+            "Throw to Display Below")
+        }
+      }
+    ),
+    (
       "starter shortcuts use distinct Hyper keys",
       {
         try onMain {

@@ -40,6 +40,9 @@ import SwiftUI
       model.highlightedItem = "hyper+a"
     },
     shot("cheatsheet-plain", plain, height: 460) { $0.cheatSheet = .hyper(sampleShortcuts, hyperModifiers: .hyper) },
+    shot("cheatsheet-slate-notch", notch, height: 460) { model in
+      model.cheatSheet = .hyper(slateShortcuts, hyperModifiers: .hyper)
+    },
     shot("modal-notch", notch) { $0.modal = modalSheet },
     shot("modal-expanded-notch", notch, height: 260) { model in
       model.modal = modalSheet
@@ -59,6 +62,15 @@ import SwiftUI
     CheatSheet.Shortcut(keys: KeyCombo(string: "hyper+esc")!, name: "Stop automations", action: .stopAutomations),
     CheatSheet.Shortcut(keys: KeyCombo(string: "hyper+shift+s")!, summary: "JavaScript function"),
   ]
+}
+
+/// A ~/.slate.js like the author's, as the island lists it: every shortcut runs a function, unnamed,
+/// and described by trying it (into the starter's operations, which are the same).
+@MainActor private var slateShortcuts: [CheatSheet.Shortcut] {
+  StarterBindings.all.map {
+    CheatSheet.Shortcut(
+      SourceBinding(keys: $0.keys, summary: "JavaScript function", action: $0.action, function: .described))
+  } + [CheatSheet.Shortcut(keys: KeyCombo(string: "hyper+esc")!, name: "Stop automations", action: .stopAutomations)]
 }
 
 @MainActor private var modalSheet: CheatSheet {

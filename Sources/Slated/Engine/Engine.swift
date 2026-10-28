@@ -478,9 +478,7 @@ final class Engine {
       // Imported shortcuts are already listed as Slated's own (see apply).
       let imported = Set(config.general.importedSlateShortcuts)
       for source in sources.sources where source.loaded {
-        result += source.bindings.filter { !imported.contains($0.id) }.map {
-          CheatSheet.Shortcut(keys: $0.keys, modal: $0.modal?.keys, action: $0.action, summary: $0.summary)
-        }
+        result += source.bindings.filter { !imported.contains($0.id) }.map(CheatSheet.Shortcut.init)
       }
     }
     if config.clipboard.enabled, let keys = config.clipboard.shortcut {

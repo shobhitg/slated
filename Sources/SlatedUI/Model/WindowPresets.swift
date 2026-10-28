@@ -100,7 +100,9 @@ enum WindowPresets {
       move("screenOriginX", "screenOriginY", "screenSizeX*2/3", "screenSizeY")),
     WindowPreset(
       "right-two-thirds", "Right Two Thirds", .thirds, region: rect(1.0 / 3, 0, 2.0 / 3, 1),
-      move("screenOriginX+screenSizeX/3", "screenOriginY", "screenSizeX*2/3", "screenSizeY")),
+      move("screenOriginX+screenSizeX/3", "screenOriginY", "screenSizeX*2/3", "screenSizeY"),
+      // Slate configs commonly write the offset of a two-thirds span as "*1/3".
+      aliases: [move("screenOriginX+screenSizeX*1/3", "screenOriginY", "screenSizeX*2/3", "screenSizeY")]),
     // Center & fill
     WindowPreset(
       "center", "Center", .center, region: rect(0.25, 0.22, 0.5, 0.56),
@@ -129,10 +131,36 @@ enum WindowPresets {
       .throwWindow(screen: .next, width: "screenSizeX", height: "screenSizeY")),
   ]
 
+  /// Thirds that turn with the display (`Action.byOrientation`): side by side on a landscape one,
+  /// stacked on a portrait one. No single side names both, so they're named by position. `matching`
+  /// finds them; the pickers offer only `all`.
+  static let orientation: [WindowPreset] = [
+    turning("left-third", into: "first-third", "First Third"),
+    turning("center-third", into: "middle-third", "Middle Third"),
+    turning("right-third", into: "last-third", "Last Third"),
+    turning("left-two-thirds", into: "first-two-thirds", "First Two Thirds"),
+    turning("right-two-thirds", into: "last-two-thirds", "Last Two Thirds"),
+  ]
+
+  /// A landscape preset paired with itself turned on its side for portrait displays: x and y trade
+  /// places, and so do width and height (`screenSizeX/3` becomes `screenSizeY/3`).
+  private static func turning(_ id: String, into newID: String, _ title: String) -> WindowPreset {
+    let landscape = preset(id)
+    let pairs = ([landscape.action] + landscape.aliases).compactMap { action -> Action? in
+      guard case .move(let x, let y, let width, let height, let screen) = action else { return nil }
+      func turn(_ expression: String) -> String { String(expression.map { $0 == "X" ? "Y" : $0 == "Y" ? "X" : $0 }) }
+      let portrait = Action.move(x: turn(y), y: turn(x), width: turn(height), height: turn(width), screen: screen)
+      return .byOrientation(landscape: action, portrait: portrait)
+    }
+    return WindowPreset(newID, title, .thirds, region: landscape.region, pairs[0], aliases: Array(pairs.dropFirst()))
+  }
+
   static func preset(_ id: String) -> WindowPreset { all.first { $0.id == id }! }
 
+  private static let matchable = all + orientation
+
   /// The preset an action corresponds to, if any.
-  static func matching(_ action: Action) -> WindowPreset? { all.first { $0.matches(action) } }
+  static func matching(_ action: Action) -> WindowPreset? { matchable.first { $0.matches(action) } }
 
   /// Default operations for a new Chain: cycle left half → left third → left two-thirds.
   static var defaultChain: [Action] {

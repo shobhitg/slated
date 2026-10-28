@@ -152,6 +152,7 @@ enum PreviewData {
   // MARK: ~/.slate.js
 
   private static func meh(_ key: String) -> KeyCombo { KeyCombo(key: key, modifiers: [.control, .option, .command]) }
+  private static func turning(_ id: String) -> Action { WindowPresets.orientation.first { $0.id == id }!.action }
 
   static var slateJSBindings: [SourceBinding] {
     [
@@ -167,7 +168,9 @@ enum PreviewData {
       SourceBinding(
         keys: meh("down"), summary: "push down bar-resize:screenSizeY/2",
         action: .push(direction: .down, style: .barResize("screenSizeY/2"), screen: nil)),
-      SourceBinding(keys: meh("return"), summary: "JavaScript function"),
+      // Functions: two Slated can describe by trying them, two it can't.
+      SourceBinding(
+        keys: meh("return"), summary: "JavaScript function", action: turning("middle-third"), function: .described),
       SourceBinding(
         keys: meh("1"), summary: "throw 0 resize",
         action: .throwWindow(screen: .index(0), width: "screenSizeX", height: "screenSizeY")),
@@ -183,16 +186,23 @@ enum PreviewData {
       SourceBinding(keys: meh("z"), summary: "undo", action: .undo),
       SourceBinding(keys: meh("r"), summary: "relaunch", action: .relaunch),
       SourceBinding(keys: meh("x"), summary: "focus 'Xcode'", action: .focusApp("Xcode")),
-      SourceBinding(keys: meh("t"), summary: "JavaScript function"),
+      SourceBinding(
+        keys: meh("t"), summary: "JavaScript function",
+        function: .undescribed(reason: "depends on the focused app or window title")),
       SourceBinding(
         keys: meh("s"), summary: "snapshot main save-to-disk",
         action: .snapshot(name: "main", save: true, stack: false)),
       SourceBinding(
         keys: meh("a"), summary: "activate-snapshot main", action: .activateSnapshot(name: "main", delete: false)),
-      SourceBinding(keys: KeyCombo(key: "tab", modifiers: .option), summary: "JavaScript function"),
+      SourceBinding(
+        keys: KeyCombo(key: "tab", modifiers: .option), summary: "JavaScript function",
+        function: .undescribed(reason: "uses JavaScript logic Slated can't express without a script")),
       SourceBinding(
         keys: hyper("n"), summary: "throw next", action: .throwWindow(screen: .next, width: nil, height: nil)),
-      SourceBinding(keys: hyper("c"), summary: "JavaScript function"),
+      SourceBinding(
+        keys: hyper("c"), summary: "JavaScript function",
+        action: .corner(.bottomRight, width: "screenSizeX/2", height: "screenSizeY/2", screen: nil),
+        function: .described),
       SourceBinding(
         keys: KeyCombo(key: "1"), modal: ModalKey(keys: KeyCombo(key: "f4", modifiers: [.control])),
         summary: "layout Writing", action: .layout(name: "Writing")),

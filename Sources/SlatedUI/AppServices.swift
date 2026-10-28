@@ -21,19 +21,33 @@ public struct AppInfo: Identifiable, Hashable, Sendable {
 
 /// A binding defined in a Slate config file (read-only in the UI).
 public struct SourceBinding: Identifiable, Hashable, Sendable {
+  /// What Slated can tell about a shortcut that runs a JavaScript function.
+  public enum Function: Hashable, Sendable {
+    /// `action` is what the function does, found by trying it on pretend Macs as the import does.
+    /// It's for showing only: pressing the shortcut still runs the function.
+    case described
+    /// What it does can't be shown, and why when known ("depends on the focused app or window title").
+    case undescribed(reason: String?)
+  }
+
   public var id: String { (modal.map { $0.keys.string + " " } ?? "") + keys.string }
   public var keys: KeyCombo
   public var modal: ModalKey?
   /// Short description, e.g. "corner top-left" or "JavaScript function".
   public var summary: String
-  /// The operation when it is static (JavaScript callbacks have none).
+  /// The operation when it is static, or what a JavaScript function does when Slated can tell.
   public var action: Action?
+  /// Set when the shortcut runs a JavaScript function.
+  public var function: Function?
 
-  public init(keys: KeyCombo, modal: ModalKey? = nil, summary: String, action: Action? = nil) {
+  public init(
+    keys: KeyCombo, modal: ModalKey? = nil, summary: String, action: Action? = nil, function: Function? = nil
+  ) {
     self.keys = keys
     self.modal = modal
     self.summary = summary
     self.action = action
+    self.function = function
   }
 }
 
