@@ -293,6 +293,29 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Plugging in or removing a display applies a matching `default` layout.
 - [ ] Changing the keyboard layout (e.g. to AZERTY) keeps letter shortcuts on the labeled keys.
 
+## Manual checklist: GNOME island
+
+Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `lib/platform/island*.js`,
+`hyperHold.js` or the island's styles, with keyd and again with GNOME's `caps:hyper` option.
+- [ ] Holding Caps Lock about half a second shows the cheat sheet hanging from the top bar of the
+      monitor you're working on; letting go hides it at once. Quick Caps Lock+A never shows it.
+- [ ] While the sheet is up, Caps Lock+A still moves the window, and its row lights up. It lists the
+      same sections, order and names as the Mac's for the same `config.json` and `~/.slate.js`.
+- [ ] With "Show what just happened" on, a window shortcut shows "Left half · Firefox" with a glyph of
+      where the window went, on that window's monitor. With nothing focused (click the desktop), it
+      says "No focused window to move".
+- [ ] A running auto-clicker shows a red dot and a timer, over a fullscreen game too (then at the very
+      top). Hovering opens it up; Stop stops it without taking focus from the game. Next to the
+      island, clicks reach the window below, and with nothing running nothing is left to click.
+- [ ] A modal key shows its key in the island, then lists its keys after the delay.
+- [ ] `"island": {"enabled": false}` brings back the bottom HUD and the red pill.
+- [ ] Growing, shrinking and fading look smooth; no black shape stays once there's nothing to show.
+- [ ] In an Xorg session (GNOME 46–48) the island catches clicks only while automations show.
+- [ ] GNOME Shell's CPU use stays flat while idle (the Hyper watcher reads the modifiers about 7 times a
+      second). `scripts/logs.py --grep island` shows `island.cheat_sheet` and `island.stop_clicked`.
+- [ ] Turning the extension off while the sheet or automations show removes everything; turning it
+      back on works.
+
 ## Manual checklist: GNOME settings window
 
 Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extension/prefs.js` or
