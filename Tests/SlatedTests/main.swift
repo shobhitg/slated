@@ -44,6 +44,7 @@ let suites: [Suite] = [
   logRedactionTests,
   macOSContractTests,
   uiHostingContractTests,
+  uiGetStartedTests,
 ]
 
 let filter = CommandLine.arguments.dropFirst().first

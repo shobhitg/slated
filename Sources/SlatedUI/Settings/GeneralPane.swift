@@ -12,7 +12,7 @@ struct GeneralPane: View {
       SettingsCard(title: "Startup", symbol: "power") {
         ToggleRow(
           title: "Launch at login",
-          subtitle: "Start Slated in the menu bar when you log in, so your shortcuts are always ready.",
+          subtitle: "Start Slated in the background when you log in, so your shortcuts are always ready.",
           symbol: "power", tint: Color(hex: 0x30B85A),
           isOn: Binding(get: { model.configuration.general.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
       }

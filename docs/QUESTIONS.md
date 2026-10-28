@@ -96,10 +96,12 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 ## Settings UI: decisions and open items
 
 - **Hotstrings on/off switch** is saved in `config.json` as `general.hotstringsEnabled`, so it
-  survives restarts and can be set by hand. **Pause Slated** (menu bar) lasts only until you resume
+  survives restarts and can be set by hand. **Pause Slated** (Slated menu, menu bar icon) lasts only until you resume
   or relaunch.
-- **Menu bar:** left click opens the status panel; right click opens a classic menu with power-user
-  items (Import Slate Config, Open Config File, Show Log).
+- **One main window (2026-10-27, the author's call):** Slated is a regular app, always in the Dock.
+  Setup is Get Started, a page of the main window; closing the window keeps Slated running.
+- **Menu bar icon:** left click opens the main window; right click opens a small classic menu
+  (Pause, Reload, Import Slate Config, Open Config File, Show Log, Quit).
 - **Not built yet:**
   - an editor for Slate's display-change defaults (`default` / `ScreenDefault`);
   - reordering layouts by drag;

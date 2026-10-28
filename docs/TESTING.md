@@ -13,7 +13,7 @@
 | Installer scripts | `Tests/Installer/test_restore_caps_lock.py` | `make test-scripts` | `scripts/restore-caps-lock.py` against a stand-in `hidutil`, for every case in `Tests/Installer/caps-lock-cases.json`; `HIDRemapperTests` checks Slated against the same cases, so the installer and the app agree on which Caps Lock mapping is Slated's. |
 | Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~4,500 curated inputs, ~16,400 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
 | Linux engine | `linux/tests/run.mjs` (+ `harness.mjs`, `fixtures.mjs`, `unit.mjs`) | `make linux-test` | The JavaScript port of SlatedCore (`linux/gnome-extension/lib/core`) against every golden vector, plus tests for its JavaScript-only API (GNOME accelerators). Runs on Node if installed, else macOS's JavaScriptCore; `make linux-test-all` runs every runtime available (Node, GJS, JavaScriptCore). |
-| UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every settings pane, onboarding step and the menu bar panel to PNGs (light and dark) for review. |
+| UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every pane of the main window (Get Started's steps included), the clipboard switcher and the notch island to PNGs (light and dark) for review. |
 | Toolchain | `scripts/check-swift-testing.sh` | `make check-swift-testing` | Whether Swift Testing works yet (needs Xcode). |
 | Manual | below | by hand | Things only a real Mac with a keyboard can tell. |
 
@@ -150,7 +150,7 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       (only Slated's mapping is gone; `~/Library/Application Support/Slated/caps-lock-mapping.json`
       too).
 - [ ] Running the binary from a terminal and pressing Ctrl-C or Ctrl-\ restores Caps Lock too, also
-      when pressed right after launching it (before the menu bar icon appears).
+      when pressed right after launching it (before its window appears).
 - [ ] After sleep and wake, the Hyper key still works.
 - [ ] Hold Caps Lock while a password field takes focus (a Hyper shortcut that opens a login
       prompt, say), let go there, then type in another app: keys arrive without ⌃⌥⇧⌘.
@@ -173,17 +173,28 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       moves to the other.
 
 **Settings UI**
-- [ ] First launch shows onboarding. After finishing it, it doesn't come back unless Accessibility
-      permission goes missing.
-- [ ] Left-clicking the menu bar icon opens the status panel, and its toggles work. Right-click opens
-      the classic menu.
-- [ ] The settings window takes keyboard focus, and Slated shows in the Dock and Cmd-Tab only while
-      it's open.
+- [ ] First launch (`make reset-permissions`, then `./install.sh`): the main window comes to the
+      front on Get Started, also in front of the terminal, and macOS's Accessibility prompt appears.
+      Switching Slated on in System Settings brings the window back in front within a second, past
+      the permission step, with "Accessibility is on". Finishing lands on Overview, and Get Started
+      leaves the sidebar (Help → Get Started and Overview's "Get Started" still open it).
+- [ ] Get Started doesn't come back on later launches unless Accessibility permission goes missing;
+      then the window opens on its permission step.
+- [ ] Slated is always in the Dock and Cmd-Tab. Closing the window (⌘W) leaves it running and its
+      shortcuts working; clicking the Dock icon, opening Slated from Finder or Spotlight, ⌘, or
+      left-clicking the menu bar icon brings the window back (on Overview, or where you were if it was
+      only behind other windows). Right-clicking the menu bar icon opens the small classic menu. ⌘Q
+      quits and restores Caps Lock.
+- [ ] The menus work: About Slated opens About, Settings… (⌘,), Pause Slated (checkmark), Hide,
+      Quit; File → Reload Configuration (⌘R), Open Config File, Close Window (⌘W); Edit → Undo, Cut,
+      Copy, Paste and Select All in a text field (a hotstring's replacement); Window → Minimize.
+- [ ] With Launch at Login on, logging in starts Slated without opening its window (once set up).
+- [ ] The main window takes keyboard focus.
 - [ ] Recording a shortcut with the real Caps Lock (Hyper) works: holding Caps Lock and pressing K
       records ✦K (⌃⌥⇧K with Keyboard → Meh), and whatever ✦K is bound to doesn't run. Global hotkeys,
       Hyper combos and hotstrings pause while recording (typing a hotstring's trigger into the
       recorder doesn't expand it). `hidutil property --get UserKeyMapping` still lists Caps Lock →
-      F18 while recording, and is empty while Slated is paused from the menu bar.
+      F18 while recording, and is empty while Slated is paused (Slated → Pause Slated).
       With Caps Lock not set as the Hyper key, a real F18 key (an extended keyboard, a keyboard
       layer) records as F18.
 - [ ] Give a hotstring the trigger `x`, click into its Try It field, switch to another app and back
@@ -200,7 +211,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       shows "Another layout already has this name." and that layout's shortcut still applies it. A
       layout block copied in config.json selects its own row and editor, and deleting it keeps the
       original.
-- [ ] The sidebar renders correctly (the Liquid Glass sidebar can't be captured by `make snapshots`).
+- [ ] The sidebar shows every pane, in light and dark, right after launch and again after closing the
+      window and reopening it. (Tests check its views and drawing offscreen; only a screen shows the
+      final picture. It once came up empty on macOS 26, when it was a Liquid Glass sidebar.)
 - [ ] VoiceOver reads icon-only controls by name: the app picker beside an app field says "Choose a
       running app", and a grid size from a Slate config keyed by resolution says "Remove the grid
       size for the 1680×1050 display" (the tests can only read the source).
@@ -210,12 +223,12 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       from 1Password, Bitwarden or Keychain Access doesn't.
 - [ ] ⇧⌘V opens the switcher over the app you're in. ↩ pastes the selected item into that app; ⌘1–9,
       search, ⌘P pin and ⌘⌫ delete work.
-- [ ] Opening the switcher from the menu bar panel or Settings still pastes into the last app you used,
-      not into Slated.
+- [ ] Opening the switcher from Slated's window (Overview → Clipboard → Open) still pastes into the
+      last app you used, not into Slated.
 - [ ] ⇧⌘V, Esc, ⇧⌘V again right away, then pick an item a second later: it pastes into your app.
-- [ ] Esc closes the switcher and typing goes straight back to the app you were in, also when the
-      switcher was opened from the menu bar panel. Clicking another app's window instead leaves you in
-      that app; opened from Settings, Esc leaves you in Settings.
+- [ ] Esc closes the switcher and typing goes straight back to the app you were in, also while
+      Slated's window is open behind it. Clicking another app's window instead leaves you in that app,
+      clicking Slated's window leaves you there, and opened from Slated's window, Esc leaves you in it.
 - [ ] Quit the app you were in while the switcher is open, then pick an item: nothing is pasted
       anywhere (`clipboard.paste_skipped` in the log), and the item is on the clipboard.
 - [ ] After a restart the history is still there (with "Keep across restarts" on).

@@ -20,7 +20,7 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
   RunLoop.main.run(until: Date().addingTimeInterval(seconds))
 }
 
-/// An offscreen window hosting `view` the way `SlatedUI.makeSettingsWindow` does.
+/// An offscreen window hosting `view` the way `SlatedUI.makeMainWindow` does.
 @MainActor private func hostingWindow(_ view: some View) -> NSWindow {
   _ = NSApplication.shared
   let window = NSWindow(contentViewController: NSHostingController(rootView: view))
@@ -464,6 +464,92 @@ let uiHostingContractTests = Suite(
           expect(island.brightnessComponent < 0.1 && island.alphaComponent > 0.9, "island: \(island)")
           let pill = try topCenter(inIsland: false)
           expect(pill.brightnessComponent > 0.9, "pill: \(pill)")
+        }
+      }
+    ),
+    (
+      "the main window's sidebar is ordinary views with a row per pane: no split view, glass or toolbar",
+      {
+        try onMain {
+          // The author's window showed an empty sidebar (its rows still took clicks) with SwiftUI's
+          // title in the title bar. It was a NavigationSplitView, whose sidebar macOS 26 hosts in Liquid
+          // Glass that the window server draws. Now it's a plain list in the window's own view tree.
+          _ = NSApplication.shared
+          let model = AppModel(services: PreviewServices())
+          let window = SlatedUI.makeMainWindow(model: model)
+          window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
+          window.orderFrontRegardless()
+          spin()
+          defer { window.close() }
+          let content = try require(window.contentView)
+          expect(window.toolbar == nil, "SwiftUI installed a toolbar: \(String(describing: window.toolbar))")
+          expectEqual(window.title, "Slated")
+          let table = try require(firstView(NSTableView.self, in: content), "no sidebar list")
+          var ancestors: [String] = []
+          var view = table.superview
+          while let current = view, current !== content {
+            ancestors.append(String(describing: type(of: current)))
+            expect(!current.isHidden && current.alphaValue == 1, "hidden: \(type(of: current))")
+            view = current.superview
+          }
+          let drawnElsewhere = ancestors.filter {
+            $0.contains("SplitView") || $0.contains("Glass") || $0.contains("VisualEffect")
+          }
+          expect(drawnElsewhere.isEmpty, "sidebar inside \(drawnElsewhere)")
+          // The header row, then a row per pane, each on screen below the title bar.
+          let panes = SettingsSidebar.sections(showingGetStarted: false).joined().count
+          expectEqual(table.numberOfRows, panes + SettingsSidebar.sections(showingGetStarted: false).count + 1)
+          let visible = window.contentLayoutRect
+          var paneRows = 0
+          for row in 0..<table.numberOfRows {
+            guard let rowView = table.rowView(atRow: row, makeIfNecessary: false), rowView.frame.height > 1 else {
+              continue  // section headers have no height
+            }
+            let frame = rowView.convert(rowView.bounds, to: nil)
+            expect(visible.contains(frame) && !rowView.isHidden, "row \(row) at \(frame), visible \(visible)")
+            if row > 0 { paneRows += 1 }
+          }
+          expectEqual(paneRows, panes)
+        }
+      }
+    ),
+    (
+      "the sidebar's rows are painted by ordinary drawing (the glass sidebar drew nothing here)",
+      {
+        try onMain {
+          // Drawn the way `make snapshots` draws (a borderless offscreen window and cacheDisplay; under
+          // a title bar macOS 26 captures nothing): each row starts with a colored icon tile. The
+          // NavigationSplitView's glass sidebar came out empty here, rows and all.
+          _ = NSApplication.shared
+          let size = SlatedUI.mainWindowSize
+          let host = NSHostingView(rootView: SlatedUI.makeMainView(model: AppModel(services: PreviewServices())))
+          host.sizingOptions = []
+          host.frame = CGRect(origin: .zero, size: size)
+          let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+          window.contentView = host
+          window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
+          window.orderFrontRegardless()
+          spin(0.6)
+          defer { window.close() }
+          let bitmap = try require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+          host.cacheDisplay(in: host.bounds, to: bitmap)
+          let scale = Double(bitmap.pixelsWide) / size.width
+          // Strongly colored pixels in each pane row's icon column, rows counted top to bottom.
+          var coloredRows = 0
+          var inRow = false
+          for y in stride(from: 0, to: bitmap.pixelsHigh, by: 2) {
+            var colored = 0
+            for x in stride(from: Int(12 * scale), to: Int(48 * scale), by: 2) {
+              guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+              if color.saturationComponent > 0.4 && color.brightnessComponent > 0.35 { colored += 1 }
+            }
+            if colored > 3 && !inRow { coloredRows += 1 }
+            inRow = colored > 3
+          }
+          // The brand mark in the header, then one icon tile per pane.
+          expect(
+            coloredRows >= SettingsSidebar.sections(showingGetStarted: false).joined().count,
+            "icon rows drawn: \(coloredRows)")
         }
       }
     ),

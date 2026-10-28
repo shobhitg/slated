@@ -25,7 +25,8 @@ other tools for:
 - **A notch island:** running automations (hover to stop them), a cheat sheet of your Hyper shortcuts
   while you hold Caps Lock, the active modal key, and a word on what each shortcut did. On displays
   without a notch it hangs from the top center.
-- **A settings app** for all of it, with live previews of where a window will land.
+- **One window for all of it**, with live previews of where a window will land. Slated stays in the
+  Dock: close the window and it keeps working; click its Dock icon (or its menu bar icon) to come back.
 
 > **Status:** early development. Built for macOS 14+ on Apple Silicon. No releases yet: build from
 > source.
@@ -45,6 +46,10 @@ Each run:
 2. Installs `~/Applications/Slated.app`, quitting the running copy cleanly first so Caps Lock is
    restored.
 3. Relaunches it and checks its log to confirm the new build is the one running.
+
+On first launch Slated's window opens on **Get Started**, and macOS asks to let Slated control your
+Mac. Switch Slated on in System Settings and its window comes back to the front, ready for the
+next step.
 
 It signs every build with the same local certificate, created on the first run. That means you
 grant Slated's Accessibility permission once (**System Settings → Privacy & Security →
@@ -84,7 +89,7 @@ The same events also appear in Console.app under the subsystem `io.github.shobhi
 
 ## Configuration
 
-- **Settings window:** use it for everyday changes.
+- **Slated's window:** use it for everyday changes (click Slated in the Dock, or press ⌘, in Slated).
 - **`~/.config/slated/config.json`:** edit it by hand if you prefer; Slated reloads it on save.
 - **Slate files:** `~/.slate.js` and `~/.slate` load as they are, alongside your Slated bindings.
 
@@ -134,7 +139,7 @@ The code is a Swift package with no Xcode project:
 | `SlatedSystem` | macOS integration: Accessibility, hotkeys, event tap, Hyper key, text injection |
 | `SlatedScript` | Slate's JavaScript API on JavaScriptCore |
 | `SlatedUI` | The SwiftUI settings app |
-| `Slated` | The menu-bar app that wires it all together |
+| `Slated` | The app (Dock icon, main window, menu bar icon) that wires it all together |
 
 [CLAUDE.md](CLAUDE.md) records design decisions and conventions.
 

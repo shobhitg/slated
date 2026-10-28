@@ -15,6 +15,7 @@ private struct Unreadable: LocalizedError {
 @MainActor final class BreakableServices: AppServices {
   let base = PreviewServices()
   var broken = false
+  var setupFinished = true
   private var handlers: [@MainActor () -> Void] = []
 
   /// config.json changed on disk (broken, fixed or edited by hand).

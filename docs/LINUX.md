@@ -202,7 +202,7 @@ these to point everything at a throwaway home.
 | `insert-text`, `keystroke`, `open-url`, `shell` actions | ✓ | ✓ |
 | `~/.slate.js`, `~/.slate` | JavaScriptCore | GJS, inside GNOME Shell |
 | Settings | SwiftUI window | libadwaita window |
-| Status at a glance | Menu bar | Settings → Overview |
+| Status at a glance | Overview in Slated's window | Settings → Overview |
 | Start at login | Login item | Runs with your session while the extension is enabled |
 | Permissions | Accessibility, granted once | None needed |
 | Installing an update | `./install.sh` relaunches the app | Log out and back in (Wayland) or Alt+F2 `r` (Xorg). A nested shell lets you try it first |

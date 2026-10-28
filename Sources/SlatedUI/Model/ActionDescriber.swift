@@ -1,7 +1,7 @@
 import Foundation
 import SlatedCore
 
-/// Human-readable names for actions, for list rows, menus and the menu bar.
+/// Human-readable names for actions, for list rows, menus and the island.
 enum ActionDescriber {
   /// A short title: the preset name when the action is a known placement ("Left Half"), otherwise
   /// a plain description ("Focus Safari", "Throw to Next Display").

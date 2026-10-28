@@ -17,7 +17,7 @@ struct AboutPane: View {
           .padding(.horizontal, 10)
           .padding(.vertical, 4)
           .background(Theme.well, in: Capsule())
-        Text("Keyboard-first window management, a Hyper key and text expansion — in one small menu bar app.")
+        Text("Keyboard-first window management, a Hyper key and text expansion, in one small app.")
           .font(.system(size: 13.5))
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)

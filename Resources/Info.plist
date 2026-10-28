@@ -26,8 +26,6 @@
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
-	<key>LSUIElement</key>
-	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Shobhit Gupta. MIT License.</string>
 	<key>NSPrincipalClass</key>

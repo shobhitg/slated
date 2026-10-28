@@ -24,7 +24,7 @@ Primary user: the author, daily, for a few months before a public release. Open 
 | Topic | Decision | Why |
 |---|---|---|
 | License | MIT | Author's choice. |
-| Shape | One menu-bar agent app, `Slated.app` (`LSUIElement`), AppKit shell + SwiftUI windows | Accessibility permission is granted per signed app bundle. |
+| Shape | One regular app, `Slated.app`: always in the Dock, one main window (Get Started during setup, then the panes) that a menu bar icon also opens; AppKit shell + SwiftUI. Closing the window keeps it running | Accessibility permission is granted per signed app bundle. A menu-bar-only agent with separate windows confused the author (2026-10-27). |
 | Build | SwiftPM + `Makefile`; `scripts/bundle.sh` assembles and signs the `.app`. No Xcode project | Machine has only the Command Line Tools; plain-text project files. |
 | Platform | macOS 14+, Swift 6 language mode, Apple Silicon first (universal for releases) | |
 | Native config | JSON at `~/.config/slated/config.json` (`SlatedConfiguration`), read with JSON5 allowed | The UI must write it; Codable round-trips with zero dependencies. |
@@ -51,9 +51,9 @@ Sources/
                  event tap, Hyper key, text injection, permissions.
   SlatedScript/  Slate's JavaScript API (`slate.*`, `S.*`) on JavaScriptCore, talking to the app
                  through a host protocol.
-  SlatedUI/      SwiftUI: settings window, onboarding, menu bar content. Talks to the app only through
+  SlatedUI/      SwiftUI: the main window (sidebar, panes, Get Started). Talks to the app only through
                  the `AppServices` protocol (AppServices.swift); `PreviewServices` provides sample data.
-  Slated/        The app: AppDelegate hosts the UI (status item + popover, settings window, onboarding);
+  Slated/        The app: AppDelegate hosts the UI (main window, menus, status item);
                  Engine wires config → triggers (hotkeys, hotstrings, Hyper) → actions; Overlays/
                  (grid, hints, clipboard switcher, notch island, HUD); Logging/.
   SlatedUISnapshots/  Renders the UI to PNGs with PreviewServices (`make snapshots`) for visual review.

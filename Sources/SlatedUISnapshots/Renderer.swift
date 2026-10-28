@@ -7,8 +7,8 @@ import SwiftUI
 /// current OS):
 /// - The window must be borderless. Under a title bar, even a transparent one, scroll views and
 ///   lists get macOS 26's scroll edge effect and capture blank.
-/// - The Liquid Glass sidebar of a `NavigationSplitView` never captures, so settings render with
-///   `SettingsLayout.flat`.
+/// - The Liquid Glass sidebar of a `NavigationSplitView` never captures (nor did it always draw on
+///   screen), so the main window doesn't use one: its sidebar is plain views.
 /// - The hosting view doesn't size its window (`sizingOptions = []`), so every capture is exactly
 ///   the requested size.
 /// - Captures have transparent areas; they're composited onto the window background with
