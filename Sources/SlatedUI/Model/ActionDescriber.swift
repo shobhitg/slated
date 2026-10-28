@@ -17,14 +17,17 @@ enum ActionDescriber {
       default: return "Push \(d.title)"
       }
     case .nudge(let x, let y): return "Nudge \(x), \(y)"
-    case .throwWindow(let screen, let w, _):
-      return "Throw to \(screenName(screen))" + (w == nil ? "" : ", Resized")
+    case .throwWindow(let screen, let w, let h):
+      // Slate's `throw … resize` fills the display it lands on.
+      let size = w == nil ? "" : w == "screenSizeX" && h == "screenSizeY" ? ", Maximized" : ", Resized"
+      return "Throw to \(screenName(screen))" + size
     case .corner(let c, _, _, _): return "\(c.title) Corner"
     case .chain(let ops):
       return ops.isEmpty ? "Empty Chain" : "Cycle " + ops.prefix(3).map(title).joined(separator: " → ")
     case .sequence(let steps): return steps.isEmpty ? "Empty Sequence" : "Sequence of \(steps.count)"
     case .layout(let name): return name.isEmpty ? "Apply Layout" : "Layout “\(name)”"
-    case .byOrientation(let l, let p): return "\(title(l)) / \(title(p))"
+    // Thirds that turn with the display are presets ("First Third"); anything else names both.
+    case .byOrientation(let l, let p): return title(l) == title(p) ? title(l) : "\(title(l)) / \(title(p))"
     case .focus(let d): return d == .behind ? "Focus Window Behind" : "Focus \(d.rawValue.capitalized)"
     case .focusApp(let app): return app.isEmpty ? "Focus App" : "Focus \(app)"
     case .snapshot(let name, _, _): return "Snapshot “\(name)”"
@@ -130,7 +133,12 @@ enum ActionDescriber {
     case .index(let i): return "Display \(i + 1)"
     case .orderedIndex(let i): return "Display \(i + 1) (left to right)"
     case .resolution(let w, let h): return "the \(w)×\(h) Display"
-    case .relative(let d): return "\(d.title) Display"
+    case .relative(let d):
+      switch d {
+      case .up: return "Display Above"
+      case .down: return "Display Below"
+      default: return "\(d.title) Display"
+      }
     case .next: return "Next Display"
     case .previous: return "Previous Display"
     }
