@@ -42,6 +42,8 @@ public final class ClipboardPickerModel {
   /// Where the pointer was when a key moved the selection (or the picker opened): a row "hovered"
   /// under a pointer that hasn't moved since only scrolled there.
   @ObservationIgnored private var restingPointer: CGPoint?
+  /// Display names by bundle id (a Launch Services lookup each), for image rows.
+  @ObservationIgnored private var appNames: [String: String] = [:]
   private let services: any AppServices
 
   public init(services: any AppServices) {
@@ -93,6 +95,13 @@ public final class ClipboardPickerModel {
   func number(at index: Int) -> Int? { index < Self.visibleRows ? index + 1 : nil }
 
   func imageURL(_ image: ClipboardImage) -> URL? { services.clipboardImageURL(image) }
+
+  func appName(_ bundleID: String) -> String {
+    if let name = appNames[bundleID] { return name }
+    let name = AppIcons.displayName(bundleID: bundleID, running: [])
+    appNames[bundleID] = name
+    return name
+  }
 
   func moveSelection(by delta: Int, pointer: CGPoint? = nil) {
     if let pointer { restingPointer = pointer }
@@ -204,7 +213,7 @@ struct ClipboardPickerView: View {
           ForEach(Array(model.results.enumerated()), id: \.element.id) { index, item in
             PickerRow(
               item: item, number: model.number(at: index), selected: item.id == model.selectedID,
-              imageURL: item.image.flatMap(model.imageURL)
+              imageURL: item.image.flatMap(model.imageURL), appName: model.appName
             )
             .id(item.id)
             .contentShape(Rectangle())
@@ -258,6 +267,7 @@ private struct PickerRow: View {
   let number: Int?
   let selected: Bool
   let imageURL: URL?
+  let appName: (String) -> String
 
   var body: some View {
     HStack(spacing: 8) {
@@ -267,7 +277,7 @@ private struct PickerRow: View {
           .frame(width: ClipThumbnail.width(for: image, height: height), height: height)
         Text(
           ClipboardContent.imageTitle(
-            image, app: item.sourceApp.map { AppIcons.displayName(bundleID: $0, running: []) })
+            image, app: item.sourceApp.map { appName($0) })
         )
         .font(.system(size: 13))
         .foregroundStyle(selected ? Color.white : Color.primary)

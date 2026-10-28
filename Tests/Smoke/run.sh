@@ -395,8 +395,13 @@ home=$(new_home)
 images="$home/Library/Application Support/Slated/clipboard-images"
 mkdir -p "$images"
 printf 'left behind' >"$images/0123abcd.png"
+printf '{"items":[{"id":"33333333-3333-3333-3333-333333333333","text":"","copiedAt":%s,"pinned":true,%s}]}' \
+  "$(($(date +%s) - 978307200))" '"image":{"file":"feedface.png","width":8,"height":8,"bytes":64}' \
+  >"$home/Library/Application Support/Slated/clipboard.json"
 out=$(SLATED_SMOKE_STEPS=clipboard-images smoke "$home")
 expect_true "an image file no item refers to is deleted at launch" test ! -e "$images/0123abcd.png"
+expect_true "an item whose image file is gone is dropped at launch" bash -c \
+  'grep -q "\"event\":\"clipboard.items_removed\"" <<<"$1"' _ "$(log_of "$home")"
 expect_output "an image copied twice is one item and one private file" "$out" \
   "clipboard images: 1 item, 1 file, mode 600, 64×40"
 expect_output "picking it puts the same bytes back on the clipboard" "$out" "clipboard image put back: the same bytes"

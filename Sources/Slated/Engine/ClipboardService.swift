@@ -58,9 +58,15 @@ final class ClipboardService {
     {
       history = saved
     }
-    // Images whose items went while Slated wasn't saving (a crash, or history kept only in memory).
+    // Images whose items went while Slated wasn't saving (a crash, or history kept only in memory),
+    // and items whose image is gone (deleted by hand): neither can be shown or pasted.
     let orphans = images.removeFiles(except: history.imageFiles)
     if orphans > 0 { Log.record("clipboard.images_removed", ["files": orphans, "reason": "not in the history"]) }
+    let missing = history.items.filter { $0.image.map { imageURL($0) == nil } ?? false }
+    for item in missing { history.remove(id: item.id) }
+    if !missing.isEmpty {
+      Log.record("clipboard.items_removed", ["items": missing.count, "reason": "image file missing"])
+    }
   }
 
   func apply(_ settings: ClipboardSettings) {
