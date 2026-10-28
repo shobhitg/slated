@@ -115,12 +115,22 @@ export {parseSyntheticInput, formatSyntheticInput, RepeatSchedule, MOUSE_BUTTONS
 
 // --- Clipboard history ----------------------------------------------------------------------------
 /**
- * new ClipboardHistory(items, {newId}): add(text, {app, at, limit}), enforce(limit), prune(days, now), remove(id),
- *   togglePin(id), clear({keepPinned}), search(query), toJSON(); ClipboardHistory.fromJSON(parsed clipboard.json).
+ * new ClipboardHistory(items, {newId}): add(text, {app, at, limit}), addImage(image, {app, at, limit}), enforce(limit),
+ *   prune(days, now), remove(id), togglePin(id), clear({keepPinned}), search(query), imageFiles, toJSON();
+ *   ClipboardHistory.fromJSON(parsed clipboard.json).
  *   Dates are Swift's (seconds since 2001-01-01): referenceSeconds(ms = Date.now()) converts.
  * foldedContains(text, word) → the case- and diacritic-insensitive match search uses.
  */
 export {ClipboardHistory, referenceSeconds, referenceToMilliseconds, foldedContains} from './clipboard.js';
+
+// --- Popup placement ------------------------------------------------------------------------------
+/**
+ * PopupPlacement.below(anchor, size, visibleFrame, gap = 4) → Rect: the clipboard picker under the caret
+ *   (above it near the bottom of the screen). PopupPlacement.beside(target, row, size, visibleFrame, gap = 6)
+ *   → Rect: the image preview beside the picker. Also clamp(rect, bounds), screen(anchor, screens) →
+ *   ScreenInfo | null, and isUsable(rect, screenFrames, {maxHeight}) for a caret an app reported.
+ */
+export {PopupPlacement} from './placement.js';
 
 // --- Action names and the island's cheat sheet ------------------------------------------------------
 /**

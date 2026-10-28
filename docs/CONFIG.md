@@ -289,10 +289,12 @@ an image is an item with empty `text` and an `image` object (`file`, `width`, `h
 
 **On the Mac** the old switcher's ⌘C, ⌘P and ⌘⌫ are gone: copy, pin and delete in Settings.
 
-**On Linux (GNOME)** the history opens in a switcher (↑↓, ↩, esc, and Ctrl+1–9, Ctrl+C copy,
-Ctrl+P pin, Ctrl+Backspace delete), and Ctrl+Shift+Backspace clears everything but pinned items.
-Picking an item pastes with Ctrl+V, or Ctrl+Shift+V in terminals. It records and lists text only;
-image items in a clipboard.json from the Mac are kept, not shown.
+**On Linux (GNOME)** the same picker opens below the text cursor when the app tells the input
+method where it is (else at the pointer), with Ctrl for ⌘: Ctrl+1–9 · esc. Ctrl+P pins,
+Ctrl+Backspace deletes and Ctrl+Shift+Backspace clears everything but pinned items there, since
+GNOME's settings show only how many items are saved. Picking an item pastes with Ctrl+V, or
+Ctrl+Shift+V in terminals. Copied PNG images are kept the same way, in
+`~/.local/state/slated/clipboard-images/`.
 - The default shortcut `cmd+shift+v` is Super+Shift+V.
 - History is kept in `~/.local/state/slated/clipboard.json`, readable only by you, in the same format
   as on the Mac.

@@ -337,62 +337,60 @@
   color: rgba(255, 255, 255, 0.86);
 }
 
-/* --- Clipboard history switcher ------------------------------------------------------------- */
+/* --- Clipboard picker: a small list at the text cursor (the Mac's ClipboardPicker) ---------- */
 
-.slated-clipboard-panel {
-  border-radius: 18px;
-  background-color: rgba(26, 24, 38, 0.94);
+.slated-clipboard-picker,
+.slated-clipboard-preview {
+  border-radius: 10px;
+  background-color: rgba(32, 31, 38, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
-.slated-clipboard-header {
-  spacing: 10px;
-  padding: 12px 16px;
+.slated-clipboard-filter {
+  spacing: 6px;
+  padding: 0 11px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.slated-clipboard-icon {
-  icon-size: 16px;
-  color: #a78bfa;
+.slated-clipboard-filter-icon {
+  icon-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
-.slated-clipboard-search {
-  font-size: 15px;
+.slated-clipboard-search,
+.slated-clipboard-search:focus,
+.slated-clipboard-search:hover {
+  font-size: 13px;
   color: #ffffff;
+  padding: 0;
+  min-height: 0;
   border: none;
   background-color: transparent;
   box-shadow: none;
 }
 
-.slated-clipboard-count {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
-  padding: 2px 7px;
-  border-radius: 9px;
-  background-color: rgba(255, 255, 255, 0.1);
+.slated-clipboard-hint {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .slated-clipboard-list {
-  padding: 8px;
-  spacing: 2px;
+  padding: 5px;
 }
 
 .slated-clipboard-row {
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 0 7px;
+  border-radius: 6px;
   text-align: left;
 }
 
-.slated-clipboard-row:hover {
-  background-color: rgba(255, 255, 255, 0.06);
+.slated-clipboard-row:selected {
+  background-color: #6b5efc;
 }
 
-.slated-clipboard-row:selected {
-  background-gradient-direction: horizontal;
-  background-gradient-start: #5856d6;
-  background-gradient-end: #e0479e;
+.slated-clipboard-row-box {
+  spacing: 8px;
 }
 
 .slated-clipboard-text {
@@ -400,26 +398,51 @@
   color: #ffffff;
 }
 
-.slated-clipboard-meta {
-  font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.6);
+.slated-clipboard-app-icon,
+.slated-clipboard-kind-icon {
+  icon-size: 16px;
+}
+
+.slated-clipboard-kind-icon {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.slated-clipboard-pin {
+  icon-size: 10px;
+  color: #a78bfa;
 }
 
 .slated-clipboard-number {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
-  padding-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.slated-clipboard-row:selected .slated-clipboard-pin,
+.slated-clipboard-row:selected .slated-clipboard-number {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.slated-clipboard-thumbnail,
+.slated-clipboard-preview-image {
+  border-radius: 4px;
+}
+
+.slated-clipboard-image-placeholder {
+  icon-size: 14px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .slated-clipboard-empty {
-  font-size: 13px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.6);
 }
 
-.slated-clipboard-hints {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
-  padding: 9px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+.slated-clipboard-preview {
+  padding: 8px;
+}
+
+.slated-clipboard-preview-caption {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.6);
 }

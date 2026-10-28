@@ -163,8 +163,18 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
   repeats that type keys themselves, a second press stops them.
 - **Opening the overview counts as leaving the app:** automations stop, like switching apps.
 - **The Clipboard settings page shows only how many items are saved.** Picking, pinning and
-  deleting happen in the switcher (Super+Shift+V); showing the items in Settings would need another
-  channel between the extension and the settings window.
+  deleting happen in the picker (Super+Shift+V): Ctrl+P, Ctrl+Backspace and Ctrl+Shift+Backspace
+  stay there on GNOME, though the Mac's picker moved them to Settings → Clipboard, because showing
+  the items in Settings would need another channel between the extension and the settings window.
+  Ctrl+C (copy without pasting) went, as on the Mac: turn off "Paste after picking" for that.
+- **The GNOME picker opens at the text cursor the input method last heard of** (Wayland
+  text-input through Main.inputMethod, X11 apps through IBus), while that window and field still
+  have focus; GNOME Shell can't ask an app on demand like macOS's Accessibility. Otherwise it opens
+  at the pointer (there's no focused-field fallback as on the Mac). Placement is the core's
+  PopupPlacement, the same vectors as Swift.
+- **GNOME records copied images as PNG only** (what GNOME apps offer; a Mac history's TIFF files are
+  kept and pasted as TIFF), stored and cleaned up like the Mac's. A history file that can't be read
+  keeps its images, so fixing the file brings them back.
 - **Get Started on GNOME** has the Mac's five steps, with the permission step's place taken by what
   GNOME needs instead: welcome → Hyper key (recommends keyd) → hotstrings (checks espanso) → Slate
   config → done. "Finished" lives in `~/.local/state/slated/settings-window.json`, so it isn't

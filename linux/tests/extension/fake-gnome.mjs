@@ -10,6 +10,7 @@
 //   const {SlatedRuntime} = await import('…/runtime.js');
 
 import {existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync, accessSync, chmodSync, constants} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {dirname} from 'node:path';
 
 import {screens as fixtureScreens} from './fixtures.mjs';
@@ -192,6 +193,13 @@ export class FakeActor {
     this.x = x;
     this.y = y;
   }
+  set_size(width, height) {
+    this.width = width;
+    this.height = height;
+  }
+  get_resource_scale() {
+    return 1;
+  }
   connect(signal, callback) {
     const id = this.nextHandler++;
     this.handlers.set(id, {signal, callback});
@@ -307,6 +315,9 @@ export class FakeShellApp {
   get_name() {
     return this.name;
   }
+  get_icon() {
+    return {icon: this.id};
+  }
   is_window_backed() {
     return String(this.id).startsWith('window:');
   }
@@ -399,6 +410,26 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     idle_add: (_priority, callback) => loop.add(0, callback),
     source_remove: (id) => loop.remove(id),
     uri_parse_scheme: (uri) => /^([a-z][a-z0-9+.-]*):/i.exec(uri)?.[1] ?? null,
+    ChecksumType: {MD5: 0, SHA1: 1, SHA256: 2, SHA512: 3, SHA384: 4},
+    compute_checksum_for_data(type, data) {
+      if (type !== 2) throw new Error('only SHA-256 in the fake');
+      return createHash('sha256').update(data).digest('hex');
+    },
+    // GLib.Bytes: GJS builds one from a Uint8Array.
+    Bytes: class {
+      constructor(data) {
+        this._data = new Uint8Array(data);
+      }
+      get_data() {
+        return this._data.length === 0 ? null : this._data;
+      }
+      get_size() {
+        return this._data.length;
+      }
+      toArray() {
+        return this._data;
+      }
+    },
   };
 
   class FakeMonitor {
@@ -477,6 +508,11 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
 
   const Gio = {
     File: {new_for_path: (path) => new FakeFile(path)},
+    FileIcon: class {
+      constructor({file}) {
+        this.file = file;
+      }
+    },
     FileCreateFlags: {NONE: 0, PRIVATE: 1, REPLACE_DESTINATION: 2},
     FileQueryInfoFlags: {NONE: 0},
     FileCopyFlags: {OVERWRITE: 1},
@@ -570,7 +606,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     is_wayland_compositor: () => true,
   };
 
-  // The clipboard: Meta.Selection reports new owners, St.Clipboard reads and writes text.
+  // The clipboard: Meta.Selection reports new owners, St.Clipboard reads and writes text and other
+  // content by MIME type (`state.clipboardContent`: type → Uint8Array).
   const selectionSignals = new Signals();
   const selection = {
     connect: (signal, callback) => selectionSignals.connect(signal, callback),
@@ -581,10 +618,39 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     get_text: (_type, callback) => callback(clipboard, state.clipboard ?? null),
     set_text: (_type, text) => {
       state.clipboard = text;
+      state.clipboardContent = {};
       state.clipboardMimeTypes = ['text/plain;charset=utf-8'];
       state.clipboardWrites.push(text);
       selectionSignals.emit('owner-changed', 1, null);
     },
+    get_content: (_type, mimeType, callback) => {
+      state.clipboardReads.push(mimeType);
+      const data = state.clipboardContent[mimeType];
+      callback(clipboard, data ? new GLib.Bytes(data) : null);
+    },
+    set_content: (_type, mimeType, bytes) => {
+      state.clipboard = null;
+      state.clipboardContent = {[mimeType]: new Uint8Array(bytes.toArray())};
+      state.clipboardMimeTypes = [mimeType];
+      state.clipboardWrites.push({mimeType, bytes: bytes.get_size()});
+      selectionSignals.emit('owner-changed', 1, null);
+    },
+  };
+
+  // Where the text cursor is: Main.inputMethod (Wayland text-input) and GNOME Shell's IBus manager
+  // (X11 apps) report it; `state.textInputFocus` stands for Main.inputMethod.currentFocus.
+  const inputMethodSignals = new Signals();
+  const inputMethod = {
+    connect: (signal, callback) => inputMethodSignals.connect(signal, callback),
+    disconnect: (id) => inputMethodSignals.disconnect(id),
+    get currentFocus() {
+      return state.textInputFocus ?? null;
+    },
+  };
+  const ibusSignals = new Signals();
+  const ibusManager = {
+    connect: (signal, callback) => ibusSignals.connect(signal, callback),
+    disconnect: (id) => ibusSignals.disconnect(id),
   };
 
   const tracker = {
@@ -597,6 +663,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   };
   const appSystem = {
     get_running: () => state.apps.filter((a) => a.windows.length > 0),
+    lookup_app: (id) => state.apps.find((a) => a.get_id() === id) ?? null,
     connect: (signal, callback) => appSystemSignals.connect(signal, callback),
     disconnect: (id) => appSystemSignals.disconnect(id),
   };
@@ -657,10 +724,22 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     },
     ClipboardType: {PRIMARY: 0, CLIPBOARD: 1},
     Clipboard: {get_default: () => clipboard},
+    PolicyType: {ALWAYS: 0, AUTOMATIC: 1, NEVER: 2, EXTERNAL: 3},
+    ThemeContext: {get_for_stage: () => ({scale_factor: state.scaleFactor ?? 1})},
+    // Loads an image file scaled to fit, off the main thread: an actor that shows it once decoded.
+    TextureCache: {
+      get_default: () => ({
+        load_file_async(file, width, height, paintScale, resourceScale) {
+          state.textureLoads.push({path: file.path, width, height, paintScale, resourceScale});
+          return new FakeActor({texture: file.path});
+        },
+      }),
+    },
   };
   const Clutter = {
     BinLayout: class {},
     ActorAlign: {FILL: 0, START: 1, END: 2, CENTER: 3},
+    ContentGravity: {RESIZE_FILL: 10, RESIZE_ASPECT: 11},
     EVENT_STOP: true,
     EVENT_PROPAGATE: false,
     KEY_Escape: 0xff1b,
@@ -703,6 +782,10 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   state.clipboard = null;
   state.clipboardMimeTypes = [];
   state.clipboardWrites = [];
+  state.clipboardContent = {};
+  state.clipboardReads = [];
+  state.textureLoads = [];
+  state.pointer = [0, 0];
   state.inputSource = {type: 'xkb', id: 'us', xkbId: 'us'};
   const uiGroup = new FakeActor();
 
@@ -731,7 +814,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     get_window_actors: () => state.windows.map((w) => ({get_meta_window: () => w})),
     stage: {width: 3000, height: 1920, get_event_actor: (event) => event.actor},
     // The modifiers held on the real keyboard (Clutter.ModifierType bits): `state.modifiers`.
-    get_pointer: () => [0, 0, state.modifiers ?? 0],
+    get_pointer: () => [...state.pointer, state.modifiers ?? 0],
     create_app_launch_context: () => null,
   };
 
@@ -762,6 +845,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       untrackChrome: (actor) => state.trackedChrome.delete(actor),
     },
     uiGroup,
+    inputMethod,
     overview: {
       get visible() {
         return !!state.overview;
@@ -792,6 +876,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     global,
     signals: {
       display: displaySignals, tracker: trackerSignals, appSystem: appSystemSignals, layout: layoutSignals, selection: selectionSignals,
+      inputMethod: inputMethodSignals, ibus: ibusSignals,
       overview: overviewSignals, systemBus: systemBusSignals, loginManager: loginManagerSignals,
     },
 
@@ -820,6 +905,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'resource:///org/gnome/shell/ui/main.js': Main,
       'resource:///org/gnome/shell/misc/config.js': {PACKAGE_VERSION: '47.1'},
       'resource:///org/gnome/shell/ui/status/keyboard.js': {getInputSourceManager: () => ({currentSource: state.inputSource})},
+      'resource:///org/gnome/shell/misc/ibusManager.js': {getIBusManager: () => ibusManager},
       'resource:///org/gnome/shell/misc/loginManager.js': {
         getLoginManager: () => ({
           connect: (signal, callback) => loginManagerSignals.connect(signal, (_signals, ...args) => callback(loginManagerSignals, ...args)),
@@ -853,8 +939,39 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     /** Another app copies something: a new clipboard owner with these MIME types. */
     copy(text, mimeTypes = ['text/plain;charset=utf-8', 'UTF8_STRING']) {
       state.clipboard = text;
+      state.clipboardContent = {};
       state.clipboardMimeTypes = [...mimeTypes];
       selectionSignals.emit('owner-changed', 1, {});
+    },
+
+    /**
+     * Another app copies content by MIME type (a Uint8Array each), such as an image: {'image/png': bytes}.
+     * With `text`, the copy offers text as well (spreadsheet cells come with a picture of themselves).
+     */
+    copyContent(content, {text = null} = {}) {
+      state.clipboard = text;
+      state.clipboardContent = {...content};
+      state.clipboardMimeTypes = [...(text === null ? [] : ['text/plain;charset=utf-8']), ...Object.keys(content)];
+      selectionSignals.emit('owner-changed', 1, {});
+    },
+
+    /**
+     * A focused field reports its text cursor: through Wayland's text-input (Main.inputMethod, with a
+     * Graphene.Rect, and it has the input method's focus) or through IBus (an X11 app).
+     */
+    caret({x, y, width, height}, source = 'input-method') {
+      if (source === 'input-method') {
+        state.textInputFocus = {field: true};
+        inputMethodSignals.emit('cursor-location-changed', {get_x: () => x, get_y: () => y, get_width: () => width, get_height: () => height});
+      } else {
+        ibusSignals.emit('set-cursor-location', {x, y, width, height});
+      }
+    },
+
+    /** The text field loses the input method (Wayland) or IBus's focus (X11). */
+    caretFocusOut(source = 'input-method') {
+      if (source === 'input-method') state.textInputFocus = null;
+      else ibusSignals.emit('focus-out');
     },
 
     /** Presses a grabbed accelerator: Mutter emits accelerator-activated with its action. */

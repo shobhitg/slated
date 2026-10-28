@@ -3,7 +3,7 @@
 // ClipboardPane.swift).
 //
 // The history itself lives in the running extension, which reports only how many items it holds
-// (status.json). Searching, pasting, pinning and deleting happen in the switcher.
+// (status.json). Filtering, pasting, pinning and deleting happen in the picker.
 
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
@@ -155,16 +155,16 @@ export function createClipboardPane(ctx) {
     row.add_suffix(label(keys, {classes: ['dim-label']}));
     using.add(row);
   };
-  keyRow('Search', 'Type');
-  keyRow('Paste the selected item', 'Return');
+  keyRow('Filter', 'Type');
+  keyRow('Paste the selected item', 'Return or click');
   keyRow('Paste item 1 to 9', 'Ctrl 1…9');
-  keyRow('Copy without pasting', 'Ctrl C');
   keyRow('Pin or unpin', 'Ctrl P');
   keyRow('Delete', 'Ctrl Backspace');
   keyRow('Clear everything but pinned items', 'Ctrl Shift Backspace');
   keyRow('Close', 'Esc');
-  const note = new Adw.ActionRow({use_markup: false, title: 'Text only',
-    subtitle: "Slated keeps copied text. Images and files aren't recorded, and only copies made while Slated runs are."});
+  const note = new Adw.ActionRow({use_markup: false, title: 'Text and images',
+    subtitle: 'The picker opens below the text cursor (else at the pointer). Images copied as PNG are kept too, '
+      + "up to 20 MB each; files aren't recorded, and only copies made while Slated runs are."});
   using.add(note);
   prefs.add(using);
 

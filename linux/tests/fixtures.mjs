@@ -568,6 +568,48 @@ export const checkers = {
       },
     };
   },
+  'placement.json': (data) => {
+    const {PopupPlacement} = core;
+    const gap = (c) => (c.gap === undefined ? [] : [c.gap]);
+    const screensOf = (name) =>
+      data.screenSets[name].map((frame, i) => ({displayID: i + 1, name: `S${i + 1}`, frame, visibleFrame: frame, isMain: i === 0, scale: 1}));
+    return {
+      below() {
+        for (const c of data.below) {
+          countCheck();
+          const result = PopupPlacement.below(c.anchor, c.size, data.visibleFrames[c.visible], ...gap(c));
+          expectEqual(result, c.result, `below ${show(c.anchor)}, ${show(c.size)} on ${c.visible}`);
+        }
+      },
+      beside() {
+        for (const c of data.beside) {
+          countCheck();
+          const result = PopupPlacement.beside(c.target, c.row, c.size, data.visibleFrames[c.visible], ...gap(c));
+          expectEqual(result, c.result, `beside ${show(c.target)}, row ${show(c.row)}, ${show(c.size)} on ${c.visible}`);
+        }
+      },
+      clamp() {
+        for (const c of data.clamp) {
+          countCheck();
+          expectEqual(PopupPlacement.clamp(c.rect, c.bounds), c.result, `clamp ${show(c.rect)} to ${show(c.bounds)}`);
+        }
+      },
+      screen() {
+        for (const c of data.screen) {
+          countCheck();
+          expectEqual(PopupPlacement.screen(c.anchor, screensOf(c.screens))?.name ?? null, c.screen, `${show(c.anchor)} on ${c.screens}`);
+        }
+      },
+      isUsable() {
+        for (const c of data.isUsable) {
+          countCheck();
+          const rect = revive(c.rect);
+          const usable = PopupPlacement.isUsable(rect, data.usableScreens[c.screens], {maxHeight: revive(c.maxHeight)});
+          expectEqual(usable, c.usable, `${show(rect)} (max height ${show(revive(c.maxHeight))}) on ${c.screens}`);
+        }
+      },
+    };
+  },
 };
 
 

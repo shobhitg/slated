@@ -68,6 +68,7 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `keys.json` | Key combos (parse, canonical string, display), key names (modifier keys, mouse buttons 3–5), Slate keystrokes. |
    | `automation.json` | `press`/`hold` inputs, `RepeatSchedule` timing with fixed random values, `Action.isAutomation`. |
    | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear, images), Foundation's case- and diacritic-insensitive search, and the clipboard.json the Mac app writes (image items too). |
+   | `placement.json` | `PopupPlacement`: the clipboard picker below the caret or pointer (above near the bottom), its image preview beside it, clamping, the screen showing an anchor, and which caret rects apps report are usable (CoreGraphics' edge and empty-rect rules). |
    | `screens.json` | Screen setups, screen references and their resolution, ordering. |
    | `frames.json` | `targetFrame` for every geometry operation × setup × window × settings, and `targetOrigin`. |
    | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
@@ -383,3 +384,33 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
 - [ ] Clipboard: the pill says Recording and the count grows as you copy. KeePassXC is offered under
       Password Managers when installed. Clearing the shortcut (Backspace while recording) turns off
       Super+Shift+V; Default puts it back.
+
+## Manual checklist: GNOME clipboard picker
+
+Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `lib/platform/clipboard*.js`,
+`caret.js` or the stylesheet, at 100% and at 200% (or fractional) scaling, with a second display.
+- [ ] Super+Shift+V in GNOME Text Editor, Firefox, a GTK3 app and an X11 app with IBus
+      (`GDK_BACKEND=x11 gnome-text-editor`, or an Electron app) opens the picker 4 px below the
+      text cursor, left edges aligned; near the bottom of the screen, above it. `scripts/logs.py
+      --grep switcher_opened` says `"anchor":"caret"` with `"source":"input-method"` (Wayland) or
+      `"ibus"` (X11), and nothing about where.
+- [ ] Where nothing reports a cursor (the desktop, a game, Chrome without `--enable-wayland-ime`),
+      it opens at the pointer (`"anchor":"pointer"`), kept on that display.
+- [ ] It looks like the Mac's: 320 px wide, a filter field with only "Ctrl+1–9 · esc", one-line
+      rows with the app's icon, pinned items first with a pin, Ctrl+1…Ctrl+9 on the first nine and
+      half a row showing below when there are more. No header or footer.
+- [ ] Typing filters at once (digits too). ↑↓ move the highlight; the pointer resting over the list
+      doesn't take it back, moving it does. ↩, a click or Ctrl+1–9 paste into the window you were
+      in; esc or a click outside closes. Ctrl+P pins, Ctrl+Backspace deletes, Ctrl+Shift+Backspace
+      clears all but pinned items.
+- [ ] Images: a screenshot copied to the clipboard (Print Screen → Copy), Copy Image in Firefox and
+      a copy in GIMP each show a thumbnail row "Image · W×H · App". Selecting one shows it at about
+      240 px beside the picker, level with its row (left of it near the right edge of the screen),
+      with "W×H · size" under it. Pasting it into LibreOffice Writer or GIMP pastes the image, and
+      it isn't recorded again. Copying cells in LibreOffice Calc records their text.
+- [ ] `~/.local/state/slated/clipboard-images` is `drwx------` and its files `-rw-------`, named by
+      SHA-256. Copying the same image twice keeps one file; deleting its item removes it. A PNG
+      over 20 MB is skipped (`clipboard.skipped`, "image too large"). `clipboard.captured` for an
+      image has only `kind`, `bytes`, `width` and `height`.
+- [ ] With "Keep history across restarts" off, turning Slated off and on (or locking the screen)
+      leaves `clipboard-images` empty.
