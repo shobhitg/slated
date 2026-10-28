@@ -73,6 +73,7 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
    | `config.json` | `config.json` decoding (JSON5 included, `onlyInApps`, clipboard and automation settings) and the exact text Swift writes. |
    | `starter.json`, `settings.json`, `hotstrings.json` | The starter config; Slate settings; hotstring typing sessions and templates. |
+   | `cheatsheet.json` | The island's cheat sheet (SlatedUI's `CheatSheet`): every kind of action's title, section, region and symbol, names and script summaries, and whole Hyper and modal sheets in keyboard order. |
 
 2. `linux/tests/run.mjs` loads every fixture and checks the JavaScript engine against each case, plus
    handwritten tests for what fixtures can't express. Error messages must match word for word, and the

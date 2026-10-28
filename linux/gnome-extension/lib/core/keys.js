@@ -72,6 +72,11 @@ NAMED.set('backspace', 'delete');
 NAMED.set('pageup', 'pageUp');
 NAMED.set('pagedown', 'pageDown');
 
+/** Every named key's canonical spelling ("left", "f10", "pad=", "rightShift"…): KeyNames.named's values. */
+export function namedKeys() {
+  return [...new Set(NAMED.values())];
+}
+
 /** Normalizes a key name: named keys get their canonical spelling, single characters are lowercased. */
 export function canonicalKey(key) {
   const named = NAMED.get(lowercased(key));

@@ -562,6 +562,53 @@ export const checkers = {
   },
 };
 
+
+/** Regions are fractions computed from window math: equal within rounding. */
+function sameRegion(actual, expected) {
+  if (actual === null || expected === null) return actual === expected;
+  return ['x', 'y', 'width', 'height'].every((k) => Math.abs(actual[k] - expected[k]) < 1e-9);
+}
+
+/** A cheat sheet item with only the fields Swift records (the port adds keys and extraModifiers). */
+const swiftItem = (item) => ({id: item.id, label: item.label, title: item.title, region: item.region, symbol: item.symbol});
+
+function checkSheet(label, actual, expected) {
+  const strip = (sheet) => ({...sheet, sections: sheet.sections.map((s) => ({title: s.title, items: s.items.map(swiftItem)}))});
+  const a = strip(actual);
+  const regionsMatch = a.sections.every((s, i) => s.items.every((item, j) => sameRegion(item.region, expected.sections[i]?.items[j]?.region ?? null)));
+  const withoutRegions = (sheet) => ({...sheet, sections: sheet.sections.map((s) => ({...s, items: s.items.map((i) => ({...i, region: null}))}))});
+  expectEqual(withoutRegions(a), withoutRegions(expected), label);
+  expect(regionsMatch, `${label}: regions differ: ${show(a.sections.map((s) => s.items.map((i) => i.region)))}`);
+}
+
+checkers['cheatsheet.json'] = (data) => ({
+  actions() {
+    for (const c of data.actions) {
+      countCheck();
+      const sheet = core.hyperCheatSheet([{keys: 'hyper+a', action: c.action}], ['ctrl', 'alt', 'shift', 'cmd']);
+      const item = sheet.sections[0]?.items[0];
+      const label = show(c.action);
+      expectEqual({title: item?.title, section: sheet.sections[0]?.title, symbol: item?.symbol}, {title: c.title, section: c.section, symbol: c.symbol}, label);
+      expect(sameRegion(item?.region ?? null, c.region), `${label}: region ${show(item?.region)}, expected ${show(c.region)}`);
+    }
+  },
+  names() {
+    for (const c of data.names) {
+      countCheck();
+      const sheet = core.hyperCheatSheet([c.shortcut]);
+      const item = sheet.sections[0]?.items[0];
+      expectEqual({title: item?.title, section: sheet.sections[0]?.title, symbol: item?.symbol}, {title: c.title, section: c.section, symbol: c.symbol}, show(c.shortcut));
+    }
+  },
+  sheets() {
+    for (const c of data.sheets) {
+      countCheck();
+      const sheet = c.modal ? core.modalCheatSheet(c.modal, c.shortcuts) : core.hyperCheatSheet(c.shortcuts, c.hyperModifiers);
+      checkSheet(c.name, sheet, c.sheet);
+    }
+  },
+});
+
 /** Registers one test per fixture section, plus a manifest check, reading files with `readText`. */
 export function registerFixtureTests(fixturesDir, readText) {
   const manifest = JSON.parse(readText(`${fixturesDir}/manifest.json`));
