@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
-import {after, afterEach, beforeEach, test} from 'node:test';
+import {after, afterEach, beforeEach, mock, test} from 'node:test';
 
 import * as realCore from '../../gnome-extension/lib/core/index.js';
 import {createFakeGnome} from './fake-gnome.mjs';
@@ -29,7 +29,11 @@ const homes = [];
 let home;
 let runtime;
 
+// Automations, their timers and quick combos count in wall-clock time: follow the simulated clock.
+const wallClock = Date.now();
+
 beforeEach(() => {
+  mock.method(Date, 'now', () => wallClock + gnome.loop.now);
   home = mkdtempSync(join(tmpdir(), 'slated-island-'));
   homes.push(home);
   Object.assign(gnome.state, {
@@ -60,6 +64,7 @@ beforeEach(() => {
 afterEach(() => {
   runtime?.stop();
   runtime = null;
+  mock.restoreAll();
   assert.deepEqual(events('runtime.error'), [], 'no part of the runtime failed');
   assert.deepEqual(events('island.render_failed'), [], 'the island drew every presentation');
 });
@@ -188,6 +193,22 @@ test('priority: the cheat sheet, then the modal key, then a banner, then running
   assert.equal(kind(), 'automations', 'then the automations again');
   island.automationsChanged([]);
   assert.equal(kind(), 'hidden');
+  island.destroy();
+  timers.clearAll();
+});
+
+test('a combo that fires before the hold is noticed still counts as quick', () => {
+  const {island, view, timers} = presenter();
+  island.hyperSheet = () => hyperSheet;
+  island.hyperUsed(); // Caps Lock+A, then the poll notices Caps Lock still down
+  gnome.loop.advance(100);
+  island.hyperPressed();
+  gnome.loop.advance(1000);
+  assert.equal(view.last.kind, 'hidden');
+  island.hyperReleased();
+  island.hyperPressed(); // a later hold, with no combo
+  gnome.loop.advance(500);
+  assert.equal(view.last.kind, 'cheatSheet');
   island.destroy();
   timers.clearAll();
 });
@@ -419,10 +440,7 @@ test('what a shortcut did shows as a banner where the window went; why one faile
 
 // --- Automations ---------------------------------------------------------------------------------------
 
-test('running automations show in the island; hovering opens it up and Stop stops them', (t) => {
-  // Automations and their timers count in wall-clock time: follow the simulated clock.
-  const wallClock = Date.now();
-  t.mock.method(Date, 'now', () => wallClock + gnome.loop.now);
+test('running automations show in the island; hovering opens it up and Stop stops them', () => {
   start({bindings});
   gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
   assert.ok(gnome.press('<Hyper>f'));

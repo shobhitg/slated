@@ -12,6 +12,11 @@ export const ISLAND_DEFAULTS = Object.freeze({enabled: true, cheatSheet: true, c
 const BANNER_MS = 1300;
 const FAILURE_MS = 2400;
 const HIGHLIGHT_MS = 700;
+/**
+ * A shortcut this recent still counts for a hold that's only now noticed: Caps Lock's hold is read
+ * every 150 ms, so a quick combo can fire before the hold is seen.
+ */
+const USED_WINDOW_MS = 250;
 /** How often running automations' timers and counts refresh. */
 const TICK_MS = 1000;
 
@@ -70,6 +75,7 @@ export class IslandPresenter {
     this._modalTimer = 0;
     this._highlightTimer = 0;
     this._tickTimer = 0;
+    this._usedAt = -Infinity;
     this._destroyed = false;
   }
 
@@ -166,6 +172,8 @@ export class IslandPresenter {
   /** All of Hyper went down: the cheat sheet shows if it stays down for the delay, without a shortcut. */
   hyperPressed() {
     if (!this.settings.enabled || !this.settings.cheatSheet) return;
+    // A combo fired before the hold was noticed: it's a quick one.
+    if (this._now() - this._usedAt < USED_WINDOW_MS) return;
     this._timers.clear(this._sheetTimer);
     this._sheetTimer = this._timers.timeout(cheatSheetDelayMs(this.settings), () => {
       this._sheetTimer = 0;
@@ -175,6 +183,7 @@ export class IslandPresenter {
 
   /** A shortcut fired: a quick Hyper combo never shows the sheet. Once it's up, it stays while you try shortcuts. */
   hyperUsed() {
+    this._usedAt = this._now();
     if (!this.cheatSheet) this._sheetTimer = this._timers.clear(this._sheetTimer);
   }
 
