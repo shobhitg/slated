@@ -9,20 +9,23 @@ struct SettingsSidebar: View {
       SidebarHeader()
         .listRowSeparator(.hidden)
         .selectionDisabled()
-      Section {
-        ForEach([SettingsPane.overview, .windows, .hotstrings, .clipboard, .automation, .keyboard, .layouts, .slate]) {
-          row($0)
+      ForEach(Array(Self.sections.enumerated()), id: \.offset) { _, panes in
+        Section {
+          ForEach(panes) { row($0) }
         }
-      }
-      Section {
-        ForEach([SettingsPane.general, .about]) { row($0) }
       }
     }
     .listStyle(.sidebar)
     .safeAreaInset(edge: .bottom, spacing: 0) {
       SaveStatusFooter()
     }
+    .withoutScrollEdgeEffect()
   }
+
+  /// The panes in the sidebar, by section, top to bottom.
+  static let sections: [[SettingsPane]] = [
+    [.overview, .windows, .hotstrings, .clipboard, .automation, .keyboard, .layouts, .slate], [.general, .about],
+  ]
 
   private var selection: Binding<SettingsPane?> {
     Binding(get: { model.selectedPane }, set: { if let pane = $0 { model.selectedPane = pane } })
@@ -75,6 +78,19 @@ struct SettingsSidebar: View {
       Image(systemName: "exclamationmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.caution)
     default:
       EmptyView()
+    }
+  }
+}
+
+extension View {
+  /// Turns off macOS 26's scroll edge effect (the blur where content scrolls under the title bar or a
+  /// bar inset into the scroll view), which the window server draws. The sidebar once showed up empty
+  /// on screen; it now leaves nothing to the window server, and its short list rarely scrolls anyway.
+  @ViewBuilder func withoutScrollEdgeEffect() -> some View {
+    if #available(macOS 26, *) {
+      scrollEdgeEffectHidden(true, for: .all)
+    } else {
+      self
     }
   }
 }

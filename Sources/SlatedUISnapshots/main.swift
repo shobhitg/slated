@@ -65,7 +65,7 @@ func settings(
     let model = AppModel(services: services)
     model.selectedPane = pane
     configure(model)
-    return AnyView(SlatedUI.makeSettingsView(model: model, layout: .flat))
+    return AnyView(SlatedUI.makeSettingsView(model: model))
   }
 }
 

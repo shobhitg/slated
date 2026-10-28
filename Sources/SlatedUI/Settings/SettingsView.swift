@@ -1,39 +1,21 @@
 import SwiftUI
 
-/// How the settings window arranges its sidebar.
-@_spi(Snapshots) public enum SettingsLayout: Sendable {
-  /// The real window: a `NavigationSplitView` (a Liquid Glass sidebar on macOS 26).
-  case splitView
-  /// Sidebar and detail side by side in a plain stack. Used by the snapshot tool, because
-  /// `cacheDisplay` can't capture the contents of the glass sidebar.
-  case flat
-}
-
-/// The settings window's root: a sidebar of panes and the selected pane.
+/// The main window's root: a sidebar of panes and the selected pane.
+///
+/// A plain stack rather than a `NavigationSplitView`: on macOS 26 that sidebar is Liquid Glass, which
+/// the window server draws, and it showed up empty in a real window (its rows still took clicks).
+/// Ordinary views look the same on every macOS, and drawing the window offscreen shows what the
+/// screen shows, so tests and `make snapshots` can check it.
 struct SettingsView: View {
   @Bindable var model: AppModel
-  var layout: SettingsLayout = .splitView
 
   var body: some View {
-    Group {
-      switch layout {
-      case .splitView:
-        NavigationSplitView {
-          SettingsSidebar()
-            .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 280)
-        } detail: {
-          detail
-        }
-        .navigationSplitViewStyle(.balanced)
-      case .flat:
-        HStack(spacing: 0) {
-          SettingsSidebar()
-            .frame(width: 224)
-            .background(Theme.sidebarBackground)
-          Rectangle().fill(Theme.hairline).frame(width: 0.5)
-          detail
-        }
-      }
+    HStack(spacing: 0) {
+      SettingsSidebar()
+        .frame(width: 224)
+        .background(Theme.sidebarBackground)
+      Rectangle().fill(Theme.hairline).frame(width: 0.5)
+      detail
     }
     .environment(model)
     .tint(Theme.accent)
@@ -58,7 +40,6 @@ struct SettingsView: View {
       }
     }
     .animation(Theme.spring, value: model.toast)
-    .navigationTitle(model.selectedPane.title)
   }
 
   @ViewBuilder private var pane: some View {

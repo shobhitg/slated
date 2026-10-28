@@ -34,7 +34,7 @@ public enum SlatedUI {
 
   // MARK: Views
 
-  /// The settings window's content: a `NavigationSplitView` of panes. Size it at least 940 × 620.
+  /// The settings window's content: a sidebar of panes and the selected pane. Size it at least 940 × 620.
   public static func makeSettingsView(model: AppModel) -> some View {
     SettingsView(model: model)
   }
@@ -54,12 +54,14 @@ public enum SlatedUI {
 
   // MARK: AppKit hosting
 
-  /// A ready-to-show settings window: transparent title bar with the sidebar running to the top
-  /// (as in System Settings), resizable, frame remembered between launches. Not released on close,
-  /// so keep a reference and show it again.
+  /// A ready-to-show settings window: transparent title bar with the sidebar running to the top,
+  /// resizable, frame remembered between launches. Not released on close, so keep a reference and
+  /// show it again.
   public static func makeSettingsWindow(model: AppModel) -> NSWindow {
     let controller = NSHostingController(rootView: makeSettingsView(model: model))
     controller.sizingOptions = [.minSize]
+    // The window's title and toolbar stay as set here: no SwiftUI toolbar takes over the title bar.
+    controller.sceneBridgingOptions = []
     let window = NSWindow(contentViewController: controller)
     window.title = "Slated Settings"
     window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
@@ -113,10 +115,6 @@ public enum SlatedUI {
   }
 
   // MARK: Snapshots
-
-  @_spi(Snapshots) public static func makeSettingsView(model: AppModel, layout: SettingsLayout) -> some View {
-    SettingsView(model: model, layout: layout)
-  }
 
   @_spi(Snapshots) public static func makeOnboardingView(model: AppModel, step: OnboardingStep) -> some View {
     OnboardingView(model: model, initialStep: step, openSettings: {}, onFinish: {})
