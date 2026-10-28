@@ -173,10 +173,14 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
   modifier presses: about 7 times a second while idle and 20 while a Hyper modifier is down, only
   while the cheat sheet can show. So a key that isn't a Slated shortcut doesn't cancel the sheet, and
   with GNOME's `caps:hyper` option holding Super alone shows it too (keyd doesn't have this).
-- **With keyd's tap for Escape, a long hold still sends Escape** when you let go, unlike the Mac,
-  because keyd decides what a tap is. keyd's `overload_tap_timeout` (in a `[global]` section of
-  `/etc/keyd/slated.conf`, written by `linux/install.sh --hyper-keyd`) could match the Mac; not done
-  yet, since it changes a root-owned file.
+- **With keyd's tap for Escape, a long hold sends nothing, as on the Mac** (done 2026-10-27).
+  `linux/install.sh --hyper-keyd` sets keyd's `overload_tap_timeout` (in a `[global]` section of
+  `/etc/keyd/slated.conf`) to the cheat-sheet delay, or 1 s with the cheat sheet off, like the Mac's
+  limit. Since the file is root's, changing the delay takes another run of the installer (Settings says
+  so). keyd reads the option from 2.4.3 on; 2.4.0–2.4.2 skip it with a logged error and keep sending
+  Escape after a long hold, and the installer warns about that. `overloadt()`/`overloadt2()` would
+  have the same limit but hold the Hyper modifiers back until the timeout (slowing quick combos and
+  the cheat sheet), and on older keyd they'd break the whole Caps Lock line.
 
 
 ## macOS runtime review (2026-10-27)

@@ -1,3 +1,7 @@
 #!/bin/bash
-# Stand-in for keyd and systemctl, for linux/tests/installer/run.sh: only records the call.
+# Stand-in for keyd and systemctl, for linux/tests/installer/run.sh: only records the call, and
+# answers `keyd --version` like keyd does when STUB_KEYD_VERSION is set.
 echo "$(basename "$0") $*" >>"$STUB_LOG"
+if [ "$(basename "$0")" = keyd ] && [ "${1:-}" = --version ] && [ -n "${STUB_KEYD_VERSION:-}" ]; then
+  echo "keyd v$STUB_KEYD_VERSION (0123abc)"
+fi

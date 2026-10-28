@@ -251,7 +251,9 @@ without one. On GNOME it hangs from the top bar of the monitor you're working on
 ```
 
 With `"capsLockAlone": "escape"`, holding Caps Lock longer than the cheat-sheet delay doesn't send
-Escape when you let go (on the Mac; on GNOME keyd decides what a tap is, so it still does).
+Escape when you let go (at most 1 s; 1 s with the island or its cheat sheet off). On GNOME, keyd does
+the tap: `linux/install.sh --hyper-keyd` writes the delay into keyd's configuration (keyd 2.4.3 or
+later), so run it again after changing the delay ([LINUX.md](LINUX.md#the-hyper-key)).
 
 On GNOME the cheat sheet works with either Hyper method, with a few differences GNOME forces
 ([LINUX.md](LINUX.md#the-island)): a key that isn't a Slated shortcut doesn't count as a quick combo,

@@ -77,6 +77,8 @@ const unitChanged = (properties) => gnome.systemSignal('org.freedesktop.DBus.Pro
 test('keyd maps Caps Lock only with a capslock line in its [main] section', () => {
   assert.equal(mapsCapsLock(MAPS_CAPS), true);
   assert.equal(mapsCapsLock('[main]\n  capslock=overload(control, esc)  # tap for Esc\n'), true);
+  assert.equal(mapsCapsLock('[ids]\n*\n\n[global]\noverload_tap_timeout = 500\n\n[main]\ncapslock = overload(hyper, esc)\n'), true,
+    'after a [global] section, as linux/install.sh writes it for the tap');
   assert.equal(mapsCapsLock(SIDE_BUTTONS), false);
   assert.equal(mapsCapsLock('[main]\n# capslock = esc\n\n[nav]\ncapslock = esc\n'), false, 'a comment, or another layer');
   assert.equal(mapsCapsLock(''), false);

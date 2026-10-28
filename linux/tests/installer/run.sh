@@ -137,6 +137,43 @@ echo '{ "keyboard": { "capsLock": "hyper", "capsLockAlone": "escape" } }' >"$HOM
 out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes)"
 check "tap-alone Escape from config.json becomes overload(hyper, esc)" grep -q "capslock = overload(hyper, esc)" "$SLATED_KEYD_CONF"
 check "...and says so" contains "$out" "Ctrl+Alt+Shift+Super while held, and Escape when tapped"
+# A hold longer than the cheat-sheet delay isn't a tap, as on the Mac: keyd's overload_tap_timeout.
+check "...with a long hold not a tap: overload_tap_timeout is the cheat-sheet delay" grep -qx "overload_tap_timeout = 500" "$SLATED_KEYD_CONF"
+check "...in a [global] section" grep -qxF "[global]" "$SLATED_KEYD_CONF"
+check "...and says how long a tap is" contains "$out" "Escape when tapped (let go within 500 ms)."
+check "...with no warning for a keyd that doesn't say its version" bash -c '! grep -q "new in 2.4.3" <<<"$1"' _ "$out"
+tap_timeout() {  # config.json's "island" (with the tap on) → $written, the overload_tap_timeout --hyper-keyd writes
+  printf '{"keyboard": {"capsLock": "hyper", "capsLockAlone": "escape"}, "island": %s}\n' "$1" >"$HOME/.config/slated/config.json"
+  install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
+  written="$(sed -n 's/^overload_tap_timeout = //p' "$SLATED_KEYD_CONF")"
+}
+tap_timeout '{"cheatSheetDelay": 0.8}'
+check "the Long delay makes it 800 ms" test "$written" = 800
+tap_timeout '{"cheatSheet": false, "cheatSheetDelay": 0.3}'
+check "with the cheat sheet off, 1 s, as on the Mac" test "$written" = 1000
+tap_timeout '{"enabled": false}'
+check "...and with the island off" test "$written" = 1000
+tap_timeout '{"cheatSheetDelay": 0.05}'
+check "a delay under 0.15 s counts as 0.15 s, as in the island" test "$written" = 150
+cat >"$HOME/.config/slated/config.json" <<'EOF'
+{
+  "keyboard": {"capsLock": "hyper", "capsLockAlone": "escape"}, // "island": {"cheatSheetDelay": 0.3},
+  "island": {
+    /* "cheatSheetDelay": 0.3, */
+    "cheatSheetDelay": 1.25, // the sheet waits longer; a tap still ends at 1 s
+  },
+}
+EOF
+install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
+check "a config written by hand: comments skipped, and 1 s at most" grep -qx "overload_tap_timeout = 1000" "$SLATED_KEYD_CONF"
+export STUB_KEYD_VERSION=2.4.2
+out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes)"
+check "keyd before 2.4.3 is told a long hold still sends Escape" contains "$out" "keyd 2.4.2 doesn't know overload_tap_timeout (it's new in 2.4.3)"
+check "...and still gets the config" grep -q "capslock = overload(hyper, esc)" "$SLATED_KEYD_CONF"
+export STUB_KEYD_VERSION=2.10.0
+out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes)"
+check "...unlike keyd 2.10.0 (versions compare as numbers)" bash -c '! grep -q "new in 2.4.3" <<<"$1"' _ "$out"
+unset STUB_KEYD_VERSION
 # Meh (hyperModifiers without cmd), in a config written by hand: comments and a trailing comma.
 cat >"$HOME/.config/slated/config.json" <<'EOF'
 {
@@ -147,9 +184,11 @@ EOF
 out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes)"
 check "Meh in config.json leaves Super out of the layer" grep -qF "[hyper:C-A-S]" "$SLATED_KEYD_CONF"
 check "...without the tap unless asked" grep -q "capslock = layer(hyper)" "$SLATED_KEYD_CONF"
+check "...or a tap timeout" bash -c '! grep -qE "overload_tap_timeout|^\[global\]" "$1"' _ "$SLATED_KEYD_CONF"
 check "...and says what Caps Lock sends" contains "$out" "Caps Lock now sends Ctrl+Alt+Shift while held."
 install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --tap-escape --yes >/dev/null
 check "--tap-escape adds the tap" grep -q "capslock = overload(hyper, esc)" "$SLATED_KEYD_CONF"
+check "...timed by the default cheat-sheet delay" grep -qx "overload_tap_timeout = 500" "$SLATED_KEYD_CONF"
 echo '{ "keyboard": { "hyperModifiers": ["hyper"] } }' >"$HOME/.config/slated/config.json"
 install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
 check "\"hyper\" as the modifier list means all four" grep -qF "[hyper:C-A-S-M]" "$SLATED_KEYD_CONF"
@@ -158,6 +197,8 @@ out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes)"
 status=$?
 check "an existing keyd config isn't overridden" test "$status" -eq 1
 check "...the lines to add are explained instead" contains "$out" "add the [main] and [hyper:...] lines"
+out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --tap-escape --yes)"
+check "...with the tap, the [global] lines too" contains "$out" "add the [global], [main] and [hyper:...] lines"
 rm -f "$WORK/etc/keyd/default.conf"
 install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --remove --yes >/dev/null
 check "--hyper-keyd --remove removes it" test ! -e "$SLATED_KEYD_CONF"
