@@ -488,7 +488,7 @@ function automation(v, path) {
   };
 }
 
-/** The macOS notch island's settings (kept so a config shared between Macs and Linux round-trips). */
+/** The island's settings (the Mac's notch island; the top-center island on GNOME). */
 function island(v, path) {
   const c = new Keyed(v, path);
   const d = defaultIsland();
