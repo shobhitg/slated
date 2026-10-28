@@ -6,6 +6,11 @@
       "repeatSchedule": 23,
       "syntheticInputs": 66
     },
+    "cheatsheet.json": {
+      "actions": 123,
+      "names": 14,
+      "sheets": 7
+    },
     "clipboard.json": {
       "coding": 29,
       "search": 183,
@@ -73,9 +78,10 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 17225,
+  "totalVectors": 17369,
   "vectors": {
     "automation.json": 103,
+    "cheatsheet.json": 144,
     "clipboard.json": 226,
     "config.json": 636,
     "expressions.json": 876,

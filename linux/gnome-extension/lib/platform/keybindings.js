@@ -68,10 +68,13 @@ export function releaseTiming({delayMs = 500, intervalMs = 30} = {}) {
  * to some apps (onlyInApps); `holdable` asks for `onRelease(entry)` when its key is let go.
  */
 export class KeybindingManager {
-  constructor({grabber, log = null, onModalChange = null, onRelease = null}) {
+  constructor({grabber, log = null, onModalChange = null, onRelease = null, onFire = null}) {
     this._grabber = grabber;
     this._log = log;
+    /** A modal key was pressed (`(id, keys)`, keys its KeyCombo) or modal mode ended (`(null)`). */
     this.onModalChange = onModalChange;
+    /** A binding fired (not a held key's repeats): the island lights it up in the cheat sheet. */
+    this.onFire = onFire;
     /** A holdable entry's key was let go (while-held auto-repeats stop then). */
     this.onRelease = onRelease;
     this.statuses = {};
@@ -219,7 +222,7 @@ export class KeybindingManager {
   destroy() {
     this.unregisterAll();
     this._grabber.destroy();
-    this.onModalChange = this.onRelease = null;
+    this.onModalChange = this.onRelease = this.onFire = null;
   }
 
   // --- Internals ---------------------------------------------------------------------------------
@@ -312,6 +315,11 @@ export class KeybindingManager {
     } catch (e) {
       this._log?.error('hotkeys.handler_failed', e?.message ?? String(e), {keys: entry.id});
     }
+    try {
+      this.onFire?.(entry);
+    } catch (e) {
+      this._log?.error('hotkeys.fire_failed', e?.message ?? String(e), {keys: entry.id});
+    }
   }
 
   // Modal keys (Slate's `bind 1:f4,ctrl,alt`): pressing the modal key grabs the bindings' own keys
@@ -335,7 +343,7 @@ export class KeybindingManager {
       }
       if (this._escapeKeys) this._grabModal(this._escapeKeys, () => this._grabber.defer(() => this._exitModal()));
       this._log?.record('modal.entered', {keys: group.entries[0]?.id?.split(' ')[0] ?? group.id});
-      this.onModalChange?.(group.id);
+      this.onModalChange?.(group.id, group.keys);
     });
   }
 

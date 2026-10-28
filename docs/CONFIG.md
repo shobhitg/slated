@@ -230,10 +230,10 @@ Safety rails:
 - Slated's Settings → Automation has the recipes and the safety settings, and a shortcut's **Works
   In** picks `onlyInApps` from the apps you used lately or installed apps.
 
-## Notch island (macOS)
+## Notch island
 
 A black capsule that grows out of the MacBook notch, or hangs from the top center of a display
-without one. It shows:
+without one. On GNOME it hangs from the top bar of the monitor you're working on. It shows:
 - **Running automations.** Hover over it to see each one and a Stop button.
 - **The Hyper cheat sheet.** Hold Caps Lock for a moment and every Hyper shortcut appears, grouped
   and in keyboard order. Shortcuts still work while it's up; the one you press lights up.
@@ -251,9 +251,11 @@ without one. It shows:
 ```
 
 With `"capsLockAlone": "escape"`, holding Caps Lock longer than the cheat-sheet delay doesn't send
-Escape when you let go.
+Escape when you let go (on the Mac; on GNOME keyd decides what a tap is, so it still does).
 
-The GNOME version reads and keeps these settings but doesn't show an island yet.
+On GNOME the cheat sheet works with either Hyper method, with a few differences GNOME forces
+([LINUX.md](LINUX.md#the-island)): a key that isn't a Slated shortcut doesn't count as a quick combo,
+and with GNOME's own `caps:hyper` option holding Super alone shows the sheet too.
 
 ## Clipboard history
 

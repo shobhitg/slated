@@ -234,8 +234,12 @@ export class FakeActor {
     this.parent?.remove_child(this);
     this.handlers.clear();
   }
+  /** Animations finish at once: every animated property takes its final value. */
   ease(params) {
-    for (const key of ['opacity', 'x', 'y']) if (key in params) this[key] = params[key];
+    const timing = new Set(['duration', 'delay', 'mode', 'repeatCount', 'autoReverse', 'onComplete', 'onStopped']);
+    for (const [key, value] of Object.entries(params)) if (!timing.has(key)) this[key] = value;
+    this.eased = (this.eased ?? 0) + 1;
+    params.onStopped?.(true);
     params.onComplete?.();
   }
   remove_all_transitions() {}
@@ -619,7 +623,12 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
         if (props.child) this.set_child(props.child);
       }
     },
-    BoxLayout: class extends FakeActor {},
+    BoxLayout: class extends FakeActor {
+      constructor(props = {}) {
+        super(props);
+        this.layout_manager = {orientation: 0};
+      }
+    },
     Icon: class extends FakeActor {},
     Button: class extends FakeActor {
       constructor(props = {}) {
@@ -656,7 +665,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     EVENT_PROPAGATE: false,
     KEY_Escape: 0xff1b,
     GrabState: {NONE: 0, POINTER: 1, KEYBOARD: 2, ALL: 3},
-    AnimationMode: {EASE_OUT_QUAD: 2},
+    AnimationMode: {EASE_OUT_QUAD: 2, EASE_IN_QUAD: 1, EASE_IN_OUT_QUAD: 3, EASE_OUT_QUINT: 12},
+    Orientation: {HORIZONTAL: 0, VERTICAL: 1},
     keysym_to_unicode: (keysym) => (keysym < 0x100 ? keysym : 0),
     InputDeviceType: {POINTER_DEVICE: 0, KEYBOARD_DEVICE: 1},
     KeyState: {RELEASED: 0, PRESSED: 1},
@@ -683,6 +693,8 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     }),
   };
   state.chrome = new Set();
+  state.chromeParams = new Map();
+  state.trackedChrome = new Map();
   state.dbusCalls = [];
   state.modal = [];
   state.typed = [];
@@ -734,8 +746,20 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       disconnect: (id) => layoutSignals.disconnect(id),
       primaryIndex: 0,
       getWorkAreaForMonitor: (i) => ({...screens[i].visibleFrame}),
-      addTopChrome: (actor) => state.chrome.add(actor),
-      removeChrome: (actor) => state.chrome.delete(actor),
+      addTopChrome: (actor, params = {}) => {
+        state.chrome.add(actor);
+        state.chromeParams.set(actor, params);
+      },
+      removeChrome: (actor) => {
+        state.chrome.delete(actor);
+        state.chromeParams.delete(actor);
+      },
+      // A descendant of a chrome actor that also counts for the input region (X11).
+      trackChrome: (actor, params = {}) => {
+        if (state.trackedChrome.has(actor)) throw new Error('trying to re-track existing chrome actor');
+        state.trackedChrome.set(actor, params);
+      },
+      untrackChrome: (actor) => state.trackedChrome.delete(actor),
     },
     uiGroup,
     overview: {

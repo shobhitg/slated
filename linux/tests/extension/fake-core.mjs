@@ -281,7 +281,8 @@ export function decodeConfiguration(text) {
     return {id: b.id ?? `binding-${i}`, name: b.name, keys, modal: b.modal ? {keys: parseKeyCombo(b.modal.keys), toggle: !!b.modal.toggle} : undefined, action, repeats: b.repeats, enabled: b.enabled ?? true};
   });
   const hotstrings = (raw.hotstrings ?? []).map((h) => ({enabled: true, caseSensitive: true, fire: 'immediately', wordBoundary: false, method: 'auto', onlyInApps: [], exceptInApps: [], replacement: '', ...h}));
-  return {version: 1, general, settings: raw.settings ?? {}, keyboard, bindings, layouts: raw.layouts ?? [], defaults: raw.defaults ?? [], hotstrings};
+  const island = {enabled: true, cheatSheet: true, cheatSheetDelay: 0.5, showFailures: true, ...(raw.island ?? {})};
+  return {version: 1, general, settings: raw.settings ?? {}, keyboard, bindings, layouts: raw.layouts ?? [], defaults: raw.defaults ?? [], hotstrings, island};
 }
 
 export function encodeConfiguration(config) {

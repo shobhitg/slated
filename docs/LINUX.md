@@ -15,7 +15,7 @@ under [Limitations](#limitations): it works only on GNOME, and updates load when
 
 | Part | What it does | Where |
 |---|---|---|
-| Extension | Window management, shortcuts, overlays, Slate configs, the Hyper key, espanso's match file, game automation, clipboard history, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
+| Extension | Window management, shortcuts, overlays, the island, Slate configs, the Hyper key, espanso's match file, game automation, clipboard history, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
 | Engine | Expressions, Slate syntax, window math and config: the JavaScript port of `SlatedCore` | `linux/gnome-extension/lib/core/` |
 | Settings | The libadwaita preferences window: GNOME's version of the Mac settings app | `linux/gnome-extension/prefs.js`, `lib/prefs/` |
 
@@ -104,6 +104,38 @@ app you're typing in on GNOME, so app filters only work on the Mac. A hotstring 
 (`onlyInApps`) doesn't expand on GNOME at all. A hotstring with exceptions (`exceptInApps`) expands
 everywhere. Hotstrings that run Slated actions don't work through espanso. Slated logs once which
 hotstrings it couldn't pass on.
+
+## The island
+
+Like the Mac's notch island, a black shape at the top center of the monitor you're working on shows
+what Slated is doing. It hangs from the top bar on the primary monitor, from the top edge on the
+others, and from the very top over a fullscreen window. It shows:
+
+- **Running automations:** a red dot and a timer. Hover over it to see each one and a Stop button.
+  Only then does it take the pointer; otherwise clicks go to the window below.
+- **The Hyper cheat sheet:** hold Caps Lock for a moment (`island.cheatSheetDelay`, half a second by
+  default) and every Hyper shortcut appears, grouped and in keyboard order, exactly as on the Mac.
+  Shortcuts still work while it's up, and the one you press lights up.
+- **Modal keys:** after a modal key, the island shows it, then lists the keys it offers.
+- **Feedback** with `general.showActionHUD` on ("Left half · Firefox"), and why a shortcut couldn't
+  run (`island.showFailures`).
+
+`"island": {"enabled": false}` brings back the bottom HUD and the red pill
+([CONFIG.md](CONFIG.md#notch-island)).
+
+GNOME tells an extension about keys only through its own shortcuts, never about Caps Lock going down
+or up. So:
+
+- Slated reads the keyboard's modifier state to tell that Caps Lock is held: about 7 times a second,
+  20 while one of the Hyper modifiers is down, and only while the cheat sheet can show (the island
+  and its cheat sheet on, the Hyper key set up, a Hyper shortcut to list). The sheet can appear up to
+  0.15 s after the delay.
+- A key that isn't a Slated shortcut doesn't count as a quick combo: held with Caps Lock past the
+  delay, the sheet still appears.
+- With GNOME's `caps:hyper` option, Hyper shares Super's modifier, so holding Super alone shows the
+  sheet too. keyd doesn't have this problem.
+- With keyd's tap for Escape, letting go of Caps Lock after the sheet showed still sends Escape: keyd
+  decides what a tap is. On the Mac, a hold longer than the delay doesn't.
 
 ## Settings
 
@@ -221,7 +253,7 @@ these to point everything at a throwaway home.
 | Clipboard history and its picker | ✓ Text and images, in a small picker at the text caret | ✓ Text only, in a switcher with Ctrl+1–9, Ctrl+C, Ctrl+P and Ctrl+Backspace. Image items in a clipboard.json from the Mac are kept (the core reads and writes them) but not shown |
 | Settings → Clipboard | Every item, searchable, with pin, copy and delete | Settings only, and how many items are saved. Pin, delete and clear in the switcher |
 | Settings → Automation | Running Now with Stop All | Lists what runs. Stop it with the stop shortcut |
-| Notch island (automation status, Hyper cheat sheet, feedback) | ✓ | Not yet. Its `island` settings are kept as they are |
+| Notch island (automation status, Hyper cheat sheet, feedback) | ✓ | ✓ At the top center, hanging from the top bar. The cheat sheet comes from the same engine code, pinned to the Mac's by golden vectors. Caps Lock's hold is read from the modifier state ([The island](#the-island)) |
 
 ## Limitations
 
@@ -294,7 +326,7 @@ Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
 | `make linux-test-prefs` | The settings logic (model, validation, presets, automation recipes, import, status), plus the whole settings UI driven on mock GTK and libadwaita |
 | `make linux-test-prefs-gjs` | The settings logic tests under GJS |
 | `make linux-test-gtk` | The settings window on real GTK 4 and libadwaita (needs `gjs gir1.2-adw-1 xvfb dbus`) |
-| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: shortcuts, per-app grabs, automation timing and safety stops, clipboard history, status and log (Node 22.15+) |
+| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: shortcuts, per-app grabs, automation timing and safety stops, the island and its cheat sheet, clipboard history, status and log (Node 22.15+) |
 | `make linux-test-installer` | `linux/install.sh` against stand-ins for GNOME's tools, plus `scripts/logs.py`'s log locations |
 | `linux/tests/gnome/run.sh` | The extension in a real GNOME Shell |
 | `node linux/tests/prefs/coverage.mjs` | Which settings code no test runs |

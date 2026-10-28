@@ -23,7 +23,9 @@ import {FocusTracker} from './focus.js';
 import {GnomePlatform} from './gnomePlatform.js';
 import {ActionHUD} from './hud.js';
 import {HyperManager, acceleratorOptions} from './hyper.js';
+import {HyperHoldWatcher, hyperMasks} from './hyperHold.js';
 import {AutomationIndicator} from './indicator.js';
+import {IslandPresenter, islandSettings} from './island.js';
 import {InputInjector} from './input.js';
 import {KeybindingManager, MutterGrabber, readKeyboardRepeat, releaseTiming} from './keybindings.js';
 import {EventLog, LogFile, journalMirror} from './log.js';
@@ -84,6 +86,27 @@ function settingBool(settings, key, fallback) {
   return truthyText(value);
 }
 
+/** Window placements show where the window went in the island; focusing and app actions show their symbol. */
+function showsRegion(action) {
+  if (!action) return true; // a grid placement
+  switch (action.op) {
+    case 'focus': case 'switch': case 'hint': case 'show': case 'hide': case 'toggle':
+      return false;
+    default:
+      return true;
+  }
+}
+
+/** Where `frame` sits in `area`, as fractions (0…1), or null when it's outside. */
+function regionIn(frame, area) {
+  if (!(area?.width > 0 && area?.height > 0)) return null;
+  const x1 = Math.max((frame.x - area.x) / area.width, 0);
+  const y1 = Math.max((frame.y - area.y) / area.height, 0);
+  const x2 = Math.min((frame.x + frame.width - area.x) / area.width, 1);
+  const y2 = Math.min((frame.y + frame.height - area.y) / area.height, 1);
+  return x2 > x1 && y2 > y1 ? {x: x1, y: y1, width: x2 - x1, height: y2 - y1} : null;
+}
+
 export class SlatedRuntime {
   /**
    * @param {object} extension
@@ -110,6 +133,8 @@ export class SlatedRuntime {
     /** "key-repeat": while-held repeats stop when the key is let go; "toggle": keyboard repeat is off. */
     this._whileHeldMode = 'key-repeat';
     this._loggedWhileHeld = '';
+    /** The hotkey entries last registered, in priority order: what the island's cheat sheet lists. */
+    this._shortcutEntries = [];
   }
 
   // --- Lifecycle ---------------------------------------------------------------------------------
@@ -162,11 +187,11 @@ export class SlatedRuntime {
       this._overlays = new OverlayController({log: this._log, place: (window, frame) => this._runner.place(window, frame, 'Grid')});
       this._runner.overlays = this._overlays;
       this._hud = new ActionHUD();
-      this._runner.onPerformed = (message) => {
+      this._runner.onPerformed = (message, report) => {
         this._lastAction = message;
         if (this._configuration().general?.showActionHUD) {
           try {
-            this._hud.show(message);
+            this._showFeedback(message, report);
           } catch (e) {
             this._error('hud', e);
           }
@@ -177,6 +202,8 @@ export class SlatedRuntime {
         this._lastError = message;
         this._publishStatus();
       };
+      // Why a shortcut couldn't run, in the island (showFailures).
+      this._runner.onFailed = (message) => this._island?.flashFailure(message);
       // Reloading re-grabs shortcuts; never do that from inside Mutter's key handling.
       this._runner.onRelaunch = () => this.scheduleReload('relaunch');
       // An auto-clicker started from the overview would click into it.
@@ -199,6 +226,24 @@ export class SlatedRuntime {
       };
       this._indicator = new AutomationIndicator();
       if (this._runner) this._runner.automation = this._automation;
+    });
+    this._step('island', () => {
+      this._island = new IslandPresenter({timers: this._timers, log: this._log});
+      this._island.hyperSheet = () => this._hyperCheatSheet();
+      this._island.currentAutomations = () => this._indicatedAutomations();
+      this._island.comboOf = (keys) => {
+        try {
+          return comboOf(keys, this.core);
+        } catch {
+          return null;
+        }
+      };
+      this._island.onStop = () => this._automation?.stopAll('stopped from the island');
+      // GNOME reports no modifier presses, so the Hyper key's hold is read from the modifier state.
+      this._hyperHold = new HyperHoldWatcher({
+        timers: this._timers,
+        onChange: (held) => (held ? this._island?.hyperPressed() : this._island?.hyperReleased()),
+      });
     });
     // Without the lock on suspend, nothing else would stop automations across a sleep.
     this._step('sleep', () => (this._sleepWatcher = new SleepWatcher(() => this._automation?.stopAll('sleep'))));
@@ -224,6 +269,12 @@ export class SlatedRuntime {
         grabber: new MutterGrabber({timers: this._timers, hyperIsSuper: () => this._hyper.hyperIsSuper}),
         log: this._log,
         onRelease: (entry) => this._automation?.released(`hotkey ${entry.id}`),
+        onModalChange: (_id, keys) => this._modalChanged(keys ?? null),
+        onFire: (entry) => {
+          // A shortcut while Hyper is held: a quick combo, no cheat sheet.
+          this._island?.hyperUsed();
+          this._island?.shortcutFired(entry.id);
+        },
       });
     });
     this._step('focus', () => {
@@ -294,6 +345,10 @@ export class SlatedRuntime {
       this._synth?.destroy();
       this._indicator?.destroy();
     });
+    this._step('island', () => {
+      this._hyperHold?.destroy();
+      this._island?.destroy();
+    });
     this._step('sleep', () => this._sleepWatcher?.destroy());
     this._step('debug interface', () => this._debugService?.destroy());
     this._step('displays', () => {
@@ -327,6 +382,8 @@ export class SlatedRuntime {
     this._scriptEvents = this._scriptHost = this._keybindings = this._overlays = this._hud = null;
     this._input = this._platform = this._snapshots = this._runner = this._hyperManager = this._espanso = null;
     this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = this._sleepWatcher = null;
+    this._island = this._hyperHold = null;
+    this._shortcutEntries = [];
     this._statusFile = null;
     this._timers = null;
   }
@@ -350,6 +407,8 @@ export class SlatedRuntime {
       if (this._automation) this._automation.settings = {...this._automation.settings, ...(config.automation ?? {})};
     });
     this._step('clipboard', () => this._clipboard?.apply(config.clipboard));
+    const island = islandSettings(config.island);
+    this._step('island', () => this._island?.apply(island));
 
     this._step('slate sources', () => {
       const paths = general.loadSlateConfigs === false ? [] : (general.slateConfigPaths ?? DEFAULT_SLATE_PATHS);
@@ -400,6 +459,7 @@ export class SlatedRuntime {
       const imported = new Set(Array.isArray(general.importedSlateShortcuts) ? general.importedSlateShortcuts : []);
       const slateEntries = (this._sources?.entries(settings) ?? []).filter((entry) => !imported.has(entry.id));
       const entries = [...this._configEntries(config, settings), ...slateEntries, ...this._builtInEntries(config)];
+      this._shortcutEntries = entries;
       this._logWhileHeld(entries);
       this._keybindings.apply(entries, {
         disabled,
@@ -412,6 +472,10 @@ export class SlatedRuntime {
     this._step('hotstrings', () => {
       if (this._espanso) this._hotstrings = this._espanso.apply(config);
     });
+
+    this._step('island', () => this._watchHyper(config, island));
+    // The island turned on or off: running automations move between it and the pill.
+    this._automationChanged();
 
     this._lastError = this._store?.loadError ?? null;
     this._publishStatus();
@@ -445,6 +509,8 @@ export class SlatedRuntime {
         // (any key event ends GNOME's key repeat), so it works like a toggle.
         holdable: !!whileHeld && !modal && !sendsKeys(whileHeld.action),
         whileHeld: !!whileHeld,
+        name: binding.name ?? null,
+        action: binding.action,
         run: () =>
           this._runner?.run(binding.action, {
             label: binding.name ?? null,
@@ -460,7 +526,7 @@ export class SlatedRuntime {
   /** Slated's own shortcuts: the clipboard switcher (`clipboard.shortcut`) and the automation stop shortcut. */
   _builtInEntries(config) {
     const entries = [];
-    const add = (keysText, action, source) => {
+    const add = (keysText, action, source, name) => {
       let keys = null;
       try {
         keys = comboOf(keysText, this.core);
@@ -469,10 +535,10 @@ export class SlatedRuntime {
       }
       if (!keys) return;
       const id = bindingKey(keys, null, this.core);
-      entries.push({id, keys, modal: null, repeats: false, source, run: () => this._runner?.run(action, {trigger: `hotkey ${id}`, source})});
+      entries.push({id, keys, modal: null, repeats: false, source, name, action, run: () => this._runner?.run(action, {trigger: `hotkey ${id}`, source})});
     };
-    if (config.clipboard?.enabled !== false && config.clipboard?.shortcut) add(config.clipboard.shortcut, {op: 'clipboard-history'}, 'Slated clipboard');
-    if (config.automation?.stopShortcut) add(config.automation.stopShortcut, {op: 'stop-automations'}, 'Slated automation');
+    if (config.clipboard?.enabled !== false && config.clipboard?.shortcut) add(config.clipboard.shortcut, {op: 'clipboard-history'}, 'Slated clipboard', 'Clipboard history');
+    if (config.automation?.stopShortcut) add(config.automation.stopShortcut, {op: 'stop-automations'}, 'Slated automation', 'Stop automations');
     return entries;
   }
 
@@ -524,16 +590,107 @@ export class SlatedRuntime {
     }
   }
 
+  /** What the island or the pill lists: what runs, unless `automation.showIndicator` is off. */
+  _indicatedAutomations() {
+    return this._configuration().automation?.showIndicator === false ? [] : (this._automation?.active ?? []);
+  }
+
+  /** Running automations: in the island, or the red pill when the island is off. */
   _automationChanged() {
+    const islandOn = islandSettings(this._configuration().island).enabled;
+    const stopLabel = this._stopLabel();
     try {
-      this._indicator?.update(this._automation?.active ?? [], {
-        stopLabel: this._stopLabel(),
-        visible: this._configuration().automation?.showIndicator !== false,
+      this._indicator?.update(islandOn ? [] : (this._automation?.active ?? []), {
+        stopLabel,
+        visible: !islandOn && this._configuration().automation?.showIndicator !== false,
       });
     } catch (e) {
       this._error('indicator', e);
     }
+    try {
+      this._island?.automationsChanged(islandOn ? this._indicatedAutomations() : [], {stopLabel});
+    } catch (e) {
+      this._error('island', e);
+    }
     this._publishStatus();
+  }
+
+  // --- The island ----------------------------------------------------------------------------------
+
+  /** What a shortcut did: in the island, or the bottom pill when the island is off. */
+  _showFeedback(message, report) {
+    if (!islandSettings(this._configuration().island).enabled || !this._island) {
+      this._hud.show(message);
+      return;
+    }
+    const action = report?.action ?? null;
+    let region = null;
+    let monitor = null;
+    if (report?.frame) {
+      const screen = Core.screenContaining(currentScreens(), report.frame);
+      if (screen) {
+        monitor = screen.displayID;
+        // Window placements show where the window went; focusing and app actions show their symbol.
+        if (showsRegion(action)) region = regionIn(report.frame, screen.visibleFrame);
+      }
+    }
+    let symbol = 'square.grid.3x3';
+    if (action) {
+      try {
+        symbol = (this.core.actionSymbol ?? Core.actionSymbol)(action) ?? 'checkmark';
+      } catch {
+        symbol = 'checkmark';
+      }
+    }
+    this._island.flash({title: report?.title ?? message, app: report?.app ?? null, region, symbol}, {monitor});
+  }
+
+  /** Shortcuts that work right now, as the cheat sheet takes them: live for the focused app, registered. */
+  _liveShortcuts() {
+    const statuses = this._keybindings?.statuses ?? {};
+    return this._shortcutEntries
+      .filter((entry) => !entry.apps?.length || appMatchesAny(this._focusedApp, entry.apps))
+      .filter((entry) => {
+        const status = statuses[entry.id] ?? '';
+        return status !== 'disabled' && !status.startsWith('failed');
+      })
+      .map((entry) => ({keys: entry.keys, modal: entry.modal?.keys ?? null, name: entry.name ?? null, action: entry.action ?? null, summary: entry.summary ?? null}));
+  }
+
+  /** What the island lists while the Hyper key is held. */
+  _hyperCheatSheet() {
+    const build = this.core.hyperCheatSheet ?? Core.hyperCheatSheet;
+    return build(this._liveShortcuts(), this._configuration().keyboard?.hyperModifiers ?? ['ctrl', 'alt', 'shift', 'cmd']);
+  }
+
+  /** A modal key was pressed (its KeyCombo) or modal mode ended (null): the island shows it, then its keys. */
+  _modalChanged(keys) {
+    let sheet = null;
+    if (keys) {
+      try {
+        const build = this.core.modalCheatSheet ?? Core.modalCheatSheet;
+        sheet = {...build(keys, this._liveShortcuts()), modalLabel: shortcutLabel(keys)};
+      } catch (e) {
+        this._error('island', e);
+      }
+    }
+    this._island?.modalChanged(sheet);
+  }
+
+  /**
+   * Reads the Hyper key's hold for the cheat sheet, only while it can show: the island and its cheat
+   * sheet on, Caps Lock working as Hyper, and some Hyper shortcut to list.
+   */
+  _watchHyper(config, island) {
+    if (!this._hyperHold) return;
+    const hyperModifiers = config.keyboard?.hyperModifiers ?? ['ctrl', 'alt', 'shift', 'cmd'];
+    const anyHyperShortcut = this._shortcutEntries.some(
+      (entry) => !entry.modal && hyperModifiers.every((m) => (entry.keys?.modifiers ?? []).includes(m)),
+    );
+    const wanted = island.enabled && island.cheatSheet && this._hyper.active && anyHyperShortcut;
+    const masks = wanted ? hyperMasks(this._hyper.mode, hyperModifiers) : null;
+    this._hyperHold.watch(masks);
+    if (!masks) this._island?.hyperUnavailable();
   }
 
   /** Re-applies on the next main-loop turn (coalesces bursts; safe from inside key handlers). */
