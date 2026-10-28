@@ -107,11 +107,14 @@ hotstrings it couldn't pass on.
 
 ## Settings
 
-The settings window has the same sections as the Mac app, listed in a sidebar:
+The settings window has the Mac app's pages, in the same order and with the same names, listed in
+a sidebar. The first time it opens on **Get Started**; afterwards it opens on the Overview, never on
+the page you left it on.
 
 | Section | What's there |
 |---|---|
-| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, a getting-started checklist, and tips |
+| Get Started | First-run setup, as on the Mac: welcome, the Hyper key, hotstrings, your Slate config, done. GNOME needs no permission, so instead the Hyper key step recommends keyd (with the `linux/install.sh --hyper-keyd` command until it's set up) and the hotstrings step checks espanso, with "Skip for Now" until it's in sync. The Slate config step loads your Slate files as they are, or offers the starter shortcuts. Done lists what works and a shortcut to try. It leads the sidebar until you finish it (the badge says which step you're on); Overview → What's Next → **Get Started** opens it again |
+| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, tips from your own shortcuts, and what to do next |
 | Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. A `~/.slate.js` function is named by what it does ("First Third", captioned "JavaScript function"), or says why it can't be. Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
 | Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
 | Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, privacy (secrets, excluded apps), and the switcher's keys. Shows how many items are saved |
@@ -151,6 +154,7 @@ turn that back on in Slate Compatibility. Otherwise the Slate files keep loading
 | `~/.local/state/slated/status.json` | Extension | What's running, read by the settings window (format below) |
 | `~/.local/state/slated/slated.log` | Extension and settings | The event log: JSON Lines with the same events as on the Mac (`app.start`, `action.done`, `config.saved`, `ui.*`…) |
 | `~/.local/state/slated/snapshots.json` | Extension | Saved window snapshots |
+| `~/.local/state/slated/settings-window.json` | Settings | The settings window's own state: `{"setupFinished": true}` once Get Started is done (the Mac keeps this in its user defaults). Delete it to see Get Started again |
 | `~/.local/state/slated/clipboard.json` | Extension | Clipboard history, readable only by you (mode 0600), in the Mac app's format. Not written when `clipboard.persist` is off |
 | `~/.config/espanso/match/slated.yml` | Extension | Your hotstrings, for espanso |
 | `~/.local/share/gnome-shell/extensions/<uuid>/build-info.json` | `linux/install.sh` | `{"version", "commit", "builtAt", "build"}` of the installed build |
@@ -204,6 +208,7 @@ these to point everything at a throwaway home.
 | `~/.slate.js` functions in Settings and the cheat sheet | Named by what they do ("First Third"), found by running the script on pretend Macs | Settings → Windows: the same names, from the importer's run on pretend desktops |
 | Settings | SwiftUI window | libadwaita window |
 | Status at a glance | Overview in Slated's window | Settings → Overview |
+| First-run setup (Get Started) | Accessibility permission, Hyper key, Slate config | No permission. Hyper key (keyd recommended), espanso for hotstrings, Slate config |
 | Start at login | Login item | Runs with your session while the extension is enabled |
 | Permissions | Accessibility, granted once | None needed |
 | Installing an update | `./install.sh` relaunches the app | Log out and back in (Wayland) or Alt+F2 `r` (Xorg). A nested shell lets you try it first |

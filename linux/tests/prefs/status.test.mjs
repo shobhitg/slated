@@ -157,6 +157,8 @@ export default suite('Status and placement', [
     expectEqual(paths.configFile, '/home/me/.config/slated/config.json');
     expectEqual(paths.statusFile, '/home/me/.local/state/slated/status.json');
     expectEqual(paths.logFile, '/home/me/.local/state/slated/slated.log');
+    // The settings window's own state (Get Started finished), next to status.json: not shared with the Mac.
+    expectEqual(paths.settingsWindowFile, '/home/me/.local/state/slated/settings-window.json');
     const custom = slatedPaths('/home/me/', name => ({XDG_CONFIG_HOME: '/cfg/', XDG_STATE_HOME: 'relative/ignored'})[name] ?? null);
     expectEqual([custom.configFile, custom.stateDir], ['/cfg/slated/config.json', '/home/me/.local/state/slated']);
     // Like the extension and the macOS app: SLATED_HOME replaces the home (XDG variables belong to the real one).

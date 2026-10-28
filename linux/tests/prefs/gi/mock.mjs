@@ -53,7 +53,8 @@ const CHILD_METHODS = {
   set_sidebar: 'sidebar', set_extra_child: 'extra-child', set_popover: 'popover', set_header: 'header',
   set_start_widget: 'start-widget', set_end_widget: 'end-widget', set_center_widget: 'center-widget',
 };
-const CHILD_PROPS = new Set(['child', 'content', 'title-widget', 'header-suffix', 'sidebar', 'extra-child', 'popover']);
+const CHILD_PROPS = new Set(['child', 'content', 'title-widget', 'header-suffix', 'sidebar', 'extra-child', 'popover',
+  'start-widget', 'center-widget', 'end-widget']);
 const REMOVE_METHODS = new Set(['remove', 'remove_controller']);
 
 // GJS's Cairo.Context methods the UI may call.

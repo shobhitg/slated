@@ -5,7 +5,8 @@
 //
 // It builds the window twice, once with only GNOME 46 API ("min") and once with GNOME 49 API
 // reachable behind `in` checks ("new"), against a temporary home with a config, a status file, a
-// ~/.slate.js and a log. Then it uses every page the way a person would: switching sections,
+// ~/.slate.js and a log. Then it uses every page the way a person would: Get Started on the first
+// open (and the window opening on Overview once it's finished), switching sections,
 // editing and recording shortcuts, trying every action kind, presets and nested editors, hotstrings,
 // clipboard and automation settings, recipes, app pickers, layouts, importing the Slate file, and
 // closing the window. Any unknown GTK/libadwaita API, wrong
@@ -195,12 +196,80 @@ async function run(mode) {
   };
 
   await step('reads status.json, GNOME Shell\'s state, build-info.json and the running commit', async () => {
-    check(rows.length === 10, `10 sections in the sidebar, found ${rows.length}`);
+    // The Mac's sidebar, in its order: Get Started leads while setup isn't finished.
+    const order = rows.map(r => world.stateOf(r).expandos._slatedId);
+    check(order.join() === 'getStarted,overview,windows,hotstrings,clipboard,automation,keyboard,layouts,slate,general,about',
+      `sections: ${order.join()}`);
     check(model.status.session === 'abcd1234', 'status.json was read');
     check(model.shell.state === 'active', `shell state from D-Bus, got ${JSON.stringify(model.shell)}`);
     check(model.build?.commit === 'abc1234-dirty', 'build-info.json was read');
     check(model.runningCommit === 'abc1234', 'the running commit comes from the log');
     check(model.summary().title === 'A newer build is installed', `headline: ${model.summary().title}`);
+  });
+
+  await step('the first open shows Get Started, which walks through setup and lands on Overview', async () => {
+    const root = visible('getStarted');
+    const getStartedRow = settings.sidebarRows.get('getStarted');
+    const footerButton = () => findAll(world, root, 'Gtk.Button', (w, s) => ['suggested-action', 'pill'].every(c => (s.props.get('css-classes') ?? []).includes(c)))[0];
+    const next = () => click(footerButton());
+    const stack = findAll(world, root, 'Gtk.Stack')[0];
+    const onStep = name => {
+      check(model.getStartedStep === name && stack.get_visible_child_name() === name, `on ${model.getStartedStep}, showing ${stack.get_visible_child_name()}; expected ${name}`);
+    };
+    const labels = () => findAll(world, root, 'Gtk.Label').map(l => prop(world, l, 'label'));
+    check(settings.current === 'getStarted', `the window opens on ${settings.current}`);
+    check(prop(world, getStartedRow.row, 'visible') !== false, 'Get Started is in the sidebar');
+    check(prop(world, findAll(world, getStartedRow.holder, 'Gtk.Label')[0], 'label') === '1 of 5', 'its badge counts the steps');
+    onStep('welcome');
+    check(prop(world, footerButton(), 'label') === 'Set Up Slated', `welcome button: ${prop(world, footerButton(), 'label')}`);
+    next();
+    onStep('hyperKey');
+    check(prop(world, findAll(world, getStartedRow.holder, 'Gtk.Label')[0], 'label') === '2 of 5', 'the badge follows the step');
+    // keyd is recommended until it's set up, with the command that sets it up.
+    check(labels().includes('Recommended: keyd'), 'recommends keyd');
+    check(rowsIn(root, (w, s) => s.props.get('subtitle') === 'linux/install.sh --hyper-keyd').length === 1, 'offers the keyd command');
+    const useHyper = titled(root, 'Adw.SwitchRow', 'Use Caps Lock as Hyper')[0];
+    useHyper.set_active(false);
+    check(model.configuration.keyboard.capsLock === 'off', 'the switch turns the Hyper key off');
+    check(/^\d+ of your shortcuts use ✦/.test(prop(world, useHyper, 'subtitle')), `says how many shortcuts use Hyper: ${prop(world, useHyper, 'subtitle')}`);
+    useHyper.set_active(true);
+    check(model.configuration.keyboard.capsLock === 'hyper', 'and back on');
+    next();
+    onStep('hotstrings');
+    // status.json says espanso isn't installed: how to get it, and the step can be skipped.
+    check(labels().includes('Install espanso to expand hotstrings'), 'checks espanso');
+    check(prop(world, footerButton(), 'label') === 'Skip for Now', `hotstrings button: ${prop(world, footerButton(), 'label')}`);
+    click(buttons(root, 'Open espanso.org')[0]);
+    check(world.report.launches.some(l => l.uri === 'https://espanso.org/install/linux/'), 'opens espanso\'s install page');
+    next();
+    onStep('slateConfig');
+    check(labels().includes('Your Slate config works as-is'), 'the ~/.slate.js loads as-is');
+    const load = titled(root, 'Adw.SwitchRow', 'Load my Slate config')[0];
+    load.set_active(false);
+    check(!model.slateLoading && labels().includes('Your Slate config is here'), 'turning it off says it isn\'t loaded');
+    load.set_active(true);
+    click(buttons(root, 'Back')[0]);
+    onStep('hotstrings');
+    next();
+    next();
+    onStep('done');
+    check(prop(world, footerButton(), 'label') === 'Start Using Slated', 'the last step finishes');
+    const doneStep = findAll(world, stack, 'Gtk.ScrolledWindow', (w, s) => s.data.stackName === 'done')[0];
+    const checklist = rowsIn(doneStep).map(r => prop(world, r, 'title'));
+    check(checklist.join() === 'Slated is running,Hyper key,Hotstrings,Shortcuts', `the checklist: ${checklist.join()}`);
+    check(labels().includes('to snap this window to the left half'), `a shortcut to try: ${labels().filter(l => l?.startsWith?.('to ')).join()}`);
+    next();
+    check(settings.current === 'overview', `finishing lands on ${settings.current}`);
+    check(model.setupFinished, 'setup is done');
+    const saved = JSON.parse(fs.readFileSync(path.join(files.home, '.local/state/slated/settings-window.json'), 'utf8'));
+    check(saved.setupFinished === true, 'and remembered in the settings window\'s own state');
+    check(prop(world, getStartedRow.row, 'visible') === false, 'Get Started leaves the sidebar');
+    // Overview links back to it, from the welcome.
+    click(buttons(visible('overview'), 'Get Started')[0]);
+    check(settings.current === 'getStarted' && model.getStartedStep === 'welcome', 'Overview opens Get Started again');
+    check(prop(world, getStartedRow.row, 'visible') !== false, 'in the sidebar while it\'s open');
+    settings.showPane('overview');
+    check(prop(world, getStartedRow.row, 'visible') === false, 'and gone again after');
   });
 
   await step('every section opens', async () => {
@@ -1163,13 +1232,24 @@ async function run(mode) {
     check(saved.general.showActionHUD === true, 'the pending edit was saved on close');
     const events = fs.readFileSync(files.logFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     const names = new Set(events.map(e => e.event));
-    for (const name of ['ui.settings_opened', 'ui.pane', 'config.saved', 'slate.imported', 'ui.settings_closed']) {
+    for (const name of ['ui.settings_opened', 'ui.pane', 'config.saved', 'slate.imported', 'ui.get_started_finished', 'ui.settings_closed']) {
       check(names.has(name), `the log has ${name}`);
     }
     const opened = events.find(e => e.event === 'ui.settings_opened');
     const closed = events.find(e => e.event === 'ui.settings_closed');
     check(opened.session === 'abcd1234', 'while the extension runs, the preferences log under its session');
     check(/^[0-9a-f]{8}$/.test(closed.session) && closed.session !== 'abcd1234', 'without a running extension, under their own session');
+    check(opened.data.pane === 'getStarted', `the first open logs its pane: ${opened.data.pane}`);
+  });
+
+  await step('once setup is finished, the window opens on Overview', async () => {
+    const again = new Adw.PreferencesWindow();
+    new SlatedPreferences({uuid: UUID, path: files.extension, name: 'Slated', 'version-name': '0.1.0'}).fillPreferencesWindow(again);
+    const reopened = again._slated;
+    check(reopened.current === 'overview', `opens on ${reopened.current}`);
+    check(prop(world, reopened.sidebarRows.get('getStarted').row, 'visible') === false, 'without Get Started in the sidebar');
+    again.close();
+    check(reopened.closed && world.monitors.every(m => m.cancelled), 'closes cleanly');
   });
 
   await step('rows show text as typed: none parses markup', async () => {
