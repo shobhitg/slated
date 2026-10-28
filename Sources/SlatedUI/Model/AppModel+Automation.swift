@@ -89,7 +89,7 @@ extension AppModel {
     if configuration.general.loadSlateConfigs {
       for source in sources where source.loaded {
         for binding in source.bindings where binding.id == key {
-          uses.append("“\(binding.summary)” in \(source.displayName)")
+          uses.append("“\(binding.title)” in \(source.displayName)")
         }
       }
     }

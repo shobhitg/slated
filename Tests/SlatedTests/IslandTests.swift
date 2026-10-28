@@ -214,6 +214,44 @@ let uiCheatSheetTests = Suite(
       }
     ),
     (
+      "a Slate file's functions are listed by what they do, the same in Settings and here",
+      {
+        try onMain {
+          let firstThird = try require(WindowPresets.orientation.first).action
+          let throwRight = Action.throwWindow(screen: .relative(.right), width: "screenSizeX", height: "screenSizeY")
+          let described = SourceBinding(
+            keys: try combo("hyper+f"), summary: "JavaScript function", action: firstThird, function: .described)
+          let thrown = SourceBinding(
+            keys: try combo("hyper+right"), summary: "JavaScript function", action: throwRight, function: .described)
+          let unknown = SourceBinding(
+            keys: try combo("hyper+i"), summary: "JavaScript function",
+            function: .undescribed(reason: "depends on the focused app or window title"))
+          let plain = SourceBinding(
+            keys: try combo("hyper+s"), summary: "push up", action: .push(direction: .up, style: .none, screen: nil))
+
+          // Settings: the title says what it does, the caption that it's a function, or why it can't.
+          expectEqual(described.title, "First Third")
+          expectEqual(described.caption, "JavaScript function")
+          expectEqual(unknown.title, "JavaScript Function")
+          expectEqual(unknown.caption, "Depends on the focused app or window title")
+          expectEqual(unknown.undescribedReason, "depends on the focused app or window title")
+          expectEqual(plain.caption, "push up")
+          expect(described.runsFunction && unknown.runsFunction && !plain.runsFunction)
+          // With no operation and no reason, it's still a function.
+          let bare = SourceBinding(keys: try combo("hyper+j"), summary: "JavaScript function")
+          expectEqual(bare.caption, "Runs code in your Slate file")
+
+          // The cheat sheet groups them by what they do, under the same titles.
+          let shortcuts = [described, thrown, unknown, plain].map(CheatSheet.Shortcut.init)
+          let sheet = CheatSheet.hyper(shortcuts, hyperModifiers: .hyper)
+          expectEqual(sheet.sections.map(\.title), ["Windows", "Displays", "Scripts"])
+          expectEqual(
+            sheet.items.map(\.title), ["First Third", "Push Up", "Right Display, Maximized", "JavaScript function"])
+          expectEqual(sheet.items.first?.region, WindowPresets.preset("left-third").region)
+        }
+      }
+    ),
+    (
       "keyboard order: letters, digits with 0 last, punctuation, arrows, named keys",
       {
         try onMain {

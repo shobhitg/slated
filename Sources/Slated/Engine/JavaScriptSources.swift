@@ -14,6 +14,9 @@ final class JavaScriptSources {
 
   private let host = AppScriptHost()
   private var engines: [String: SlateScriptEngine] = [:]
+  /// Says what bound functions do, for Settings and the cheat sheet. Kept across loads: it reuses
+  /// its answer while the files are unchanged.
+  private let describer = SlateFunctionDescriber()
   private var bindings: [(engine: SlateScriptEngine, binding: ScriptBinding)] = []
   /// Layouts with JavaScript steps, run through their engine.
   private var scriptLayouts: [String: (engine: SlateScriptEngine, layout: ScriptLayout)] = [:]
@@ -65,11 +68,38 @@ final class JavaScriptSources {
     return SlateSource(
       path: displayPath, kind: .javascript, exists: true,
       loaded: !result.hasErrors || !result.bindings.isEmpty,
-      bindings: result.bindings.map {
-        SourceBinding(keys: $0.keys, modal: $0.modal, summary: $0.summary, action: $0.target.action)
-      },
+      bindings: sourceBindings(result.bindings, path: path, displayPath: displayPath),
       layouts: result.layouts.compactMap(\.staticLayout),
       diagnostics: result.diagnostics)
+  }
+
+  /// The file's bindings for Settings and the cheat sheet. A bound function is listed as the
+  /// operation it performs when trying it on pretend Macs (in an engine of its own, so this one's
+  /// state is untouched) shows one; its shortcut still runs the function.
+  private func sourceBindings(_ bindings: [ScriptBinding], path: String, displayPath: String) -> [SourceBinding] {
+    let functions = bindings.filter { $0.target.action == nil }.count
+    let start = CFAbsoluteTimeGetCurrent()
+    let descriptions = functions == 0 ? nil : describer.describe(path: path)
+    let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
+    let result = bindings.map { binding in
+      var source = SourceBinding(
+        keys: binding.keys, modal: binding.modal, summary: binding.summary, action: binding.target.action)
+      if binding.target.action == nil {
+        switch descriptions?.probe(for: binding) {
+        case .converted(let action):
+          source.action = action
+          source.function = .described
+        case .skipped(let reason): source.function = .undescribed(reason: reason)
+        case nil: source.function = .undescribed(reason: nil)
+        }
+      }
+      return source
+    }
+    if functions > 0, !describer.reusedLast {
+      let described = result.filter { $0.function == .described }.count
+      Log.record("slate.described", ["path": displayPath, "functions": functions, "described": described, "ms": ms])
+    }
+    return result
   }
 
   func entries(settings: SlateSettings) -> [HotkeyManager.Entry] {

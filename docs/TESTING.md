@@ -7,7 +7,7 @@
 | Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, repeat timing), the settings app's view models (validation, editors, layouts, clipboard switcher, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction). |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
-| Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
+| Your config | `StarterTests.swift`, `SlateDescriptionTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, the importer converts it completely, and Settings describes every function in it in well under a second. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
 | Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited, broken and symlinked config.json, unknown operations, duplicate shortcuts, automation config, island settings and the Hyper cheat sheet, config races and reloads, log privacy. It also checks what lands in the event log, including crash detection. |
 | Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch (a test run, which leaves the keyboard alone), confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), SIGQUIT, uninstall, `--purge`, and a hung Slated forced to quit whose Caps Lock mapping comes off (a stand-in `hidutil` on `PATH`). Launches the app for a few seconds. |
 | Installer scripts | `Tests/Installer/test_restore_caps_lock.py` | `make test-scripts` | `scripts/restore-caps-lock.py` against a stand-in `hidutil`, for every case in `Tests/Installer/caps-lock-cases.json`; `HIDRemapperTests` checks Slated against the same cases, so the installer and the app agree on which Caps Lock mapping is Slated's. |
@@ -261,6 +261,12 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 
 **Slate compatibility**
 - [ ] `~/.slate.js` loads (the menu shows 21 hotkeys). Editing and saving it reloads within 2 seconds.
+- [ ] Settings → Windows lists each of its function shortcuts by what it does ("Left Half", "First
+      Third", "Throw to Right Display, Maximized"), captioned "JavaScript function"; the detail says
+      it runs a function in `~/.slate.js`. Holding Caps Lock lists them under Windows and Displays,
+      not Scripts. Pressing them still runs the functions (`scripts/logs.py --grep script.binding`).
+- [ ] Add a function that checks `win.title()` to a copy of `~/.slate.js`: it stays "JavaScript
+      Function", captioned "Depends on the focused app or window title", and under Scripts.
 - [ ] "Import Slate Config into Slated…" converts all bindings and stops loading the file.
 - [ ] With Settings open, change something and import within half a second: Settings then shows the
       imported bindings, and the change is still there after reopening Settings.

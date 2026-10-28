@@ -82,10 +82,11 @@ func selectBinding(named name: String) -> @MainActor (AppModel) -> Void {
   }
 }
 
-func selectSourceBinding(summary: String) -> @MainActor (AppModel) -> Void {
+/// Selects the first Slate binding whose summary ("throw 1 resize") or title ("Middle Third") is `text`.
+func selectSourceBinding(_ text: String) -> @MainActor (AppModel) -> Void {
   { model in
     for source in model.sources {
-      if let binding = source.bindings.first(where: { $0.summary == summary }) {
+      if let binding = source.bindings.first(where: { $0.summary == text || $0.title == text }) {
         model.selectedBinding = .source(path: source.path, id: binding.id)
         return
       }
@@ -99,9 +100,10 @@ var shots: [Shot] = [
   settings("settings-windows-chain", pane: .windows, configure: selectBinding(named: "Cycle Left")),
   settings("settings-windows-failed", pane: .windows, configure: selectBinding(named: "Window Hints")),
   settings("settings-windows-duplicate", pane: .windows, configure: selectBinding(named: "Almost Maximize")),
-  settings("settings-windows-source", pane: .windows, configure: selectSourceBinding(summary: "throw 1 resize")),
-  settings(
-    "settings-windows-javascript", pane: .windows, configure: selectSourceBinding(summary: "JavaScript function")),
+  settings("settings-windows-source", pane: .windows, configure: selectSourceBinding("throw 1 resize")),
+  // A function Slated could describe by trying it, and one it couldn't.
+  settings("settings-windows-function", pane: .windows, configure: selectSourceBinding("Middle Third")),
+  settings("settings-windows-javascript", pane: .windows, configure: selectSourceBinding("JavaScript Function")),
   settings("settings-windows-new", pane: .windows) { model in model.newBinding() },
   settings("settings-hotstrings", pane: .hotstrings) { model in
     model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
