@@ -165,26 +165,43 @@ for (name, scenario, paused, automations) in [
     })
 }
 
-func switcher(
+/// The clipboard picker as it opens, and with an image selected: its preview beside it, as the app
+/// places it (to the right, top level with the row).
+func picker(
   _ name: String, scenario: PreviewServices.Scenario = .configured,
-  configure: @escaping @MainActor (ClipboardSwitcherModel) -> Void = { _ in }
+  configure: @escaping @MainActor (ClipboardPickerModel) -> Void = { _ in }
 ) -> Shot {
-  Shot(name: name, size: CGSize(width: 780, height: 480)) {
-    let model = ClipboardSwitcherModel(services: PreviewServices(scenario: scenario))
+  let probe = ClipboardPickerModel(services: PreviewServices(scenario: scenario))
+  probe.resetForShowing()
+  configure(probe)
+  let preview = SlatedUI.clipboardImagePreviewSize(model: probe)
+  let size = CGSize(
+    width: probe.size.width + (preview.map { $0.width + 6 } ?? 0),
+    height: max(probe.size.height, preview?.height ?? 0))
+  return Shot(name: name, size: size) {
+    let services = PreviewServices(scenario: scenario)
+    SlatedUI.preloadClipboardImages(services: services)
+    let model = ClipboardPickerModel(services: services)
     model.resetForShowing()
     configure(model)
-    return AnyView(SlatedUI.makeClipboardSwitcherView(model: model))
+    return AnyView(
+      HStack(alignment: .top, spacing: 6) {
+        SlatedUI.makeClipboardPickerView(model: model)
+        if let preview = SlatedUI.clipboardImagePreviewSize(model: model) {
+          SlatedUI.makeClipboardImagePreview(model: model).frame(width: preview.width, height: preview.height)
+        }
+      }
+      .frame(width: size.width, height: size.height, alignment: .topLeading))
   }
 }
 
 shots += [
-  switcher("clipboard-switcher"),
-  switcher("clipboard-switcher-code") { model in model.selectedID = model.items.first { $0.text.hasPrefix("func") }?.id
-  },
-  switcher("clipboard-switcher-color") { model in model.selectedID = model.items.first { $0.text.hasPrefix("#") }?.id },
-  switcher("clipboard-switcher-search") { model in model.query = "git" },
-  switcher("clipboard-switcher-nomatch") { model in model.query = "invoice" },
-  switcher("clipboard-switcher-empty", scenario: .empty),
+  picker("clipboard-picker"),
+  picker("clipboard-picker-image") { model in model.selectedID = model.items.first(where: \.isImage)?.id },
+  picker("clipboard-picker-photo") { model in model.selectedID = model.items.last(where: \.isImage)?.id },
+  picker("clipboard-picker-filter") { model in model.query = "git" },
+  picker("clipboard-picker-nomatch") { model in model.query = "invoice" },
+  picker("clipboard-picker-empty", scenario: .empty),
 ]
 
 for recipe in ["auto-click-left", "toggle-sprint"] {

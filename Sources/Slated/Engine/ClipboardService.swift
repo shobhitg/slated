@@ -10,10 +10,11 @@ import SlatedSystem
 final class ClipboardService {
   private(set) var settings = ClipboardSettings()
   private(set) var history = ClipboardHistory()
-  /// History changed (the UI and switcher refresh).
+  /// History changed (the UI and picker refresh).
   var onChange: (() -> Void)?
-  /// Shows the switcher panel (wired by the app delegate).
-  var presentSwitcher: (() -> Void)?
+  /// Shows the picker below this rectangle, where you're typing (top-left-origin global
+  /// coordinates). Wired by the app delegate.
+  var presentSwitcher: ((CGRect) -> Void)?
   /// The time copies are recorded at (a smoke test moves it ahead).
   var now: () -> Date = Date.init
 
@@ -169,10 +170,18 @@ final class ClipboardService {
     // Closed and reopened within half a second: that close mustn't forget this target.
     forgetPreviousApp?.cancel()
     let front = NSWorkspace.shared.frontmostApplication
-    previousApp = front?.bundleIdentifier == Bundle.main.bundleIdentifier ? lastExternalApp : front
+    let fromSlated = front?.bundleIdentifier == Bundle.main.bundleIdentifier
+    previousApp = fromSlated ? lastExternalApp : front
+    // Where you're typing: the caret, else the focused field, else the pointer. Opened from Slated's
+    // own windows (Settings, the menu bar panel), the pointer: the app you were in is behind them.
+    let typing = fromSlated ? nil : front.flatMap { Accessibility.typingLocation(pid: $0.processIdentifier) }
     Log.record(
-      "clipboard.switcher_opened", ["items": history.items.count, "target": previousApp?.bundleIdentifier ?? "none"])
-    presentSwitcher?()
+      "clipboard.switcher_opened",
+      [
+        "items": history.items.count, "target": previousApp?.bundleIdentifier ?? "none",
+        "anchor": typing?.source.rawValue ?? "pointer",
+      ])
+    presentSwitcher?(typing?.rect ?? CGRect(origin: Screens.pointerLocation(), size: .zero))
   }
 
   /// Puts the item on the clipboard and, if configured, pastes it into the previous app.

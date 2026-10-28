@@ -1,31 +1,40 @@
 import AppKit
+import SlatedCore
+import SlatedSystem
 import SlatedUI
 import SwiftUI
 
-/// Hosts the clipboard switcher in a floating panel centered on the screen with the pointer.
+/// Hosts the clipboard picker in a small floating panel just below where you're typing (the caret,
+/// the focused field, or the pointer), and a larger preview of a selected image beside it.
 final class ClipboardPanel: NSObject, NSWindowDelegate {
-  private let model: ClipboardSwitcherModel
+  private let model: ClipboardPickerModel
   private var panel: NSPanel?
+  private var preview: NSPanel?
   /// Called whenever the panel closes (picked, escaped or clicked away).
   var didClose: (() -> Void)?
 
   init(services: any AppServices) {
-    model = ClipboardSwitcherModel(services: services)
+    model = ClipboardPickerModel(services: services)
     super.init()
     model.onClose = { [weak self] in self?.close() }
+    model.onPreviewChange = { [weak self] in self?.placePreview() }
   }
 
-  func show() {
-    model.resetForShowing()
+  /// Opens the picker below `anchor` (above it when there's no room), on that anchor's screen.
+  /// `anchor` is in top-left-origin global coordinates; an empty rect for the pointer.
+  func show(at anchor: CGRect) {
+    model.resetForShowing(pointer: NSEvent.mouseLocation)
     let panel = self.panel ?? makePanel()
     self.panel = panel
-    let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
-    if let visible = screen?.visibleFrame {
-      let size = panel.frame.size
-      panel.setFrameOrigin(NSPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2 + visible.height * 0.1))
-    }
+    let size = model.size
+    let frame =
+      PopupPlacement.screen(for: anchor, in: Screens.current())
+      .map { PopupPlacement.below(anchor, size: size, in: $0.visibleFrame) }
+      ?? CGRect(origin: anchor.origin, size: size)
+    panel.setFrame(Screens.appKitRect(fromTopLeft: frame), display: true)
     NSApp.activate()
     panel.makeKeyAndOrderFront(nil)
+    placePreview()
   }
 
   func refresh() {
@@ -34,34 +43,65 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
 
   func close() {
     guard panel?.isVisible == true else { return }
+    preview?.orderOut(nil)
     panel?.orderOut(nil)
     didClose?()
   }
 
-  /// Clicking anywhere else closes the switcher, like Spotlight.
+  /// Clicking anywhere else closes the picker, like a menu.
   func windowDidResignKey(_ notification: Notification) {
     close()
   }
 
+  /// Shows the selected image larger beside the picker, level with its row (with the picker's top
+  /// until the row is laid out), or hides the preview when the selection isn't an image.
+  private func placePreview() {
+    guard let panel, panel.isVisible, let size = SlatedUI.clipboardImagePreviewSize(model: model) else {
+      preview?.orderOut(nil)
+      return
+    }
+    let preview = self.preview ?? makePreview()
+    self.preview = preview
+    let picker = Screens.topLeftRect(fromAppKit: panel.frame)
+    let row = model.previewRowFrame?.offsetBy(dx: picker.minX, dy: picker.minY) ?? picker
+    let visible = PopupPlacement.screen(for: picker, in: Screens.current())?.visibleFrame ?? picker
+    let frame = PopupPlacement.beside(picker, alignedWith: row, size: size, in: visible)
+    preview.setFrame(Screens.appKitRect(fromTopLeft: frame), display: true)
+    preview.orderFront(nil)
+  }
+
   private func makePanel() -> NSPanel {
-    let host = NSHostingView(rootView: SlatedUI.makeClipboardSwitcherView(model: model))
-    host.frame.size = host.fittingSize
-    let panel = SwitcherPanel(
-      contentRect: NSRect(origin: .zero, size: host.fittingSize), styleMask: [.borderless, .fullSizeContentView],
+    let host = NSHostingView(rootView: SlatedUI.makeClipboardPickerView(model: model))
+    let panel = PickerPanel(
+      contentRect: NSRect(origin: .zero, size: model.size), styleMask: [.borderless, .fullSizeContentView],
       backing: .buffered, defer: false)
     panel.contentView = host
+    configure(panel)
+    panel.delegate = self
+    return panel
+  }
+
+  /// A panel that never takes focus or clicks: the picker keeps the keyboard and the mouse.
+  private func makePreview() -> NSPanel {
+    let panel = NSPanel(
+      contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    panel.contentView = NSHostingView(rootView: SlatedUI.makeClipboardImagePreview(model: model))
+    configure(panel)
+    panel.ignoresMouseEvents = true
+    return panel
+  }
+
+  private func configure(_ panel: NSPanel) {
     panel.isOpaque = false
     panel.backgroundColor = .clear
     panel.hasShadow = true
     panel.level = .floating
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     panel.isReleasedWhenClosed = false
-    panel.delegate = self
-    return panel
   }
 }
 
-/// Borderless panels can't become key by default; the switcher needs the keyboard.
-private final class SwitcherPanel: NSPanel {
+/// Borderless panels can't become key by default; the picker needs the keyboard.
+private final class PickerPanel: NSPanel {
   override var canBecomeKey: Bool { true }
 }

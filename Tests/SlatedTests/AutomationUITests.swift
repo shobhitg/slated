@@ -360,120 +360,184 @@ let uiClipboardTests = Suite(
       }
     ),
     (
-      "ages and sections for the switcher",
+      "an image reads as its size and app in a row, and its size and bytes under the preview",
       {
         try onMain {
-          var calendar = Calendar(identifier: .gregorian)
-          calendar.timeZone = TimeZone(identifier: "UTC")!
-          let now = Date(timeIntervalSince1970: 1_800_000_000)  // a Friday, mid-morning UTC
-          expectEqual(ClipboardContent.shortAge(of: now.addingTimeInterval(-20), now: now), "now")
-          expectEqual(ClipboardContent.shortAge(of: now.addingTimeInterval(-5 * 60), now: now), "5m")
-          expectEqual(ClipboardContent.shortAge(of: now.addingTimeInterval(-3 * 3_600), now: now), "3h")
-          expectEqual(ClipboardContent.shortAge(of: now.addingTimeInterval(-2 * 86_400), now: now), "2d")
-          func item(_ text: String, _ ago: Double, pinned: Bool = false) -> ClipboardItem {
-            ClipboardItem(text: text, copiedAt: now.addingTimeInterval(-ago), pinned: pinned)
-          }
-          let items = [
-            item("pin", 90 * 86_400, pinned: true), item("today", 60), item("yesterday", 86_400),
-            item("week", 4 * 86_400), item("old", 30 * 86_400),
-          ]
-          let groups = ClipboardSection.group(items, now: now, calendar: calendar)
-          expectEqual(groups.map(\.section), [.pinned, .today, .yesterday, .thisWeek, .earlier])
-          expectEqual(groups.map { $0.items.map(\.text) }, [["pin"], ["today"], ["yesterday"], ["week"], ["old"]])
+          let shot = ClipboardImage(file: "a.png", width: 1280, height: 720, bytes: 245_000)
+          expectEqual(ClipboardContent.imageTitle(shot, app: "Safari"), "Image · 1280×720 · Safari")
+          expectEqual(ClipboardContent.imageTitle(shot, app: nil), "Image · 1280×720")
+          expect(ClipboardContent.imageDetails(shot).hasPrefix("1280×720 · 245"))
+          // The preview fits the long side in 240 pt and never enlarges.
+          expectEqual(ClipboardImagePreview.fittedSize(shot), CGSize(width: 240, height: 135))
+          let portrait = ClipboardImage(file: "b.png", width: 800, height: 1000, bytes: 1)
+          expectEqual(ClipboardImagePreview.fittedSize(portrait), CGSize(width: 192, height: 240))
+          let icon = ClipboardImage(file: "c.png", width: 64, height: 40, bytes: 1)
+          expectEqual(ClipboardImagePreview.fittedSize(icon), CGSize(width: 64, height: 40))
+          // Its panel keeps room for the caption, even beside a narrow image.
+          expectEqual(ClipboardImagePreview.size(for: icon), CGSize(width: 136, height: 75))
+          expectEqual(ClipThumbnail.width(for: shot, height: 28), 50)
+          expectEqual(ClipThumbnail.width(for: portrait, height: 28), 22)
+          expectEqual(
+            ClipThumbnail.width(for: ClipboardImage(file: "d", width: 4000, height: 100, bytes: 1), height: 28), 50)
         }
       }
     ),
   ])
 
-let uiClipboardSwitcherTests = Suite(
-  "UIClipboardSwitcher",
+let uiClipboardPickerTests = Suite(
+  "UIClipboardPicker",
   [
     (
-      "results, numbers and keyboard selection",
+      "pinned first, ⌘-numbers for the first nine, and a size fixed when it opens",
       {
         try onMain {
-          let services = PreviewServices()
-          let switcher = ClipboardSwitcherModel(services: services)
-          switcher.resetForShowing()
-          let results = switcher.results
+          let picker = ClipboardPickerModel(services: PreviewServices())
+          picker.resetForShowing()
+          let results = picker.results
           expect(results.prefix { $0.pinned }.count == results.filter(\.pinned).count)  // pinned first
-          expectEqual(switcher.selectedID, results.first?.id)
-          expectEqual(switcher.sections.flatMap(\.items).map(\.id), results.map(\.id))
-          expectEqual(switcher.number(of: results[0].id), 1)
-          expectEqual(switcher.number(of: results[8].id), 9)
-          expect(switcher.number(of: results[9].id) == nil)
-          switcher.moveSelection(by: -1)
-          expectEqual(switcher.selectedID, results[0].id)
-          switcher.moveSelection(by: 3)
-          expectEqual(switcher.selectedItem?.id, results[3].id)
-          switcher.moveSelection(by: 100)
-          expectEqual(switcher.selectedID, results.last?.id)
-          expect(switcher.pasteAfterSelecting)
+          expectEqual(picker.selectedID, results.first?.id)
+          expectEqual(picker.number(at: 0), 1)
+          expectEqual(picker.number(at: 8), 9)
+          expect(picker.number(at: 9) == nil)
+          expect(picker.pasteAfterSelecting)
+          // Nine rows show (an image row is taller), and half the next: the list scrolls.
+          let shown = Array(results.prefix(9))
+          let rows = shown.reduce(CGFloat(0)) { $0 + ($1.isImage ? 36 : 26) } + 13
+          expect(shown.contains(where: \.isImage) && results.count > 9)
+          expectEqual(picker.size, CGSize(width: 320, height: 32 + 0.5 + rows + 10))
+          picker.query = "git"
+          expectEqual(picker.size.height, 32 + 0.5 + rows + 10)  // filtering doesn't resize it
+
+          let empty = ClipboardPickerModel(services: PreviewServices(scenario: .empty))
+          empty.resetForShowing()
+          expectEqual(empty.size.height, 32 + 0.5 + 26 + 10)
+          expect(empty.results.isEmpty && empty.selectedID == nil)
         }
       }
     ),
     (
-      "searching selects the first match; writing the same text back doesn't move the selection",
+      "the arrow keys move the selection and stop at the ends",
       {
         try onMain {
-          let switcher = ClipboardSwitcherModel(services: PreviewServices())
-          switcher.resetForShowing()
-          let third = switcher.results[2].id
-          switcher.selectedID = third
-          switcher.query = ""  // a text field writing back its value on focus
-          expectEqual(switcher.selectedID, third)
-          switcher.query = "git"  // matches github.com too
-          expectEqual(switcher.results.count, 2)
-          switcher.query = "commit"
-          expectEqual(switcher.results.map(\.text), ["git commit -m \"Make the author's Slate config the default\""])
-          expectEqual(switcher.selectedID, switcher.results.first?.id)
-          switcher.query = "nothing like this"
-          expect(switcher.results.isEmpty)
-          expect(switcher.selectedID == nil)
+          let picker = ClipboardPickerModel(services: PreviewServices())
+          picker.resetForShowing()
+          let results = picker.results
+          picker.moveSelection(by: -1)
+          expectEqual(picker.selectedID, results[0].id)
+          picker.moveSelection(by: 3)
+          expectEqual(picker.selectedID, results[3].id)
+          picker.moveSelection(by: 100)
+          expectEqual(picker.selectedID, results.last?.id)
         }
       }
     ),
     (
-      "pick, pin and delete go through the services and close the panel",
+      "filtering selects the first match; writing the same text back doesn't; an image never matches",
+      {
+        try onMain {
+          let picker = ClipboardPickerModel(services: PreviewServices())
+          picker.resetForShowing()
+          let third = picker.results[2].id
+          picker.selectedID = third
+          picker.query = ""  // a text field writing back its value on focus
+          expectEqual(picker.selectedID, third)
+          picker.query = "git"  // matches github.com too
+          expectEqual(picker.results.count, 2)
+          picker.query = "commit"
+          expectEqual(picker.results.map(\.text), ["git commit -m \"Make the author's Slate config the default\""])
+          expectEqual(picker.selectedID, picker.results.first?.id)
+          picker.query = "image"
+          expect(picker.results.isEmpty, "images aren't text")
+          expect(picker.selectedID == nil)
+          picker.resetForShowing()
+          expectEqual(picker.query, "")
+          expectEqual(picker.results.count, picker.items.count)
+        }
+      }
+    ),
+    (
+      "↩, ⌘1–9 and a click paste through the services and close the picker",
       {
         try onMain {
           let services = PreviewServices()
-          let switcher = ClipboardSwitcherModel(services: services)
+          let picker = ClipboardPickerModel(services: services)
           var closed = 0
-          switcher.onClose = { closed += 1 }
-          switcher.resetForShowing()
-          let second = switcher.results[1]
-          switcher.pick(number: 2)
+          picker.onClose = { closed += 1 }
+          picker.resetForShowing()
+          let second = picker.results[1]
+          picker.pick(number: 2)
           expectEqual(services.pastedClipboardItems, [second.id])
           expectEqual(closed, 1)
-          switcher.pick(number: 99)
+          picker.pick(number: 99)
+          picker.pick(number: 0)
           expectEqual(closed, 1)
 
-          switcher.resetForShowing()
-          let target = try require(switcher.results.first { !$0.pinned })
-          switcher.selectedID = target.id
-          switcher.togglePin()
-          expect(switcher.items.first { $0.id == target.id }?.pinned == true)
-
-          let index = try require(switcher.results.firstIndex { $0.id == target.id })
-          switcher.delete()
-          expect(!switcher.items.contains { $0.id == target.id })
-          expectEqual(switcher.selectedID, switcher.results[min(index, switcher.results.count - 1)].id)
-
-          // Deleting another row from its context menu keeps the selection, so ↩ still pastes it.
-          let selected = try require(switcher.selectedID)
-          let other = try require(switcher.results.last { $0.id != selected })
-          switcher.delete(other.id)
-          expect(!switcher.items.contains { $0.id == other.id })
-          expectEqual(switcher.selectedID, selected)
-          switcher.paste()
+          picker.resetForShowing()
+          picker.moveSelection(by: 2)
+          let selected = try require(picker.selectedID)
+          picker.paste()
           expectEqual(services.pastedClipboardItems.last, selected)
+          picker.resetForShowing()
+          let clicked = picker.results[4].id
+          picker.paste(clicked)
+          expectEqual(services.pastedClipboardItems.last, clicked)
+          expectEqual(closed, 3)
 
+          // With pasteAfterSelecting off, Return only copies (the app decides; the picker says so).
           var config = services.configuration
           config.clipboard.pasteAfterSelecting = false
           try services.saveConfiguration(config)
-          switcher.reload()
-          expect(!switcher.pasteAfterSelecting)
+          picker.reload()
+          expect(!picker.pasteAfterSelecting)
+        }
+      }
+    ),
+    (
+      "the pointer selects the row under it, unless it hasn't moved since a key or the opening",
+      {
+        try onMain {
+          let picker = ClipboardPickerModel(services: PreviewServices())
+          let resting = CGPoint(x: 500, y: 300)
+          picker.resetForShowing(pointer: resting)
+          let results = picker.results
+          picker.hover(results[3].id, pointer: resting)  // opened under a resting pointer
+          expectEqual(picker.selectedID, results[0].id)
+          picker.hover(results[3].id, pointer: CGPoint(x: 500, y: 310))
+          expectEqual(picker.selectedID, results[3].id)
+          picker.moveSelection(by: 1, pointer: CGPoint(x: 500, y: 310))
+          expectEqual(picker.selectedID, results[4].id)
+          picker.hover(results[2].id, pointer: CGPoint(x: 500, y: 310))  // the list scrolled under it
+          expectEqual(picker.selectedID, results[4].id)
+          picker.hover(results[2].id, pointer: CGPoint(x: 502, y: 290))
+          expectEqual(picker.selectedID, results[2].id)
+        }
+      }
+    ),
+    (
+      "an image row shows its preview beside the picker; a text row hides it",
+      {
+        try onMain {
+          let picker = ClipboardPickerModel(services: PreviewServices())
+          var changes = 0
+          picker.onPreviewChange = { changes += 1 }
+          picker.resetForShowing()
+          expect(picker.previewItem == nil, "the newest item is text")
+          let image = try require(picker.results.first(where: \.isImage))
+          let before = changes
+          picker.hover(image.id, pointer: nil)
+          expectEqual(picker.previewItem?.id, image.id)
+          expect(changes > before, "the panel is told to show it")
+          expect(picker.previewRowFrame == nil, "not laid out yet: the panel aligns with the picker")
+          let row = CGRect(x: 5, y: 57, width: 310, height: 36)
+          picker.rowMoved(image.id, to: row)
+          expectEqual(picker.previewRowFrame, row)
+          let moved = changes
+          picker.rowMoved(image.id, to: row)  // the same frame again: nothing to move
+          expectEqual(changes, moved)
+          picker.moveSelection(by: 1)
+          expect(picker.previewItem == nil, "a text row has no preview")
+          expectEqual(
+            picker.imageURL(try require(image.image)).map { FileManager.default.fileExists(atPath: $0.path) }, true)
         }
       }
     ),

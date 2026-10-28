@@ -100,10 +100,22 @@ public enum SlatedUI {
     return controller
   }
 
-  /// The clipboard history switcher. Host it in a floating panel; the model's `onClose` asks the app
-  /// to close it. Call `model.resetForShowing()` each time it opens.
-  public static func makeClipboardSwitcherView(model: ClipboardSwitcherModel) -> some View {
-    ClipboardSwitcherView(model: model)
+  /// The clipboard picker. Host it in a small floating panel of `model.size` where you're typing; the
+  /// model's `onClose` asks the app to close it. Call `model.resetForShowing(pointer:)` each time it
+  /// opens.
+  public static func makeClipboardPickerView(model: ClipboardPickerModel) -> some View {
+    ClipboardPickerView(model: model)
+  }
+
+  /// The picker's selected image, larger, for a small panel beside the picker that never takes focus.
+  /// `model.onPreviewChange` says when to show, move or hide it.
+  public static func makeClipboardImagePreview(model: ClipboardPickerModel) -> some View {
+    ClipboardImagePreview(model: model)
+  }
+
+  /// The preview panel's size for the picker's selected image; nil when there's nothing to preview.
+  public static func clipboardImagePreviewSize(model: ClipboardPickerModel) -> CGSize? {
+    model.previewItem?.image.map(ClipboardImagePreview.size(for:))
   }
 
   /// The notch island. Host it in a borderless, transparent panel pinned to the top center of the
@@ -113,6 +125,16 @@ public enum SlatedUI {
   }
 
   // MARK: Snapshots
+
+  /// Decodes the history's images for rows and previews now: snapshots render in a single pass, before
+  /// a lazy load would finish.
+  @_spi(Snapshots) public static func preloadClipboardImages(services: any AppServices) {
+    for image in services.clipboardItems().compactMap(\.image) {
+      guard let url = services.clipboardImageURL(image) else { continue }
+      ClipboardThumbnails.shared.preload(image, from: url, maxPixels: ClipboardThumbnails.rowPixels)
+      ClipboardThumbnails.shared.preload(image, from: url, maxPixels: ClipboardThumbnails.previewPixels)
+    }
+  }
 
   @_spi(Snapshots) public static func makeSettingsView(model: AppModel, layout: SettingsLayout) -> some View {
     SettingsView(model: model, layout: layout)

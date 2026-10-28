@@ -21,6 +21,19 @@ public enum Screens {
     }
   }
 
+  /// Converts an AppKit rect (one of our windows' frames) to top-left-origin coordinates.
+  public static func topLeftRect(fromAppKit rect: NSRect) -> CGRect {
+    guard let primaryHeight = NSScreen.screens.first?.frame.height else { return rect }
+    return flip(rect, primaryHeight: primaryHeight)
+  }
+
+  /// The mouse pointer, in top-left-origin coordinates.
+  public static func pointerLocation() -> CGPoint {
+    let point = NSEvent.mouseLocation
+    guard let primaryHeight = NSScreen.screens.first?.frame.height else { return point }
+    return CGPoint(x: point.x, y: primaryHeight - point.y)
+  }
+
   /// Converts a top-left-origin rect back to AppKit coordinates (for positioning our own windows).
   public static func appKitRect(fromTopLeft rect: CGRect) -> NSRect {
     guard let primaryHeight = NSScreen.screens.first?.frame.height else { return rect }

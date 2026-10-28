@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       self?.refreshStatusIcon()
       self?.clipboardPanel.refresh()
     }
-    engine.clipboard.presentSwitcher = { [weak self] in self?.clipboardPanel.show() }
+    engine.clipboard.presentSwitcher = { [weak self] anchor in self?.clipboardPanel.show(at: anchor) }
     clipboardPanel.didClose = { [weak self] in self?.engine.clipboard.switcherClosed() }
     engine.onModalChange = { [weak self] modal in
       self?.modalActive = modal != nil
