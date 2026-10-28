@@ -5,7 +5,8 @@
 //   file the macOS app uses;
 // - state:  $XDG_STATE_HOME/slated/ (default ~/.local/state/slated/) with status.json, written by
 //   the extension, slated.log, the event log (JSON Lines, same events as on macOS), and
-//   clipboard.json, the clipboard history (mode 0600; only the extension reads and writes it).
+//   clipboard.json, the clipboard history (mode 0600; only the extension reads and writes it), and
+//   settings-window.json, the settings window's own state (whether Get Started was finished).
 //
 // As in the extension (lib/platform/paths.js) and on macOS, SLATED_HOME stands in for the home
 // folder (then the XDG variables, which belong to the real home, don't apply) and SLATED_CONFIG for
@@ -33,6 +34,7 @@ export function slatedPaths(home, getenv = () => null) {
     statusFile: `${stateHome}/slated/status.json`,
     logFile: `${stateHome}/slated/slated.log`,
     clipboardFile: `${stateHome}/slated/clipboard.json`,
+    settingsWindowFile: `${stateHome}/slated/settings-window.json`,
     keydConfig: absolute(getenv('SLATED_KEYD_CONF')) ?? '/etc/keyd/slated.conf',
   };
 }

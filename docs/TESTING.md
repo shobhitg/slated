@@ -318,8 +318,18 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 
 Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extension/prefs.js` or
 `lib/prefs/`, after `linux/install.sh` and a new login.
-- [ ] `gnome-extensions prefs slated@shobhit-aida.github.io` opens the window on the Overview, which
-      says "Everything's running". `linux/install.sh --verify` agrees.
+- [ ] With no `~/.local/state/slated/settings-window.json`, `gnome-extensions prefs
+      slated@shobhit-aida.github.io` opens on Get Started, first in the sidebar with a "1 of 5" badge.
+      The Hyper key step recommends keyd with its command until `linux/install.sh --hyper-keyd` has
+      run, then says keyd is in charge. The hotstrings step says whether espanso is installed and in
+      sync, and its button reads Skip for Now until it is. The Slate config step lists your
+      `~/.slate.js` and its bindings. Done lists Slated running, the Hyper key, hotstrings and
+      shortcuts, and its "Try it now" shortcut moves the settings window.
+- [ ] Start Using Slated lands on the Overview, which says "Everything's running"
+      (`linux/install.sh --verify` agrees), and Get Started leaves the sidebar. Closing and reopening
+      the window opens on the Overview again. What's Next → Get Started opens it from the welcome.
+- [ ] Settings → Windows names your `~/.slate.js` functions by what they do ("First Third", with
+      "JavaScript function" under it), as on the Mac.
 - [ ] Narrowing the window collapses the sidebar into a back button. Light, dark and (on GNOME 47+)
       the accent color all look right.
 - [ ] Recording a shortcut: the first time, GNOME asks whether to let the window take shortcuts.

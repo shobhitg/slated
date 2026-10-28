@@ -12,7 +12,7 @@
 import {truncate, singleLine, isObject} from './util.js';
 import {comboLabel} from './keys.js';
 import {matchingPreset, defaultChain, defaultSequence} from './presets.js';
-import {formatOperation, parseOperation, isNotImplemented} from './engine.js';
+import {formatOperation, parseOperation, isNotImplemented, targetFrame} from './engine.js';
 
 export const CATEGORIES = [
   {id: 'window', title: 'Window'},
@@ -473,7 +473,7 @@ function describeSyntax(action) {
 const DIRECTION_TITLES = {left: 'Left', right: 'Right', up: 'Up', down: 'Down'};
 const CORNER_TITLES = {'top-left': 'Top Left', 'top-right': 'Top Right', 'bottom-left': 'Bottom Left', 'bottom-right': 'Bottom Right'};
 
-/** "Display 1", "Next Display", "Display on the Left"… for a screen reference string. */
+/** "Display 1", "Next Display", "Left Display"… for a screen reference string (as on the Mac). */
 export function screenName(ref) {
   const s = String(ref ?? '');
   if (/^-?\d+$/.test(s)) return `Display ${parseInt(s, 10) + 1}`;
@@ -482,8 +482,8 @@ export function screenName(ref) {
   const res = /^(\d+)x(\d+)$/.exec(s);
   if (res) return `the ${res[1]}×${res[2]} Display`;
   switch (s) {
-  case 'left': return 'Display on the Left';
-  case 'right': return 'Display on the Right';
+  case 'left': return 'Left Display';
+  case 'right': return 'Right Display';
   case 'up': return 'Display Above';
   case 'down': return 'Display Below';
   case 'next': return 'Next Display';
@@ -518,7 +518,7 @@ export function actionTitle(action) {
   if (preset) return preset.title;
   const a = action;
   switch (a.op) {
-  case 'move': return 'Move & Resize';
+  case 'move': return centeredTitle(a) ?? 'Move & Resize';
   case 'resize': return `Resize ${a.width ?? '+0'} × ${a.height ?? '+0'}`;
   case 'push': {
     const d = DIRECTION_TITLES[a.direction] ?? a.direction;
@@ -538,7 +538,12 @@ export function actionTitle(action) {
     return n ? `Sequence of ${n}` : 'Empty Sequence';
   }
   case 'layout': return a.name ? `Layout “${a.name}”` : 'Apply Layout';
-  case 'by-orientation': return `${actionTitle(a.landscape)} / ${actionTitle(a.portrait)}`;
+  case 'by-orientation': {
+    // Thirds that turn with the display are presets ("First Third"); anything else names both sides.
+    const landscape = actionTitle(a.landscape);
+    const portrait = actionTitle(a.portrait);
+    return landscape === portrait ? landscape : `${landscape} / ${portrait}`;
+  }
   case 'focus':
     if (typeof a.app === 'string') return a.app ? `Focus ${a.app}` : 'Focus App';
     return a.direction === 'behind' ? 'Focus Window Behind' : `Focus ${DIRECTION_TITLES[a.direction] ?? a.direction}`;
@@ -575,6 +580,37 @@ export function actionTitle(action) {
 }
 
 const capitalized = text => String(text).charAt(0).toUpperCase() + String(text).slice(1);
+
+/**
+ * A move that centers the window, named by its size ("Center, 50%"), which says what it does (as in
+ * ActionDescriber.swift): placed on a sample 1600 × 1000 display from an 800 × 500 window. Null when
+ * the window doesn't end up centered, or the engine can't place it.
+ */
+function centeredTitle(action) {
+  const W = 1600;
+  const H = 1000;
+  const bounds = {x: 0, y: 0, width: W, height: H};
+  let frame;
+  try {
+    frame = targetFrame(action, {
+      frame: {x: 400, y: 250, width: 800, height: 500}, settings: {},
+      screens: [{displayID: 1, name: 'Sample', frame: bounds, visibleFrame: bounds, isMain: true, scale: 1}],
+    });
+  } catch {
+    return null;
+  }
+  if (!frame || !(frame.width > 0) || !(frame.height > 0)) return null;
+  const left = Math.max(0, frame.x / W);
+  const top = Math.max(0, frame.y / H);
+  const right = Math.min(1, (frame.x + frame.width) / W);
+  const bottom = Math.min(1, (frame.y + frame.height) / H);
+  if (right <= left || bottom <= top) return null;
+  if (Math.abs((left + right) / 2 - 0.5) >= 0.02 || Math.abs((top + bottom) / 2 - 0.5) >= 0.02) return null;
+  const w = Math.round((right - left) * 100);
+  const h = Math.round((bottom - top) * 100);
+  if (w >= 99 && h >= 99) return 'Maximize';
+  return w === h ? `Center, ${w}%` : `Center, ${w}% × ${h}%`;
+}
 
 /** "mouse:right" → "Right Button", "key:shift+w" → the keycap label. */
 export function inputTitle(input) {
@@ -673,6 +709,32 @@ export function bindingSubtitle(binding) {
   if (!k) return '';
   if (k.title !== title) return k.title;
   return CATEGORIES.find(c => c.id === k.category)?.title ?? '';
+}
+
+/**
+ * How the Windows list names a Slate file's shortcut (SourceBindingText.swift): by what it does.
+ * A JavaScript function is run on pretend desktops (the importer's probe, memoized per load); one
+ * that always does the same thing is named by that ("First Third") and captioned "JavaScript
+ * function". One that can't be described stays "JavaScript Function", captioned with the reason.
+ *
+ * @param {object} binding a Slate source binding (model.sources[].bindings[])
+ * @returns {{title: string, caption: string|null, action: object|null, described: boolean}}
+ *   `action` is what the shortcut does, for the glyph; the shortcut itself still runs the function.
+ */
+export function sourceBindingText(binding) {
+  if (!binding?.isFunction) {
+    const action = binding?.action ?? null;
+    return {title: action ? actionTitle(action) : 'JavaScript Function', caption: binding?.summary ?? null, action, described: false};
+  }
+  let probed = null;
+  try {
+    probed = binding.probe?.() ?? null;
+  } catch {
+    probed = null;
+  }
+  if (probed?.action) return {title: actionTitle(probed.action), caption: 'JavaScript function', action: probed.action, described: true};
+  const reason = typeof probed?.reason === 'string' && probed.reason ? capitalized(probed.reason) : 'Runs code in your Slate file';
+  return {title: 'JavaScript Function', caption: reason, action: null, described: false};
 }
 
 /** Mouse & Keys items for the "Add step" menu, for macros (as in the Mac app). */

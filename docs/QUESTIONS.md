@@ -166,6 +166,10 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
   channel between the extension and the settings window.
 - **No notch island on GNOME yet.** Running automations show as a pill at the top of the primary
   display, like the Mac's classic indicator.
+- **Get Started on GNOME** has the Mac's five steps, with the permission step's place taken by what
+  GNOME needs instead: welcome → Hyper key (recommends keyd) → hotstrings (checks espanso) → Slate
+  config → done. "Finished" lives in `~/.local/state/slated/settings-window.json`, so it isn't
+  shared with the Mac through config.json, and a GNOME setup that predates the page sees it once.
 
 
 ## macOS runtime review (2026-10-27)

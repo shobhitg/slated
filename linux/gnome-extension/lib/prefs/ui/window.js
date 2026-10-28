@@ -1,11 +1,13 @@
 // The Slated settings window, built inside the Adw.PreferencesWindow GNOME Shell hands to
 // fillPreferencesWindow().
 //
-// Slated has ten sections (as on macOS), more than a view switcher fits, so the window shows a
-// sidebar like GNOME Settings: an Adw.NavigationSplitView that collapses to a single column on
-// narrow widths. Each section has its own Adw.NavigationView so editors open as drill-down pages
-// with a back button. The window keeps the model in sync with config.json and status.json through
-// file monitors, and asks GNOME Shell over D-Bus whether the extension is running.
+// Slated has the Mac's main-window pages in the Mac's order, more than a view switcher fits, so the
+// window shows a sidebar like GNOME Settings: an Adw.NavigationSplitView that collapses to a single
+// column on narrow widths. Each section has its own Adw.NavigationView so editors open as drill-down
+// pages with a back button. Get Started (first-run setup) leads the sidebar until it's finished, and
+// the window opens on it; afterwards it opens on Overview, never on the pane it was left on. The
+// window keeps the model in sync with config.json and status.json through file monitors, and asks
+// GNOME Shell over D-Bus whether the extension is running.
 
 import Adw from 'gi://Adw';
 import GLib from 'gi://GLib';
@@ -21,6 +23,7 @@ import {installStyles} from './style.js';
 import {box, label, icon, badge as badgeLabel, emptyState} from './widgets.js';
 import {stopAllRecording} from './recorder.js';
 import {saveStateText} from './general.js';
+import {createGetStartedPane} from './getstarted.js';
 import {createOverviewPane} from './overview.js';
 import {createWindowsPane} from './windows.js';
 import {createHotstringsPane} from './hotstrings.js';
@@ -33,6 +36,7 @@ import {createGeneralPane} from './general.js';
 import {createAboutPane} from './about.js';
 
 const PANES = [
+  ['getStarted', 'Get Started', 'emoji-flags-symbolic', createGetStartedPane],
   ['overview', 'Overview', 'go-home-symbolic', createOverviewPane],
   ['windows', 'Windows', 'focus-windows-symbolic', createWindowsPane],
   ['hotstrings', 'Hotstrings', 'insert-text-symbolic', createHotstringsPane],
@@ -75,6 +79,8 @@ export class SlatedSettings {
             return null;
           }
         },
+        readWindowState: () => readText(this.paths.settingsWindowFile),
+        writeWindowState: text => writeTextAtomic(this.paths.settingsWindowFile, text),
       },
       scheduler: glibScheduler,
       log: (event, data, level) => this.logger.record(event, data, level),
@@ -101,7 +107,7 @@ export class SlatedSettings {
       this._close();
       return false;
     });
-    this.model.log('ui.settings_opened', {pane: 'overview', source: 'prefs'});
+    this.model.log('ui.settings_opened', {pane: this.current, source: 'prefs'});
   }
 
   // --- Live state ------------------------------------------------------------------------------------
@@ -168,6 +174,19 @@ export class SlatedSettings {
     this.toast(this.model.loadError ? "config.json still can't be read. Overview shows what to fix." : 'Configuration reloaded');
   }
 
+  /** Opens Get Started on request (Overview's link). After setup it starts over from the welcome. */
+  showGetStarted() {
+    this.model.restartGetStarted();
+    this.navigate('getStarted');
+  }
+
+  /** Get Started's last button: setup is done (kept in settings-window.json), on to Overview. */
+  finishGetStarted() {
+    const error = this.model.finishSetup();
+    if (error) this.toast(`Couldn't remember that setup is done: ${error}`);
+    this.navigate('overview');
+  }
+
   // --- Building --------------------------------------------------------------------------------------
 
   _build() {
@@ -191,8 +210,10 @@ export class SlatedSettings {
       this.sidebarList.append(row);
       this.sidebarRows.set(id, {row, holder});
     }
+    // Sections as on the Mac: Get Started on its own while it's there, then the pages, then General and About.
     this.sidebarList.set_header_func((row, before) => {
-      row.set_header(row._slatedId === 'general' && before ? new Gtk.Separator({margin_top: 6, margin_bottom: 6}) : null);
+      const starts = (row._slatedId === 'general' && before) || (row._slatedId === 'overview' && before?._slatedId === 'getStarted');
+      row.set_header(starts ? new Gtk.Separator({margin_top: 6, margin_bottom: 6}) : null);
     });
     this.sidebarList.connect('row-selected', (_list, row) => {
       if (row && !this._selecting) this.showPane(row._slatedId);
@@ -238,8 +259,8 @@ export class SlatedSettings {
     window.set_search_enabled(false);
     window.set_content(bin);
 
-    for (const signal of ['config', 'status', 'sources', 'save-state']) this.model.on(signal, () => this._syncChrome());
-    this.showPane('overview');
+    for (const signal of ['config', 'status', 'sources', 'save-state', 'setup']) this.model.on(signal, () => this._syncChrome());
+    this.showPane(this.model.startingPane());
     this._syncChrome();
   }
 
@@ -253,6 +274,8 @@ export class SlatedSettings {
       setEnabled: on => this.setEnabled(on),
       logout: () => this.logout(),
       reload: () => this.reload(),
+      showGetStarted: () => this.showGetStarted(),
+      finishGetStarted: () => this.finishGetStarted(),
     };
     let pane;
     try {
@@ -287,7 +310,18 @@ export class SlatedSettings {
     this.sidebarList.select_row(this.sidebarRows.get(id).row);
     this._selecting = false;
     pane.activate?.();
+    this._syncGetStartedRow();
     if (changed) this.model.log('ui.pane', {pane: id});
+  }
+
+  /** Get Started is in the sidebar while setup isn't finished, and while it's open. */
+  _syncGetStartedRow() {
+    const row = this.sidebarRows.get('getStarted')?.row;
+    const shown = this.model.needsSetup || this.current === 'getStarted';
+    if (!row || this._getStartedShown === shown) return;
+    this._getStartedShown = shown;
+    row.set_visible(shown);
+    this.sidebarList.invalidate_headers();
   }
 
   /** Shows a section, optionally with something in it ({binding: id}, {newBinding, action}, {newHotstring}, {recipe: id}). */
@@ -308,6 +342,7 @@ export class SlatedSettings {
     this.saveLabel.set_label(save.text);
     this.saveIcon.set_from_icon_name(SAVE_ICONS[save.style] ?? SAVE_ICONS.dim);
     this.saveIcon.set_css_classes(save.style === 'success' ? ['success'] : save.style === 'warning' ? ['warning'] : save.style === 'error' ? ['error'] : ['dim-label']);
+    this._syncGetStartedRow();
     for (const [id, pane] of this.panes) {
       const holder = this.sidebarRows.get(id)?.holder;
       if (!holder) continue;

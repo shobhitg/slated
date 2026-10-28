@@ -1,6 +1,6 @@
 // Settings → Overview: status at a glance from status.json and GNOME Shell, clear guidance when
-// Slated isn't running, the last thing it did, a "get started" checklist (the macOS onboarding's
-// steps), next steps and tips drawn from the user's own setup (port of OverviewPane.swift).
+// Slated isn't running, the last thing it did, tips drawn from the user's own setup and next steps,
+// with a link back to Get Started (port of OverviewPane.swift).
 
 import Adw from 'gi://Adw';
 import GLib from 'gi://GLib';
@@ -9,7 +9,7 @@ import Gtk from 'gi://Gtk';
 import {hotkeyCounts} from '../status.js';
 import {espansoGuidance} from '../hotstrings.js';
 import {matchingPreset} from '../presets.js';
-import {bindingTitle, actionTitle} from '../actions.js';
+import {bindingTitle, actionTitle, containsAutomation} from '../actions.js';
 import {plural, formatList, truncate, singleLine} from '../util.js';
 import {box, label, button, icon, keycaps, pill, group, triggerChip, launchFile} from './widgets.js';
 import {slatedMark} from './about.js';
@@ -43,6 +43,16 @@ function statusRow(title, iconName) {
         handler = action.run;
       }
     },
+  };
+}
+
+/** The buttons for runningSummary()'s `action`, what gets Slated running. Also on Get Started. */
+export function summaryActions(ctx, parent) {
+  return {
+    enable: {label: 'Turn On Slated', run: () => ctx.setEnabled(true)},
+    relogin: {label: 'Log Out…', run: () => ctx.logout()},
+    log: {label: 'Open the Log', run: () => launchFile(ctx.paths.logFile, parent, {onError: e => ctx.toast(e.message)})},
+    review: {label: 'Review Shortcuts', run: () => ctx.navigate('windows')},
   };
 }
 
@@ -95,25 +105,17 @@ export function createOverviewPane(ctx) {
   activityGroup.add(lastError);
   prefs.add(activityGroup);
 
-  // Get started (the onboarding steps, as a checklist)
-  const startGroup = group({title: 'Get Started'});
-  prefs.add(startGroup);
-  let startRows = [];
-
-  // Next steps and tips
-  const nextGroup = group({title: "What's Next"});
-  prefs.add(nextGroup);
-  let nextRows = [];
+  // Tips, then next steps (as on the Mac). Get Started leaves the sidebar once setup is done; it's
+  // still a click away here.
   const tipsGroup = group({title: 'Try These'});
   prefs.add(tipsGroup);
   let tipRows = [];
+  const nextGroup = group({title: "What's Next",
+    suffix: button('Get Started', () => ctx.showGetStarted(), {icon: 'emoji-flags-symbolic', classes: ['flat']})});
+  prefs.add(nextGroup);
+  let nextRows = [];
 
-  const actions = {
-    enable: {label: 'Turn On Slated', run: () => ctx.setEnabled(true)},
-    relogin: {label: 'Log Out…', run: () => ctx.logout()},
-    log: {label: 'Open the Log', run: () => launchFile(ctx.paths.logFile, prefs, {onError: e => ctx.toast(e.message)})},
-    review: {label: 'Review Shortcuts', run: () => ctx.navigate('windows')},
-  };
+  const actions = summaryActions(ctx, prefs);
 
   function rebuildList(groupWidget, rows, items) {
     for (const r of rows) groupWidget.remove(r);
@@ -227,26 +229,16 @@ export function createOverviewPane(ctx) {
     lastError.set_visible(Boolean(status.lastError));
     activityGroup.set_visible(running);
 
-    // Get started
-    const totalShortcuts = config.bindings.filter(b => b.enabled !== false).length + (model.slateLoading ? model.sourceBindingCount() : 0);
-    const steps = [
-      {title: 'Slated is running', detail: running ? 'GNOME Shell loaded the extension.' : summary.title, done: running,
-        run: running ? null : actions[summary.action]?.run},
-      {title: 'Caps Lock is your Hyper key', detail: hyperOn ? (status.hyper.active ? 'Hold Caps Lock for ✦' : 'Turned on; active once Slated runs') : 'Optional, and well worth it',
-        done: hyperOn && status.hyper.active, run: () => ctx.navigate('keyboard')},
-      {title: 'Shortcuts are ready', detail: `${plural(totalShortcuts, 'shortcut')}`, done: totalShortcuts > 0, run: () => ctx.navigate('windows')},
-    ];
-    if (config.hotstrings.length) {
-      steps.push({title: 'espanso expands your hotstrings', detail: espanso.title, done: espanso.level === 'ok', run: () => ctx.navigate('hotstrings')});
-    }
-    startRows = rebuildList(startGroup, startRows, steps.every(s => s.done) ? [] : steps);
-
-    // Next steps (as on macOS: up to three)
+    // Next steps (as on the Mac: up to three). GNOME starts Slated with the session: no "Launch at login".
     const next = [];
     const copyable = model.sources.flatMap(s => s.bindings).filter(b => !model.isCopied(b));
-    if (!hyperOn) next.push({title: 'Turn on the Hyper key', detail: 'Caps Lock becomes a Hyper key (✦), with room for dozens of shortcuts.', run: () => ctx.navigate('keyboard')});
-    if (copyable.length && model.slateLoading) next.push({title: 'Bring over your Slate bindings', detail: `${plural(copyable.length, 'binding')} can be imported into Slated and edited here.`, run: () => ctx.navigate('slate')});
+    if (!hyperOn) next.push({title: 'Turn on the Hyper key', detail: 'Caps Lock becomes ✦ — room for dozens of shortcuts.', run: () => ctx.navigate('keyboard')});
+    if (copyable.length && model.slateLoading) next.push({title: 'Bring over Slate bindings', detail: `${copyable.length} can be copied into Slated and edited here.`, run: () => ctx.navigate('slate')});
     if (config.hotstrings.length < 3) next.push({title: 'Add a hotstring', detail: 'Type a short trigger, get a whole sentence.', run: () => ctx.navigate('hotstrings', {newHotstring: true})});
+    if (config.clipboard?.enabled === false) next.push({title: 'Turn on clipboard history', detail: 'Paste anything you copied earlier, from one shortcut.', run: () => ctx.navigate('clipboard')});
+    if (!config.bindings.some(b => containsAutomation(b.action))) {
+      next.push({title: 'Try an auto-clicker', detail: 'Let Slated click, hold or press keys for you, with a stop shortcut.', run: () => ctx.navigate('automation')});
+    }
     if (!config.layouts.length) next.push({title: 'Create a layout', detail: 'Arrange all your apps for a task with one shortcut.', run: () => ctx.navigate('layouts')});
     if (next.length < 3) next.push({title: 'Fine-tune a shortcut', detail: 'Every window shortcut has a live preview of where it lands.', run: () => ctx.navigate('windows')});
     nextRows = rebuildList(nextGroup, nextRows, next.slice(0, 3));

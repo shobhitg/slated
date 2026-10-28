@@ -21,6 +21,7 @@ import {bindingTitle, layoutNames, renameLayout} from './actions.js';
 import {builtInShortcut, recipeBindingName, sharesApps} from './automation.js';
 import {loadSlateScript, importSlateScript, importClassic, planImport} from './importer.js';
 import {newBinding, newHotstring} from './config.js';
+import {STEPS, parseWindowState, windowStateText, startingPane} from './getstarted.js';
 
 /**
  * @typedef {object} ModelIO
@@ -28,6 +29,8 @@ import {newBinding, newHotstring} from './config.js';
  * @property {(text: string) => void} writeConfig writes config.json (atomically), creating folders
  * @property {(path: string) => string|null} readFile any file (Slate configs), null if missing
  * @property {string} home the home folder
+ * @property {() => string|null} [readWindowState] the settings window's own state (settings-window.json)
+ * @property {(text: string) => void} [writeWindowState] writes it
  */
 
 /** @typedef {{setTimeout: (fn: () => void, ms: number) => any, clearTimeout: (handle: any) => void}} Scheduler */
@@ -66,12 +69,17 @@ export class PrefsModel extends Emitter {
     this.build = null;
     this.runningCommit = null;
     this.sources = [];
+    /** The settings window's own state (settings-window.json): {setupFinished, …}. */
+    this.windowState = parseWindowState(null);
+    /** Get Started's step (getstarted.STEPS): in memory, like the Mac's; a new window starts over. */
+    this.getStartedStep = 'welcome';
   }
 
   // --- Loading --------------------------------------------------------------------------------------
 
-  /** Reads config.json and the Slate files. Call once after construction. */
+  /** Reads config.json, the Slate files and the window's own state. Call once after construction. */
   load() {
+    this._loadWindowState();
     let text;
     try {
       text = this.io.readConfig();
@@ -286,6 +294,65 @@ export class PrefsModel extends Emitter {
     this.refreshSources();
     this._revalidate();
     this.emit('config');
+  }
+
+  // --- Get Started -----------------------------------------------------------------------------------
+
+  _loadWindowState() {
+    let text = null;
+    try {
+      text = this.io.readWindowState?.() ?? null;
+    } catch {
+      text = null;
+    }
+    this.windowState = parseWindowState(text);
+  }
+
+  /** Whether Get Started was finished (kept in settings-window.json, not config.json). */
+  get setupFinished() {
+    return this.windowState.setupFinished;
+  }
+
+  /**
+   * Setup isn't finished: Get Started is in the sidebar and the window opens on it. (The Mac also
+   * counts missing Accessibility access; GNOME needs no permission.)
+   */
+  get needsSetup() {
+    return !this.setupFinished;
+  }
+
+  /** The pane a newly opened window shows: Get Started during setup, else Overview. */
+  startingPane() {
+    return startingPane(this.setupFinished);
+  }
+
+  setGetStartedStep(step) {
+    if (!STEPS.includes(step) || step === this.getStartedStep) return;
+    this.getStartedStep = step;
+    this.emit('setup');
+  }
+
+  /** Get Started on request (Overview's link): after setup it starts over from the welcome. */
+  restartGetStarted() {
+    if (!this.needsSetup) this.setGetStartedStep('welcome');
+  }
+
+  /**
+   * Get Started's last button: setup is done, remembered in settings-window.json. Returns an error
+   * message when that file couldn't be written (setup still counts as done for this window).
+   */
+  finishSetup() {
+    let error = null;
+    this.windowState = {...this.windowState, setupFinished: true};
+    try {
+      this.io.writeWindowState?.(windowStateText(this.windowState));
+    } catch (e) {
+      error = describeError(e);
+      this.log('ui.state_failed', {error}, 'error');
+    }
+    this.log('ui.get_started_finished', {running: this.running, hyper: this.status.hyper.mode, hotstrings: this.status.hotstrings.engine});
+    this.emit('setup');
+    return error;
   }
 
   // --- Live state ------------------------------------------------------------------------------------

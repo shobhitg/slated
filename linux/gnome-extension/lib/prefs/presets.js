@@ -58,7 +58,9 @@ export const PRESETS = Object.freeze([
   preset('left-two-thirds', 'Left Two Thirds', 'thirds', rect(0, 0, 2 / 3, 1), null,
     move('screenOriginX', 'screenOriginY', 'screenSizeX*2/3', 'screenSizeY')),
   preset('right-two-thirds', 'Right Two Thirds', 'thirds', rect(1 / 3, 0, 2 / 3, 1), null,
-    move('screenOriginX+screenSizeX/3', 'screenOriginY', 'screenSizeX*2/3', 'screenSizeY')),
+    move('screenOriginX+screenSizeX/3', 'screenOriginY', 'screenSizeX*2/3', 'screenSizeY'),
+    // Slate configs commonly write the offset of a two-thirds span as "*1/3".
+    [move('screenOriginX+screenSizeX*1/3', 'screenOriginY', 'screenSizeX*2/3', 'screenSizeY')]),
   // Center & fill
   preset('center', 'Center', 'center', rect(0.25, 0.22, 0.5, 0.56), null,
     move('screenOriginX+(screenSizeX-windowSizeX)/2', 'screenOriginY+(screenSizeY-windowSizeY)/2', 'windowSizeX',
@@ -83,6 +85,34 @@ export function presetById(id) {
   return found;
 }
 
+/**
+ * A landscape third paired with itself turned on its side for portrait displays (a by-orientation
+ * action): x and y trade places, and so do width and height (screenSizeX/3 becomes screenSizeY/3).
+ */
+function turning(id, newId, title) {
+  const landscape = presetById(id);
+  const turn = expression => expression.replace(/[XY]/g, c => (c === 'X' ? 'Y' : 'X'));
+  const pairs = [landscape.action, ...landscape.aliases].filter(a => a.op === 'move').map(a => ({
+    op: 'by-orientation', landscape: a, portrait: move(turn(a.y), turn(a.x), turn(a.height), turn(a.width)),
+  }));
+  return preset(newId, title, 'thirds', landscape.region, null, pairs[0], pairs.slice(1));
+}
+
+/**
+ * Thirds that turn with the display: side by side on a landscape display, stacked on a portrait one
+ * (as in the author's ~/.slate.js). No single side names both, so they're named by position, as on
+ * the Mac (WindowPresets.orientation). matchingPreset finds them; the pickers offer only PRESETS.
+ */
+export const ORIENTATION_PRESETS = Object.freeze([
+  turning('left-third', 'first-third', 'First Third'),
+  turning('center-third', 'middle-third', 'Middle Third'),
+  turning('right-third', 'last-third', 'Last Third'),
+  turning('left-two-thirds', 'first-two-thirds', 'First Two Thirds'),
+  turning('right-two-thirds', 'last-two-thirds', 'Last Two Thirds'),
+]);
+
+const MATCHABLE = Object.freeze([...PRESETS, ...ORIENTATION_PRESETS]);
+
 /** Canonical form for comparison; actions the engine can't read compare as they are. */
 function comparable(action) {
   try {
@@ -96,7 +126,7 @@ function comparable(action) {
 export function matchingPreset(action) {
   if (action === undefined || action === null) return null;
   const target = comparable(action);
-  return PRESETS.find(p => deepEqual(target, p.action) || p.aliases.some(alias => deepEqual(target, alias))) ?? null;
+  return MATCHABLE.find(p => deepEqual(target, p.action) || p.aliases.some(alias => deepEqual(target, alias))) ?? null;
 }
 
 export function presetMatches(presetEntry, action) {

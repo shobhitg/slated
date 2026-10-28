@@ -28,8 +28,11 @@ function keycap(text, accent = false) {
   return new Gtk.Label({label: text, css_classes: classes, valign: Gtk.Align.CENTER});
 }
 
-/** Caps Lock → ✦ = Ctrl + Alt + Shift + Super (or Hyper, with GNOME's option), drawn with keycaps. */
-function illustration() {
+/**
+ * Caps Lock → ✦ = Ctrl + Alt + Shift + Super (or Hyper, with GNOME's option), drawn with keycaps.
+ * Also on Get Started's Hyper key step.
+ */
+export function hyperIllustration() {
   const row = box('horizontal', 8);
   row.set_halign(Gtk.Align.CENTER);
   row.set_margin_top(12);
@@ -72,7 +75,7 @@ export function createKeyboardPane(ctx) {
     description: 'Hold Caps Lock and press another key for a ✦ shortcut, like ✦← for the left half. With keyd, ✦ is Ctrl, Alt, Shift and Super at once, a combination apps leave alone.'});
   const statusPill = box('horizontal', 0);
   hero.set_header_suffix(statusPill);
-  const picture = illustration();
+  const picture = hyperIllustration();
   hero.add(picture.widget);
   const enabled = switchRow({
     title: 'Use Caps Lock as Hyper', subtitle: 'Caps Lock no longer toggles capitals; hold Shift instead.',
