@@ -2,7 +2,7 @@ import AppKit
 import SlatedCore
 import SlatedSystem
 
-/// What an action did, for feedback: the island, the classic HUD and the menu bar.
+/// What an action did, for feedback: the island, the classic HUD and Overview.
 struct ActionReport {
   var title: String
   /// The window it moved or focused, if any.
@@ -22,7 +22,7 @@ final class ActionRunner {
   var layouts: [String: Layout] = [:]
   /// Something happened worth showing ("Left half · Safari").
   var onPerformed: ((ActionReport) -> Void)?
-  /// Any step failed (the menu bar shows the last error).
+  /// Any step failed (Overview shows the last error).
   var onError: ((String) -> Void)?
   /// A shortcut, hotstring or other top-level run failed, with why (not automation repeats, which
   /// call `perform` directly).

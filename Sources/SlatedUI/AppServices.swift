@@ -82,7 +82,7 @@ public enum HotkeyStatus: Hashable, Sendable {
   case failed(String)
 }
 
-/// Live state of the running engine, shown in the UI and the menu bar.
+/// Live state of the running engine, shown in the main window and the menu bar icon.
 public struct RuntimeStatus: Hashable, Sendable {
   public var accessibilityGranted: Bool
   public var hyperKeyActive: Bool
@@ -90,7 +90,7 @@ public struct RuntimeStatus: Hashable, Sendable {
   public var hotstringsEnabled: Bool
   /// Hotstrings are matching right now (enabled, not paused, permission granted).
   public var hotstringsActive: Bool
-  /// Everything is paused from the menu bar (`setPaused`): no hotkeys, Hyper key or hotstrings.
+  /// Everything is paused ("Pause Slated", `setPaused`): no hotkeys, Hyper key or hotstrings.
   public var paused: Bool
   /// Keyed by `KeyCombo.string`, prefixed with the modal key's string and a space for modal bindings.
   public var hotkeys: [String: HotkeyStatus]
@@ -144,13 +144,16 @@ public protocol AppServices: AnyObject {
   /// keeps working meanwhile (Caps Lock stays mapped to F18 and the event tap still adds its
   /// modifiers), so holding Caps Lock records ✦; only `setPaused` turns it off.
   func setHotkeysSuspended(_ suspended: Bool)
-  /// Pauses or resumes all hotkeys, the Hyper key and hotstrings (menu bar "Pause Slated").
+  /// Pauses or resumes all hotkeys, the Hyper key and hotstrings ("Pause Slated" in the menus).
   /// Runtime only: not saved in the configuration. Reflected in `RuntimeStatus.paused`.
   func setPaused(_ paused: Bool)
   /// Master switch for text expansion that leaves each hotstring's own `enabled` flag alone.
   /// The app keeps it across launches; reflected in `RuntimeStatus.hotstringsEnabled`.
   func setHotstringsEnabled(_ enabled: Bool)
   func setLaunchAtLogin(_ enabled: Bool) throws
+  /// Get Started was finished once. The app keeps it across launches; until then the main window
+  /// opens on Get Started.
+  var setupFinished: Bool { get set }
   /// Called with a closure the app invokes whenever runtime status or sources change.
   func onChange(_ handler: @escaping @MainActor () -> Void)
 

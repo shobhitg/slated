@@ -127,7 +127,7 @@ private struct BindingList: View {
       ScrollViewReader { proxy in
         list
           .onChange(of: model.selectedBinding, initial: true) { _, selection in
-            // Bring programmatic selections (new, copied, opened from the menu bar) into view.
+            // Bring programmatic selections (new, copied, opened from Overview) into view.
             if let selection { proxy.scrollTo(selection) }
           }
       }
@@ -436,7 +436,7 @@ extension BindingState {
     case .imported:
       return "Imported into Slated's own shortcuts, where you can change it. "
         + "Slated ignores this copy in your Slate file."
-    case .paused: return "Slated is paused from the menu bar."
+    case .paused: return "Slated is paused."
     default: return nil
     }
   }

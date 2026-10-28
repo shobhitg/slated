@@ -6,8 +6,9 @@ import SwiftUI
 final class ClipboardPanel: NSObject, NSWindowDelegate {
   private let model: ClipboardSwitcherModel
   private var panel: NSPanel?
-  /// Called whenever the panel closes (picked, escaped or clicked away).
-  var didClose: (() -> Void)?
+  /// Called whenever the panel closes (picked, escaped or clicked away), with whether a click into
+  /// one of Slated's own windows closed it.
+  var didClose: ((_ intoSlatedWindow: Bool) -> Void)?
 
   init(services: any AppServices) {
     model = ClipboardSwitcherModel(services: services)
@@ -32,15 +33,19 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
     if panel?.isVisible == true { model.reload() }
   }
 
-  func close() {
+  func close() { close(intoSlatedWindow: false) }
+
+  private func close(intoSlatedWindow: Bool) {
     guard panel?.isVisible == true else { return }
     panel?.orderOut(nil)
-    didClose?()
+    didClose?(intoSlatedWindow)
   }
 
-  /// Clicking anywhere else closes the switcher, like Spotlight.
+  /// Clicking anywhere else closes the switcher, like Spotlight. A click into Slated's own window
+  /// makes that window key by now.
   func windowDidResignKey(_ notification: Notification) {
-    close()
+    let key = NSApp.keyWindow
+    close(intoSlatedWindow: key != nil && key !== panel)
   }
 
   private func makePanel() -> NSPanel {

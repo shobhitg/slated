@@ -118,7 +118,7 @@ private struct ClipboardHero: View {
       ? "Type to search, then press Return to paste into the app you were in."
       : "Type to search, then press Return to copy it, ready to paste yourself."
     return settings.shortcut == nil
-      ? "There's no shortcut, so open it from the menu bar or with a binding that runs Clipboard History. \(paste)"
+      ? "There's no shortcut, so open it from Overview or with a binding that runs Clipboard History. \(paste)"
       : paste
   }
 
@@ -141,7 +141,7 @@ private struct ShortcutCard: View {
       VStack(alignment: .leading, spacing: 0) {
         SettingRow(
           title: "Open the switcher",
-          subtitle: "Works in any app. Clear it to open the switcher only from the menu bar.",
+          subtitle: "Works in any app. Clear it to open the switcher only from Overview.",
           symbol: "list.clipboard", tint: SettingsPane.clipboard.tint
         ) {
           OptionalShortcutRecorder(

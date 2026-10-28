@@ -27,7 +27,7 @@ final class Engine {
   private(set) var warnings: [String] = []
   private var changeHandlers: [() -> Void] = []
   private var permissionTimer: Timer?
-  /// "Pause Slated" from the menu bar.
+  /// "Pause Slated" from the menus.
   private var pausedByUser = false
   /// While the settings window records a shortcut or the hotstring "try it" field has focus.
   private var suspendedForRecording = false

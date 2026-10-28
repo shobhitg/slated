@@ -224,6 +224,7 @@ struct FactRow: View {
 extension SettingsPane {
   var symbol: String {
     switch self {
+    case .getStarted: return "flag.checkered"
     case .overview: return "sparkles"
     case .windows: return "macwindow.on.rectangle"
     case .hotstrings: return "text.insert"
@@ -239,6 +240,7 @@ extension SettingsPane {
 
   var tint: Color {
     switch self {
+    case .getStarted: return Color(hex: 0x1FA463)
     case .overview: return Theme.accent
     case .windows: return Color(hex: 0x2F7BF5)
     case .hotstrings: return Color(hex: 0xF08A24)

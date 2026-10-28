@@ -20,7 +20,7 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
   RunLoop.main.run(until: Date().addingTimeInterval(seconds))
 }
 
-/// An offscreen window hosting `view` the way `SlatedUI.makeSettingsWindow` does.
+/// An offscreen window hosting `view` the way `SlatedUI.makeMainWindow` does.
 @MainActor private func hostingWindow(_ view: some View) -> NSWindow {
   _ = NSApplication.shared
   let window = NSWindow(contentViewController: NSHostingController(rootView: view))
@@ -476,13 +476,14 @@ let uiHostingContractTests = Suite(
           // Glass that the window server draws. Now it's a plain list in the window's own view tree.
           _ = NSApplication.shared
           let model = AppModel(services: PreviewServices())
-          let window = SlatedUI.makeSettingsWindow(model: model)
+          let window = SlatedUI.makeMainWindow(model: model)
           window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
           window.orderFrontRegardless()
           spin()
           defer { window.close() }
           let content = try require(window.contentView)
           expect(window.toolbar == nil, "SwiftUI installed a toolbar: \(String(describing: window.toolbar))")
+          expectEqual(window.title, "Slated")
           let table = try require(firstView(NSTableView.self, in: content), "no sidebar list")
           var ancestors: [String] = []
           var view = table.superview
@@ -496,8 +497,8 @@ let uiHostingContractTests = Suite(
           }
           expect(drawnElsewhere.isEmpty, "sidebar inside \(drawnElsewhere)")
           // The header row, then a row per pane, each on screen below the title bar.
-          let panes = SettingsSidebar.sections.joined().count
-          expectEqual(table.numberOfRows, panes + SettingsSidebar.sections.count + 1)
+          let panes = SettingsSidebar.sections(showingGetStarted: false).joined().count
+          expectEqual(table.numberOfRows, panes + SettingsSidebar.sections(showingGetStarted: false).count + 1)
           let visible = window.contentLayoutRect
           var paneRows = 0
           for row in 0..<table.numberOfRows {
@@ -520,8 +521,8 @@ let uiHostingContractTests = Suite(
           // a title bar macOS 26 captures nothing): each row starts with a colored icon tile. The
           // NavigationSplitView's glass sidebar came out empty here, rows and all.
           _ = NSApplication.shared
-          let size = SlatedUI.settingsWindowSize
-          let host = NSHostingView(rootView: SlatedUI.makeSettingsView(model: AppModel(services: PreviewServices())))
+          let size = SlatedUI.mainWindowSize
+          let host = NSHostingView(rootView: SlatedUI.makeMainView(model: AppModel(services: PreviewServices())))
           host.sizingOptions = []
           host.frame = CGRect(origin: .zero, size: size)
           let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -546,7 +547,9 @@ let uiHostingContractTests = Suite(
             inRow = colored > 3
           }
           // The brand mark in the header, then one icon tile per pane.
-          expect(coloredRows >= SettingsSidebar.sections.joined().count, "icon rows drawn: \(coloredRows)")
+          expect(
+            coloredRows >= SettingsSidebar.sections(showingGetStarted: false).joined().count,
+            "icon rows drawn: \(coloredRows)")
         }
       }
     ),

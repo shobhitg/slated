@@ -10,7 +10,7 @@ enum SmokeSteps {
   static func run(_ step: String, engine: Engine) {
     switch step {
     case "save":
-      // Saving as Settings does (through the UI's services) and as the menu bar's toggles do.
+      // Saving as Settings does (through the UI's services) and as the menus' toggles do.
       let services = LiveServices(engine: engine)
       let saves: [(String, () throws -> Void)] = [
         ("settings", { try services.saveConfiguration(try services.loadConfiguration()) }),
@@ -99,7 +99,7 @@ enum SmokeSteps {
       let model = ClipboardSwitcherModel(services: LiveServices.forClipboardSwitcher(engine))
       print("switcher: Return \(model.pasteAfterSelecting ? "pastes" : "copies")")
     case "import-slate":
-      // "Import Slate Config into Slated…" in the menu bar; prints what its alert says.
+      // "Import Slate Config into Slated…" in the menus; prints what its alert says.
       do {
         let summary = try engine.importSlateConfigs()
         print("import alert:", summary.title)

@@ -19,6 +19,7 @@ private func hyper(_ key: String) -> KeyCombo { KeyCombo(key: key, modifiers: .h
 /// granted, the hotstrings switch on, not paused, and yet no hotstrings running.
 @MainActor private final class TapFailedServices: AppServices {
   let base = PreviewServices()
+  var setupFinished = true
 
   var configurationFileURL: URL { base.configurationFileURL }
   func loadConfiguration() throws -> SlatedConfiguration { try base.loadConfiguration() }

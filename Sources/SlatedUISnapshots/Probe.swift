@@ -90,8 +90,8 @@ enum Probe {
         // Smoke test of the real settings window layout (snapshots use the flat one): the detail
         // column must render even though the glass sidebar can't be captured.
         name: "Settings window, real split view (detail)", expectation: "captures", options: sized,
-        region: CGRect(x: 420, y: 40, width: 500, height: 400), size: SlatedUI.settingsWindowSize,
-        view: AnyView(SlatedUI.makeSettingsView(model: AppModel(services: PreviewServices())))),
+        region: CGRect(x: 420, y: 40, width: 500, height: 400), size: SlatedUI.mainWindowSize,
+        view: AnyView(SlatedUI.makeMainView(model: AppModel(services: PreviewServices())))),
     ]
   }
 

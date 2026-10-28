@@ -44,6 +44,7 @@ struct SettingsView: View {
 
   @ViewBuilder private var pane: some View {
     switch model.selectedPane {
+    case .getStarted: GetStartedPane()
     case .overview: OverviewPane()
     case .windows: WindowsPane()
     case .hotstrings: HotstringsPane()

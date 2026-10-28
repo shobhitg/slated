@@ -67,8 +67,13 @@ public final class AppModel {
 
   // MARK: Navigation
 
-  /// The settings pane to show. Set it before showing the window to open a specific pane.
+  /// The pane to show. `prepareToShowMainWindow` picks it as the window opens; set it after that to
+  /// open a specific pane.
   public var selectedPane: SettingsPane = .overview
+  /// Get Started's current step. The app moves it on when Accessibility is granted.
+  public var getStartedStep: GetStartedStep = .welcome
+  /// Get Started was finished once (the app keeps this across launches).
+  public internal(set) var setupFinished: Bool
   public var selectedBinding: BindingSelection?
   public var selectedHotstringID: UUID?
   public var selectedLayout: LayoutSelection?
@@ -101,6 +106,7 @@ public final class AppModel {
     loadError = error
     saveState = error == nil ? .saved : .blocked
     runtimeStatus = services.runtimeStatus()
+    setupFinished = services.setupFinished
     sources = services.slateSources()
     screens = services.screens()
     runningApps = services.runningApplications()
@@ -200,7 +206,11 @@ public final class AppModel {
   /// running automations from the app.
   public func refresh() {
     let status = services.runtimeStatus()
-    if status != runtimeStatus { runtimeStatus = status }
+    if status != runtimeStatus {
+      let granted = status.accessibilityGranted && !runtimeStatus.accessibilityGranted
+      runtimeStatus = status
+      if granted { accessibilityWasGranted() }
+    }
     let newSources = services.slateSources()
     if newSources != sources {
       sources = newSources
@@ -252,7 +262,7 @@ public final class AppModel {
     }
   }
 
-  /// Shows config.json as the app just wrote it itself (an import from the menu bar), along with the
+  /// Shows config.json as the app just wrote it itself (an import from a menu), along with the
   /// Slate sources and status. Call `saveNow()` before such a write: an edit still waiting to be saved
   /// keeps Settings on its draft, and its save would then write over the app's change.
   public func showSavedConfiguration() {

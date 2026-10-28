@@ -9,7 +9,7 @@ struct SettingsSidebar: View {
       SidebarHeader()
         .listRowSeparator(.hidden)
         .selectionDisabled()
-      ForEach(Array(Self.sections.enumerated()), id: \.offset) { _, panes in
+      ForEach(Self.sections(showingGetStarted: model.showsGetStarted), id: \.self) { panes in
         Section {
           ForEach(panes) { row($0) }
         }
@@ -22,10 +22,12 @@ struct SettingsSidebar: View {
     .withoutScrollEdgeEffect()
   }
 
-  /// The panes in the sidebar, by section, top to bottom.
-  static let sections: [[SettingsPane]] = [
-    [.overview, .windows, .hotstrings, .clipboard, .automation, .keyboard, .layouts, .slate], [.general, .about],
-  ]
+  /// The panes in the sidebar, by section, top to bottom. Get Started leads while it's shown.
+  static func sections(showingGetStarted: Bool) -> [[SettingsPane]] {
+    (showingGetStarted ? [[.getStarted]] : []) + [
+      [.overview, .windows, .hotstrings, .clipboard, .automation, .keyboard, .layouts, .slate], [.general, .about],
+    ]
+  }
 
   private var selection: Binding<SettingsPane?> {
     Binding(get: { model.selectedPane }, set: { if let pane = $0 { model.selectedPane = pane } })
@@ -47,6 +49,10 @@ struct SettingsSidebar: View {
 
   @ViewBuilder private func badge(for pane: SettingsPane) -> some View {
     switch pane {
+    case .getStarted where !model.runtimeStatus.accessibilityGranted:
+      Image(systemName: "exclamationmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.caution)
+    case .getStarted where !model.setupFinished:
+      SidebarBadge(text: "\(model.getStartedStep.rawValue + 1) of \(GetStartedStep.allCases.count)")
     case .windows where model.problemBindingCount > 0:
       SidebarBadge(text: "\(model.problemBindingCount)", color: Theme.caution)
     case .windows:

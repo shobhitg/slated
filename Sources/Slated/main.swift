@@ -52,7 +52,7 @@ if CommandLine.arguments.contains("--smoke") {
   app.run()
 }
 
+// A regular app (Dock icon, menus, Cmd-Tab) with one main window; see AppDelegate.
 let delegate = AppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.accessory)
 app.run()

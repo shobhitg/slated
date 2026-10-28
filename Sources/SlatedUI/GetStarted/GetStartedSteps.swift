@@ -10,7 +10,7 @@ struct WelcomeStep: View {
         .padding(.top, 8)
       StepTitle(
         title: "Welcome to Slated",
-        subtitle: "Keyboard-first window management, a Hyper key and text expansion — in one small menu bar app.")
+        subtitle: "Keyboard-first window management, a Hyper key and text expansion. A few quick steps and you're set.")
       HStack(alignment: .top, spacing: 12) {
         FeatureCard(
           symbol: "macwindow.on.rectangle", tint: SettingsPane.windows.tint, title: "Windows",
@@ -167,7 +167,7 @@ struct HyperKeyStep: View {
     }.count
     let fromSlated = model.configuration.bindings.filter { $0.keys.modifiers.isSuperset(of: .hyper) }.count
     let total = fromSlate + fromSlated
-    guard total > 0, !model.hyperKeyEnabled else { return "You can change this any time in Settings → Keyboard." }
+    guard total > 0, !model.hyperKeyEnabled else { return "You can change this any time under Keyboard." }
     return "\(total) of your shortcuts use ⌃⌥⇧⌘. Turn this on to press them with Caps Lock. "
       + "(If Karabiner-Elements does this today, turn its Caps Lock rule off.)"
   }
@@ -234,7 +234,8 @@ struct SlateConfigStep: View {
       if found.isEmpty {
         StepTitle(
           title: "Start with a few great shortcuts",
-          subtitle: "No ~/.slate or ~/.slate.js here — no problem. Add a starter set now and make it yours in Settings."
+          subtitle:
+            "No ~/.slate or ~/.slate.js here — no problem. Add a starter set now and make it yours under Windows."
         )
       } else if !found.contains(where: \.loaded) {
         StepTitle(
@@ -368,7 +369,9 @@ struct DoneStep: View {
       .frame(height: 130)
       StepTitle(
         title: "You're all set",
-        subtitle: "Slated lives in your menu bar. Open it any time for status, switches and settings.")
+        subtitle:
+          "Close this window and Slated keeps working in the background. Click Slated in the Dock any time to come back here."
+      )
       VStack(spacing: 0) {
         checklistRow(
           "Accessibility access", done: model.runtimeStatus.accessibilityGranted,

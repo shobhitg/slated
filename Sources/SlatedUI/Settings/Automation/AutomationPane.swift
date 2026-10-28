@@ -301,7 +301,7 @@ private struct SafetyCard: View {
         if settings.stopShortcut == nil {
           Notice(
             style: .warning, title: "No stop shortcut",
-            message: "Stop automations from the menu bar, or by pressing each one's shortcut again."
+            message: "Stop automations from the notch island or Overview, or by pressing each one's shortcut again."
           )
           .padding(.horizontal, 16)
           .padding(.bottom, 12)

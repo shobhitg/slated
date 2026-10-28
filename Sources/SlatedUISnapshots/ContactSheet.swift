@@ -8,7 +8,7 @@ enum ContactSheet {
     guard !images.isEmpty else { return }
     let padding: CGFloat = 16
     let label: CGFloat = 22
-    // Large shots shrink to the cell; small ones (the menu bar) keep their real size.
+    // Large shots shrink to the cell; small ones (the recipe sheets) keep their real size.
     let widths = images.map { min(cellWidth, $0.image.size.width) }
     let heights = zip(images, widths).map { $1 * $0.image.size.height / $0.image.size.width }
     let rows = (images.count + columns - 1) / columns
