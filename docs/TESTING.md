@@ -322,6 +322,10 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `lib/platform/islan
 `hyperHold.js` or the island's styles, with keyd and again with GNOME's `caps:hyper` option.
 - [ ] Holding Caps Lock about half a second shows the cheat sheet hanging from the top bar of the
       monitor you're working on; letting go hides it at once. Quick Caps Lock+A never shows it.
+- [ ] With keyd and "Tap Caps Lock alone for Escape" on (then `linux/install.sh --hyper-keyd`;
+      `/etc/keyd/slated.conf` has `overload_tap_timeout = 500`): with a menu open, a quick tap
+      closes it (Escape), and letting go after the sheet showed leaves it open. With Long in
+      General → Island and the installer run again, the file says 800.
 - [ ] While the sheet is up, Caps Lock+A still moves the window, and its row lights up. It lists the
       same sections, order and names as the Mac's for the same `config.json` and `~/.slate.js`.
 - [ ] With "Show what just happened" on, a window shortcut shows "Left half · Firefox" with a glyph of
@@ -375,6 +379,12 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
       the imported bindings show "Imported" in the Slate list, and deleting one in Shortcuts frees its
       keys (the extension no longer registers the file's copy).
 - [ ] Turning "Slated is on" off and on in General disables and enables the extension.
+- [ ] General → Island: turning "Show the island" off greys out its other three rows, and within a
+      second feedback and running automations move to the bottom banner and the red pill; on again,
+      they're back in the island. With
+      "Hold Caps Lock to see your shortcuts" off, holding Caps Lock shows nothing and the delay is
+      greyed out. Short makes the sheet appear sooner than Long. With "Explain shortcuts that can't
+      run" off, a window shortcut with nothing focused shows no reason.
 - [ ] Hotstrings: with espanso running, a new hotstring appears in `~/.config/espanso/match/slated.yml`
       and expands in another app.
 - [ ] Automation: adding Auto-Click Left asks for a shortcut (F6 is suggested). Pressing it in a game

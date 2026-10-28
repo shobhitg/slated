@@ -18,6 +18,7 @@ import {
   automationSettings,
 } from './automation.js';
 import {parseOperation, isNotImplemented, describeError, isHotstringDelimiter} from './engine.js';
+import {islandSettings} from './island.js';
 
 /** Issue targets are strings: "binding:<id>", "hotstring:<id>", "layout:<name>". */
 export const target = {
@@ -526,6 +527,11 @@ export function configChanges(oldConfig, newConfig) {
     const a = automationSettings(newConfig);
     changes.push(`automation: stopShortcut ${a.stopShortcut ?? 'none'}, stopOnAppSwitch ${a.stopOnAppSwitch}, `
       + `maxRunMinutes ${a.maxRunMinutes}, showIndicator ${a.showIndicator}`);
+  }
+  // Settings → General's island group.
+  if (!deepEqual(oldConfig.island, newConfig.island)) {
+    const i = islandSettings(newConfig);
+    changes.push(`island: enabled ${i.enabled}, cheatSheet ${i.cheatSheet}, cheatSheetDelay ${i.cheatSheetDelay}, showFailures ${i.showFailures}`);
   }
   return changes;
 }

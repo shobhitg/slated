@@ -80,13 +80,22 @@ In many keyboard layouts, GNOME's option puts Hyper on the same modifier as Supe
 ✦A and Super+A as the same shortcut. keyd avoids that.
 
 keyd's configuration is a system file that the extension can't change. The installer writes it from
-`config.json`, using `keyboard.capsLockAlone` (tap for Escape) and `keyboard.hyperModifiers` (Meh).
-**After changing either in Settings, run `linux/install.sh --hyper-keyd` again.** `--tap-escape`
-turns the tap on whatever `config.json` says. If keyd already has another configuration, the
-installer doesn't write its own. Instead it prints the lines to add to yours. To remove the file the
-installer wrote, run `linux/install.sh --hyper-keyd --remove`; lines you added to your own
-configuration you take out there, then run `sudo keyd reload`. keyd keeps Caps Lock as Hyper until
-then, even with Slated or its Hyper key turned off.
+`config.json`, using `keyboard.capsLockAlone` (tap for Escape), `keyboard.hyperModifiers` (Meh) and
+the island's cheat-sheet settings (how long a tap can be, below). **After changing any of them in
+Settings, run `linux/install.sh --hyper-keyd` again.** `--tap-escape` turns the tap on whatever
+`config.json` says. If keyd already has another configuration, the installer doesn't write its own.
+Instead it prints the lines to add to yours. To remove the file the installer wrote, run
+`linux/install.sh --hyper-keyd --remove`; lines you added to your own configuration you take out
+there, then run `sudo keyd reload`. keyd keeps Caps Lock as Hyper until then, even with Slated or its
+Hyper key turned off.
+
+With the tap on, a hold longer than the cheat-sheet delay isn't a tap, as on the Mac: letting go
+sends nothing, so looking at the cheat sheet never sends Escape. The installer sets keyd's
+`overload_tap_timeout` (in a `[global]` section) to `island.cheatSheetDelay`, between 0.15 and 1
+second, or to 1 second with the island or its cheat sheet off. keyd reads it from version 2.4.3 on
+(2.4.3, 2.5 and 2.6). keyd 2.4.0–2.4.2 log the line as invalid and skip it, so there a long hold
+still sends Escape; the installer says so when it finds one. (`overloadt()` isn't used: it holds the
+Hyper modifiers back until its timeout, and a keyd before 2.4.3 would drop the whole Caps Lock line.)
 
 ### Hotstrings
 
@@ -120,7 +129,8 @@ others, and from the very top over a fullscreen window. It shows:
 - **Feedback** with `general.showActionHUD` on ("Left half · Firefox"), and why a shortcut couldn't
   run (`island.showFailures`).
 
-`"island": {"enabled": false}` brings back the bottom HUD and the red pill
+Settings → General → Island has the Mac's switches and the cheat-sheet delay. Turning the island
+off (`"island": {"enabled": false}`) brings back the bottom HUD and the red pill
 ([CONFIG.md](CONFIG.md#notch-island)).
 
 GNOME tells an extension about keys only through its own shortcuts, never about Caps Lock going down
@@ -134,8 +144,10 @@ or up. So:
   delay, the sheet still appears.
 - With GNOME's `caps:hyper` option, Hyper shares Super's modifier, so holding Super alone shows the
   sheet too. keyd doesn't have this problem.
-- With keyd's tap for Escape, letting go of Caps Lock after the sheet showed still sends Escape: keyd
-  decides what a tap is. On the Mac, a hold longer than the delay doesn't.
+- With keyd's tap for Escape, letting go of Caps Lock after a hold longer than the delay sends
+  nothing, as on the Mac, once `linux/install.sh --hyper-keyd` has written the delay into keyd's
+  configuration (keyd 2.4.3 or later; see [The Hyper key](#the-hyper-key)). Change the delay, then
+  run it again.
 
 ## Settings
 
@@ -154,7 +166,7 @@ the page you left it on.
 | Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh |
 | Layouts | Arrange several apps at once. Layouts from Slate files are read-only |
 | Slate Compatibility | Your Slate files' status and problems, **Import into Slated**, and which files to load |
-| General | Turn Slated on or off, the action banner, window behavior, where the config and log are, and this build |
+| General | Turn Slated on or off, the action banner, the island (on or off, the Caps Lock cheat sheet and its delay, explaining shortcuts that can't run), window behavior, where the config and log are, and this build |
 | About | Version, credits, license, and debug information for bug reports |
 
 Adding a recipe makes an ordinary shortcut and opens its editor with the shortcut recorder running;

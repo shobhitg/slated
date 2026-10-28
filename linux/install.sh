@@ -296,8 +296,9 @@ run_nested() {
 
 # keyd's file is root's, so the extension can't change it: it follows config.json at install time,
 # like the Mac app follows it live. keyboard.capsLockAlone "escape" (or --tap-escape) makes a tap
-# send Escape; keyboard.hyperModifiers without cmd ("Meh") leaves out Super. Read leniently, since
-# config.json may have comments and trailing commas.
+# send Escape, and the island's cheat-sheet delay says how long a tap can be; keyboard.hyperModifiers
+# without cmd ("Meh") leaves out Super. Read leniently, since config.json may have comments and
+# trailing commas.
 config_wants_tap_escape() {
   [ "$TAP_ESCAPE" = 1 ] && return 0
   [ -f "$CONFIG_DIR/config.json" ] && grep -q '"capsLockAlone"[[:space:]]*:[[:space:]]*"escape"' "$CONFIG_DIR/config.json"
@@ -314,6 +315,45 @@ sys.exit(0 if tokens and not any(t in with_super for t in tokens) else 1)
 PY
 }
 keyd_sends() { if config_wants_meh; then echo "Ctrl+Alt+Shift"; else echo "Ctrl+Alt+Shift+Super"; fi; }
+# How long Caps Lock can be held and still be a tap, in milliseconds. As on the Mac (Engine.swift):
+# the cheat-sheet delay while the island shows the cheat sheet, so looking at it never sends Escape
+# (0.15 s at least, the island's own minimum; 1 s at most), else 1 s.
+config_tap_timeout_ms() {
+  python3 -I - "$CONFIG_DIR/config.json" <<'PY'
+import re, sys
+try:
+    text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+except OSError:
+    text = ""
+# Without comments (strings kept whole), so a commented-out setting doesn't count.
+text = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', lambda m: m.group(0) if m.group(0)[0] == '"' else "", text, flags=re.S)
+m = re.search(r'"island"\s*:\s*\{([^{}]*)\}', text)
+island = m.group(1) if m else ""
+def on(key):
+    v = re.search(r'"%s"\s*:\s*(true|false)' % key, island)
+    return v is None or v.group(1) == "true"
+delay = 0.5
+v = re.search(r'"cheatSheetDelay"\s*:\s*([-+]?[0-9.]+(?:[eE][-+]?[0-9]+)?)', island)
+if v:
+    try:
+        delay = float(v.group(1))
+    except ValueError:
+        pass
+seconds = min(max(delay, 0.15), 1.0) if on("enabled") and on("cheatSheet") else 1.0
+print(round(seconds * 1000))
+PY
+}
+# The installed keyd's version ("2.4.3"), or nothing when it doesn't say.
+keyd_version() { keyd --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1; }
+# Whether the installed keyd is older than the given version; one that doesn't say counts as new enough.
+keyd_older_than() {
+  local have major minor patch want_major want_minor want_patch
+  have="$(keyd_version)"
+  [ -n "$have" ] || return 1
+  IFS=. read -r major minor patch <<<"$have"
+  IFS=. read -r want_major want_minor want_patch <<<"$1"
+  [ $((10#$major * 1000000 + 10#$minor * 1000 + 10#$patch)) -lt $((10#$want_major * 1000000 + 10#$want_minor * 1000 + 10#$want_patch)) ]
+}
 # Caps Lock as Hyper is wanted, or will be: a first run without a Slate config starts with it on.
 config_wants_hyper() {
   [ -f "$CONFIG_DIR/config.json" ] || return 0
@@ -335,16 +375,27 @@ keyd_hints() {
   fi
 }
 
+# With the tap for Escape, overload_tap_timeout keeps a long hold from being a tap. It's a keyd 2.4.3
+# option; older versions report it as invalid and skip just that line. (overloadt() would hold the
+# Hyper modifiers back until its timeout, and older versions would drop the whole capslock line.)
 keyd_config() {
-  local action="layer(hyper)" mods="C-A-S-M"
-  config_wants_tap_escape && action="overload(hyper, esc)"
+  local action="layer(hyper)" mods="C-A-S-M" global=""
+  if config_wants_tap_escape; then
+    action="overload(hyper, esc)"
+    global="
+[global]
+# Held longer than this (ms), Caps Lock isn't a tap and sends no Escape: the island's cheat-sheet
+# delay, or 1 s without the cheat sheet, as on the Mac. Needs keyd 2.4.3 or later.
+overload_tap_timeout = $(config_tap_timeout_ms)
+"
+  fi
   config_wants_meh && mods="C-A-S"
   cat <<EOF
 # Slated: Caps Lock is the Hyper key ($(keyd_sends) while held), like the macOS app's.
 # Installed by linux/install.sh --hyper-keyd from Slated's config.json. Remove: linux/install.sh --hyper-keyd --remove
 [ids]
 *
-
+$global
 [main]
 capslock = $action
 
@@ -379,13 +430,19 @@ hyper_keyd() {
     note "https://github.com/rvaiya/keyd, then run this again. Or save the lines above as $KEYD_CONF yourself."
     return 1
   fi
+  if config_wants_tap_escape && keyd_older_than 2.4.3; then
+    note "keyd $(keyd_version) doesn't know overload_tap_timeout (it's new in 2.4.3), so letting go of Caps Lock"
+    note "after a long hold still sends Escape. A newer keyd stops that."
+  fi
   local others=()
   for f in "$(dirname "$KEYD_CONF")"/*.conf; do
     [ -e "$f" ] && [ "$f" != "$KEYD_CONF" ] && others+=("$f")
   done
   if [ "${#others[@]}" -gt 0 ]; then
+    local sections="[main] and [hyper:...]"
+    config_wants_tap_escape && sections="[global], [main] and [hyper:...]"
     note "keyd already has a configuration: ${others[*]}"
-    note "Two configs for the same keyboard conflict, so add the [main] and [hyper:...] lines above to it,"
+    note "Two configs for the same keyboard conflict, so add the $sections lines above to it,"
     note "then run: sudo keyd reload"
     return 1
   fi
@@ -398,9 +455,9 @@ hyper_keyd() {
   rm -f "$tmp"
   sudo systemctl enable --now keyd >/dev/null 2>&1 || note "Couldn't enable the keyd service; start it with: sudo systemctl enable --now keyd"
   sudo keyd reload >/dev/null 2>&1 || true
-  ok "Caps Lock now sends $(keyd_sends) while held$(config_wants_tap_escape && echo ", and Escape when tapped")."
+  ok "Caps Lock now sends $(keyd_sends) while held$(config_wants_tap_escape && echo ", and Escape when tapped (let go within $(config_tap_timeout_ms) ms)")."
   note "Turn on \"Use Caps Lock as Hyper\" in Slated's Keyboard settings; it reports \"keyd\" once it notices."
-  note "After changing the Escape tap or Meh there, run linux/install.sh --hyper-keyd again."
+  note "After changing the Escape tap or Meh there, or the cheat sheet in General, run linux/install.sh --hyper-keyd again."
 }
 
 # --- Uninstall ------------------------------------------------------------------------------------------

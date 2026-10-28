@@ -1,12 +1,14 @@
-// Settings → General: Slated in GNOME, feedback, window behavior, and where the configuration and
-// log live (port of GeneralPane.swift). There's no "launch at login" on GNOME: the extension runs
-// with your session while it's enabled, so this page offers the extension's own switch instead.
+// Settings → General: Slated in GNOME, feedback, the island, window behavior, and where the
+// configuration and log live (port of GeneralPane.swift). There's no "launch at login" on GNOME: the
+// extension runs with your session while it's enabled, so this page offers the extension's own switch
+// instead.
 
 import Adw from 'gi://Adw';
 
 import {tildify} from '../util.js';
 import {implemented} from '../engine.js';
 import {fileExists} from '../io.js';
+import {islandSettings, cheatSheetDelayItems, islandRowsSensitive, cheatSheetDelayText} from '../island.js';
 import {button, group, switchRow, comboRow, spinRow, commandRow, launchFile} from './widgets.js';
 
 const REPEAT_ITEMS = [{id: 0.25, label: 'Short'}, {id: 0.4, label: 'Medium'}, {id: 0.7, label: 'Long'}];
@@ -72,7 +74,7 @@ export function createGeneralPane(ctx) {
   const feedback = group({title: 'Feedback'});
   const hud = switchRow({
     title: 'Show what just happened',
-    subtitle: 'A small banner names the action each time a shortcut runs — handy while you learn your bindings.',
+    subtitle: 'Names the action each time a shortcut runs — in the island, or a small banner when the island is off. Handy while you learn your bindings.',
     active: model.configuration.general.showActionHUD,
     onChange: on => model.update(config => {
       config.general.showActionHUD = on;
@@ -80,6 +82,38 @@ export function createGeneralPane(ctx) {
   });
   feedback.add(hud.row);
   prefs.add(feedback);
+
+  // The island (the Mac's notch island, at the top center of the screen)
+  const islandGroup = group({title: 'Island'});
+  const island = () => islandSettings(model.configuration);
+  const setIsland = (key, value) => model.update(config => {
+    config.island = {...islandSettings(config), [key]: value};
+  });
+  const islandOn = switchRow({
+    title: 'Show the island',
+    subtitle: 'Running automations, the active modal key and quick feedback appear at the top center of the screen. Hover over a running automation to stop it.',
+    active: island().enabled,
+    onChange: on => setIsland('enabled', on),
+  });
+  const cheatSheet = switchRow({
+    title: 'Hold Caps Lock to see your shortcuts',
+    subtitle: 'Keep the Hyper key held for a moment to list every Hyper shortcut; after a modal key, its keys appear the same way.',
+    active: island().cheatSheet,
+    onChange: on => setIsland('cheatSheet', on),
+  });
+  const sheetDelay = comboRow({
+    title: 'Cheat sheet delay', subtitle: cheatSheetDelayText(false),
+    items: cheatSheetDelayItems(island().cheatSheetDelay), selected: island().cheatSheetDelay,
+    onChange: value => setIsland('cheatSheetDelay', value),
+  });
+  const failures = switchRow({
+    title: "Explain shortcuts that can't run",
+    subtitle: 'When a shortcut has nothing to act on — no window to move, say — the island briefly says why.',
+    active: island().showFailures,
+    onChange: on => setIsland('showFailures', on),
+  });
+  for (const control of [islandOn, cheatSheet, sheetDelay, failures]) islandGroup.add(control.row);
+  prefs.add(islandGroup);
 
   // Window behavior (Slate's own settings)
   const behavior = group({title: 'Window Behavior', description: "These are Slate's own settings; a Slate file can override them."});
@@ -168,6 +202,18 @@ export function createGeneralPane(ctx) {
         ? 'GNOME Shell loads Slated after you log out and back in.'
         : turningOffText(model.status.hyper.mode, fileExists(paths.keydConfig)));
     hud.set(model.configuration.general.showActionHUD);
+    const isl = island();
+    islandOn.set(isl.enabled);
+    cheatSheet.set(isl.cheatSheet);
+    sheetDelay.setItems(cheatSheetDelayItems(isl.cheatSheetDelay), isl.cheatSheetDelay);
+    failures.set(isl.showFailures);
+    const sensitive = islandRowsSensitive(isl);
+    cheatSheet.row.set_sensitive(sensitive.cheatSheet);
+    sheetDelay.row.set_sensitive(sensitive.cheatSheetDelay);
+    failures.row.set_sensitive(sensitive.showFailures);
+    // keyd's tap for Escape stops at the delay (linux/install.sh writes it into keyd's config).
+    const keydTap = model.running && model.status.hyper.mode === 'keyd' && model.configuration.keyboard.capsLockAlone === 'escape';
+    sheetDelay.row.set_subtitle(cheatSheetDelayText(keydTap));
     leftToRight.set(bool(settings(), 'orderScreensLeftToRight', true));
     const delay = number(settings(), 'secondsBeforeRepeat', 0.4);
     repeat.setItems(repeatItems(delay), delay);
