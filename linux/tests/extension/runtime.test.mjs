@@ -1,6 +1,6 @@
 // The runtime's wiring against a simulated GNOME Shell (fake-gnome.mjs): config → shortcuts, Hyper key,
-// status.json and the event log; a hotkey moving a window; reacting to config edits; first runs; and
-// disable() undoing everything.
+// status.json and the event log; a hotkey moving a window; reacting to edits of config.json and
+// settings.json; first runs and the move from a version 1 config.json; and disable() undoing everything.
 
 import assert from 'node:assert/strict';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
@@ -9,6 +9,7 @@ import {dirname, join} from 'node:path';
 import {after, afterEach, beforeEach, test} from 'node:test';
 import {fileURLToPath} from 'node:url';
 
+import {configPathIn, settingsPathIn, writeConfigFiles} from './config-files.mjs';
 import {fakeCore} from './fake-core.mjs';
 import {createFakeGnome} from './fake-gnome.mjs';
 
@@ -54,12 +55,13 @@ afterEach(() => {
   assert.deepEqual(events('runtime.error'), [], 'no part of the runtime failed');
 });
 
-const configPath = () => join(home, '.config/slated/config.json');
+const configPath = () => configPathIn(home);
+const settingsPath = () => settingsPathIn(home);
 const statePath = (name) => join(home, '.local/state/slated', name);
 
+/** config.json and settings.json, version 2, from one object. */
 function writeConfig(config) {
-  mkdirSync(dirname(configPath()), {recursive: true});
-  writeFileSync(configPath(), JSON.stringify(config, null, 2));
+  writeConfigFiles(home, config);
 }
 
 function logEvents() {
@@ -81,9 +83,11 @@ function startRuntime() {
 }
 
 const leftHalf = {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/2', height: 'screenSizeY'};
+// Without the built-in clipboard and stop shortcuts, so only these bindings are registered.
+const quiet = {clipboard: {shortcut: null}, automation: {stopShortcut: null}};
 const config = {
+  ...quiet,
   keyboard: {capsLock: 'hyper'},
-  general: {loadSlateConfigs: false},
   bindings: [
     {name: 'Left half', keys: 'hyper+a', action: leftHalf},
     {name: 'Right half', keys: 'hyper+d', enabled: false, action: {op: 'push', direction: 'right'}},
@@ -163,7 +167,7 @@ test('without a focused window the action fails with a reason', () => {
 test('editing config.json re-registers shortcuts and turns Hyper off', () => {
   writeConfig(config);
   const runtime = startRuntime();
-  writeConfig({keyboard: {capsLock: 'off'}, general: {loadSlateConfigs: false}, bindings: [{keys: 'ctrl+alt+x', action: leftHalf}]});
+  writeConfig({...quiet, keyboard: {capsLock: 'off'}, bindings: [{keys: 'ctrl+alt+x', action: leftHalf}]});
   gnome.fileChanged(configPath());
   gnome.loop.advance(300);
   assert.deepEqual(gnome.accelerators(), ['<Control><Alt>x']);
@@ -181,8 +185,25 @@ test('a broken config.json is reported and the last good configuration stays', (
   gnome.fileChanged(configPath());
   gnome.loop.advance(300);
   assert.deepEqual(gnome.accelerators(), ['<Hyper>a']);
-  assert.match(status().lastError, /^Couldn't read .*config\.json/);
+  assert.match(status().lastError, /^Couldn't read config\.json/);
   assert.equal(events('config.error')[0].level, 'error');
+  runtime.stop();
+});
+
+test('a hand edit to settings.json is picked up; a broken one is reported by name', () => {
+  writeConfig(config);
+  const runtime = startRuntime();
+  const settingsJSON = JSON.parse(readFileSync(settingsPath(), 'utf8'));
+  writeFileSync(settingsPath(), JSON.stringify({...settingsJSON, automation: {stopShortcut: 'ctrl+alt+esc'}}));
+  gnome.fileChanged(settingsPath());
+  gnome.loop.advance(300);
+  assert.deepEqual(gnome.accelerators(), ['<Control><Alt>Escape', '<Hyper>a']);
+  writeFileSync(settingsPath(), '{"island": {"enabled": "yes"}}');
+  gnome.fileChanged(settingsPath());
+  gnome.loop.advance(300);
+  assert.deepEqual(gnome.accelerators(), ['<Control><Alt>Escape', '<Hyper>a'], 'the last good configuration stays');
+  assert.match(status().lastError, /^Couldn't read settings\.json: island\.enabled: /);
+  assert.equal(readFileSync(settingsPath(), 'utf8'), '{"island": {"enabled": "yes"}}', 'and nothing is overwritten');
   runtime.stop();
 });
 
@@ -244,44 +265,76 @@ test('a caps:hyper you set yourself stays after disable, and the last status.jso
   assert.equal(events('app.quit')[0].data.hyperRestored, false);
 });
 
-test('first run with ~/.slate.js starts empty and loads the Slate file', () => {
+test('first run with ~/.slate.js imports it into config.json, and Slate files are never read again', () => {
   writeFileSync(join(home, '.slate.js'), readFileSync(join(repo, 'Tests/Smoke/fixtures/slate.js')));
   const runtime = startRuntime();
-  assert.equal(events('config.created')[0].data.from, 'empty (Slate config is the default)');
-  const created = JSON.parse(readFileSync(configPath(), 'utf8'));
-  assert.deepEqual(created.bindings, []);
-  const [loaded] = events('slate.loaded');
-  assert.deepEqual({path: loaded.data.path, kind: loaded.data.kind, bindings: loaded.data.bindings}, {path: '~/.slate.js', kind: 'javascript', bindings: 4});
-  assert.deepEqual(status().hotkeys, {'hyper+a': 'active', 'hyper+f': 'active', 'hyper+tab': 'active', 'hyper+w': 'active'});
-  assert.deepEqual(status().sources[0], {path: '~/.slate.js', kind: 'javascript', exists: true, loaded: true, bindings: 4, diagnostics: []});
-
+  const [created] = events('config.created');
+  assert.deepEqual([created.data.by, created.data.from, created.data.slate], ['gnome-extension', 'Slate config', {files: 1, imported: 4, skipped: 0, unconvertible: 0}]);
+  const written = JSON.parse(readFileSync(configPath(), 'utf8'));
+  assert.deepEqual(written.bindings.map((b) => b.keys).sort(), ['hyper+a', 'hyper+f', 'hyper+tab', 'hyper+w']);
+  assert.equal(written.version, 2);
+  assert.ok(existsSync(settingsPath()), 'settings.json written too');
+  const hotkeys = status().hotkeys;
+  for (const key of ['hyper+a', 'hyper+f', 'hyper+tab', 'hyper+w']) assert.equal(hotkeys[key], 'active', key);
   const window = gnome.addWindow({id: 3, app: {id: 'org.gnome.Nautilus', name: 'Files'}, frame: {x: 300, y: 300, width: 500, height: 400}});
-  // Hyper is off in an empty config, so Slate's ctrl,shift,alt,cmd bindings use all four modifiers.
+  // The import keeps Hyper off (a new config's default), so the ✦ bindings use all four modifiers.
   assert.ok(gnome.press('<Control><Alt><Shift><Super>a'));
   assert.deepEqual(window.frame, {x: 0, y: 32, width: 960, height: 1048});
-  const [binding] = events('script.binding');
-  assert.equal(binding.data.trigger, 'hotkey hyper+a');
-  assert.equal(binding.data.source, '~/.slate.js');
-  const [done] = events('action.done');
-  assert.equal(done.data.trigger, 'script');
-  assert.equal(done.data.source, '~/.slate.js');
+  assert.equal(events('action.done')[0].data.source, 'Slated', 'a native shortcut now, not JavaScript');
+  // Editing ~/.slate.js changes nothing: Slated doesn't read it any more.
+  const before = gnome.accelerators();
+  writeFileSync(join(home, '.slate.js'), 'slate.bind("b:ctrl", "push right");');
+  gnome.fileChanged(join(home, '.slate.js'));
+  gnome.loop.advance(400);
+  assert.deepEqual(gnome.accelerators(), before);
+  assert.equal(JSON.parse(readFileSync(statePath('config-migration.json'), 'utf8')).kind, 'first-run');
   runtime.stop();
 });
 
-test("shortcuts imported from a Slate file that keeps loading replace the file's copies", () => {
+test('a version 1 config.json is migrated at start: a backup, settings.json, the Slate file imported once', () => {
   writeFileSync(join(home, '.slate.js'), readFileSync(join(repo, 'Tests/Smoke/fixtures/slate.js')));
-  // Imported, then deleted (hyper+a) and moved to ctrl+alt+x (hyper+w) in the settings window.
-  writeConfig({general: {importedSlateShortcuts: ['hyper+a', 'hyper+w']}, bindings: [{keys: 'ctrl+alt+x', action: leftHalf}]});
-  const runtime = startRuntime();
+  // Version 1, with hyper+a and hyper+w imported while the file kept loading: deleted (hyper+a) and
+  // moved to ctrl+alt+x (hyper+w) in the settings window since.
+  const v1 = JSON.stringify({
+    general: {loadSlateConfigs: true, importedSlateShortcuts: ['hyper+a', 'hyper+w']}, settings: {undoMaxStackSize: 3},
+    ...quiet, island: {enabled: false}, bindings: [{keys: 'ctrl+alt+x', action: leftHalf}],
+  });
+  mkdirSync(dirname(configPath()), {recursive: true});
+  writeFileSync(configPath(), v1);
+  let runtime = startRuntime();
+  assert.deepEqual(status().hotkeys, {'ctrl+alt+x': 'active', 'hyper+f': 'active', 'hyper+tab': 'active'});
+  assert.equal(readFileSync(join(home, '.config/slated/config.v1.json'), 'utf8'), v1, 'config.v1.json keeps the file as it was');
+  const settings = JSON.parse(readFileSync(settingsPath(), 'utf8'));
+  assert.deepEqual([settings.windows, settings.island.enabled, settings.automation.stopShortcut], [{undoMaxStackSize: 3}, false, null]);
+  const config = JSON.parse(readFileSync(configPath(), 'utf8'));
+  assert.deepEqual([config.version, 'general' in config, 'settings' in config], [2, false, false]);
+  const [migrated] = events('config.migrated');
+  assert.deepEqual(migrated.data, {by: 'gnome-extension', from: 1, to: 2, settingsMoved: true, settingsKept: false, backup: true,
+    slate: {files: 1, imported: 2, skipped: 2, unconvertible: 0}});
+  assert.equal(migrated.level, 'notice');
+  const record = JSON.parse(readFileSync(statePath('config-migration.json'), 'utf8'));
+  assert.deepEqual([record.kind, record.by, record.noticeDismissed], ['migration', 'gnome-extension', false], 'for the settings window to tell you');
+  runtime.stop();
+  // Idempotent: the next start reads version 2.
+  runtime = startRuntime();
+  assert.equal(events('config.migrated').length, 1);
   assert.deepEqual(status().hotkeys, {'ctrl+alt+x': 'active', 'hyper+f': 'active', 'hyper+tab': 'active'});
   runtime.stop();
 });
 
-test("config.json's display default wins over a Slate file's for the same displays, as its bindings do", () => {
-  writeFileSync(join(home, '.slate.js'), readFileSync(join(repo, 'Tests/Smoke/fixtures/slate-default-everywhere.js')));
+test('a broken version 1 config.json is reported and not migrated', () => {
+  mkdirSync(dirname(configPath()), {recursive: true});
+  writeFileSync(configPath(), '{"general": {"loadSlateConfigs": false}, "bindings": [');
+  const runtime = startRuntime();
+  assert.match(status().lastError, /^Couldn't read config\.json/);
+  assert.ok(!existsSync(join(home, '.config/slated/config.v1.json')) && !existsSync(settingsPath()), 'nothing written');
+  runtime.stop();
+});
+
+test("display defaults apply config.json's layout when the displays match", () => {
   const counts = [1, 2, 3, 4, 5, 6];
   writeConfig({
-    settings: {checkDefaultsOnLoad: true},
+    windows: {checkDefaultsOnLoad: true},
     layouts: [{name: 'native'}],
     defaults: counts.map((count) => ({target: 'native', count})),
   });
@@ -290,29 +343,18 @@ test("config.json's display default wins over a Slate file's for the same displa
   runtime.stop();
 });
 
-test('first run without a Slate config writes the starter bindings', () => {
+test('first run without a Slate config writes the starter bindings in both files', () => {
   const runtime = startRuntime();
   assert.equal(events('config.created')[0].data.from, 'starter bindings');
-  assert.equal(JSON.parse(readFileSync(configPath(), 'utf8')).bindings.length, 1);
-  assert.deepEqual(status().hotkeys, {'hyper+a': 'active'});
-  runtime.stop();
-});
-
-test('a Slate file edit reloads its bindings', () => {
-  writeFileSync(join(home, '.slate.js'), 'slate.bind("a:ctrl", "push left");');
-  writeConfig({general: {loadSlateConfigs: true}});
-  const runtime = startRuntime();
-  assert.deepEqual(gnome.accelerators(), ['<Control>a']);
-  writeFileSync(join(home, '.slate.js'), 'slate.bind("b:ctrl", "push right");');
-  gnome.fileChanged(join(home, '.slate.js'));
-  gnome.loop.advance(400);
-  assert.deepEqual(gnome.accelerators(), ['<Control>b']);
+  assert.equal(JSON.parse(readFileSync(configPath(), 'utf8')).bindings.length, 21);
+  assert.equal(JSON.parse(readFileSync(settingsPath(), 'utf8')).version, 2);
+  assert.equal(status().hotkeys['hyper+a'], 'active');
   runtime.stop();
 });
 
 test('hotstrings are written for espanso and kept only while the screen is locked', () => {
   mkdirSync(join(home, '.config/espanso'), {recursive: true});
-  writeConfig({general: {loadSlateConfigs: false}, hotstrings: [{trigger: ';sig', replacement: 'secret signature text'}]});
+  writeConfig({hotstrings: [{trigger: ';sig', replacement: 'secret signature text'}]});
   const matchFile = join(home, '.config/espanso/match/slated.yml');
 
   let runtime = startRuntime();

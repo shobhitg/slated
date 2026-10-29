@@ -7,7 +7,6 @@ import {
   appSelector,
   conditionMatches,
   defaultEntry,
-  diagnosticText,
   expandHome,
   gridSizes,
   integralRect,
@@ -82,12 +81,6 @@ test('config.json display defaults apply in both the current and the old shape',
   ]);
   assert.ok(entries.every((entry) => conditionMatches(entry.condition, screens)));
   assert.equal(defaultEntry({target: 'none'}), null);
-});
-
-test('diagnosticText reads like the Swift Diagnostic.description', () => {
-  assert.equal(diagnosticText({severity: 'error', message: 'Oops', file: '/home/me/.slate.js', line: 3}), '.slate.js, line 3: Oops');
-  assert.equal(diagnosticText({severity: 'warning', message: 'Hmm'}), 'Hmm');
-  assert.equal(diagnosticText('plain'), 'plain');
 });
 
 test('isWindowGeometry covers by-orientation pairs', () => {

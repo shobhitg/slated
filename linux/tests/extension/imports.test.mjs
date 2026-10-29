@@ -2,7 +2,7 @@
 // GNOME work done at import time, fails here instead of inside GNOME Shell.
 
 import assert from 'node:assert/strict';
-import {readdirSync} from 'node:fs';
+import {readdirSync, readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {test} from 'node:test';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -16,6 +16,21 @@ test('every platform module links and evaluates without touching GNOME', async (
   for (const file of files) {
     await assert.doesNotReject(import(pathToFileURL(join(platform, file)).href), `lib/platform/${file}`);
   }
+});
+
+test('the settings modules the extension shares (the migration and Slate importer) import no GTK or GNOME API', () => {
+  // GNOME Shell must never load Gtk or Adw; lib/prefs/migration.js and what it imports are pure.
+  const seen = new Set();
+  const queue = [join(extension, 'lib/prefs/migration.js')];
+  while (queue.length) {
+    const file = queue.shift();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const source = readFileSync(file, 'utf8');
+    assert.ok(!/from\s+['"](gi|resource):/.test(source), `${file.slice(extension.length + 1)} imports a GNOME API`);
+    for (const [, spec] of source.matchAll(/from\s+'(\.[^']+)'/g)) queue.push(join(dirname(file), spec));
+  }
+  assert.ok([...seen].some((f) => f.endsWith('importer.js')) && seen.size > 5, `followed ${seen.size} modules`);
 });
 
 test('extension.js exports the Extension subclass GNOME Shell instantiates', async () => {

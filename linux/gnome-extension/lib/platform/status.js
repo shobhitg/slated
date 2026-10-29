@@ -7,8 +7,6 @@
 //    "hyper":{"wanted":true,"mode":"xkb|keyd|off","active":true},
 //    "hotstrings":{"engine":"espanso|none","espansoInstalled":true,"matchFile":"<path>","count":3},
 //    "hotkeys":{"hyper+a":"active","hyper+q":"failed: <reason>","hyper+w":"duplicate","hyper+z":"disabled"},
-//    "sources":[{"path":"~/.slate.js","kind":"javascript","exists":true,"loaded":true,"bindings":21,
-//                "diagnostics":["..."]}],
 //    "automation":{"running":["Repeat click left every 100 ms"],"shortcuts":["f6"],"stopShortcut":"hyper+esc",
 //                  "whileHeld":"key-repeat"},
 //    "clipboard":{"enabled":true,"items":12},
@@ -16,8 +14,8 @@
 //    "lastAction":"Left half · Firefox","lastError":null}
 //
 // Hotkey keys are config strings ("hyper+a"); modal bindings are "<modal keys> <keys>"
-// ("ctrl+alt+f4 1"). "duplicate" means more than one binding uses those keys: the first one
-// (config.json before Slate files, then file order) is the one that runs.
+// ("ctrl+alt+f4 1"). "duplicate" means more than one binding uses those keys: the first one in
+// config.json is the one that runs.
 //
 // automation.running lists what runs now (the indicator's titles; insert-text is shown as a length);
 // automation.shortcuts holds the hotkey keys (as in "hotkeys") of the shortcuts that started them.
@@ -28,24 +26,13 @@
 
 import GLib from 'gi://GLib';
 
-import {diagnosticText, dirname} from './util.js';
+import {dirname} from './util.js';
 
 /** "active" | "disabled" | "duplicate" | "failed: <reason>" from a status value. */
 export function hotkeyStatusText(status) {
   if (typeof status === 'string') return status;
   if (status && typeof status === 'object' && 'failed' in status) return `failed: ${status.failed}`;
   return 'active';
-}
-
-export function sourceStatus(source) {
-  return {
-    path: source.path,
-    kind: source.kind,
-    exists: !!source.exists,
-    loaded: !!source.loaded,
-    bindings: Array.isArray(source.bindings) ? source.bindings.length : Number(source.bindings ?? 0),
-    diagnostics: (source.diagnostics ?? []).map(diagnosticText),
-  };
 }
 
 /** The status document, with keys in the schema's order. */
@@ -70,7 +57,6 @@ export function buildStatus(state) {
       count: state.hotstrings?.count ?? 0,
     },
     hotkeys,
-    sources: (state.sources ?? []).map(sourceStatus),
     automation: {
       running: (state.automation?.running ?? []).map(String),
       shortcuts: (state.automation?.shortcuts ?? []).map(String),

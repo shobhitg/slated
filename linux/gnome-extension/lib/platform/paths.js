@@ -1,15 +1,18 @@
 // Where Slated keeps its files on Linux (XDG base directories):
 //
-//   ~/.config/slated/config.json          the configuration (shared with the preferences app)
+//   ~/.config/slated/config.json          what your keys do (shared with the settings window and the Mac)
+//   ~/.config/slated/settings.json        how Slated behaves (likewise)
+//   ~/.config/slated/config.v1.json       the version 1 config.json the move to two files keeps
 //   ~/.local/state/slated/slated.log      the event log (JSON Lines)
 //   ~/.local/state/slated/status.json     live status for the preferences app
 //   ~/.local/state/slated/snapshots.json  saved window snapshots
 //   ~/.local/state/slated/hyper.json      what Slated changed in the keyboard options, to undo it
 //   ~/.local/state/slated/clipboard.json  clipboard history (mode 0600), when clipboard.persist is on
+//   ~/.local/state/slated/config-migration.json  what the move to two files imported, for the settings window
 //
-// `SLATED_HOME` stands in for the home directory and `SLATED_CONFIG` for the config file, like on
-// macOS, so tests can point a running shell at a throwaway home. `SLATED_KEYD_CONF` moves keyd's
-// config folder, as for linux/install.sh.
+// `SLATED_HOME` stands in for the home directory and `SLATED_CONFIG` for config.json (settings.json
+// and config.v1.json go beside it), like on macOS, so tests can point a running shell at a throwaway
+// home. `SLATED_KEYD_CONF` moves keyd's config folder, as for linux/install.sh.
 
 import GLib from 'gi://GLib';
 
@@ -32,6 +35,23 @@ function stateBase() {
 
 export function configPath() {
   return GLib.getenv('SLATED_CONFIG') || `${configBase()}/slated/config.json`;
+}
+
+function configDir() {
+  return configPath().replace(/\/[^/]*$/, '');
+}
+
+export function settingsPath() {
+  return `${configDir()}/settings.json`;
+}
+
+export function backupPath() {
+  return `${configDir()}/config.v1.json`;
+}
+
+/** What the move to two files imported (the settings window tells you once from it). */
+export function migrationRecordPath() {
+  return `${stateDir()}/config-migration.json`;
 }
 
 export function stateDir() {

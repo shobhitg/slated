@@ -3,12 +3,13 @@
 // mouse-button triggers, while-held release through key repeat, the safety stops, and clipboard copies.
 
 import assert from 'node:assert/strict';
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, rmSync, statSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {dirname, join} from 'node:path';
+import {join} from 'node:path';
 import {after, afterEach, beforeEach, test} from 'node:test';
 
 import * as realCore from '../../gnome-extension/lib/core/index.js';
+import {writeConfigFiles} from './config-files.mjs';
 import {createFakeGnome} from './fake-gnome.mjs';
 
 const gnome = createFakeGnome();
@@ -69,9 +70,9 @@ after(() => {
 const configPath = () => join(home, '.config/slated/config.json');
 const statePath = (name) => join(home, '.local/state/slated', name);
 
+/** config.json and settings.json, version 2, from one object. */
 function writeConfig(config) {
-  mkdirSync(dirname(configPath()), {recursive: true});
-  writeFileSync(configPath(), JSON.stringify({general: {loadSlateConfigs: false}, ...config}, null, 2));
+  writeConfigFiles(home, config);
 }
 
 function logEvents() {

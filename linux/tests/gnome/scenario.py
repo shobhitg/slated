@@ -27,6 +27,8 @@ APP_ID = 'io.github.shobhit_aida.SlatedTest'
 HOME = Path.home()
 STATE = HOME / '.local/state/slated'
 CONFIG = HOME / '.config/slated/config.json'
+SETTINGS = HOME / '.config/slated/settings.json'
+BACKUP = HOME / '.config/slated/config.v1.json'
 HERE = Path(__file__).resolve().parent
 SKIP_INPUT = os.environ.get('SLATED_SKIP_INPUT') == '1'
 
@@ -264,7 +266,9 @@ def main():
         call('PressKeys', 's', 'esc')
         check('the clipboard switcher opens', ok and opened, error or log_events()[-5:])
 
-    # 7. ~/.slate.js: Slate's JavaScript API with orientation logic, reloaded when the config changes.
+    # 7. A version 1 config.json (everything in one file, Slate files loading) is migrated: its
+    #    settings move to settings.json, and ~/.slate.js, with orientation logic, is imported as a
+    #    by-orientation shortcut. Slate files are never loaded live.
     (HOME / '.slate.js').write_text(
         'var third = slate.operation("move", {x: "screenOriginX", y: "screenOriginY", width: "screenSizeX/3", height: "screenSizeY"});\n'
         'var stacked = slate.operation("move", {x: "screenOriginX", y: "screenOriginY", width: "screenSizeX", height: "screenSizeY/3"});\n'
@@ -274,15 +278,24 @@ def main():
         '});\n'
     )
     config = json.loads(CONFIG.read_text())
-    config['general']['loadSlateConfigs'] = True
+    config['version'] = 1
+    config['general'] = {'loadSlateConfigs': True, 'showActionHUD': True}
+    SETTINGS.unlink()
     write_config(config)
-    loaded = wait_until(lambda: next((src for src in status()['sources'] if src['path'] == '~/.slate.js' and src['bindings'] == 1), None), 10)
-    check('~/.slate.js loads with its binding', bool(loaded), status().get('sources'))
-    check('the JavaScript binding is registered', status()['hotkeys'].get('hyper+j') == 'active', status()['hotkeys'])
+    migrated = wait_until(lambda: log_events('config.migrated'), 10)
+    check('a version 1 config.json is migrated', bool(migrated), log_events()[-5:])
+    check('config.v1.json keeps it', BACKUP.exists() and json.loads(BACKUP.read_text()).get('version') == 1)
+    check('its settings move to settings.json', SETTINGS.exists() and json.loads(SETTINGS.read_text())['general']['showActionHUD'] is True)
+    check('config.json is version 2', json.loads(CONFIG.read_text()).get('version') == 2 and 'general' not in json.loads(CONFIG.read_text()))
+    imported = wait_until(lambda: status()['hotkeys'].get('hyper+j') == 'active', 10)
+    check('the Slate binding is imported and registered', imported, status()['hotkeys'])
+    binding = next((b for b in json.loads(CONFIG.read_text())['bindings'] if b['keys'] == 'hyper+j'), {})
+    check('as a by-orientation shortcut', binding.get('action', {}).get('op') == 'by-orientation', binding)
     call('TriggerBinding', 's', 'hyper+j')
     matched, frame = frame_becomes({'x': area['x'], 'y': area['y'], 'width': area['width'] // 3, 'height': area['height']})
-    script = log_events('script.binding')
-    check('the JavaScript binding runs win.doOperation on a landscape screen', matched and script, f'frame {frame}, {log_events()[-3:]}')
+    check('it puts the window in the landscape third', matched, f'frame {frame}, {log_events()[-3:]}')
+    check('no JavaScript runs live', not log_events('script.binding') and 'sources' not in status())
+    config = json.loads(CONFIG.read_text())
 
     # 8. Caps Lock as Hyper adds the xkb option and gives it back.
     config['keyboard'] = {'capsLock': 'hyper'}

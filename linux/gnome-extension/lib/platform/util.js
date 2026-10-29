@@ -173,17 +173,6 @@ export function defaultEntry(entry) {
   return condition && typeof target === 'string' ? {condition, target} : null;
 }
 
-// --- Diagnostics ---------------------------------------------------------------------------------
-
-/** "slate.js, line 3: message", like the Swift `Diagnostic.description`. */
-export function diagnosticText(diagnostic) {
-  if (typeof diagnostic === 'string') return diagnostic;
-  const parts = [];
-  if (diagnostic.file) parts.push(basename(diagnostic.file));
-  if (diagnostic.line) parts.push(`line ${diagnostic.line}`);
-  return parts.length ? `${parts.join(', ')}: ${diagnostic.message}` : String(diagnostic.message);
-}
-
 // --- Actions -------------------------------------------------------------------------------------
 
 const GEOMETRY_OPS = new Set(['move', 'resize', 'push', 'nudge', 'throw', 'corner']);

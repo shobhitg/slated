@@ -2,11 +2,12 @@
 // GNOME Shell (fake-gnome.mjs, with fake St/Clutter actors and events).
 
 import assert from 'node:assert/strict';
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {dirname, join} from 'node:path';
+import {join} from 'node:path';
 import {after, beforeEach, test} from 'node:test';
 
+import {writeConfigFiles} from './config-files.mjs';
 import {fakeCore} from './fake-core.mjs';
 import {createFakeGnome, fakeEvent} from './fake-gnome.mjs';
 
@@ -39,10 +40,8 @@ beforeEach(() => {
     typed: [],
     clipboard: 'previous clipboard',
   });
-  const config = join(home, '.config/slated/config.json');
-  mkdirSync(dirname(config), {recursive: true});
   // The island off: what a shortcut did shows in the bottom HUD (island.test.mjs covers the island).
-  writeFileSync(config, JSON.stringify({general: {loadSlateConfigs: false, showActionHUD: true}, island: {enabled: false}}));
+  writeConfigFiles(home, {general: {showActionHUD: true}, island: {enabled: false}});
   runtime = new SlatedRuntime({path: home, metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhit-aida.github.io', core: fakeCore});
   runtime.start();
   gnome.loop.run();
