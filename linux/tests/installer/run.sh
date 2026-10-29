@@ -142,8 +142,9 @@ check "...with a long hold not a tap: overload_tap_timeout is the cheat-sheet de
 check "...in a [global] section" grep -qxF "[global]" "$SLATED_KEYD_CONF"
 check "...and says how long a tap is" contains "$out" "Escape when tapped (let go within 500 ms)."
 check "...with no warning for a keyd that doesn't say its version" bash -c '! grep -q "new in 2.4.3" <<<"$1"' _ "$out"
-tap_timeout() {  # config.json's "island" (with the tap on) → $written, the overload_tap_timeout --hyper-keyd writes
-  printf '{"keyboard": {"capsLock": "hyper", "capsLockAlone": "escape"}, "island": %s}\n' "$1" >"$HOME/.config/slated/config.json"
+tap_timeout() {  # settings.json's "island" (with the tap on) → $written, the overload_tap_timeout --hyper-keyd writes
+  printf '{"version": 2, "keyboard": {"capsLock": "hyper", "capsLockAlone": "escape"}}\n' >"$HOME/.config/slated/config.json"
+  printf '{"version": 2, "island": %s}\n' "$1" >"$HOME/.config/slated/settings.json"
   install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
   written="$(sed -n 's/^overload_tap_timeout = //p' "$SLATED_KEYD_CONF")"
 }
@@ -155,6 +156,8 @@ tap_timeout '{"enabled": false}'
 check "...and with the island off" test "$written" = 1000
 tap_timeout '{"cheatSheetDelay": 0.05}'
 check "a delay under 0.15 s counts as 0.15 s, as in the island" test "$written" = 150
+# A version 1 config.json, before Slated splits it: the island is still there.
+rm "$HOME/.config/slated/settings.json"
 cat >"$HOME/.config/slated/config.json" <<'EOF'
 {
   "keyboard": {"capsLock": "hyper", "capsLockAlone": "escape"}, // "island": {"cheatSheetDelay": 0.3},
@@ -165,7 +168,7 @@ cat >"$HOME/.config/slated/config.json" <<'EOF'
 }
 EOF
 install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes >/dev/null
-check "a config written by hand: comments skipped, and 1 s at most" grep -qx "overload_tap_timeout = 1000" "$SLATED_KEYD_CONF"
+check "a version 1 config written by hand: comments skipped, and 1 s at most" grep -qx "overload_tap_timeout = 1000" "$SLATED_KEYD_CONF"
 export STUB_KEYD_VERSION=2.4.2
 out="$(install_sh "$GE_BIN:$KEYD_BIN" --hyper-keyd --yes)"
 check "keyd before 2.4.3 is told a long hold still sends Escape" contains "$out" "keyd 2.4.2 doesn't know overload_tap_timeout (it's new in 2.4.3)"
