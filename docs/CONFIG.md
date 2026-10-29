@@ -1,28 +1,45 @@
 # Configuration
 
-Slated reads two kinds of configuration and uses both at once:
+Slated's configuration is two files in `~/.config/slated`, and nothing else:
 
-1. **Its own file**, `~/.config/slated/config.json`. The Settings window edits it, and you can too:
-   it's plain JSON, and comments and trailing commas are allowed. Slated reloads it when it changes.
-2. **Slate files**, `~/.slate.js` and `~/.slate`. They run exactly as they did in Slate. Their
-   bindings show up read-only in Settings. Turn this off with `general.loadSlateConfigs`.
+| File | What's in it | Sections |
+|---|---|---|
+| `config.json` | What your keys do | `keyboard` (the Hyper key), `bindings`, `hotstrings`, `layouts`, `defaults` |
+| `settings.json` | How Slated behaves | `general`, `windows`, `clipboard`, `automation`, `island` |
 
-If both define the same shortcut, Slated's own binding wins and the other is marked as a duplicate.
+Both start with `"version": 2`. The main window edits them, and you can too: they're plain JSON, and
+comments and trailing commas are allowed. Slated reloads a file the moment it changes. A missing
+`settings.json` means every setting at its default. Settings writes only the file whose part changed,
+so turning the island off never rewrites `config.json`, and a new shortcut never rewrites
+`settings.json`. The menus' **Open Config File** and **Open Settings File** open them.
 
-**Importing.** "Import Slate Config into Slated…" copies what it can into `config.json`. When
-everything converts, Slate files stop loading. When something can't (a function that needs the
-script, say), they keep loading for it, and the shortcuts that were imported are listed in
-`general.importedSlateShortcuts` (`"ctrl+alt+f16"`, or `"ctrl+alt+f6 x"` behind a modal key). Slated
-ignores the Slate files' own bindings on those keys, so the imported copies are yours to change or
-delete in Settings.
+**A file that doesn't parse** shows a banner naming it; Slated keeps running what it last read, the
+main window is read-only, and nothing is written until the file is fixed.
 
-**Sections Slated doesn't know**, such as ones a newer version added, are kept as they are when
-Slated saves `config.json`. Unknown fields inside a section it does know (say, a typo in `general`)
-are ignored, and the next save drops them.
+**Sections Slated doesn't know**, such as ones a newer version added, are kept as they are, in the file
+they were in. Unknown fields inside a section it does know (say, a typo in `general`) are ignored, and
+the next save of that file drops them.
 
-**Defaults.** On first launch Slated creates `config.json`:
-- If you have a Slate config, Slated starts with no bindings of its own and your Slate file is the
-  default.
+## Slate configs: imported, not run
+
+Slated doesn't read `~/.slate.js` or `~/.slate` as it runs. **Import Slate Config into Slated…** (the
+File menu, the menu bar icon, Get Started, or the **Import from Slate** page) converts your Slate
+config into shortcuts, layouts and display defaults in `config.json`, and its `config` values into
+`windows` in `settings.json`:
+
+- It reads `~/.slate.js`, or `~/.slate` when there's no `~/.slate.js`.
+- Plain operations convert directly. A shortcut that runs a JavaScript function is tried on several
+  pretend Macs; when it always does the same thing (or one thing on landscape screens and another on
+  portrait ones, which becomes `by-orientation`), it becomes that operation. Otherwise it's listed as
+  not converted, by its keys, with why. So are event handlers (`slate.on`), layouts and display
+  defaults with JavaScript steps, and `config` values that come from functions.
+- What Slated already has wins: a shortcut on the same keys (and modal key, and app filter), a
+  layout of the same name, a display default it has, a setting it sets. So you can import again any
+  time; nothing is added twice.
+- Your Slate files are left as they are.
+
+**First launch.** With no `config.json`, Slated creates both files:
+- If you have a Slate config, `config.json` is that config, imported. Get Started says what came over.
 - Otherwise it starts with the built-in bindings: the author's Slate setup on the Hyper key.
   - Halves: Hyper+A/D (left/right), W/X (top/bottom).
   - Quarters: Q/E/Z/C.
@@ -33,15 +50,29 @@ are ignored, and the next save drops them.
   - Grid: Tab.
   - Throw to the screen on the left/right/above: the arrow keys; ↓ throws to the second screen.
 
+**From version 1.** Before October 2026, `config.json` held everything (version 1), and Slated ran your
+Slate files alongside it (`general.loadSlateConfigs`, `slateConfigPaths`, `importedSlateShortcuts`).
+The first launch of a newer Slated (on either platform) moves it to the two files, once:
+
+1. It keeps the old file as `config.v1.json`, beside it (an existing one is never overwritten).
+2. Its `general`, `settings` (now `windows`), `clipboard`, `automation` and `island` sections move to
+   `settings.json`. If `settings.json` is there already, it wins and the old sections are dropped.
+3. Unless `loadSlateConfigs` was `false`, it imports your Slate config (the files in
+   `slateConfigPaths`, else `~/.slate.js`, else `~/.slate`) as above, leaving out shortcuts listed in
+   `importedSlateShortcuts` (imported before, and perhaps changed or deleted since).
+4. It writes `settings.json`, then `config.json` as version 2. Overview says once what was imported,
+   and which shortcuts couldn't be converted.
+
+A file that doesn't parse isn't migrated: fix it, and the next launch (or the reload when you save it)
+does the rest.
+
 ## Example
+
+`config.json`:
 
 ```jsonc
 {
-  "general": {
-    "launchAtLogin": true,
-    "loadSlateConfigs": true,          // also load ~/.slate.js and ~/.slate
-    "showActionHUD": false             // name each action as it runs (in the notch island)
-  },
+  "version": 2,
 
   // Caps Lock becomes ⌃⌥⇧⌘ (Hyper) while held.
   "keyboard": {
@@ -67,10 +98,23 @@ are ignored, and the next save drops them.
     { "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯" },
     { "trigger": "brb", "replacement": "be right back", "fire": "afterDelimiter", "wordBoundary": true },
     { "trigger": ";today", "replacement": "{date:yyyy-MM-dd}" }
-  ],
+  ]
+}
+```
 
-  // Slate's global settings (`config name value` in .slate files).
-  "settings": { "defaultToCurrentScreen": true, "nudgePercentOf": "screenSize" }
+`settings.json`:
+
+```jsonc
+{
+  "version": 2,
+  "general": {
+    "launchAtLogin": true,
+    "showActionHUD": false,            // name each action as it runs (in the notch island)
+    "hotstringsEnabled": true          // the switch for all hotstrings
+  },
+
+  // How window operations behave: Slate's global settings (`config name value` in .slate files).
+  "windows": { "defaultToCurrentScreen": true, "nudgePercentOf": "screenSize" }
 }
 ```
 

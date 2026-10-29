@@ -6,8 +6,8 @@
 
 Slated is a modern successor to [Slate](https://github.com/jigish/slate), the endlessly configurable
 window manager that has been unmaintained since 2013. It keeps everything that made Slate great,
-runs your existing `~/.slate` or `~/.slate.js` unchanged, and adds what Slate users usually install
-other tools for:
+imports your existing `~/.slate` or `~/.slate.js` into its own config, and adds what Slate users
+usually install other tools for:
 
 - **Window management:** every Slate operation is supported:
   - move, resize, push, nudge, throw and corner;
@@ -64,13 +64,16 @@ Accessibility**), not after every reinstall.
 
 **Coming from Slate or Karabiner-Elements?**
 - Quit Slate first: both apps want the same shortcuts.
+- On first launch Slated imports your `~/.slate.js` (or `~/.slate`) into its own config, and says
+  which shortcuts it couldn't convert. It doesn't read the file after that; **File → Import Slate
+  Config into Slated…** imports it again, adding only what's new.
 - If Karabiner-Elements turns Caps Lock into Hyper, either keep using it (Slated's bindings work
   with any Hyper key) or turn that rule off and enable Slated's own Hyper key.
 
 ## Linux (GNOME)
 
-Slated also runs on GNOME 46–51 as a GNOME Shell extension, with the same `config.json` and Slate
-files. Run `linux/install.sh`, then log out and back in. [docs/LINUX.md](docs/LINUX.md) covers
+Slated also runs on GNOME 46–51 as a GNOME Shell extension, with the same `config.json` and
+`settings.json`. Run `linux/install.sh`, then log out and back in. [docs/LINUX.md](docs/LINUX.md) covers
 installing, the Hyper key and hotstrings on GNOME, and how it differs from the Mac.
 
 ## Logs
@@ -91,13 +94,17 @@ The same events also appear in Console.app under the subsystem `io.github.shobhi
 ## Configuration
 
 - **Slated's window:** use it for everyday changes (click Slated in the Dock, or press ⌘, in Slated).
-- **`~/.config/slated/config.json`:** edit it by hand if you prefer; Slated reloads it on save.
-- **Slate files:** `~/.slate.js` and `~/.slate` load as they are, alongside your Slated bindings.
+- **`~/.config/slated/config.json`:** what your keys do: shortcuts, hotstrings, the Hyper key,
+  layouts. Edit it by hand if you prefer; Slated reloads it on save.
+- **`~/.config/slated/settings.json`:** how Slated behaves: general, window, clipboard, automation
+  and island settings.
+- **Slate files:** `~/.slate.js` and `~/.slate` are imported into `config.json`, not run.
 
 See [docs/CONFIG.md](docs/CONFIG.md) for the format, every action, and hotstring options.
 
 ```jsonc
 {
+  "version": 2,
   "keyboard": { "capsLock": "hyper" },
   "bindings": [
     { "name": "Left half", "keys": "hyper+a", "action": "push left bar-resize:screenSizeX/2" },
@@ -137,8 +144,8 @@ The code is a Swift package with no Xcode project:
 | Module | Contents |
 |---|---|
 | `SlatedCore` | Pure logic: model, Slate syntax, expressions, window math, hotstring matching |
-| `SlatedSystem` | macOS integration: Accessibility, hotkeys, event tap, Hyper key, text injection |
-| `SlatedScript` | Slate's JavaScript API on JavaScriptCore |
+| `SlatedSystem` | macOS integration: Accessibility, hotkeys, event tap, Hyper key, text injection, the config files |
+| `SlatedScript` | Slate's JavaScript API on JavaScriptCore, to import `~/.slate.js` |
 | `SlatedUI` | The SwiftUI settings app |
 | `Slated` | The app (Dock icon, main window, menu bar icon) that wires it all together |
 
