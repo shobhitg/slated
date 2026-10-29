@@ -22,11 +22,12 @@ const ADDITIONS = [
   'decodeAction', 'isWindowGeometry', 'readSettings', 'displayKeyCombo', 'isAutomation', 'isModifierKey',
   'isMouseButton', 'keysymName', 'keyDisplayName', 'parseSyntheticInput', 'formatSyntheticInput', 'RepeatSchedule',
   'ClipboardHistory', 'referenceSeconds', 'referenceToMilliseconds', 'foldedContains',
+  'decodeConfigurationFiles', 'encodeConfigurationFiles', 'isLegacyLayout', 'legacySlateOptions', 'parseConfigText',
 ];
 
 const MODULES = [
   'index.js', 'errors.js', 'text.js', 'json.js', 'tokenizer.js', 'expression.js', 'keys.js', 'model.js', 'config.js',
-  'slateSyntax.js', 'slateConfig.js', 'frame.js', 'hotstrings.js', 'automation.js', 'clipboard.js',
+  'slateSyntax.js', 'slateConfig.js', 'frame.js', 'hotstrings.js', 'automation.js', 'clipboard.js', 'configFiles.js',
 ];
 
 const hyper = ['ctrl', 'alt', 'shift', 'cmd'];
@@ -224,6 +225,61 @@ export function registerUnitTests({root, readText}) {
     expect(broken instanceof SlatedError && broken.kind === 'invalidConfiguration', `broken JSON: ${broken}`);
   });
 
+  test('config files: the configuration splits into config.json and settings.json', () => {
+    const config = core.decodeConfiguration({
+      keyboard: {capsLock: 'hyper'}, bindings: [{keys: 'hyper+a', action: 'undo'}], island: {enabled: false},
+      windows: {undoMaxStackSize: 5}, newerSection: {a: 1},
+    });
+    const files = core.encodeConfigurationFiles(config, {fromSettings: true});
+    const configFile = JSON.parse(files.config);
+    const settingsFile = JSON.parse(files.settings);
+    expectEqual(Object.keys(configFile).sort(), ['bindings', 'defaults', 'hotstrings', 'keyboard', 'layouts', 'newerSection', 'version']);
+    expectEqual(Object.keys(settingsFile).sort(), ['automation', 'clipboard', 'fromSettings', 'general', 'island', 'version', 'windows']);
+    expectEqual([configFile.version, settingsFile.version], [2, 2]);
+    expectEqual(settingsFile.windows, {undoMaxStackSize: 5});
+    expectEqual(settingsFile.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: false}, 'no Slate keys');
+    // Reading the two files back gives the same configuration, and unknown keys stay in their file.
+    const back = core.decodeConfigurationFiles(files.config, files.settings);
+    expectEqual(back.configuration, config);
+    expectEqual(back.settingsExtras, {fromSettings: true});
+    expectEqual(back.legacy, false);
+    expectEqual(core.encodeConfigurationFiles(back.configuration, back.settingsExtras), files);
+  });
+
+  test('config files: version 1 reads as before, and settings.json wins over its sections', () => {
+    const v1 = JSON.stringify({
+      version: 1, general: {loadSlateConfigs: true, slateConfigPaths: ['~/x.js'], importedSlateShortcuts: ['hyper+a'], showActionHUD: true},
+      settings: {secondsBeforeRepeat: 0.2}, island: {enabled: false}, bindings: [{keys: 'hyper+b', action: 'undo'}],
+    });
+    const alone = core.decodeConfigurationFiles(v1, null);
+    expect(alone.legacy, 'version 1 is legacy');
+    expectEqual(alone.configuration.version, 2);
+    expectEqual(alone.configuration.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: true});
+    expectEqual(alone.configuration.windows, {secondsBeforeRepeat: 0.2}, '`settings` reads as `windows`');
+    expectEqual(alone.configuration.island.enabled, false);
+    expect(!('settings' in alone.configuration), 'no `settings` in memory');
+    const withSettings = core.decodeConfigurationFiles(v1, '{"version": 2, "island": {"cheatSheet": false}}');
+    expectEqual([withSettings.configuration.island.enabled, withSettings.configuration.island.cheatSheet], [true, false]);
+    expectEqual([withSettings.configuration.general.showActionHUD, withSettings.configuration.windows], [false, {}]);
+    expectEqual(withSettings.configuration.bindings[0].keys, 'hyper+b');
+    expectEqual(core.legacySlateOptions(JSON.parse(v1)), {load: true, paths: ['~/x.js'], imported: ['hyper+a']});
+    expectEqual(core.legacySlateOptions({general: {loadSlateConfigs: false}}), {load: false, paths: null, imported: []});
+    for (const [object, legacy] of [[{}, true], [{version: 1}, true], [{version: 2}, false], [{version: 2, island: {}}, true],
+      [{version: 2, settings: {}}, true], [{version: 3, bindings: []}, false]]) {
+      expectEqual(core.isLegacyLayout(object), legacy, JSON.stringify(object));
+    }
+  });
+
+  test('config files: errors name the file', () => {
+    const fileOf = (configText, settingsText) => expectThrows(() => core.decodeConfigurationFiles(configText, settingsText)).file;
+    expectEqual(fileOf('{"version": 2, "bindings": [', null), 'config.json');
+    expectEqual(fileOf('{"version": 2}', '{"island": {"enabled": 3}}'), 'settings.json');
+    expectEqual(fileOf('{"island": {"enabled": 3}}', null), 'config.json', "version 1's sections are config.json's");
+    expectEqual(fileOf('{"version": 2}', '[]'), 'settings.json');
+    const error = expectThrows(() => core.decodeConfigurationFiles('{"version": 2}', '{"clipboard": {"maxItems": "x"}}'));
+    expectEqual([error.kind, error.codingPath], ['invalidConfiguration', ['clipboard', 'maxItems']]);
+  });
+
   test('config: readSettings applies Slate defaults', () => {
     const s = core.readSettings({});
     expectEqual([s.defaultToCurrentScreen, s.orderScreensLeftToRight, s.undoMaxStackSize, s.repeatOnHoldOps], [false, true, 10, ['resize', 'nudge']]);
@@ -307,7 +363,7 @@ export function registerUnitTests({root, readText}) {
     expectEqual(value.c, 'x');
     const proto = parseJSON5('{"__proto__": {"x": 1}}');
     expect(Object.prototype.hasOwnProperty.call(proto, '__proto__') && proto.x === undefined, 'no prototype pollution');
-    const settings = core.decodeConfiguration('{"settings": {"__proto__": 1}}').settings;
+    const settings = core.decodeConfiguration('{"windows": {"__proto__": 1}}').windows;
     expect(Object.prototype.hasOwnProperty.call(settings, '__proto__'), '__proto__ is kept as a setting');
   });
 
