@@ -1,6 +1,6 @@
 import {suite, expect, expectEqual, readText} from './harness.mjs';
 import {
-  loadSlateScript, importSlateScript, planImport, triggerKey, parseKeystrokeLocal, keystrokeToConfig, PROBE_SETUPS, DELIVERED_EVENTS,
+  loadSlateScript, importSlateScript, planImport, triggerKey, parseKeystrokeLocal, keystrokeToConfig, PROBE_SETUPS,
 } from '../../gnome-extension/lib/prefs/importer.js';
 import {implemented, starterConfiguration} from '../../gnome-extension/lib/prefs/engine.js';
 import {matchingPreset} from '../../gnome-extension/lib/prefs/presets.js';
@@ -221,7 +221,7 @@ export default suite('Slate importer', [
       'ctrl+alt+right false', 'ctrl+alt+up true', 'ctrl+alt+left setting', 'ctrl+alt+down false', 'ctrl+alt+pageUp true',
     ]);
   }],
-  ['slate.on handlers stay in the script, except for events GNOME never delivers', () => {
+  ['slate.on handlers can\'t be converted: nothing runs JavaScript any more', () => {
     const script = `
       slate.bind("a:ctrl", "push left");
       slate.on("appActivated", function () {});
@@ -229,16 +229,10 @@ export default suite('Slate importer', [
       slate.on("appHidden", function () {});`;
     const result = importSlateScript(script, {makeId: ids()});
     expectEqual(result.skipped.map(s => `${s.keystroke}: ${s.reason}`), [
-      'slate.on("windowOpened"): event handlers need JavaScript', 'slate.on("appActivated"): event handlers need JavaScript',
+      'slate.on("windowOpened"): event handlers need JavaScript', 'slate.on("appHidden"): event handlers need JavaScript',
+      'slate.on("appActivated"): event handlers need JavaScript',
     ]);
-    expectEqual(result.neverRun.map(s => `${s.keystroke}: ${s.reason}`), [
-      'slate.on("appHidden"): GNOME doesn\'t hide apps, so this never runs',
-    ]);
-  }],
-  ["the events the importer counts as delivered are the extension's", async () => {
-    const host = await readText('../../gnome-extension/lib/platform/scriptHost.js', import.meta.url);
-    const listed = host.match(/SUPPORTED_EVENTS = new Set\(\[([^\]]*)\]/)[1].match(/'(\w+)'/g).map(s => s.slice(1, -1));
-    expectEqual([...DELIVERED_EVENTS].sort(), listed.sort());
+    expectEqual(result.bindings.map(b => b.keys), ['ctrl+a']);
   }],
   ['display defaults naming a layout import in config.json\'s shape; ones running a function stay', () => {
     const script = `

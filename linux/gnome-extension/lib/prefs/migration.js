@@ -68,7 +68,7 @@ export function findSlateFiles(io, paths = null) {
 /**
  * Imports Slate files into `configuration` with the merge rule (importer.planImport): a binding whose
  * trigger Slated already has is skipped, as are `alreadyImported` ones.
- * @returns the plan ({config, added, duplicates, alreadyImported, skipped, neverRun}) with `errors`
+ * @returns the plan ({config, added, duplicates, alreadyImported, skipped}) with `errors`
  *   (files that couldn't be read) and `files` (their ~ paths)
  */
 export function importSlateFiles(configuration, files, {home, readFile, makeId = newId, alreadyImported = []} = {}) {
@@ -91,7 +91,7 @@ export function importSlateFiles(configuration, files, {home, readFile, makeId =
  * by key combo or name, with the reason (never the script's source).
  */
 export function importSummary(plan) {
-  const unconvertible = [...plan.skipped, ...plan.neverRun].map(s => (s.keys
+  const unconvertible = plan.skipped.map(s => (s.keys
     ? {keys: s.keys, modal: s.modal ?? null, reason: s.reason}
     : {label: s.keystroke, reason: s.reason}));
   for (const e of plan.errors ?? []) unconvertible.push({label: e.path, reason: e.message});

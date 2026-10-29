@@ -95,18 +95,11 @@ export const PROBE_SETUPS = Object.freeze({
   ]),
 });
 
-/** `slate.on` events, in Slate's order (platform/slateScript.js EVENT_NAMES). */
+/** `slate.on` events, in Slate's order. */
 const EVENT_NAMES = Object.freeze([
   'windowOpened', 'windowClosed', 'windowMoved', 'windowResized', 'windowFocused', 'windowTitleChanged',
   'appOpened', 'appClosed', 'appHidden', 'appUnhidden', 'appActivated', 'appDeactivated', 'screenConfigurationChanged',
 ]);
-
-/**
- * The events the extension delivers to `slate.on` handlers (platform/scriptHost.js SUPPORTED_EVENTS,
- * which this module can't import: it uses gi://). GNOME has no hidden apps, so appHidden and
- * appUnhidden never fire.
- */
-export const DELIVERED_EVENTS = Object.freeze(new Set(EVENT_NAMES.filter(name => name !== 'appHidden' && name !== 'appUnhidden')));
 
 class ProbeError extends Error {}
 
@@ -1012,12 +1005,12 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
  * Converts a Slate JavaScript config into Slated bindings.
  *
  * `skipped` couldn't be converted: it needs JavaScript while it runs, which Slated no longer runs (a
- * skipped binding also has its `keys` and `modal`, as config strings). `neverRun` are handlers for
- * events GNOME never delivers. `settings` leaves out the ones a function computes, and `defaults` are
- * the display defaults naming a layout, in config.json's shape.
+ * skipped binding also has its `keys` and `modal`, as config strings), as do `slate.on` handlers.
+ * `settings` leaves out the ones a function computes, and `defaults` are the display defaults naming a
+ * layout, in config.json's shape.
  *
- * @returns {{bindings: Array, skipped: Array<{keystroke, reason, keys?, modal?}>, neverRun: Array<{keystroke, reason}>,
- *   layouts: Array, settings: object, defaults: Array, diagnostics: Array}}
+ * @returns {{bindings: Array, skipped: Array<{keystroke, reason, keys?, modal?}>, layouts: Array,
+ *   settings: object, defaults: Array, diagnostics: Array}}
  */
 export function importSlateScript(source, options = {}) {
   const makeId = options.makeId ?? newId;
@@ -1040,12 +1033,7 @@ export function importSlateScript(source, options = {}) {
   }
   // Everything else the script set up that doesn't become part of the configuration is listed too:
   // nothing runs it once the file is imported.
-  const neverRun = [];
-  for (const event of loaded.events) {
-    const handler = `slate.on("${event}")`;
-    if (DELIVERED_EVENTS.has(event)) skipped.push({keystroke: handler, reason: 'event handlers need JavaScript'});
-    else neverRun.push({keystroke: handler, reason: "GNOME doesn't hide apps, so this never runs"});
-  }
+  for (const event of loaded.events) skipped.push({keystroke: `slate.on("${event}")`, reason: 'event handlers need JavaScript'});
   // A copy of a function's value in config.json would freeze it, and override the function for good.
   for (const name of loaded.functionSettings) {
     skipped.push({keystroke: `slate.config("${name}")`, reason: 'its value comes from a JavaScript function'});
@@ -1060,7 +1048,7 @@ export function importSlateScript(source, options = {}) {
       : condition.resolutions.join(', ');
     skipped.push({keystroke: `slate.default(${displays})`, reason: 'runs JavaScript'});
   }
-  return {bindings, skipped, neverRun, layouts, settings, defaults: loaded.defaults, diagnostics: loaded.diagnostics};
+  return {bindings, skipped, layouts, settings, defaults: loaded.defaults, diagnostics: loaded.diagnostics};
 }
 
 /** A classic ~/.slate file through the engine: {bindings, layouts, settings, defaults, diagnostics}. */
@@ -1102,7 +1090,7 @@ export function triggerKey(binding) {
  * @param {Array<{path: string, result: object}>} results importSlateScript/importClassic results
  * @param {object} [options]
  * @param {string[]} [options.alreadyImported] statusKeys of shortcuts imported before
- * @returns {{config, added, duplicates: string[], alreadyImported: string[], skipped, neverRun}}
+ * @returns {{config, added, duplicates: string[], alreadyImported: string[], skipped}}
  */
 export function planImport(config, results, {alreadyImported = []} = {}) {
   const next = JSON.parse(JSON.stringify(config));
@@ -1110,7 +1098,6 @@ export function planImport(config, results, {alreadyImported = []} = {}) {
   const before = new Set(alreadyImported);
   const added = [];
   const skipped = [];
-  const neverRun = [];
   const duplicates = [];
   const earlier = [];
   for (const {path, result} of results) {
@@ -1129,7 +1116,6 @@ export function planImport(config, results, {alreadyImported = []} = {}) {
       added.push(binding);
     }
     skipped.push(...result.skipped.map(s => ({...s, path})));
-    neverRun.push(...(result.neverRun ?? []).map(s => ({...s, path})));
     next.windows = {...(result.settings ?? {}), ...next.windows};
     for (const layout of result.layouts ?? []) {
       if (!next.layouts.some(l => l.name === layout.name)) next.layouts.push(layout);
@@ -1139,5 +1125,5 @@ export function planImport(config, results, {alreadyImported = []} = {}) {
       if (!next.defaults.some(d => deepEqual(d, entry))) next.defaults.push(entry);
     }
   }
-  return {config: next, added, skipped, neverRun, duplicates, alreadyImported: earlier};
+  return {config: next, added, skipped, duplicates, alreadyImported: earlier};
 }

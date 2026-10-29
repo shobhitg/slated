@@ -101,7 +101,7 @@ export function createAboutPane(ctx) {
         `Extension: ${ctx.ext.uuid} (${model.shell.state})`, `Status: ${summary.title}`, `Session: ${model.status.session ?? 'none'}`,
         `Hyper: ${model.status.hyper.mode}${model.status.hyper.active ? ' (active)' : ''}`,
         `Hotstrings: ${model.status.hotstrings.engine}, ${model.status.hotstrings.count}`,
-        `Config: ${ctx.paths.configFile}`, `Log: ${ctx.paths.logFile}`,
+        `Config: ${ctx.paths.configFile}`, `Settings: ${ctx.paths.settingsFile}`, `Log: ${ctx.paths.logFile}`,
       ].join('\n'),
       debug_info_filename: 'slated-debug-info.txt',
     });
