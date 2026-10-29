@@ -1,11 +1,10 @@
-// The editor for one of Slated's own shortcuts (name, keys, action, live preview), and the
-// read-only detail page for a binding from a Slate file (port of BindingEditor.swift and
-// SourceBindingDetail.swift).
+// The editor for one of Slated's shortcuts (name, keys, action, live preview) (port of
+// BindingEditor.swift).
 
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 
-import {bindingTitle, actionTitle, actionDetail, containsAutomation} from '../actions.js';
+import {bindingTitle, containsAutomation} from '../actions.js';
 import {statePresentation, stateExplanation} from '../status.js';
 import {target} from '../validator.js';
 import {previews} from '../placement.js';
@@ -15,7 +14,7 @@ import {
   automationSettings, appDisplayName, normalizeAppId, timeLimitTitle, whileHeldBehavior, whileHeldRepeat, GNOME_NOTES,
   suggestedAutomationKeys, usedShortcutKeys,
 } from '../automation.js';
-import {box, label, button, glyph, keycaps, pill, notice, group, comboRow, switchRow, entryRow, clear, launchFile} from './widgets.js';
+import {box, label, button, glyph, keycaps, pill, notice, group, comboRow, switchRow, entryRow, clear} from './widgets.js';
 import {ShortcutRecorder} from './recorder.js';
 import {PlacementPreview} from './preview.js';
 import {ActionEditor} from './actioneditor.js';
@@ -406,99 +405,4 @@ function isInStack(nav, page) {
     if (stack.get_item(i) === page) return true;
   }
   return false;
-}
-
-/** The read-only page for a binding defined in a Slate file. */
-export function pushSourceBinding(ctx, source, binding) {
-  const model = ctx.model;
-  const probed = binding.action ? {action: binding.action} : binding.probe();
-  const action = binding.action ?? probed.action ?? null;
-  const page = new Adw.NavigationPage({title: action ? actionTitle(action) : 'JavaScript Function'});
-  const prefs = new Adw.PreferencesPage();
-
-  const top = group();
-  const head = summary();
-  top.add(head.widget);
-  const problem = notice({level: 'warning', title: ''});
-  top.add(problem.widget);
-  prefs.add(top);
-
-  if (action && previews(action)) {
-    const previewGroup = group();
-    const preview = new PlacementPreview(model);
-    preview.setAction(action);
-    previewGroup.add(preview.widget);
-    prefs.add(previewGroup);
-  }
-
-  const defined = group({title: 'Defined In'});
-  const fileRow = new Adw.ActionRow({use_markup: false, title: 'File', subtitle: source.displayPath, subtitle_selectable: true});
-  fileRow.add_suffix(button('Open', () => launchFile(source.file, page, {onError: e => ctx.toast(e.message)}), {classes: ['flat']}));
-  defined.add(fileRow);
-  if (binding.line) defined.add(new Adw.ActionRow({use_markup: false, title: 'Line', subtitle: String(binding.line)}));
-  const keysRow = new Adw.ActionRow({use_markup: false, title: 'Keys'});
-  keysRow.add_suffix(keycaps(binding.keys, {modal: binding.modal}));
-  defined.add(keysRow);
-  if (binding.modal) {
-    defined.add(new Adw.ActionRow({use_markup: false, title: 'Modal key',
-      subtitle: `Press ${binding.modal.keys} first${binding.modal.toggle ? '; stays on until pressed again' : ''}`}));
-  }
-  const opRow = new Adw.ActionRow({use_markup: false, title: 'Operation', subtitle: binding.summary ?? actionDetail(action), subtitle_selectable: true});
-  opRow.add_css_class('slated-mono-subtitle');
-  defined.add(opRow);
-  prefs.add(defined);
-
-  if (binding.isFunction) {
-    const what = group({title: 'What It Does'});
-    if (probed.action?.op === 'by-orientation') {
-      what.add(new Adw.ActionRow({use_markup: false, title: 'On landscape displays', subtitle: actionTitle(probed.action.landscape)}));
-      what.add(new Adw.ActionRow({use_markup: false, title: 'On portrait displays', subtitle: actionTitle(probed.action.portrait)}));
-    } else if (probed.action) {
-      what.add(new Adw.ActionRow({use_markup: false, title: 'On every display', subtitle: actionTitle(probed.action)}));
-    } else {
-      what.add(notice({level: 'info', title: 'This shortcut runs JavaScript',
-        detail: `Slated can't turn it into a plain shortcut: it ${probed.reason}. Edit it in ${source.displayPath}; the extension reloads the file when it changes.`}).widget);
-    }
-    prefs.add(what);
-  }
-
-  const copy = group();
-  const copyRow = new Adw.ActionRow({use_markup: false, title: '', subtitle: ''});
-  const copyButton = button('Copy into Slated', () => {
-    const id = model.copyIntoSlated(binding);
-    if (id) ctx.toast('Copied into Slated. Remove it from your Slate file to avoid a duplicate.');
-  }, {classes: ['suggested-action']});
-  copyRow.add_suffix(copyButton);
-  copy.add(copyRow);
-  copy.set_visible(Boolean(action));
-  prefs.add(copy);
-
-  const toolbar = new Adw.ToolbarView({content: prefs});
-  toolbar.add_top_bar(new Adw.HeaderBar());
-  page.set_child(toolbar);
-
-  const sync = () => {
-    const state = model.sourceBindingState(binding);
-    const presentation = statePresentation(state);
-    head.update({
-      action, titleText: action ? actionTitle(action) : 'JavaScript Function',
-      pills: [{label: 'Read-only', style: 'dim'}, presentation], keys: binding.keys, modal: binding.modal,
-    });
-    const explanation = stateExplanation(state);
-    problem.update({level: state.state === 'failed' ? 'error' : 'warning', title: presentation.label, detail: explanation});
-    problem.widget.set_visible(Boolean(explanation));
-    const copied = model.isCopied(binding);
-    copyRow.set_title(copied ? 'Already in Slated' : 'Make it editable');
-    copyRow.set_subtitle(copied
-      ? `Slated has its own copy of this shortcut. Remove this one from ${source.displayPath} to avoid a duplicate.`
-      : `Copy this shortcut into Slated to change its keys or action here. Then remove it from ${source.displayPath} so the two don't collide.`);
-    copyButton.set_sensitive(!copied);
-  };
-  const offs = [model.on('config', sync), model.on('status', sync)];
-  page.connect('hidden', () => {
-    if (!isInStack(ctx.nav, page)) offs.forEach(off => off());
-  });
-  sync();
-  ctx.nav.push(page);
-  return page;
 }

@@ -3,9 +3,9 @@
 //   dbus-run-session -- xvfb-run -a env G_DEBUG=fatal-criticals gjs -m linux/tests/prefs/gtk-smoke.mjs
 //
 // (CI runs it on Ubuntu 24.04: GTK 4.14 and libadwaita 1.5, GNOME 46's.) It builds the window the
-// way GNOME Shell's extension preferences would, against a throwaway home with a config, a status
-// file and a ~/.slate.js, then visits every section, opens a few editors, edits a binding and lets
-// the main loop run between steps. Any JavaScript error makes it exit 1; G_DEBUG=fatal-criticals
+// way GNOME Shell's extension preferences would, against a throwaway home with a version 1 config
+// (migrated on open, importing ~/.slate.js) and a status file, then visits every section, opens a
+// few editors, edits a binding and lets the main loop run between steps. Any JavaScript error makes it exit 1; G_DEBUG=fatal-criticals
 // turns GTK criticals (bad API use) into crashes.
 //
 // It imports lib/prefs/ui/window.js directly: prefs.js imports GNOME Shell's ExtensionPreferences
@@ -102,7 +102,7 @@ step('builds the window', () => {
 });
 
 if (settings) {
-  for (const id of ['overview', 'windows', 'hotstrings', 'clipboard', 'automation', 'keyboard', 'layouts', 'slate', 'general', 'about']) {
+  for (const id of ['overview', 'windows', 'hotstrings', 'clipboard', 'automation', 'keyboard', 'layouts', 'general', 'about']) {
     step(`shows ${id}`, () => settings.showPane(id));
   }
   step('opens and edits a binding', () => {

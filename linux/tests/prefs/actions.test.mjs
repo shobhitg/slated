@@ -5,7 +5,7 @@ import {
 import {
   KINDS, CATEGORIES, kindOf, kindById, formFromAction, actionFromForm, convertAction, updateAction, actionTitle,
   actionDetail, localDetail, bindingTitle, bindingSubtitle, isWindowGeometry, screenName, appsPhrase, isAutomation,
-  containsAutomation, containsWindowGeometry, isInputStep, INPUT_STEPS, defaultForm, sourceBindingText,
+  containsAutomation, containsWindowGeometry, isInputStep, INPUT_STEPS, defaultForm,
 } from '../../gnome-extension/lib/prefs/actions.js';
 import {actionProblems} from '../../gnome-extension/lib/prefs/validator.js';
 import {canonicalActionLocal} from '../../gnome-extension/lib/prefs/canonical.js';
@@ -169,18 +169,6 @@ export default suite('Presets and actions', [
       expectEqual(actionTitle(centered(0.6, 0.8)), 'Center, 60% × 80%');
       expectEqual(actionTitle({op: 'move', x: 'screenOriginX+10', y: 'screenOriginY', width: 'screenSizeX/2', height: 'screenSizeY'}), 'Move & Resize');
     }
-  }],
-  ['Slate functions are named by what they do', () => {
-    const half = presetById('left-half').action;
-    expectEqual(sourceBindingText({isFunction: true, probe: () => ({action: half})}),
-      {title: 'Left Half', caption: 'JavaScript function', action: half, described: true});
-    expectEqual(sourceBindingText({isFunction: true, probe: () => ({reason: 'depends on the focused app or window title'})}),
-      {title: 'JavaScript Function', caption: 'Depends on the focused app or window title', action: null, described: false});
-    expectEqual(sourceBindingText({isFunction: true, probe: () => {
-      throw new Error('boom');
-    }}).caption, 'Runs code in your Slate file');
-    expectEqual(sourceBindingText({isFunction: false, action: half, summary: 'push left bar-resize:screenSizeX/2'}),
-      {title: 'Left Half', caption: 'push left bar-resize:screenSizeX/2', action: half, described: false});
   }],
   ['details fall back to Slate-like syntax without the engine', () => {
     expectEqual(localDetail(EXAMPLES.push), 'push up bar-resize:screenSizeY/3 1');

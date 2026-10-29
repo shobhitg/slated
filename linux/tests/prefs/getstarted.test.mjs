@@ -1,8 +1,9 @@
 import {suite, expect, expectEqual} from './harness.mjs';
 import {
   STEPS, parseWindowState, windowStateText, startingPane, primaryTitle, hyperSubtitle, tapSubtitle, keydAdvice,
-  hotstringsStep, slateStep, sourceSummary, starterAdded, doneChecklist, tryItTip, loadedSourceBindings,
+  hotstringsStep, slateStep, starterAdded, doneChecklist, tryItTip,
 } from '../../gnome-extension/lib/prefs/getstarted.js';
+import {memoryIO, WINDOW} from './memoryio.mjs';
 import {PrefsModel} from '../../gnome-extension/lib/prefs/model.js';
 import {decodeConfiguration} from '../../gnome-extension/lib/prefs/engine.js';
 import {emptyStatus} from '../../gnome-extension/lib/prefs/status.js';
@@ -10,23 +11,24 @@ import {presetById, starterBindings} from '../../gnome-extension/lib/prefs/prese
 
 const config = (json = {}) => decodeConfiguration(JSON.stringify(json));
 const status = (fields = {}) => ({...emptyStatus(), present: true, running: true, ...fields});
-const source = (fields = {}) => ({path: '~/.slate.js', displayPath: '~/.slate.js', kind: 'javascript', exists: true, bindings: [], layouts: [], error: null, ...fields});
+const slateFile = (displayPath = '~/.slate.js') => ({path: displayPath, file: `/home/me/${displayPath.slice(2)}`, displayPath, kind: 'javascript'});
 
 /** A model on a first run, with the window state file in memory. */
 function model(windowState = null) {
-  const disk = {windowState};
-  const logged = [];
-  const m = new PrefsModel({
-    io: {
-      home: '/home/me', readConfig: () => null, writeConfig: () => {}, readFile: () => null,
-      readWindowState: () => disk.windowState,
-      writeWindowState: text => {
-        if (disk.fail) throw new Error('read-only file system');
-        disk.windowState = text;
-      },
+  const files = windowState === null ? {} : {[WINDOW]: windowState};
+  const io = memoryIO(files);
+  const disk = {
+    get windowState() {
+      return files[WINDOW] ?? null;
     },
-    log: (event, data, level) => logged.push({event, data, level}),
-  });
+    set fail(on) {
+      io.writeWindowState = on ? () => {
+        throw new Error('read-only file system');
+      } : memoryIO(files).writeWindowState;
+    },
+  };
+  const logged = [];
+  const m = new PrefsModel({io, log: (event, data, level) => logged.push({event, data, level})});
   m.load();
   return {model: m, disk, logged};
 }
@@ -69,11 +71,11 @@ export default suite('Get Started', [
   }],
   ['the Hyper key step counts Hyper shortcuts and recommends keyd', () => {
     const bindings = [{keys: 'hyper+a'}, {keys: 'ctrl+alt+shift+cmd+b'}, {keys: 'ctrl+alt+c'}];
-    expectEqual(hyperSubtitle({bindings, sourceBindings: [{keys: 'hyper+d'}], hyperOn: false}),
-      '3 of your shortcuts use ✦ (Ctrl+Alt+Shift+Super). Turn this on to press them with Caps Lock.');
-    expectEqual(hyperSubtitle({bindings: bindings.slice(1), sourceBindings: [], hyperOn: false}),
+    expectEqual(hyperSubtitle({bindings, hyperOn: false}),
+      '2 of your shortcuts use ✦ (Ctrl+Alt+Shift+Super). Turn this on to press them with Caps Lock.');
+    expectEqual(hyperSubtitle({bindings: bindings.slice(1), hyperOn: false}),
       '1 of your shortcuts uses ✦ (Ctrl+Alt+Shift+Super). Turn this on to press it with Caps Lock.');
-    expectEqual(hyperSubtitle({bindings, sourceBindings: [], hyperOn: true}), 'You can change this any time under Keyboard.');
+    expectEqual(hyperSubtitle({bindings, hyperOn: true}), 'You can change this any time under Keyboard.');
     expect(tapSubtitle({running: true, hyper: {mode: 'xkb'}}).startsWith('Needs keyd'));
     expect(tapSubtitle({running: false, hyper: {mode: 'off'}}).endsWith('On GNOME this needs keyd.'));
     const advice = (mode, keydConfigured, running = true) => keydAdvice({running, hyper: {mode, active: true}, keydConfigured});
@@ -93,17 +95,21 @@ export default suite('Get Started', [
     const off = hotstringsStep({config: config({general: {hotstringsEnabled: false}}), status: status(), running: true});
     expectEqual([off.guidance.title, off.ready, off.summary], ['Text expansion is turned off', true, 'None yet. Add them under Hotstrings.']);
   }],
-  ['the Slate config step works as on the Mac', () => {
-    const half = presetById('left-half').action;
-    const found = [source({bindings: [{keys: 'hyper+a', action: half}], layouts: [{name: 'Code'}]})];
-    expectEqual(slateStep({sources: [source({exists: false})], slateLoading: true, bindings: [{}]}).state, 'none');
-    expect(slateStep({sources: [], slateLoading: true, bindings: [{}]}).offerStarter, 'no Slate file: offer the starter set');
-    expectEqual(slateStep({sources: found, slateLoading: false, bindings: [{}]}).title, 'Your Slate config is here');
-    const loaded = slateStep({sources: found, slateLoading: true, bindings: []});
-    expectEqual([loaded.title, loaded.subtitle.startsWith('Slated found 1 binding and'), loaded.offerStarter],
-      ['Your Slate config works as-is', true, true]);
-    expectEqual([sourceSummary(found[0], true), sourceSummary(found[0], false)], ['1 binding · 1 layout', 'Not loaded']);
-    expectEqual(loadedSourceBindings(found, false), []);
+  ['the Slate config step says what was imported, or offers the import', () => {
+    const none = slateStep({record: null, slateFiles: [], bindings: [{}]});
+    expectEqual([none.state, none.offerImport, none.offerStarter], ['none', false, true], 'no Slate file: offer the starter set');
+    const found = slateStep({record: null, slateFiles: [slateFile()], bindings: [{}]});
+    expectEqual([found.state, found.title, found.offerImport, found.offerStarter], ['found', 'Your Slate config is here', true, false]);
+    expect(found.subtitle.includes('~/.slate.js') && found.subtitle.includes("doesn't read Slate files"), found.subtitle);
+    expect(slateStep({record: null, slateFiles: [slateFile()], bindings: []}).offerStarter, 'no shortcuts of its own: the starter set too');
+    const record = {kind: 'first-run', slate: {files: ['~/.slate.js'], imported: 20, skipped: 1,
+      unconvertible: [{keys: 'hyper+x', modal: null, reason: 'runs several operations at once, which needs the script'}]}};
+    const imported = slateStep({record, slateFiles: [slateFile()], bindings: [{}]});
+    expectEqual([imported.state, imported.title, imported.offerImport], ['imported', 'Your Slate shortcuts are in Slated', false]);
+    expectEqual(imported.subtitle, "Slated imported 20 shortcuts from ~/.slate.js. 1 shortcut Slated already had was left alone. "
+      + "1 couldn't be converted: ✦ X. Edit them under Windows. Slated doesn't read Slate files any more.");
+    const here = slateStep({record: null, slateFiles: [slateFile()], importedHere: true, bindings: [{}]});
+    expectEqual([here.state, here.offerImport], ['imported', true], 'imported in this window: it can be run again');
     expect(!starterAdded([]) && starterAdded(starterBindings()), 'the starter set is added once its keys are taken');
   }],
   ['the done step says what works and what to try', () => {
@@ -117,9 +123,7 @@ export default suite('Get Started', [
     ]);
     const off = doneChecklist({summary: {running: false, title: 'Slated is turned off', action: 'enable'}, config: config(), status: emptyStatus(), running: false, totalShortcuts: 0});
     expectEqual([off[0].detail, off[0].action, off[1].detail, off[2].detail, off[3].done], ['Slated is turned off', 'enable', 'Off', 'Once Slated runs', false]);
-    expectEqual(tryItTip({bindings: c.bindings, sourceBindings: []})?.text, 'to snap this window to the left half');
-    const third = {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/3', height: 'screenSizeY'};
-    expectEqual(tryItTip({bindings: [], sourceBindings: [{keys: 'hyper+f', isFunction: true, probe: () => ({action: third})}]})?.text, 'for left third');
-    expectEqual(tryItTip({bindings: [], sourceBindings: [{keys: 'hyper+f', probe: () => ({reason: 'x'})}]}), null);
+    expectEqual(tryItTip({bindings: c.bindings})?.text, 'to snap this window to the left half');
+    expectEqual(tryItTip({bindings: []}), null);
   }],
 ]);

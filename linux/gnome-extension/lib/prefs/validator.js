@@ -502,11 +502,11 @@ export function configChanges(oldConfig, newConfig) {
   }
   if (!deepEqual(oldConfig.general, newConfig.general)) {
     const g = newConfig.general ?? {};
-    changes.push(`general: launchAtLogin ${g.launchAtLogin}, loadSlateConfigs ${g.loadSlateConfigs}, showActionHUD ${g.showActionHUD}, `
+    changes.push(`general: launchAtLogin ${g.launchAtLogin}, showActionHUD ${g.showActionHUD}, `
       + `hotstringsEnabled ${g.hotstringsEnabled}`);
   }
-  const oldSettings = oldConfig.settings ?? {};
-  const newSettings = newConfig.settings ?? {};
+  const oldSettings = oldConfig.windows ?? {};
+  const newSettings = newConfig.windows ?? {};
   for (const key of [...new Set([...Object.keys(oldSettings), ...Object.keys(newSettings)])].sort()) {
     if (!deepEqual(oldSettings[key], newSettings[key])) {
       changes.push(`setting ${key}: ${newSettings[key] === undefined ? 'removed' : String(newSettings[key])}`);

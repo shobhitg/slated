@@ -5,22 +5,15 @@ import {
 import {configChanges} from '../../gnome-extension/lib/prefs/validator.js';
 import {PrefsModel} from '../../gnome-extension/lib/prefs/model.js';
 import {decodeConfiguration} from '../../gnome-extension/lib/prefs/engine.js';
+import {decodeConfigurationFiles} from '../../gnome-extension/lib/core/index.js';
+import {memoryIO, CONFIG, SETTINGS} from './memoryio.mjs';
 
-const CONFIG = '/home/me/.config/slated/config.json';
-
-/** A model on an in-memory config.json whose saves run when `tick()` says. */
-function harness(text) {
-  const disk = {[CONFIG]: text};
+/** A model on in-memory files whose saves run when `tick()` says. */
+function harness(files) {
+  const disk = {...files};
   const logged = [];
   let pending = null;
-  const io = {
-    home: '/home/me',
-    readConfig: () => disk[CONFIG] ?? null,
-    writeConfig: written => {
-      disk[CONFIG] = written;
-    },
-    readFile: path => disk[path] ?? null,
-  };
+  const io = memoryIO(disk);
   const scheduler = {setTimeout: fn => (pending = fn, 1), clearTimeout: () => (pending = null)};
   const model = new PrefsModel({io, scheduler, log: (event, data) => logged.push({event, data}), makeId: () => '00000000-0000-4000-8000-000000000001'});
   model.load();
@@ -64,23 +57,25 @@ export default suite('Island settings', [
     expectEqual(configChanges(before, after), ['island: enabled true, cheatSheet true, cheatSheetDelay 0.8, showFailures false']);
     expectEqual(configChanges(after, after), []);
   }],
-  ['edits save to config.json and read back the same, keeping a hand-set delay', () => {
-    const {model, disk, logged, tick} = harness('{"island": {"cheatSheetDelay": 1.25}, "keyboard": {"capsLock": "hyper"}}');
+  ['edits save to settings.json and read back the same, keeping a hand-set delay', () => {
+    const {model, disk, logged, tick} = harness({[CONFIG]: '{"version": 2, "keyboard": {"capsLock": "hyper"}}',
+      [SETTINGS]: '{"version": 2, "island": {"cheatSheetDelay": 1.25}}'});
+    const configText = disk[CONFIG];
     expectEqual(model.configuration.island.cheatSheetDelay, 1.25);
     model.update(config => {
       config.island = {...islandSettings(config), showFailures: false};
     });
     tick();
-    const saved = JSON.parse(disk[CONFIG]);
+    const saved = JSON.parse(disk[SETTINGS]);
     expectEqual(saved.island, {enabled: true, cheatSheet: true, cheatSheetDelay: 1.25, showFailures: false});
-    expectEqual(saved.keyboard.capsLock, 'hyper', 'the rest of the file is kept');
-    expectEqual(decodeConfiguration(disk[CONFIG]), model.configuration, 'the file decodes to what is shown');
+    expectEqual(disk[CONFIG], configText, 'config.json is left alone');
+    expectEqual(decodeConfigurationFiles(disk[CONFIG], disk[SETTINGS]).configuration, model.configuration, 'the files decode to what is shown');
     expectEqual(logged.map(e => e.event), ['config.saved']);
     expectEqual(logged[0].data.changes, ['island: enabled true, cheatSheet true, cheatSheetDelay 1.25, showFailures false']);
     model.update(config => {
       config.island = {...islandSettings(config), enabled: false, cheatSheetDelay: 0.3};
     });
     tick();
-    expectEqual(JSON.parse(disk[CONFIG]).island, {enabled: false, cheatSheet: true, cheatSheetDelay: 0.3, showFailures: false});
+    expectEqual(JSON.parse(disk[SETTINGS]).island, {enabled: false, cheatSheet: true, cheatSheetDelay: 0.3, showFailures: false});
   }],
 ]);

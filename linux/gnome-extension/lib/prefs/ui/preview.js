@@ -205,7 +205,7 @@ export class PlacementPreview {
     if (ops.length) this.step %= ops.length;
     this.stepLabel.set_label(ops.length > 1 ? `Press ${this.step + 1} of ${ops.length}` : '');
 
-    const placement = place(this.action, {screens, settings: this.model.configuration.settings, step: this.step, startScreen: this.startScreen});
+    const placement = place(this.action, {screens, settings: this.model.configuration.windows, step: this.step, startScreen: this.startScreen});
     const sample = this.model.status.screens ? '' : ' (sample displays)';
     if (!placement) {
       this.caption.set_label('');
@@ -241,7 +241,7 @@ export class LayoutPreview {
 
   setLayout(layout) {
     const screens = previewScreens(this.model);
-    const {windows, reason} = layoutPlacements(layout, {screens, settings: this.model.configuration.settings});
+    const {windows, reason} = layoutPlacements(layout, {screens, settings: this.model.configuration.windows});
     let message = null;
     if (!windows.length) {
       message = (layout.apps ?? []).length ? `Preview unavailable${reason ? `\n${reason}` : ''}` : 'Add apps to see the layout';

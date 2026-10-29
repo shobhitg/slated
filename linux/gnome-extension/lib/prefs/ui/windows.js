@@ -1,18 +1,19 @@
-// Settings → Windows: Slated's own shortcuts (editable) and every Slate file's (read-only), with a
-// search field, keycaps and status badges (port of WindowsPane.swift). Selecting a shortcut opens
+// Settings → Windows: Slated's shortcuts, with a search field, keycaps and status badges (port of
+// WindowsPane.swift). Shortcuts from a Slate config are here too once imported: Slated doesn't read
+// Slate files. Selecting a shortcut opens
 // its editor on a pushed page. Automations (shortcuts that click, press or hold) live in
 // config.bindings like any shortcut; they get their own group so they're easy to find.
 
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 
-import {bindingTitle, bindingSubtitle, actionTitle, actionDetail, containsAutomation, sourceBindingText} from '../actions.js';
+import {bindingTitle, bindingSubtitle, actionTitle, actionDetail, containsAutomation} from '../actions.js';
 import {RECIPES} from '../automation.js';
 import {PRESETS, PRESET_GROUPS} from '../presets.js';
 import {statePresentation} from '../status.js';
 import {comboLabel, keysString} from '../keys.js';
 import {box, label, button, icon, glyph, keycaps, badge, group, emptyState} from './widgets.js';
-import {pushBindingEditor, pushSourceBinding} from './bindingeditor.js';
+import {pushBindingEditor} from './bindingeditor.js';
 
 /** A row's secondary text: the state when it's worth calling out, else what the action does. */
 function rowSubtitle(presentation, fallback) {
@@ -41,7 +42,6 @@ export function createWindowsPane(ctx) {
   prefs.add(automationGroup);
   let slatedRows = [];
   let automationRows = [];
-  let sourceGroups = [];
 
   const empty = emptyState({
     iconName: 'focus-windows-symbolic', title: 'Move windows with a keystroke',
@@ -118,30 +118,11 @@ export function createWindowsPane(ctx) {
     return row;
   }
 
-  function sourceRow(source, binding) {
-    const state = model.sourceBindingState(binding);
-    const presentation = statePresentation(state);
-    // A function is named by what it does, as on the Mac ("First Third", captioned "JavaScript function").
-    const text = sourceBindingText(binding);
-    const row = new Adw.ActionRow({use_markup: false, title: text.title, subtitle: rowSubtitle(presentation, text.caption), activatable: true});
-    row.set_title_lines(1);
-    row.set_subtitle_lines(1);
-    if (text.action) row.add_prefix(glyph(text.action));
-    else row.add_prefix(icon('text-x-generic-symbolic', {size: 18}));
-    if (presentation.icon) row.add_suffix(icon(presentation.icon, {classes: [presentation.style === 'error' ? 'slated-error-text' : 'slated-warning-text']}));
-    row.add_suffix(keycaps(binding.keys, {modal: binding.modal}));
-    row.add_suffix(icon('go-next-symbolic'));
-    row.connect('activated', () => pushSourceBinding(ctx, source, binding));
-    return row;
-  }
-
   function rebuild() {
     for (const row of slatedRows) slatedGroup.remove(row);
     slatedRows = [];
     for (const row of automationRows) automationGroup.remove(row);
     automationRows = [];
-    for (const g of sourceGroups) prefs.remove(g);
-    sourceGroups = [];
 
     const bindings = model.configuration.bindings;
     const windowBindings = bindings.filter(b => !containsAutomation(b.action));
@@ -166,26 +147,7 @@ export function createWindowsPane(ctx) {
     if (automations.length && !visibleAutomations.length) automationRows.push(new Adw.ActionRow({use_markup: false, title: 'No matches', activatable: false}));
     for (const row of automationRows) automationGroup.add(row);
 
-    if (model.slateLoading) {
-      for (const source of model.sources.filter(s => s.exists && s.bindings.length)) {
-        const suffix = box('horizontal', 6);
-        suffix.append(icon('changes-prevent-symbolic', {classes: ['dim-label']}));
-        suffix.append(label(`${source.bindings.length} · read-only`, {classes: ['dim-label']}));
-        const g = group({title: source.displayPath, suffix,
-          description: 'Defined in your Slate file. Open one to see what it does or copy it into Slated.'});
-        const rows = source.bindings
-          .filter(b => {
-            const text = sourceBindingText(b);
-            return matches([b.summary, text.title, text.caption, keysString(b.keys), comboLabel(b.keys, b.modal)]);
-          })
-          .map(b => sourceRow(source, b));
-        if (!rows.length) rows.push(new Adw.ActionRow({use_markup: false, title: 'No matches', activatable: false}));
-        for (const row of rows) g.add(row);
-        prefs.add(g);
-        sourceGroups.push(g);
-      }
-    }
-    const nothing = !bindings.length && model.sourceBindingCount() === 0;
+    const nothing = !bindings.length;
     stack.set_visible_child_name(nothing && !query ? 'empty' : 'list');
   }
 
@@ -213,7 +175,7 @@ export function createWindowsPane(ctx) {
     else dirty = true;
   };
   page.connect('showing', () => dirty && update());
-  for (const signal of ['config', 'status', 'sources']) model.on(signal, refresh);
+  for (const signal of ['config', 'status']) model.on(signal, refresh);
 
   return {
     id: 'windows',
@@ -226,7 +188,7 @@ export function createWindowsPane(ctx) {
       if (counts && model.running) return {text: String(counts), warning: true};
       return {text: String(model.configuration.bindings.length), warning: false};
     },
-    /** Opens a binding's editor ({binding: id}) or scrolls to a Slate file's bindings ({source}). */
+    /** Opens a binding's editor ({binding: id}) or a new one ({newBinding, action}). */
     show(options = {}) {
       if (options.binding && model.binding(options.binding)) pushBindingEditor(ctx, options.binding);
       if (options.newBinding) newBinding(options.action);

@@ -711,32 +711,6 @@ export function bindingSubtitle(binding) {
   return CATEGORIES.find(c => c.id === k.category)?.title ?? '';
 }
 
-/**
- * How the Windows list names a Slate file's shortcut (SourceBindingText.swift): by what it does.
- * A JavaScript function is run on pretend desktops (the importer's probe, memoized per load); one
- * that always does the same thing is named by that ("First Third") and captioned "JavaScript
- * function". One that can't be described stays "JavaScript Function", captioned with the reason.
- *
- * @param {object} binding a Slate source binding (model.sources[].bindings[])
- * @returns {{title: string, caption: string|null, action: object|null, described: boolean}}
- *   `action` is what the shortcut does, for the glyph; the shortcut itself still runs the function.
- */
-export function sourceBindingText(binding) {
-  if (!binding?.isFunction) {
-    const action = binding?.action ?? null;
-    return {title: action ? actionTitle(action) : 'JavaScript Function', caption: binding?.summary ?? null, action, described: false};
-  }
-  let probed = null;
-  try {
-    probed = binding.probe?.() ?? null;
-  } catch {
-    probed = null;
-  }
-  if (probed?.action) return {title: actionTitle(probed.action), caption: 'JavaScript function', action: probed.action, described: true};
-  const reason = typeof probed?.reason === 'string' && probed.reason ? capitalized(probed.reason) : 'Runs code in your Slate file';
-  return {title: 'JavaScript Function', caption: reason, action: null, described: false};
-}
-
 /** Mouse & Keys items for the "Add step" menu, for macros (as in the Mac app). */
 export const INPUT_STEPS = [
   {title: 'Click Left', action: {op: 'click', button: 'left'}},

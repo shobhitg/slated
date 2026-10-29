@@ -8,13 +8,14 @@ import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 
 import {
-  STEPS, primaryTitle, loadedSourceBindings, hyperSubtitle, tapSubtitle, keydAdvice, hotstringsStep, slateStep,
-  sourceSummary, starterAdded, doneChecklist, tryItTip,
+  STEPS, primaryTitle, hyperSubtitle, tapSubtitle, keydAdvice, hotstringsStep, slateStep, starterAdded, doneChecklist,
+  tryItTip,
 } from '../getstarted.js';
 import {starterBindings} from '../presets.js';
 import {fileExists} from '../io.js';
 import {plural} from '../util.js';
 import {box, label, button, icon, keycaps, group, notice, switchRow, commandRow, triggerChip, launchUri, clear} from './widgets.js';
+import {importSlateDialog} from './slateimport.js';
 import {slatedMark} from './about.js';
 import {hyperIllustration} from './keyboard.js';
 import {summaryActions} from './overview.js';
@@ -153,18 +154,15 @@ export function createGetStartedPane(ctx) {
   slate.column.append(slateIcon);
   const slateTitle = stepTitle();
   slate.column.append(slateTitle.widget);
-  const sourcesGroup = group();
-  let sourceRows = [];
-  const loadSlate = switchRow({
-    title: 'Load my Slate config', subtitle: "Turn off to start fresh with only Slated's own shortcuts.", active: model.slateLoading,
-    onChange: on => model.update(config => {
-      config.general.loadSlateConfigs = on;
-    }),
+  // Slated doesn't read Slate files: the config there is imported into Slated's own shortcuts.
+  const importGroup = group();
+  const importButton = button('Import…', () => importSlateDialog(ctx), {classes: ['suggested-action']});
+  const importRow = row('', 'Converts its shortcuts into Slated’s, which you edit under Windows.', {
+    prefix: icon('text-x-generic-symbolic', {size: 20}), suffix: importButton,
   });
-  const loadGroup = group();
-  loadGroup.add(loadSlate.row);
-  slate.column.append(sourcesGroup);
-  slate.column.append(loadGroup);
+  importRow.add_css_class('slated-mono-title');
+  importGroup.add(importRow);
+  slate.column.append(importGroup);
   const starterCount = starterBindings(() => '').length;
   const starterGroup = group();
   const starterButton = button(`Add ${starterCount}`, () => {
@@ -225,12 +223,11 @@ export function createGetStartedPane(ctx) {
     const status = model.status;
     const running = model.running;
     const step = model.getStartedStep;
-    const sourceBindings = loadedSourceBindings(model.sources, model.slateLoading);
 
     // Hyper key
     const hyperOn = config.keyboard.capsLock === 'hyper';
     useHyper.set(hyperOn);
-    useHyper.row.set_subtitle(hyperSubtitle({bindings: config.bindings, sourceBindings, hyperOn}));
+    useHyper.row.set_subtitle(hyperSubtitle({bindings: config.bindings, hyperOn}));
     tap.set(config.keyboard.capsLockAlone === 'escape');
     tap.row.set_subtitle(tapSubtitle({running, hyper: status.hyper}));
     tap.row.set_sensitive(hyperOn);
@@ -249,23 +246,13 @@ export function createGetStartedPane(ctx) {
     if (hs.first) chipHolder.append(triggerChip(hs.first));
 
     // Slate config
-    const s = slateStep({sources: model.sources, slateLoading: model.slateLoading, bindings: config.bindings});
-    slateIcon.set_from_icon_name(s.found.length ? 'text-x-generic-symbolic' : 'document-new-symbolic');
+    const s = slateStep({record: model.record, slateFiles: model.slateFiles, importedHere: model.windowState.slateImported === true,
+      bindings: config.bindings});
+    slateIcon.set_from_icon_name(s.state === 'none' ? 'document-new-symbolic' : 'text-x-generic-symbolic');
     slateTitle.set(s.title, s.subtitle);
-    for (const r of sourceRows) sourcesGroup.remove(r);
-    sourceRows = s.found.map(source => {
-      const caps = box('horizontal', 6);
-      for (const b of source.bindings.slice(0, 2)) caps.append(keycaps(b.keys, {modal: b.modal}));
-      const r = row(source.displayPath, sourceSummary(source, model.slateLoading), {
-        prefix: icon('text-x-generic-symbolic', {size: 20}), suffix: caps,
-      });
-      r.add_css_class('slated-mono-title');
-      sourcesGroup.add(r);
-      return r;
-    });
-    sourcesGroup.set_visible(s.found.length > 0);
-    loadGroup.set_visible(s.found.length > 0);
-    loadSlate.set(model.slateLoading);
+    importGroup.set_visible(s.offerImport && model.slateFiles.length > 0);
+    importRow.set_title(model.slateFiles.map(f => f.displayPath).join(', '));
+    importButton.set_label(s.state === 'imported' ? 'Import Again…' : 'Import…');
     const added = starterAdded(config.bindings);
     starterGroup.set_visible(s.offerStarter);
     starterRow.set_title(added ? 'Starter shortcuts added' : 'Add starter shortcuts');
@@ -273,7 +260,7 @@ export function createGetStartedPane(ctx) {
     starterCheck.set_visible(added);
 
     // Done
-    const totalShortcuts = config.bindings.filter(b => b.enabled !== false).length + sourceBindings.length;
+    const totalShortcuts = config.bindings.filter(b => b.enabled !== false).length;
     for (const r of checklistRows) checklist.remove(r);
     checklistRows = doneChecklist({summary: model.summary(), config, status, running, totalShortcuts}).map(item => {
       const r = row(item.title, '', {
@@ -286,7 +273,7 @@ export function createGetStartedPane(ctx) {
       return r;
     });
     clear(tip);
-    const tryIt = tryItTip({bindings: config.bindings, sourceBindings});
+    const tryIt = tryItTip({bindings: config.bindings});
     tip.set_visible(Boolean(tryIt));
     if (tryIt) {
       tip.append(label('Try it now:', {classes: ['dim-label']}));

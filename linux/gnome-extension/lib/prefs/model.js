@@ -1,34 +1,44 @@
-// The preferences' single source of truth: a draft of config.json plus what the running extension
-// reports (port of Sources/SlatedUI/Model/AppModel.swift).
+// The preferences' single source of truth: a draft of the configuration plus what the running
+// extension reports (port of Sources/SlatedUI/Model/AppModel.swift).
 //
-// Views edit the draft through `update()`. Every change is validated and saved after a short pause,
-// so there's no Save button. Items with errors are held back (their last saved version stays on
-// disk) and flagged in the UI. Hand edits to config.json are picked up when there are no unsaved
-// edits; if the file can't be read, saving pauses rather than overwrite it.
+// The configuration is one value here; on disk it's config.json (what your keys do) and
+// settings.json (how Slated behaves), read, created and migrated by migration.js. Views edit the
+// draft through `update()`. Every change is validated and saved after a short pause, so there's no
+// Save button, and a save writes only the file whose content changed. Items with errors are held
+// back (their last saved version stays on disk) and flagged in the UI. Hand edits to either file are
+// picked up when there are no unsaved edits; if one can't be read, saving pauses rather than
+// overwrite anything.
 //
 // Pure ES module: file access, timers and logging are injected, so tests drive it with fakes.
 
-import {Emitter, clone, deepEqual, expandHome, tildify} from './util.js';
+import {Emitter, clone, deepEqual} from './util.js';
 import {newId} from './ids.js';
-import {
-  decodeConfiguration, encodeConfiguration, starterConfiguration, parseSlateConfig, describeError, isNotImplemented,
-} from './engine.js';
+import {decodeConfiguration, describeError} from './engine.js';
+import {decodeConfigurationFiles} from '../core/index.js';
 import {keysString, statusKey} from './keys.js';
 import {validate, savable, configChanges, target, LAYOUT_NAME_MISSING, LAYOUT_NAME_TAKEN} from './validator.js';
 import {parseStatus, emptyStatus, extensionState, bindingState, runningSummary} from './status.js';
 import {presetById, starterBindings} from './presets.js';
 import {bindingTitle, layoutNames, renameLayout} from './actions.js';
 import {builtInShortcut, recipeBindingName, sharesApps} from './automation.js';
-import {loadSlateScript, importSlateScript, importClassic, planImport} from './importer.js';
+import {
+  loadConfigFiles, writeConfigFiles, changedFiles, findSlateFiles, importSlateFiles, importSummary, parseRecord,
+  recordText, migrationNotice,
+} from './migration.js';
 import {newBinding, newHotstring} from './config.js';
 import {STEPS, parseWindowState, windowStateText, startingPane} from './getstarted.js';
 
 /**
- * @typedef {object} ModelIO
+ * @typedef {object} ModelIO The files (migration.ConfigFilesIO, plus the window's own state).
  * @property {() => string|null} readConfig config.json text, or null when it doesn't exist
  * @property {(text: string) => void} writeConfig writes config.json (atomically), creating folders
+ * @property {() => string|null} readSettings settings.json text, or null when it doesn't exist
+ * @property {(text: string) => void} writeSettings writes settings.json (atomically)
+ * @property {(text: string) => boolean} backupConfig writes config.v1.json unless it exists
  * @property {(path: string) => string|null} readFile any file (Slate configs), null if missing
  * @property {string} home the home folder
+ * @property {() => string|null} [readRecord] config-migration.json (what a migration imported)
+ * @property {(text: string) => void} [writeRecord] writes it
  * @property {() => string|null} [readWindowState] the settings window's own state (settings-window.json)
  * @property {(text: string) => void} [writeWindowState] writes it
  */
@@ -55,20 +65,27 @@ export class PrefsModel extends Emitter {
 
     this.draft = decodeConfiguration('{}');
     this.saved = clone(this.draft);
+    /** settings.json's keys Slated doesn't know, written back as they were. */
+    this.settingsExtras = {};
     this.issues = [];
     this.saveState = {kind: 'saved'};
     this.loadError = null;
-    /** True while config.json doesn't exist yet: the first edit creates it. */
+    /** The file `loadError` is about: "config.json" or "settings.json". */
+    this.loadErrorFile = null;
+    /** True while the files don't exist (deleted, or creating them failed): the next save writes both. */
     this.firstRun = false;
-    /** config.json's text as last read or written (null: none yet), and text that failed to decode. */
-    this._diskText = null;
-    this._badText = null;
+    /** The files' texts as last read or written (null: none yet), and texts that failed to decode. */
+    this._diskTexts = {config: null, settings: null};
+    this._badTexts = null;
+    /** What the last migration or first run imported (config-migration.json), or null. */
+    this.record = null;
+    /** The Slate configs there are to import (migration.findSlateFiles), without their text. */
+    this.slateFiles = [];
 
     this.status = emptyStatus();
     this.shell = extensionState(null);
     this.build = null;
     this.runningCommit = null;
-    this.sources = [];
     /** The settings window's own state (settings-window.json): {setupFinished, …}. */
     this.windowState = parseWindowState(null);
     /** Get Started's step (getstarted.STEPS): in memory, like the Mac's; a new window starts over. */
@@ -77,59 +94,62 @@ export class PrefsModel extends Emitter {
 
   // --- Loading --------------------------------------------------------------------------------------
 
-  /** Reads config.json, the Slate files and the window's own state. Call once after construction. */
+  /**
+   * Reads config.json and settings.json, creating them on a first run and migrating version 1, and
+   * the window's own state. Call once after construction.
+   */
   load() {
     this._loadWindowState();
-    let text;
-    try {
-      text = this.io.readConfig();
-    } catch (error) {
-      this._blocked(`Couldn't read config.json: ${describeError(error)}`);
+    this._adopt(loadConfigFiles(this.io, {by: 'settings', makeId: this.makeId, log: this.log}));
+    this.refreshSlateFiles();
+  }
+
+  /** Takes what migration.loadConfigFiles read (or made). */
+  _adopt(result) {
+    this._readRecord(result.record);
+    if (result.error) {
+      this._badTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
+      this._blocked(describeError(result.error), result.error.file ?? 'config.json');
       return;
     }
-    if (text === null || text === undefined) {
-      this.firstRun = true;
-      this.draft = this._initialConfiguration();
-      this.saved = clone(this.draft);
-    } else {
-      try {
-        this.draft = separateDuplicateIds(decodeConfiguration(text), this.makeId);
-        this.saved = clone(this.draft);
-        this.firstRun = false;
-        this._diskText = text;
-      } catch (error) {
-        this._badText = text;
-        this._blocked(describeError(error));
-        return;
-      }
-    }
+    this.draft = separateDuplicateIds(result.configuration, this.makeId);
+    this.saved = clone(this.draft);
+    this.settingsExtras = result.settingsExtras ?? {};
+    this._diskTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
+    this._badTexts = null;
     this.loadError = null;
+    this.loadErrorFile = null;
+    this.firstRun = false;
     this.saveState = {kind: 'saved'};
-    this.refreshSources();
+    if (result.writeError && result.created) {
+      // Nothing on disk yet: the next save tries again with both files.
+      this.firstRun = true;
+      this.saveState = {kind: 'failed', message: describeError(result.writeError)};
+    } else if (result.writeError) {
+      // A version 1 file that couldn't be migrated: saving now would split it without its copy.
+      this._blocked(`Couldn't update config.json to the new format: ${describeError(result.writeError)}`, 'config.json');
+      return;
+    }
     this._revalidate();
     this.emit('config');
     this.emit('save-state');
   }
 
-  /**
-   * What a first run starts with, as on macOS: with a Slate config, no bindings of Slated's own (the
-   * Slate file is the default); otherwise the built-in starter bindings, when the engine provides them.
-   */
-  _initialConfiguration() {
-    const defaults = decodeConfiguration('{}');
-    const hasSlate = defaults.general.slateConfigPaths.some(p => this.io.readFile(expandHome(p, this.io.home)) !== null);
-    if (hasSlate) return defaults;
-    let starter = null;
-    try {
-      starter = starterConfiguration();
-    } catch {
-      starter = null;
+  _readRecord(fresh = null) {
+    if (fresh) {
+      this.record = fresh;
+      return;
     }
-    return starter ? decodeConfiguration(encodeConfiguration(starter)) : defaults;
+    try {
+      this.record = parseRecord(this.io.readRecord?.() ?? null);
+    } catch {
+      this.record = null;
+    }
   }
 
-  _blocked(message) {
+  _blocked(message, file = 'config.json') {
     this.loadError = message;
+    this.loadErrorFile = file;
     this.saveState = {kind: 'blocked'};
     this.emit('config');
     this.emit('save-state');
@@ -148,9 +168,7 @@ export class PrefsModel extends Emitter {
     const replaced = mutate(next);
     const result = replaced === undefined ? next : replaced;
     if (deepEqual(result, this.draft)) return;
-    const pathsChanged = !deepEqual(result.general?.slateConfigPaths, this.draft.general?.slateConfigPaths);
     this.draft = result;
-    if (pathsChanged) this.refreshSources();
     this._draftChanged();
   }
 
@@ -185,7 +203,7 @@ export class PrefsModel extends Emitter {
     return this._saveTimer !== null;
   }
 
-  /** Writes pending edits now. Call before the window closes. */
+  /** Writes pending edits now, to the file(s) whose content changed. Call before the window closes. */
   saveNow() {
     this._cancelTimer();
     if (this.loadError) {
@@ -194,25 +212,31 @@ export class PrefsModel extends Emitter {
       return;
     }
     const output = savable(this.draft, this.saved, this.issues);
-    if (!deepEqual(output, this.saved)) {
+    let changed;
+    try {
+      changed = changedFiles(this.saved, output, this.settingsExtras);
+    } catch (error) {
+      this._saveFailed(error);
+      return;
+    }
+    const which = {config: changed.config || this.firstRun, settings: changed.settings || this.firstRun};
+    if (which.config || which.settings) {
       try {
-        this.io.writeConfig(encodeConfiguration(output));
+        writeConfigFiles(this.io, output, this.settingsExtras, which);
       } catch (error) {
-        const message = describeError(error);
-        this.saveState = {kind: 'failed', message};
-        this.log('config.save_failed', {message}, 'error');
-        this.emit('save-state');
+        this._saveFailed(error);
         return;
       }
       const changes = configChanges(this.saved, output);
-      if (changes.length) this.log('config.saved', {changes, source: 'prefs'});
-      // Re-read so `saved` matches what the file decodes to (normalized values).
+      const files = [which.config && 'config.json', which.settings && 'settings.json'].filter(Boolean);
+      if (changes.length) this.log('config.saved', {changes, files, source: 'prefs'});
+      // Re-read so `saved` matches what the files decode to (normalized values).
       let reread = output;
       try {
-        const text = this.io.readConfig();
-        if (text !== null && text !== undefined) {
-          reread = decodeConfiguration(text);
-          this._diskText = text;
+        const texts = {config: this.io.readConfig() ?? null, settings: this.io.readSettings() ?? null};
+        if (texts.config !== null) {
+          reread = decodeConfigurationFiles(texts.config, texts.settings).configuration;
+          this._diskTexts = texts;
         }
       } catch {
         reread = output;
@@ -230,23 +254,43 @@ export class PrefsModel extends Emitter {
     this.emit('config');
   }
 
-  /** Adopts config.json when it changed on disk (hand edits), unless there are unsaved edits. */
+  _saveFailed(error) {
+    const message = describeError(error);
+    this.saveState = {kind: 'failed', message};
+    this.log('config.save_failed', {message}, 'error');
+    this.emit('save-state');
+  }
+
+  /**
+   * Adopts config.json and settings.json when they changed on disk (hand edits, the extension), unless
+   * there are unsaved edits. A version 1 config.json that appears is migrated.
+   */
   syncFromDisk() {
     if (this.hasUnsavedChanges) return;
-    let text;
+    const texts = {config: null, settings: null};
     try {
-      text = this.io.readConfig();
+      texts.config = this.io.readConfig() ?? null;
     } catch (error) {
-      this._blocked(`Couldn't read config.json: ${describeError(error)}`);
+      this._blocked(`Couldn't read config.json: ${describeError(error)}`, 'config.json');
       return;
     }
-    if (text === null || text === undefined) {
-      // Deleted: keep what's shown; the next save recreates it. When saving waited for the broken
-      // file that was there, it's gone, so saving resumes as on a first run (with edits made meanwhile).
-      if (this.loadError) {
+    try {
+      texts.settings = this.io.readSettings() ?? null;
+    } catch (error) {
+      this._blocked(`Couldn't read settings.json: ${describeError(error)}`, 'settings.json');
+      return;
+    }
+    if (texts.config === null) {
+      // Deleted: keep what's shown; the next save recreates both files. When saving waited for the
+      // broken file that was there, it's gone, so saving resumes as on a first run (with edits made
+      // meanwhile).
+      if (!this.loadError) {
+        this.firstRun = true;
+      } else if (this.loadErrorFile === 'config.json') {
         this.loadError = null;
-        this._badText = null;
-        this._diskText = null;
+        this.loadErrorFile = null;
+        this._badTexts = null;
+        this._diskTexts = texts;
         this.firstRun = true;
         this.saveState = {kind: 'saved'};
         if (!deepEqual(this.draft, this.saved)) {
@@ -259,27 +303,34 @@ export class PrefsModel extends Emitter {
       }
       return;
     }
-    // The same text again (a file monitor event, the reload nudge): nothing to adopt.
-    if (this.loadError ? text === this._badText : text === this._diskText) return;
-    let disk;
+    // The same texts again (a file monitor event, the reload nudge): nothing to adopt.
+    const same = other => Boolean(other) && other.config === texts.config && other.settings === texts.settings;
+    if (this.loadError ? same(this._badTexts) : same(this._diskTexts)) return;
+    let decoded;
     try {
-      disk = decodeConfiguration(text);
+      decoded = decodeConfigurationFiles(texts.config, texts.settings);
     } catch (error) {
-      this._badText = text;
-      this._blocked(describeError(error));
+      this._badTexts = texts;
+      this._blocked(describeError(error), error.file ?? 'config.json');
       return;
     }
-    this._diskText = text;
-    this._badText = null;
-    keepGeneratedIds(separateDuplicateIds(disk, this.makeId), this.saved, text);
+    if (decoded.legacy) {
+      // A version 1 config.json (an older Slated wrote it, or it was pasted in): migrate it now.
+      this._adopt(loadConfigFiles(this.io, {by: 'settings', makeId: this.makeId, log: this.log}));
+      return;
+    }
+    const disk = decoded.configuration;
+    this._diskTexts = texts;
+    this._badTexts = null;
+    this.settingsExtras = decoded.settingsExtras;
+    keepGeneratedIds(separateDuplicateIds(disk, this.makeId), this.saved, texts.config);
     const wasBlocked = this.loadError !== null;
     this.loadError = null;
+    this.loadErrorFile = null;
     this.firstRun = false;
     if (wasBlocked || !deepEqual(disk, this.saved)) {
-      const pathsChanged = !deepEqual(disk.general?.slateConfigPaths, this.draft.general?.slateConfigPaths);
       this.saved = disk;
       this.draft = clone(disk);
-      if (pathsChanged) this.refreshSources();
       this._revalidate();
       this.saveState = {kind: 'saved'};
       this.emit('config');
@@ -287,11 +338,12 @@ export class PrefsModel extends Emitter {
     }
   }
 
-  /** Saves pending edits, then re-reads config.json and the Slate files. */
+  /** Saves pending edits, then re-reads both files and what there is to import. */
   reload() {
     if (this.hasUnsavedChanges) this.saveNow();
     this.syncFromDisk();
-    this.refreshSources();
+    this._readRecord();
+    this.refreshSlateFiles();
     this._revalidate();
     this.emit('config');
   }
@@ -393,84 +445,43 @@ export class PrefsModel extends Emitter {
     return this.summary().running;
   }
 
-  // --- Slate files -----------------------------------------------------------------------------------
+  // --- Slate configs: imported, never loaded ------------------------------------------------------------
 
-  /** Re-reads every Slate file in general.slateConfigPaths, for the read-only lists. */
-  refreshSources() {
-    const home = this.io.home;
-    const paths = this.draft.general?.slateConfigPaths ?? [];
-    this.sources = paths.filter(p => p && p.trim()).map(raw => {
-      const file = expandHome(raw.trim(), home);
-      const kind = file.endsWith('.js') ? 'javascript' : 'classic';
-      const source = {
-        path: raw, file, displayPath: tildify(file, home), kind, exists: false, bindings: [], layouts: [],
-        diagnostics: [], error: null,
-      };
-      let text = null;
-      try {
-        text = this.io.readFile(file);
-      } catch (error) {
-        source.error = describeError(error);
-      }
-      if (text === null || text === undefined) return source;
-      source.exists = true;
-      source.text = text;
-      try {
-        if (kind === 'javascript') {
-          const loaded = loadSlateScript(text, {path: file, home, readFile: p => this.io.readFile(p)});
-          source.bindings = loaded.bindings.map(b => ({
-            keys: b.keys, modal: b.modal, statusKey: b.statusKey, action: b.action, summary: b.summary,
-            keystroke: b.keystroke, line: b.line, isFunction: !b.action,
-            probe: memo(() => loaded.probe(b)),
-          }));
-          source.layouts = loaded.layouts;
-          source.diagnostics = loaded.diagnostics;
-        } else {
-          const parsed = parseSlateConfig(text, {path: file, readFile: p => this.io.readFile(expandHome(p, home))});
-          source.bindings = (parsed.bindings ?? []).filter(b => b.enabled !== false).map(b => {
-            const keys = keysString(b.keys);
-            const modal = b.modal ? {keys: keysString(b.modal.keys), toggle: b.modal.toggle === true} : null;
-            return {
-              keys, modal, statusKey: statusKey(keys, modal), action: b.action, summary: null, isFunction: false,
-              probe: () => ({action: b.action}),
-            };
-          });
-          source.layouts = parsed.layouts ?? [];
-          source.diagnostics = parsed.diagnostics ?? [];
-        }
-      } catch (error) {
-        source.error = isNotImplemented(error)
-          ? 'Classic .slate files show up here once the Slated engine can read them. The extension still loads them.'
-          : describeError(error);
-      }
-      return source;
-    });
+  /** Looks for a Slate config to import (~/.slate.js, else ~/.slate). */
+  refreshSlateFiles() {
+    this.slateFiles = findSlateFiles(this.io).map(({text, ...file}) => file);
     this.emit('sources');
   }
 
-  /** The status.json entry for a source, matched by path. */
-  sourceStatus(source) {
-    const home = this.io.home;
-    return this.status.sources.find(s => expandHome(s.path, home) === source.file) ?? null;
-  }
-
-  /** Layout names from config.json and the Slate files. */
+  /** Layout names in the configuration. */
   knownLayoutNames() {
-    return [...new Set([...(this.draft.layouts ?? []).map(l => l.name), ...this.sources.flatMap(s => s.layouts.map(l => l.name))])];
+    return [...new Set((this.draft.layouts ?? []).map(l => l.name))];
   }
 
-  get slateLoading() {
-    return this.draft.general?.loadSlateConfigs !== false;
+  /**
+   * Whether to suggest importing a Slate config: there's one, and no migration, first run or import
+   * in this window brought it in.
+   */
+  get slateImportSuggested() {
+    return this.slateFiles.length > 0 && !this.record?.slate && this.windowState.slateImported !== true;
   }
 
-  /** Whether a Slate file's binding was imported while the file kept loading, so it's ignored. */
-  isImportedSlateShortcut(sourceBinding) {
-    const imported = this.draft.general?.importedSlateShortcuts;
-    return Array.isArray(imported) && imported.includes(sourceBinding.statusKey);
+  /** The Overview's one-time notice after a migration imported Slate files, or null. */
+  migrationNotice(configPath) {
+    return migrationNotice(this.record, {configPath});
   }
 
-  sourceBindingCount() {
-    return this.sources.filter(s => s.exists).reduce((n, s) => n + s.bindings.length, 0);
+  /** Hides the notice for good (config-migration.json keeps that it was dismissed). */
+  dismissMigrationNotice() {
+    if (!this.record) return;
+    this.record = {...this.record, noticeDismissed: true};
+    try {
+      this.io.writeRecord?.(recordText(this.record));
+    } catch (error) {
+      this.log('ui.state_failed', {error: describeError(error)}, 'error');
+    }
+    this.log('ui.migration_notice_dismissed');
+    this.emit('config');
   }
 
   // --- Bindings ---------------------------------------------------------------------------------------
@@ -488,14 +499,6 @@ export class PrefsModel extends Emitter {
     return bindingState({
       binding, key: statusKey(binding.keys, binding.modal), saved: this.saved.bindings.find(b => b.id === binding.id),
       issues: this.issuesFor(target.binding(binding.id)), status: this.status, running: this.running,
-    });
-  }
-
-  /** The state of a read-only Slate binding. */
-  sourceBindingState(sourceBinding) {
-    return bindingState({
-      binding: sourceBinding, key: sourceBinding.statusKey, status: this.status, running: this.running,
-      slateLoading: this.slateLoading, isSource: true, imported: this.isImportedSlateShortcut(sourceBinding),
     });
   }
 
@@ -559,27 +562,9 @@ export class PrefsModel extends Emitter {
     return fresh.length;
   }
 
-  /** Copies a static (or probed) Slate binding into Slated's own bindings. Returns the new id or null. */
-  copyIntoSlated(sourceBinding) {
-    const action = sourceBinding.action ?? sourceBinding.probe?.().action;
-    if (!action) return null;
-    const binding = newBinding({keys: sourceBinding.keys, action: clone(action)}, this.makeId);
-    if (sourceBinding.modal) binding.modal = clone(sourceBinding.modal);
-    this.update(config => {
-      config.bindings.push(binding);
-    });
-    return binding.id;
-  }
-
-  /** True when Slated already has a binding with the same keys and action. */
-  isCopied(sourceBinding) {
-    const action = sourceBinding.action ?? sourceBinding.probe?.().action;
-    return this.draft.bindings.some(b => statusKey(b.keys, b.modal) === sourceBinding.statusKey && deepEqual(b.action, action));
-  }
-
   /**
-   * Other bindings (Slated's and the Slate files') using the same keys, for duplicate hints. Bindings
-   * limited to other apps than this one's never run at the same time, so they don't count.
+   * Other bindings using the same keys, for duplicate hints. Bindings limited to other apps than this
+   * one's never run at the same time, so they don't count.
    */
   otherUses(keys, modal, excludingId) {
     if (!keysString(keys)) return [];
@@ -588,13 +573,6 @@ export class PrefsModel extends Emitter {
     const uses = this.draft.bindings
       .filter(b => b.id !== excludingId && b.enabled !== false && statusKey(b.keys, b.modal) === key && sharesApps(b, me))
       .map(b => `“${bindingTitle(b)}”`);
-    if (this.slateLoading) {
-      for (const source of this.sources.filter(s => s.exists)) {
-        for (const b of source.bindings) {
-          if (b.statusKey === key && !this.isImportedSlateShortcut(b)) uses.push(`“${b.summary ?? b.keys}” in ${source.displayPath}`);
-        }
-      }
-    }
     return uses;
   }
 
@@ -612,7 +590,7 @@ export class PrefsModel extends Emitter {
     return id;
   }
 
-  /** What takes a built-in shortcut's keys away from it: Slated bindings (which win) and Slate files'. */
+  /** What takes a built-in shortcut's keys away from it: Slated's bindings, which win. */
   otherUsesOfBuiltIn(id) {
     const builtIn = builtInShortcut(id);
     const keys = builtIn?.keys(this.draft);
@@ -620,11 +598,6 @@ export class PrefsModel extends Emitter {
     const uses = this.draft.bindings
       .filter(b => b.enabled !== false && !b.modal && keysString(b.keys) === keys && b.action?.op !== builtIn.action.op)
       .map(b => `“${bindingTitle(b)}”`);
-    if (this.slateLoading) {
-      for (const source of this.sources.filter(s => s.exists)) {
-        for (const b of source.bindings) if (b.statusKey === keys) uses.push(`“${b.summary ?? b.keys}” in ${source.displayPath}`);
-      }
-    }
     return uses;
   }
 
@@ -706,15 +679,13 @@ export class PrefsModel extends Emitter {
 
   /**
    * Why the layout called `name` (at `index`) can't be renamed to `newName`, or null. Shortcuts apply
-   * a layout by its name, so a rename that clashes would move them to the other layout. A Slate
-   * file's layouts count, as for addLayout: their shortcuts would come along too.
+   * a layout by its name, so a rename that clashes would move them to the other layout.
    */
   layoutNameProblem(name, newName, index = null) {
     if (!String(newName ?? '').trim()) return LAYOUT_NAME_MISSING;
     if (newName === name) return null;
     const own = layoutIndex(this.draft.layouts, name, index);
-    const taken = this.draft.layouts.some((l, i) => i !== own && l.name === newName)
-      || this.sources.some(s => s.layouts.some(l => l.name === newName));
+    const taken = this.draft.layouts.some((l, i) => i !== own && l.name === newName);
     return taken ? LAYOUT_NAME_TAKEN : null;
   }
 
@@ -759,48 +730,36 @@ export class PrefsModel extends Emitter {
     return newName;
   }
 
-  /** Bindings (Slated's and the Slate files') that apply the named layout. */
+  /** Bindings that apply the named layout. */
   triggersForLayout(name) {
-    const result = this.draft.bindings.filter(b => b.action?.op === 'layout' && b.action.name === name)
+    return this.draft.bindings.filter(b => b.action?.op === 'layout' && b.action.name === name)
       .map(b => ({keys: b.keys, modal: b.modal ?? null}));
-    for (const source of this.sources) {
-      for (const b of source.bindings) {
-        if (b.action?.op === 'layout' && b.action.name === name) result.push({keys: b.keys, modal: b.modal});
-      }
-    }
-    return result;
   }
 
   // --- Importing --------------------------------------------------------------------------------------
 
-  /** What importing every existing Slate file would do (see importer.planImport). Doesn't change anything. */
+  /**
+   * What importing the Slate config would do (migration.importSlateFiles: a binding whose trigger
+   * Slated already has is skipped). Doesn't change anything.
+   */
   planSlateImport() {
-    const results = [];
-    const errors = [];
-    for (const source of this.sources.filter(s => s.exists)) {
-      try {
-        const options = {path: source.file, home: this.io.home, readFile: p => this.io.readFile(p), makeId: this.makeId};
-        const result = source.kind === 'javascript' ? importSlateScript(source.text, options) : importClassic(source.text, options);
-        results.push({path: source.displayPath, result});
-      } catch (error) {
-        errors.push({path: source.displayPath, message: isNotImplemented(error)
-          ? "the Slated engine can't read classic .slate files yet" : describeError(error)});
-      }
-    }
-    // A source that couldn't be read at all means Slate files must keep loading.
-    const plan = planImport(this.draft, results, {keepLoading: errors.length > 0});
-    return {...plan, errors};
+    const files = findSlateFiles(this.io);
+    return importSlateFiles(this.draft, files, {home: this.io.home, readFile: p => this.io.readFile(p), makeId: this.makeId});
   }
 
-  /** Applies a plan from planSlateImport() and logs it. */
+  /** Applies a plan from planSlateImport(), remembers it was done, and logs the counts. */
   applySlateImport(plan) {
     this.update(() => clone(plan.config));
-    this.log('slate.imported', {
-      imported: plan.added.length,
-      skipped: plan.skipped.map(s => `${s.keystroke}: ${s.reason}`),
-      neverRun: plan.neverRun.map(s => `${s.keystroke}: ${s.reason}`),
-      source: 'prefs',
-    });
+    const summary = importSummary(plan);
+    this.windowState = {...this.windowState, slateImported: true};
+    try {
+      this.io.writeWindowState?.(windowStateText(this.windowState));
+    } catch (error) {
+      this.log('ui.state_failed', {error: describeError(error)}, 'error');
+    }
+    this.log('slate.imported', {files: summary.files.length, imported: summary.imported, skipped: summary.skipped,
+      unconvertible: summary.unconvertible.length, source: 'prefs'});
+    this.emit('sources');
   }
 }
 
@@ -849,16 +808,4 @@ export function keepGeneratedIds(disk, previous, text) {
     });
   }
   return disk;
-}
-
-function memo(fn) {
-  let done = false;
-  let value;
-  return () => {
-    if (!done) {
-      value = fn();
-      done = true;
-    }
-    return value;
-  };
 }

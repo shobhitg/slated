@@ -1,6 +1,6 @@
 import {suite, expect, expectEqual, readText} from './harness.mjs';
 import {
-  loadSlateScript, importSlateScript, planImport, parseKeystrokeLocal, keystrokeToConfig, PROBE_SETUPS, DELIVERED_EVENTS,
+  loadSlateScript, importSlateScript, planImport, triggerKey, parseKeystrokeLocal, keystrokeToConfig, PROBE_SETUPS, DELIVERED_EVENTS,
 } from '../../gnome-extension/lib/prefs/importer.js';
 import {implemented, starterConfiguration} from '../../gnome-extension/lib/prefs/engine.js';
 import {matchingPreset} from '../../gnome-extension/lib/prefs/presets.js';
@@ -86,7 +86,7 @@ export default suite('Slate importer', [
       expectEqual(result.bindings.length, 15);
     }
   }],
-  ["the author's own ~/.slate.js, when there is one, imports completely (so the file turns off)", async () => {
+  ["the author's own ~/.slate.js, when there is one, imports completely", async () => {
     if (!globalThis.process?.versions?.node || !implemented('parseOperation')) return;
     const fs = await import('node:fs');
     const path = `${process.env.HOME}/.slate.js`;
@@ -94,7 +94,7 @@ export default suite('Slate importer', [
     const result = importSlateScript(fs.readFileSync(path, 'utf8'), {makeId: ids()});
     expectEqual(result.skipped, []);
     const plan = planImport(fillDefaults({}), [{path: '~/.slate.js', result}]);
-    expect(plan.stopsLoading && plan.added.length === result.bindings.length && result.bindings.length > 0);
+    expect(plan.added.length === result.bindings.length && result.bindings.length > 0);
   }],
   ['the author-like config imports into exactly the starter bindings (when the engine has them)', () => {
     if (!implemented('parseOperation') || !starterConfiguration()) return;
@@ -265,24 +265,35 @@ export default suite('Slate importer', [
     expect(loaded.diagnostics.some(d => d.severity === 'error' && d.message.includes('already loading')), 'a file sourcing itself is stopped');
     expect(loaded.bindings.some(b => b.keys === 'ctrl+alt+2'), 'bindings from the sourced file are loaded');
   }],
-  ['the import plan skips keys Slated already uses and keeps Slate loading when something was skipped', () => {
+  ['the import plan keeps the triggers Slated already has, and the shortcuts imported before', () => {
     const config = fillDefaults({
-      bindings: [{id: 'mine', keys: 'ctrl+alt+1', action: {op: 'undo'}}],
-      settings: {orderScreensLeftToRight: false},
+      bindings: [
+        {id: 'mine', keys: 'ctrl+alt+1', action: {op: 'undo'}},
+        // Limited to an app: another trigger than the Slate file's ctrl+alt+3, which works everywhere.
+        {id: 'game', keys: 'ctrl+alt+3', action: {op: 'undo'}, onlyInApps: ['steam_app_1']},
+      ],
+      windows: {orderScreensLeftToRight: false},
     });
     const result = importSlateScript(edges, {makeId: ids()});
-    const plan = planImport(config, [{path: '~/.slate.js', result}]);
-    expect(plan.duplicates.includes('ctrl+alt+1'), 'existing keys win');
-    expectEqual(plan.config.bindings[0].id, 'mine');
-    expectEqual(plan.config.settings.orderScreensLeftToRight, false, "config.json's settings win");
-    expectEqual(plan.config.settings.defaultToCurrentScreen, true, 'script settings fill the gaps');
-    expectEqual(plan.config.settings.nudgePercentOf, undefined, "a function's value isn't frozen into config.json");
+    const plan = planImport(config, [{path: '~/.slate.js', result}], {alreadyImported: ['ctrl+alt+4']});
+    expect(plan.duplicates.length && plan.duplicates.every(key => key === 'ctrl+alt+1'), 'the trigger Slated has wins');
+    expectEqual(plan.alreadyImported, ['ctrl+alt+4'], 'imported while Slate files kept loading (version 1): not again');
+    expectEqual(plan.config.bindings.slice(0, 2).map(b => b.id), ['mine', 'game']);
+    expect(plan.added.some(b => b.keys === 'ctrl+alt+3'), 'an app filter makes another trigger');
+    expect(!plan.added.some(b => b.keys === 'ctrl+alt+4'), 'ctrl+alt+4 left out');
+    expectEqual(plan.config.windows.orderScreensLeftToRight, false, "the configuration's window settings win");
+    expectEqual(plan.config.windows.defaultToCurrentScreen, true, 'script settings fill the gaps');
+    expectEqual(plan.config.windows.nudgePercentOf, undefined, "a function's value isn't frozen into the configuration");
     expectEqual(plan.config.layouts.map(l => l.name), ['coding']);
-    expect(!plan.stopsLoading && plan.config.general.loadSlateConfigs, 'something was skipped: keep loading the script');
-    // The script keeps loading, so its copies of the imported shortcuts are ignored from now on.
-    expectEqual(plan.config.general.importedSlateShortcuts, plan.added.map(b => statusKey(b.keys, b.modal)).sort());
-    const clean = planImport(fillDefaults({}), [{path: '~/.slate.js', result: {...result, skipped: []}}]);
-    expect(clean.stopsLoading && clean.config.general.loadSlateConfigs === false, 'everything converted: stop loading');
-    expectEqual(clean.config.general.importedSlateShortcuts, undefined);
+    expect(!('general' in plan && 'loadSlateConfigs' in plan.config.general), 'nothing about loading Slate files');
+    // Unconvertible bindings carry their keys, so the notice can name them without the script.
+    const unconvertible = plan.skipped.find(s => s.keystroke === '7:ctrl,alt');
+    expectEqual([unconvertible.keys, unconvertible.modal, unconvertible.path], ['ctrl+alt+7', null, '~/.slate.js']);
+    // Importing again adds nothing: every trigger is there now.
+    const again = planImport(plan.config, [{path: '~/.slate.js', result: importSlateScript(edges, {makeId: ids()})}], {alreadyImported: ['ctrl+alt+4']});
+    expectEqual(again.added.length, 0);
+    expectEqual(again.config.bindings.length, plan.config.bindings.length);
+    expectEqual(triggerKey({keys: 'Hyper+A', onlyInApps: ['b', 'a']}), 'hyper+a|a,b');
+    expectEqual(triggerKey({keys: '1', modal: {keys: 'ctrl+f4'}}), 'ctrl+f4 1|');
   }],
 ]);

@@ -1,7 +1,8 @@
 // Settings → General: Slated in GNOME, feedback, the island, window behavior, and where the
 // configuration and log live (port of GeneralPane.swift). There's no "launch at login" on GNOME: the
 // extension runs with your session while it's enabled, so this page offers the extension's own switch
-// instead.
+// instead. The Mac's "Open Config File", "Open Settings File" and "Import Slate Config into Slated…"
+// menu items are buttons here, under Files.
 
 import Adw from 'gi://Adw';
 
@@ -10,10 +11,12 @@ import {implemented} from '../engine.js';
 import {fileExists} from '../io.js';
 import {islandSettings, cheatSheetDelayItems, islandRowsSensitive, cheatSheetDelayText} from '../island.js';
 import {button, group, switchRow, comboRow, spinRow, commandRow, launchFile} from './widgets.js';
+import {openFileAction} from './overview.js';
+import {importSlateDialog, IMPORT_TITLE} from './slateimport.js';
 
 const REPEAT_ITEMS = [{id: 0.25, label: 'Short'}, {id: 0.4, label: 'Medium'}, {id: 0.7, label: 'Long'}];
 
-/** The repeat choices, plus the current value when a hand edit or Slate file set another one. */
+/** The repeat choices, plus the current value when a hand edit or an import set another one. */
 function repeatItems(value) {
   return REPEAT_ITEMS.some(i => i.id === value) ? REPEAT_ITEMS : [...REPEAT_ITEMS, {id: value, label: `${value} seconds`}];
 }
@@ -25,7 +28,7 @@ export function saveStateText(state) {
   case 'pending': return {text: 'Saving…', style: 'dim'};
   case 'partial': return {text: state.count === 1 ? '1 item has errors and isn\'t saved' : `${state.count} items have errors and aren't saved`, style: 'warning'};
   case 'failed': return {text: `Couldn't save: ${state.message}`, style: 'error'};
-  case 'blocked': return {text: 'Saving paused until config.json can be read', style: 'warning'};
+  case 'blocked': return {text: `Saving paused until ${state.file ?? 'the configuration'} can be read`, style: 'warning'};
   default: return {text: '', style: 'dim'};
   }
 }
@@ -116,14 +119,14 @@ export function createGeneralPane(ctx) {
   prefs.add(islandGroup);
 
   // Window behavior (Slate's own settings)
-  const behavior = group({title: 'Window Behavior', description: "These are Slate's own settings; a Slate file can override them."});
-  const settings = () => model.configuration.settings;
+  const behavior = group({title: 'Window Behavior', description: "Slate's window settings, kept in settings.json under \"windows\"."});
+  const settings = () => model.configuration.windows;
   const leftToRight = switchRow({
     title: 'Number displays from left to right',
     subtitle: "Display 1 is the leftmost. Turn off to use GNOME's order, with the primary display first.",
     active: bool(settings(), 'orderScreensLeftToRight', true),
     onChange: on => model.update(config => {
-      config.settings.orderScreensLeftToRight = on;
+      config.windows.orderScreensLeftToRight = on;
     }),
   });
   behavior.add(leftToRight.row);
@@ -131,7 +134,7 @@ export function createGeneralPane(ctx) {
     title: 'Repeat while held', subtitle: 'How long to hold a shortcut before it repeats, for operations that repeat.',
     items: repeatItems(number(settings(), 'secondsBeforeRepeat', 0.4)), selected: number(settings(), 'secondsBeforeRepeat', 0.4),
     onChange: value => model.update(config => {
-      config.settings.secondsBeforeRepeat = value;
+      config.windows.secondsBeforeRepeat = value;
     }),
   });
   behavior.add(repeat.row);
@@ -139,29 +142,44 @@ export function createGeneralPane(ctx) {
     title: 'Undo history', subtitle: 'How many window moves Undo can step back through.', min: 1, max: 50,
     value: number(settings(), 'undoMaxStackSize', 10),
     onChange: value => model.update(config => {
-      config.settings.undoMaxStackSize = Math.round(value);
+      config.windows.undoMaxStackSize = Math.round(value);
     }),
   });
   behavior.add(undo.row);
   prefs.add(behavior);
 
-  // Configuration file
-  const configGroup = group({title: 'Configuration File'});
-  const configRow = new Adw.ActionRow({use_markup: false, title: tildify(paths.configFile, home), subtitle: '', subtitle_selectable: false});
-  configRow.set_title_selectable(true);
-  configRow.add_css_class('slated-mono-title');
-  configRow.add_suffix(button('Open', () => {
-    model.saveNow();
-    launchFile(paths.configFile, prefs, {onError: e => ctx.toast(`Couldn't open config.json: ${e.message}`)});
-    model.log('ui.open_config');
-  }, {classes: ['flat']}));
-  configRow.add_suffix(button('Show in Files', () => {
+  // Files: what your keys do (config.json), how Slated behaves (settings.json), and the Slate import.
+  const configDir = tildify(paths.configDir, home);
+  const filesGroup = group({title: 'Files',
+    description: `Shortcuts, hotstrings and the Hyper key are in ${tildify(paths.configFile, home)}; these settings are in settings.json, next to it.`,
+    suffix: button('', () => ctx.reload(), {icon: 'view-refresh-symbolic', classes: ['flat'], tooltip: 'Reload config.json and settings.json'})});
+  const fileRow = (file, path) => {
+    const row = new Adw.ActionRow({use_markup: false, title: tildify(path, home), subtitle: '', subtitle_selectable: false});
+    row.set_title_selectable(true);
+    row.add_css_class('slated-mono-title');
+    const open = openFileAction(ctx, file, prefs);
+    row.add_suffix(button(open.label, () => {
+      model.saveNow();
+      open.run();
+      model.log(file === 'settings.json' ? 'ui.open_settings' : 'ui.open_config');
+    }, {classes: ['flat']}));
+    filesGroup.add(row);
+    return row;
+  };
+  const configRow = fileRow('config.json', paths.configFile);
+  const settingsRow = fileRow('settings.json', paths.settingsFile);
+  const folderRow = new Adw.ActionRow({use_markup: false, title: 'Configuration folder', subtitle: configDir});
+  folderRow.add_suffix(button('Show in Files', () => {
     launchFile(paths.configFile, prefs, {folder: true, onError: e => ctx.toast(e.message)});
     model.log('ui.reveal_config');
   }, {classes: ['flat']}));
-  configRow.add_suffix(button('', () => ctx.reload(), {icon: 'view-refresh-symbolic', classes: ['flat'], tooltip: 'Reload config.json and your Slate files'}));
-  configGroup.add(configRow);
-  prefs.add(configGroup);
+  filesGroup.add(folderRow);
+  const importRow = new Adw.ActionRow({use_markup: false, title: 'Slate config',
+    subtitle: "Slated doesn't read ~/.slate.js or ~/.slate. Import one to turn its shortcuts into Slated's; shortcuts Slated already has are left alone."});
+  importRow.set_subtitle_lines(0);
+  importRow.add_suffix(button(IMPORT_TITLE, () => importSlateDialog(ctx), {classes: ['flat']}));
+  filesGroup.add(importRow);
+  prefs.add(filesGroup);
 
   // Log
   const logGroup = group({title: 'Event Log',
@@ -218,8 +236,12 @@ export function createGeneralPane(ctx) {
     const delay = number(settings(), 'secondsBeforeRepeat', 0.4);
     repeat.setItems(repeatItems(delay), delay);
     undo.set(number(settings(), 'undoMaxStackSize', 10));
-    const save = saveStateText(model.saveState);
-    configRow.set_subtitle(model.loadError ? `Can't be read: ${model.loadError}` : model.firstRun ? 'Not created yet: your first change creates it.' : save.text);
+    const save = saveStateText({...model.saveState, file: model.loadErrorFile});
+    const fileState = file => (model.loadError
+      ? (model.loadErrorFile === file ? `Can't be read: ${model.loadError}` : 'Saving paused')
+      : model.firstRun ? 'Not created yet: your first change creates it.' : save.text);
+    configRow.set_subtitle(fileState('config.json'));
+    settingsRow.set_subtitle(fileState('settings.json'));
     const build = model.build;
     versionRow.set_subtitle(build?.version ?? ctx.ext.metadata?.['version-name'] ?? String(ctx.ext.metadata?.version ?? 'Development build'));
     commitRow.set_subtitle(build?.commit ?? 'Unknown (not installed with linux/install.sh)');
