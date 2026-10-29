@@ -235,6 +235,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Typing filters at once; ↑↓, ↩ pastes the selected item into the app you were in, a click pastes
       the row, ⌘1–9 pastes that row, esc closes and typing goes straight back to the app. Pinned
       items are at the top with a pin.
+- [ ] While the picker is open, the menu bar still shows the app you were typing in (the picker
+      takes the keyboard without activating Slated), and the very first click on a row pastes it.
+      Typing in a CJK input method: ↩ and esc confirm or cancel the composition, not the picker.
 - [ ] Moving the mouse over a row selects it; scrolling with the arrow keys under a mouse that isn't
       moving keeps the selection where the keys put it.
 - [ ] Opening the picker from Slated's window still pastes into the last app you used, not into

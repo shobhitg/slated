@@ -88,6 +88,39 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
     context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: keyCode)
 }
 
+/// A key press or a click for the clipboard picker's panel. Rows are found by their laid-out frames.
+private enum Input {
+  case key(UInt16, String, NSEvent.ModifierFlags = [])
+  case down(row: Int), up(row: Int)
+  /// A point in the picker, top-left origin.
+  case downAt(CGPoint), upAt(CGPoint)
+
+  @MainActor func event(in panel: NSPanel, model: ClipboardPickerModel) -> NSEvent? {
+    func mouse(_ type: NSEvent.EventType, _ point: CGPoint?) -> NSEvent? {
+      guard let point, let host = panel.contentView else { return nil }
+      let location = host.convert(
+        host.isFlipped ? point : CGPoint(x: point.x, y: host.bounds.height - point.y), to: nil)
+      return NSEvent.mouseEvent(
+        with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+    }
+    func center(_ row: Int) -> CGPoint? {
+      model.rowFrames[model.results[row].id].map { CGPoint(x: $0.midX, y: $0.midY) }
+    }
+    switch self {
+    case .key(let code, let characters, let flags):
+      return NSEvent.keyEvent(
+        with: .keyDown, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: panel.windowNumber, context: nil, characters: characters,
+        charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code)
+    case .down(let row): return mouse(.leftMouseDown, center(row))
+    case .up(let row): return mouse(.leftMouseUp, center(row))
+    case .downAt(let point): return mouse(.leftMouseDown, point)
+    case .upAt(let point): return mouse(.leftMouseUp, point)
+    }
+  }
+}
+
 private let probeNotification = Notification.Name("SlatedTests.hostingProbe")
 
 private struct FocusProbe: View {
@@ -550,6 +583,44 @@ let uiHostingContractTests = Suite(
           expect(
             coloredRows >= SettingsSidebar.sections(showingGetStarted: false).joined().count,
             "icon rows drawn: \(coloredRows)")
+        }
+      }
+    ),
+    (
+      "the clipboard picker's panel handles its keys and clicks itself, before the filter field",
+      {
+        try onMain {
+          // Scenarios: what's sent, then which result (by index) is pasted and whether it closed.
+          let scenarios: [(String, [Input], Int?, Bool)] = [
+            ("return", [.key(36, "\r")], 0, true),
+            ("keypad enter", [.key(76, "\u{3}")], 0, true),
+            ("down, return", [.key(125, "\u{F701}"), .key(36, "\r")], 1, true),
+            ("⌘2", [.key(19, "2", .command)], 1, true),
+            ("click on the second row", [.down(row: 1), .up(row: 1)], 1, true),
+            ("press on one row, release on another", [.down(row: 0), .up(row: 1)], nil, false),
+            ("click in the filter field", [.downAt(CGPoint(x: 60, y: 10)), .upAt(CGPoint(x: 60, y: 10))], nil, false),
+            ("escape", [.key(53, "\u{1B}")], nil, true),
+            ("typing", [.key(0, "a")], nil, false),
+          ]
+          for (name, inputs, pastedIndex, closes) in scenarios {
+            let services = PreviewServices()
+            let model = ClipboardPickerModel(services: services)
+            var closed = 0
+            model.onClose = { closed += 1 }
+            model.resetForShowing()
+            let panel = SlatedUI.makeClipboardPickerPanel(model: model)
+            panel.setFrame(NSRect(origin: NSPoint(x: -20_000, y: -20_000), size: model.size), display: true)
+            panel.orderFrontRegardless()
+            spin()
+            let results = model.results
+            expect(results.count >= 2, "\(name): the sample history has rows")
+            for input in inputs { panel.sendEvent(try require(input.event(in: panel, model: model))) }
+            spin(0.1)
+            let expected = pastedIndex.map { [results[$0].id] } ?? []
+            expect(services.pastedClipboardItems == expected, "\(name): pasted \(services.pastedClipboardItems)")
+            expect(closed == (closes ? 1 : 0), "\(name): closed \(closed) times")
+            panel.close()
+          }
         }
       }
     ),

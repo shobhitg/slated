@@ -3,8 +3,9 @@ import SlatedCore
 import SwiftUI
 
 /// State for the clipboard picker: a small list that opens where you're typing. Type to filter, ↑↓
-/// and ↩ to paste, ⌘1–9 to pick, esc to close; a click pastes too. Pinning, deleting and browsing the
-/// whole history live in Settings → Clipboard.
+/// and ↩ to paste, ⌘1–9 to pick, esc to close; a click pastes too (its panel, `ClipboardPickerPanel`,
+/// handles those keys and clicks). Pinning, deleting and browsing the whole history live in Settings →
+/// Clipboard.
 @Observable
 public final class ClipboardPickerModel {
   static let width: CGFloat = 320
@@ -37,8 +38,8 @@ public final class ClipboardPickerModel {
   /// The image preview beside the picker should appear, move or go: the selection or its row moved.
   public var onPreviewChange: (() -> Void)?
 
-  /// Rows' frames in the picker (top-left origin), as laid out.
-  @ObservationIgnored private var rowFrames: [UUID: CGRect] = [:]
+  /// Rows' frames in the picker (top-left origin), as laid out; rows scrolled out of a lazy list drop out.
+  @ObservationIgnored private(set) var rowFrames: [UUID: CGRect] = [:]
   /// Where the pointer was when a key moved the selection (or the picker opened): a row "hovered"
   /// under a pointer that hasn't moved since only scrolled there.
   @ObservationIgnored private var restingPointer: CGPoint?
@@ -125,6 +126,15 @@ public final class ClipboardPickerModel {
     if id == selectedID && previewItem != nil { onPreviewChange?() }
   }
 
+  func rowGone(_ id: UUID) { rowFrames[id] = nil }
+
+  /// The row at `point` (top-left origin, in the picker), in the list's visible part: not the filter
+  /// field, nor a row scrolled up under it.
+  func row(at point: CGPoint) -> UUID? {
+    guard point.y > Self.filterHeight, point.y < size.height else { return nil }
+    return results.first { rowFrames[$0.id]?.contains(point) == true }?.id
+  }
+
   /// Pastes the item (the selected one by default) into the app you were in, or only copies it with
   /// `pasteAfterSelecting` off.
   func paste(_ id: UUID? = nil) {
@@ -141,6 +151,8 @@ public final class ClipboardPickerModel {
 
   private func refilter(selectFirst: Bool) {
     results = ClipboardHistory(items: items).search(query)
+    let shown = Set(results.map(\.id))
+    rowFrames = rowFrames.filter { shown.contains($0.key) }
     if selectFirst || !results.contains(where: { $0.id == selectedID }) { selectedID = results.first?.id }
   }
 }
@@ -163,29 +175,6 @@ struct ClipboardPickerView: View {
     .tint(Theme.accent)
     .onAppear { filterFocused = true }
     .onChange(of: model.openings) { filterFocused = true }
-    .onKeyPress(.upArrow) {
-      model.moveSelection(by: -1, pointer: NSEvent.mouseLocation)
-      return .handled
-    }
-    .onKeyPress(.downArrow) {
-      model.moveSelection(by: 1, pointer: NSEvent.mouseLocation)
-      return .handled
-    }
-    .onKeyPress(.return) {
-      model.paste()
-      return .handled
-    }
-    .onKeyPress(.escape) {
-      model.onClose()
-      return .handled
-    }
-    .onKeyPress(phases: .down) { press in
-      guard press.modifiers.contains(.command), let n = Int(press.characters), (1...9).contains(n) else {
-        return .ignored
-      }
-      model.pick(number: n)
-      return .handled
-    }
   }
 
   private var filter: some View {
@@ -220,12 +209,12 @@ struct ClipboardPickerView: View {
             .onHover { inside in
               if inside { model.hover(item.id, pointer: NSEvent.mouseLocation) }
             }
-            .onTapGesture { model.paste(item.id) }
             .onGeometryChange(for: CGRect.self) {
               $0.frame(in: .global)
             } action: {
               model.rowMoved(item.id, to: $0)
             }
+            .onDisappear { model.rowGone(item.id) }
           }
         }
         .padding(ClipboardPickerModel.listPadding)

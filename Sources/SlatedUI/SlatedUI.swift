@@ -53,11 +53,17 @@ public enum SlatedUI {
     return window
   }
 
-  /// The clipboard picker. Host it in a small floating panel of `model.size` where you're typing; the
-  /// model's `onClose` asks the app to close it. Call `model.resetForShowing(pointer:)` each time it
-  /// opens.
+  /// The clipboard picker's view, for snapshots; the app shows `makeClipboardPickerPanel`.
   public static func makeClipboardPickerView(model: ClipboardPickerModel) -> some View {
     ClipboardPickerView(model: model)
+  }
+
+  /// The clipboard picker in its panel, which handles its keys and clicks. Size it to `model.size`
+  /// where you're typing and show it with `orderFrontRegardless()` and `makeKey()`, without activating
+  /// Slated: the app you were in stays active, so the paste lands there. The model's `onClose` asks
+  /// the app to close it. Call `model.resetForShowing(pointer:)` each time it opens.
+  public static func makeClipboardPickerPanel(model: ClipboardPickerModel) -> NSPanel {
+    ClipboardPickerPanel(model: model)
   }
 
   /// The picker's selected image, larger, for a small panel beside the picker that never takes focus.

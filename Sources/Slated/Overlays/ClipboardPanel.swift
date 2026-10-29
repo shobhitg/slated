@@ -33,8 +33,10 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
       .map { PopupPlacement.below(anchor, size: size, in: $0.visibleFrame) }
       ?? CGRect(origin: anchor.origin, size: size)
     panel.setFrame(Screens.appKitRect(fromTopLeft: frame), display: true)
-    NSApp.activate()
-    panel.makeKeyAndOrderFront(nil)
+    // Key without activating Slated: activating from a hotkey can be refused while you're typing in
+    // another app, which left the picker without the keyboard and its first click.
+    panel.orderFrontRegardless()
+    panel.makeKey()
     placePreview()
   }
 
@@ -76,11 +78,7 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
   }
 
   private func makePanel() -> NSPanel {
-    let host = NSHostingView(rootView: SlatedUI.makeClipboardPickerView(model: model))
-    let panel = PickerPanel(
-      contentRect: NSRect(origin: .zero, size: model.size), styleMask: [.borderless, .fullSizeContentView],
-      backing: .buffered, defer: false)
-    panel.contentView = host
+    let panel = SlatedUI.makeClipboardPickerPanel(model: model)
     configure(panel)
     panel.delegate = self
     return panel
@@ -104,9 +102,4 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     panel.isReleasedWhenClosed = false
   }
-}
-
-/// Borderless panels can't become key by default; the picker needs the keyboard.
-private final class PickerPanel: NSPanel {
-  override var canBecomeKey: Bool { true }
 }

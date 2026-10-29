@@ -427,7 +427,7 @@ let uiCenteredTitleTests = Suite(
     (
       "a centered move is named by its size, as the author's ' and return shortcuts are",
       {
-        try MainActor.assumeIsolated {
+        MainActor.assumeIsolated {
           let center = Action.move(
             x: "screenOriginX+screenSizeX/4", y: "screenOriginY+screenSizeY/4", width: "screenSizeX/2",
             height: "screenSizeY/2", screen: nil)
