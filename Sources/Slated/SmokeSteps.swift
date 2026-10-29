@@ -41,10 +41,17 @@ enum SmokeSteps {
       print("after recording: \(keyboard(engine))")
     case "reload":
       engine.reload()
-    case "stop-loading-slate":
-      // Settings → General → "Load Slate configs" turned off.
+    case "toggle-island":
+      // Settings → Island → the island switch: a settings.json change only.
       var config = engine.configuration
-      config.general.loadSlateConfigs = false
+      config.island.enabled.toggle()
+      do { try engine.save(config) } catch { print("save failed:", error.localizedDescription) }
+    case "add-binding":
+      // Settings → Windows → a new shortcut: a config.json change only.
+      var config = engine.configuration
+      if let keys = KeyCombo(string: "ctrl+alt+cmd+f19") {
+        config.bindings.append(HotkeyBinding(keys: keys, action: .undo))
+      }
       do { try engine.save(config) } catch { print("save failed:", error.localizedDescription) }
     case "screens-changed":
       // As when a display is plugged in.
@@ -128,7 +135,7 @@ enum SmokeSteps {
       let model = AppModel(services: LiveServices(engine: engine))
       model.configuration.general.showActionHUD.toggle()
       do {
-        let summary = try model.importSlateConfigs(engine)
+        let summary = try model.importSlateConfig()
         print("import alert:", summary.title)
       } catch {
         print("import failed:", error.localizedDescription)

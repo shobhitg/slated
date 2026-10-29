@@ -18,10 +18,10 @@ enum SaveState: Equatable {
 ///
 /// Views edit `configuration` directly (through bindings); every change is validated and saved
 /// after a short pause, so there is no Save button. Items with errors are held back (their last
-/// saved version stays on disk) and flagged in the UI. The model refreshes runtime status, Slate
-/// sources, screens, apps, the clipboard history and running automations whenever the app reports
-/// a change through `AppServices.onChange`, and picks up hand edits to config.json when there are
-/// no unsaved edits. Clipboard and automation commands go through `AppServices` too.
+/// saved version stays on disk) and flagged in the UI. The model refreshes runtime status, the Slate
+/// config there is to import, screens, apps, the clipboard history and running automations whenever
+/// the app reports a change through `AppServices.onChange`, and picks up hand edits to config.json
+/// and settings.json when there are no unsaved edits. Clipboard and automation commands go through `AppServices` too.
 @MainActor
 @Observable
 public final class AppModel {
@@ -34,11 +34,11 @@ public final class AppModel {
     get { draft }
     set {
       guard newValue != draft else { return }
-      // Read-only while config.json can't be read: an edit couldn't be saved, and the fixed file
-      // replaces the draft when it loads.
+      // Read-only while config.json or settings.json can't be read: an edit couldn't be saved, and
+      // the fixed file replaces the draft when it loads.
       guard loadError == nil else {
         showToast(
-          "Fix config.json first: nothing can be changed here until Slated can read it.",
+          "Fix \(unreadableFileName) first: nothing can be changed here until Slated can read it.",
           symbol: "exclamationmark.triangle", style: .failure)
         return
       }
@@ -57,7 +57,11 @@ public final class AppModel {
   // MARK: Live state
 
   public private(set) var runtimeStatus: RuntimeStatus
-  public private(set) var sources: [SlateSource]
+  /// The Slate config there is to import (`~/.slate.js`, else `~/.slate`); nil when there's none.
+  public private(set) var slateConfigPath: String?
+  /// What a first run or the migration of a version 1 config imported from the Slate config, until
+  /// dismissed in Overview.
+  public private(set) var slateImportNotice: SlateImportReport?
   public private(set) var screens: [ScreenInfo]
   public private(set) var runningApps: [AppInfo]
   /// Clipboard history, newest first (pinned items wherever they fall).
@@ -80,6 +84,8 @@ public final class AppModel {
   /// A binding whose shortcut recorder should start recording when its editor appears.
   var recordShortcutFor: UUID?
   var toast: Toast?
+  /// What the last import from Get Started or Settings did, shown there until the window closes.
+  var lastSlateImport: SlateImportReport?
 
   /// How long to wait after the last edit before saving.
   @ObservationIgnored public var saveDelay: Duration = .milliseconds(450)
@@ -107,7 +113,8 @@ public final class AppModel {
     saveState = error == nil ? .saved : .blocked
     runtimeStatus = services.runtimeStatus()
     setupFinished = services.setupFinished
-    sources = services.slateSources()
+    slateConfigPath = services.slateConfigPath()
+    slateImportNotice = services.slateImportNotice()
     screens = services.screens()
     runningApps = services.runningApplications()
     clipboardItems = services.clipboardItems()
@@ -202,8 +209,8 @@ public final class AppModel {
 
   // MARK: Refreshing
 
-  /// Re-reads runtime status, Slate sources, screens, running apps, the clipboard history and
-  /// running automations from the app.
+  /// Re-reads runtime status, the Slate config there is to import, screens, running apps, the
+  /// clipboard history and running automations from the app.
   public func refresh() {
     let status = services.runtimeStatus()
     if status != runtimeStatus {
@@ -211,11 +218,10 @@ public final class AppModel {
       runtimeStatus = status
       if granted { accessibilityWasGranted() }
     }
-    let newSources = services.slateSources()
-    if newSources != sources {
-      sources = newSources
-      issues = ConfigValidator.validate(draft, knownLayouts: knownLayoutNames)
-    }
+    let slatePath = services.slateConfigPath()
+    if slatePath != slateConfigPath { slateConfigPath = slatePath }
+    let notice = services.slateImportNotice()
+    if notice != slateImportNotice { slateImportNotice = notice }
     let newScreens = services.screens()
     if newScreens != screens { screens = newScreens }
     let apps = services.runningApplications()
@@ -262,15 +268,47 @@ public final class AppModel {
     }
   }
 
-  /// Shows config.json as the app just wrote it itself (an import from a menu), along with the
-  /// Slate sources and status. Call `saveNow()` before such a write: an edit still waiting to be saved
-  /// keeps Settings on its draft, and its save would then write over the app's change.
+  /// Shows the configuration as the app just wrote it itself (an import), along with the status. Call
+  /// `saveNow()` before such a write: an edit still waiting to be saved keeps Settings on its draft,
+  /// and its save would then write over the app's change.
   public func showSavedConfiguration() {
     refresh()
     syncFromDisk()
   }
 
-  /// Saves pending edits, then asks the app to reload config.json and the Slate files.
+  /// "Import Slate Config into Slated…" (the menus, Get Started, Settings): adds the Slate config's
+  /// shortcuts to Slated's own, keeping what's there. Pending edits are saved first, so the import
+  /// builds on them instead of a later save undoing it.
+  @discardableResult
+  public func importSlateConfig() throws -> SlateImportReport {
+    saveNow()
+    let report = try services.importSlateConfig()
+    showSavedConfiguration()
+    return report
+  }
+
+  /// Get Started and Settings' Import button: imports, then says what happened in a toast.
+  func importSlateConfigFromUI() {
+    do {
+      let report = try importSlateConfig()
+      lastSlateImport = report
+      showToast(report.title, symbol: "square.and.arrow.down.fill")
+    } catch {
+      showToast(error.localizedDescription, symbol: "exclamationmark.triangle", style: .failure)
+    }
+  }
+
+  func dismissSlateImportNotice() {
+    services.dismissSlateImportNotice()
+    slateImportNotice = nil
+  }
+
+  /// Which file couldn't be read, for messages: "config.json", "settings.json" or "config.json".
+  var unreadableFileName: String {
+    loadError?.contains(ConfigFile.settings.rawValue) == true ? ConfigFile.settings.rawValue : ConfigFile.config.rawValue
+  }
+
+  /// Saves pending edits, then asks the app to reload config.json and settings.json.
   public func reload() {
     if hasUnsavedChanges { saveNow() }
     services.reload()
@@ -358,10 +396,8 @@ public final class AppModel {
 
   // MARK: Derived
 
-  /// Layout names from config.json and the Slate files, for validation and the layout picker.
-  var knownLayoutNames: Set<String> {
-    Set(draft.layouts.map(\.name) + sources.flatMap { $0.layouts.map(\.name) })
-  }
+  /// Layout names from config.json, for validation and the layout picker.
+  var knownLayoutNames: Set<String> { Set(draft.layouts.map(\.name)) }
 
   var mainScreen: ScreenInfo? { screens.first(where: \.isMain) ?? screens.first }
 

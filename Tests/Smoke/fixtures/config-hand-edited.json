@@ -1,6 +1,6 @@
 {
   // Hand-edited: comments and trailing commas are allowed.
-  "general": { "loadSlateConfigs": false },
+  "version": 2,
   "keyboard": { "capsLock": "off" },
   "bindings": [
     { "keys": "hyper+w", "action": "push top bar-resize:screenSizeY/2" },

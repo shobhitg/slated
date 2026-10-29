@@ -154,71 +154,34 @@ enum PreviewData {
   private static func meh(_ key: String) -> KeyCombo { KeyCombo(key: key, modifiers: [.control, .option, .command]) }
   private static func turning(_ id: String) -> Action { WindowPresets.orientation.first { $0.id == id }!.action }
 
-  static var slateJSBindings: [SourceBinding] {
-    [
-      SourceBinding(
-        keys: meh("left"), summary: "push left bar-resize:screenSizeX/2",
-        action: .push(direction: .left, style: .barResize("screenSizeX/2"), screen: nil)),
-      SourceBinding(
-        keys: meh("right"), summary: "push right bar-resize:screenSizeX/2",
-        action: .push(direction: .right, style: .barResize("screenSizeX/2"), screen: nil)),
-      SourceBinding(
-        keys: meh("up"), summary: "push up bar-resize:screenSizeY/2",
-        action: .push(direction: .up, style: .barResize("screenSizeY/2"), screen: nil)),
-      SourceBinding(
-        keys: meh("down"), summary: "push down bar-resize:screenSizeY/2",
-        action: .push(direction: .down, style: .barResize("screenSizeY/2"), screen: nil)),
-      // Functions: two Slated can describe by trying them, two it can't.
-      SourceBinding(
-        keys: meh("return"), summary: "JavaScript function", action: turning("middle-third"), function: .described),
-      SourceBinding(
-        keys: meh("1"), summary: "throw 0 resize",
-        action: .throwWindow(screen: .index(0), width: "screenSizeX", height: "screenSizeY")),
-      SourceBinding(
-        keys: meh("2"), summary: "throw 1 resize",
-        action: .throwWindow(screen: .index(1), width: "screenSizeX", height: "screenSizeY")),
-      SourceBinding(keys: meh("h"), summary: "hint", action: .hint(characters: nil)),
-      SourceBinding(
-        keys: meh("g"), summary: "grid 0:6,4 1:4,8",
-        action: .grid(
-          padding: nil,
-          grids: [GridScreen(screen: "0", width: 6, height: 4), GridScreen(screen: "1", width: 4, height: 8)])),
-      SourceBinding(keys: meh("z"), summary: "undo", action: .undo),
-      SourceBinding(keys: meh("r"), summary: "relaunch", action: .relaunch),
-      SourceBinding(keys: meh("x"), summary: "focus 'Xcode'", action: .focusApp("Xcode")),
-      SourceBinding(
-        keys: meh("t"), summary: "JavaScript function",
-        function: .undescribed(reason: "depends on the focused app or window title")),
-      SourceBinding(
-        keys: meh("s"), summary: "snapshot main save-to-disk",
-        action: .snapshot(name: "main", save: true, stack: false)),
-      SourceBinding(
-        keys: meh("a"), summary: "activate-snapshot main", action: .activateSnapshot(name: "main", delete: false)),
-      SourceBinding(
-        keys: KeyCombo(key: "tab", modifiers: .option), summary: "JavaScript function",
-        function: .undescribed(reason: "uses JavaScript logic Slated can't express without a script")),
-      SourceBinding(
-        keys: hyper("n"), summary: "throw next", action: .throwWindow(screen: .next, width: nil, height: nil)),
-      SourceBinding(
-        keys: hyper("c"), summary: "JavaScript function",
-        action: .corner(.bottomRight, width: "screenSizeX/2", height: "screenSizeY/2", screen: nil),
-        function: .described),
-      SourceBinding(
-        keys: KeyCombo(key: "1"), modal: ModalKey(keys: KeyCombo(key: "f4", modifiers: [.control])),
-        summary: "layout Writing", action: .layout(name: "Writing")),
-      SourceBinding(
-        keys: KeyCombo(key: "2"), modal: ModalKey(keys: KeyCombo(key: "f4", modifiers: [.control])),
-        summary: "layout Meeting", action: .layout(name: "Meeting")),
+  /// A ~/.slate.js as the import converts it: its static operations and the functions it could
+  /// describe by trying them become shortcuts; two functions that need JavaScript don't.
+  static var slateImport: SlateImport {
+    let modal = ModalKey(keys: KeyCombo(key: "f4", modifiers: [.control]))
+    let bindings: [(KeyCombo, ModalKey?, Action)] = [
+      (meh("left"), nil, .push(direction: .left, style: .barResize("screenSizeX/2"), screen: nil)),
+      (meh("right"), nil, .push(direction: .right, style: .barResize("screenSizeX/2"), screen: nil)),
+      (meh("up"), nil, .push(direction: .up, style: .barResize("screenSizeY/2"), screen: nil)),
+      (meh("down"), nil, .push(direction: .down, style: .barResize("screenSizeY/2"), screen: nil)),
+      (meh("return"), nil, turning("middle-third")),
+      (meh("1"), nil, .throwWindow(screen: .index(0), width: "screenSizeX", height: "screenSizeY")),
+      (meh("2"), nil, .throwWindow(screen: .index(1), width: "screenSizeX", height: "screenSizeY")),
+      (meh("h"), nil, .hint(characters: nil)),
+      (meh("z"), nil, .undo),
+      (meh("x"), nil, .focusApp("Xcode")),
+      (hyper("c"), nil, .corner(.bottomRight, width: "screenSizeX/2", height: "screenSizeY/2", screen: nil)),
+      (KeyCombo(key: "1"), modal, .layout(name: "Writing")),
+      (KeyCombo(key: "2"), modal, .layout(name: "Meeting")),
     ]
-  }
-
-  static var slateJSDiagnostics: [Diagnostic] {
-    let path = NSHomeDirectory() + "/.slate.js"
-    return [
-      Diagnostic(
-        .error, "S.op(\"flip\"): unknown operation “flip”. The binding for ⌃⌥⌘F was skipped.", file: path, line: 87),
-      Diagnostic(.warning, "config windowHintsShowIcons isn't supported yet and was ignored.", file: path, line: 12),
-    ]
+    return SlateImport(
+      files: ["~/.slate.js"],
+      bindings: bindings.map { HotkeyBinding(keys: $0.0, modal: $0.1, action: $0.2) },
+      layouts: sourceLayouts,
+      windows: SlateSettings(["nudgePercentOf": .string("screenSize")]),
+      notConverted: [
+        SlateImport.Item("ctrl+alt+cmd+t", "depends on the focused app or window title"),
+        SlateImport.Item("alt+tab", "uses JavaScript logic Slated can't express without a script"),
+      ])
   }
 
   // MARK: Running apps

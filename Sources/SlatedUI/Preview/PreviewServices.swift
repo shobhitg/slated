@@ -9,31 +9,34 @@ import SlatedCore
 @MainActor
 public final class PreviewServices: AppServices {
   public enum Scenario: Sendable {
-    /// A configured Mac: Hyper key on, ~25 bindings, hotstrings, a loaded `~/.slate.js`.
+    /// A configured Mac just moved to two config files: Hyper key on, ~25 bindings, hotstrings, and
+    /// the notice about the `~/.slate.js` it imported.
     case configured
-    /// First launch: no permission yet, Hyper off, nothing in Slated, a `~/.slate.js` to import.
+    /// First launch: no permission yet, Hyper off, the shortcuts of the `~/.slate.js` it imported.
     case firstRun
-    /// Permission granted but nothing configured and no Slate files: every empty state.
+    /// Permission granted but nothing configured and no Slate config: every empty state.
     case empty
     /// config.json has a syntax error, so the UI must not overwrite it.
     case brokenConfig
   }
 
   public let configurationFileURL = URL(fileURLWithPath: NSHomeDirectory() + "/.config/slated/config.json")
+  public let settingsFileURL = URL(fileURLWithPath: NSHomeDirectory() + "/.config/slated/settings.json")
   public private(set) var configuration: SlatedConfiguration
   public private(set) var status: RuntimeStatus
   public private(set) var hotkeysSuspended = false
   /// Not yet on a first run.
   public var setupFinished: Bool
-  private var sources: [SlateSource]
+  /// The Slate config there is to import, if any.
+  public var slateConfig: String?
+  /// What a first run or the migration imported, until dismissed.
+  public var importNotice: SlateImportReport?
   private let scenario: Scenario
   private var handlers: [@MainActor () -> Void] = []
 
   public init(scenario: Scenario = .configured) {
     self.scenario = scenario
     setupFinished = scenario != .firstRun
-    let slateJS = NSHomeDirectory() + "/.slate.js"
-    let classic = NSHomeDirectory() + "/.slate"
     switch scenario {
     case .configured, .brokenConfig:
       var config = SlatedConfiguration()
@@ -43,32 +46,22 @@ public final class PreviewServices: AppServices {
       config.bindings = PreviewData.bindings
       config.hotstrings = PreviewData.hotstrings
       config.layouts = PreviewData.layouts
+      slateConfig = "~/.slate.js"
+      importNotice = config.merge(PreviewData.slateImport)
       configuration = config
-      sources = [
-        SlateSource(
-          path: slateJS, kind: .javascript, exists: true, loaded: true, bindings: PreviewData.slateJSBindings,
-          layouts: PreviewData.sourceLayouts, diagnostics: PreviewData.slateJSDiagnostics),
-        SlateSource(path: classic, kind: .classic, exists: false, loaded: false),
-      ]
       status = RuntimeStatus(
         accessibilityGranted: true, hyperKeyActive: true, hotstringsActive: true,
         lastAction: "Left Half · Safari", lastError: "Couldn't resize “Calculator”: its window has a fixed size.")
       clipboard = ClipboardHistory(items: PreviewData.clipboard())
     case .firstRun:
-      configuration = SlatedConfiguration()
-      sources = [
-        SlateSource(
-          path: slateJS, kind: .javascript, exists: true, loaded: true, bindings: PreviewData.slateJSBindings,
-          layouts: PreviewData.sourceLayouts),
-        SlateSource(path: classic, kind: .classic, exists: false, loaded: false),
-      ]
+      // As a first run leaves it: the Slate config, imported.
+      var config = SlatedConfiguration()
+      slateConfig = "~/.slate.js"
+      importNotice = config.merge(PreviewData.slateImport)
+      configuration = config
       status = RuntimeStatus(accessibilityGranted: false, hotstringsActive: false)
     case .empty:
       configuration = SlatedConfiguration()
-      sources = [
-        SlateSource(path: slateJS, kind: .javascript, exists: false, loaded: false),
-        SlateSource(path: classic, kind: .classic, exists: false, loaded: false),
-      ]
       status = RuntimeStatus(accessibilityGranted: true, hotstringsActive: true)
     }
     recomputeStatus()
@@ -94,10 +87,26 @@ public final class PreviewServices: AppServices {
   }
 
   public func runtimeStatus() -> RuntimeStatus { status }
-  public func slateSources() -> [SlateSource] {
-    // Like the app: with loading off, the files are listed but not loaded.
-    guard !configuration.general.loadSlateConfigs else { return sources }
-    return sources.map { SlateSource(path: $0.path, kind: $0.kind, exists: $0.exists, loaded: false) }
+  public func slateConfigPath() -> String? { slateConfig }
+
+  /// Like the app: adds what the sample ~/.slate.js has that Slated doesn't.
+  public func importSlateConfig() throws -> SlateImportReport {
+    guard slateConfig != nil else {
+      throw NSError(
+        domain: "Slated", code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "There's no Slate config to import: Slated looked for ~/.slate.js and ~/.slate."])
+    }
+    var config = configuration
+    let report = config.merge(PreviewData.slateImport)
+    try saveConfiguration(config)
+    return report
+  }
+
+  public func slateImportNotice() -> SlateImportReport? { importNotice }
+
+  public func dismissSlateImportNotice() {
+    importNotice = nil
+    notify()
   }
   public func screens() -> [ScreenInfo] { PreviewData.screens }
   public func runningApplications() -> [AppInfo] { PreviewData.runningApps }
@@ -223,14 +232,6 @@ public final class PreviewServices: AppServices {
       let key = BindingStatusKey.key(binding.keys, modal: binding.modal)
       keys[key, default: 0] += 1
       apps[key, default: []].append(binding.onlyInApps)
-    }
-    if configuration.general.loadSlateConfigs {
-      for source in sources where source.loaded {
-        for binding in source.bindings {
-          keys[binding.id, default: 0] += 1
-          apps[binding.id, default: []].append([])
-        }
-      }
     }
     if configuration.clipboard.enabled, let shortcut = configuration.clipboard.shortcut {
       keys[shortcut.string, default: 0] += 1

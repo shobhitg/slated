@@ -1,16 +1,21 @@
 import Foundation
 
-/// The whole of Slated's native configuration, stored as JSON at `~/.config/slated/config.json`.
+/// The whole of Slated's native configuration. On disk it's two files in `~/.config/slated` (see
+/// ConfigFiles.swift): config.json says what your keys do (keyboard, bindings, hotstrings, layouts,
+/// display defaults) and settings.json how Slated behaves (general, windows, clipboard, automation,
+/// island). In memory it stays this one value; the split is only how it's stored.
 ///
 /// Every field has a default, and decoding tolerates missing keys, so hand-edited files only need
-/// what they change. Slate files (`~/.slate`, `~/.slate.js`) are loaded alongside this, not into it.
+/// what they change. Slate configs (`~/.slate`, `~/.slate.js`) are only ever imported into it.
 public struct SlatedConfiguration: Hashable, Sendable {
-  public static let currentVersion = 1
+  /// Version 2 split the single config.json of version 1 into config.json and settings.json.
+  public static let currentVersion = 2
 
   public var version: Int
   public var general: GeneralSettings
-  /// Slate's global `config` values (e.g. `defaultToCurrentScreen`, `nudgePercentOf`).
-  public var settings: SlateSettings
+  /// Slate's global `config` values (e.g. `defaultToCurrentScreen`, `nudgePercentOf`): how window
+  /// operations behave. `windows` in settings.json (`settings` in a version 1 config.json).
+  public var windows: SlateSettings
   public var keyboard: KeyboardSettings
   public var bindings: [HotkeyBinding]
   public var layouts: [Layout]
@@ -19,14 +24,17 @@ public struct SlatedConfiguration: Hashable, Sendable {
   public var clipboard: ClipboardSettings
   public var automation: AutomationSettings
   public var island: IslandSettings
-  /// Top-level sections this version doesn't know, such as ones a newer Slated wrote. They're written
-  /// back as read, so saving doesn't drop them. (Unknown fields inside known sections aren't kept.)
+  /// Top-level keys of config.json this version doesn't know, such as ones a newer Slated wrote.
+  /// They're written back as read, so saving doesn't drop them. (Unknown fields inside known sections
+  /// aren't kept.)
   public var unknownSections: [String: JSONValue]
+  /// The same for settings.json.
+  public var unknownSettings: [String: JSONValue]
 
   public init(
     version: Int = SlatedConfiguration.currentVersion,
     general: GeneralSettings = .init(),
-    settings: SlateSettings = .init(),
+    windows: SlateSettings = .init(),
     keyboard: KeyboardSettings = .init(),
     bindings: [HotkeyBinding] = [],
     layouts: [Layout] = [],
@@ -35,11 +43,12 @@ public struct SlatedConfiguration: Hashable, Sendable {
     clipboard: ClipboardSettings = .init(),
     automation: AutomationSettings = .init(),
     island: IslandSettings = .init(),
-    unknownSections: [String: JSONValue] = [:]
+    unknownSections: [String: JSONValue] = [:],
+    unknownSettings: [String: JSONValue] = [:]
   ) {
     self.version = version
     self.general = general
-    self.settings = settings
+    self.windows = windows
     self.keyboard = keyboard
     self.bindings = bindings
     self.layouts = layouts
@@ -49,66 +58,7 @@ public struct SlatedConfiguration: Hashable, Sendable {
     self.automation = automation
     self.island = island
     self.unknownSections = unknownSections
-  }
-}
-
-extension SlatedConfiguration: Codable {
-  private enum Key: String, CodingKey {
-    case version, general, settings, keyboard, bindings, layouts, defaults, hotstrings, clipboard, automation, island
-  }
-
-  public init(from decoder: Decoder) throws {
-    let c = try decoder.container(keyedBy: Key.self)
-    self.init(
-      version: try c.decodeIfPresent(Int.self, forKey: .version) ?? Self.currentVersion,
-      general: try c.decodeIfPresent(GeneralSettings.self, forKey: .general) ?? .init(),
-      settings: try c.decodeIfPresent(SlateSettings.self, forKey: .settings) ?? .init(),
-      keyboard: try c.decodeIfPresent(KeyboardSettings.self, forKey: .keyboard) ?? .init(),
-      bindings: try c.decodeIfPresent([HotkeyBinding].self, forKey: .bindings) ?? [],
-      layouts: try c.decodeIfPresent([Layout].self, forKey: .layouts) ?? [],
-      defaults: try c.decodeIfPresent([ScreenDefault].self, forKey: .defaults) ?? [],
-      hotstrings: try c.decodeIfPresent([Hotstring].self, forKey: .hotstrings) ?? [],
-      clipboard: try c.decodeIfPresent(ClipboardSettings.self, forKey: .clipboard) ?? .init(),
-      automation: try c.decodeIfPresent(AutomationSettings.self, forKey: .automation) ?? .init(),
-      island: try c.decodeIfPresent(IslandSettings.self, forKey: .island) ?? .init())
-    let all = try decoder.container(keyedBy: AnyKey.self)
-    for key in all.allKeys where Key(stringValue: key.stringValue) == nil {
-      unknownSections[key.stringValue] = try all.decode(JSONValue.self, forKey: key)
-    }
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var c = encoder.container(keyedBy: Key.self)
-    try c.encode(version, forKey: .version)
-    try c.encode(general, forKey: .general)
-    try c.encode(settings, forKey: .settings)
-    try c.encode(keyboard, forKey: .keyboard)
-    try c.encode(bindings, forKey: .bindings)
-    try c.encode(layouts, forKey: .layouts)
-    try c.encode(defaults, forKey: .defaults)
-    try c.encode(hotstrings, forKey: .hotstrings)
-    try c.encode(clipboard, forKey: .clipboard)
-    try c.encode(automation, forKey: .automation)
-    try c.encode(island, forKey: .island)
-    // The encoder sorts them in with the rest. A known section wins over an unknown one of its name.
-    var others = encoder.container(keyedBy: AnyKey.self)
-    for (key, value) in unknownSections where Key(stringValue: key) == nil {
-      try others.encode(value, forKey: AnyKey(key))
-    }
-  }
-
-  /// Decodes JSON, allowing JSON5 conveniences (comments, trailing commas) in hand-edited files.
-  public static func decode(from data: Data) throws -> SlatedConfiguration {
-    let decoder = JSONDecoder()
-    decoder.allowsJSON5 = true
-    return try decoder.decode(SlatedConfiguration.self, from: data)
-  }
-
-  /// Stable, human-friendly JSON: pretty-printed with sorted keys so diffs stay small.
-  public func encoded() throws -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    return try encoder.encode(self)
+    self.unknownSettings = unknownSettings
   }
 }
 
@@ -116,32 +66,13 @@ extension SlatedConfiguration: Codable {
 
 public struct GeneralSettings: Hashable, Sendable {
   public var launchAtLogin: Bool
-  /// Load Slate config files (`~/.slate.js`, `~/.slate`) in addition to Slated's own bindings.
-  public var loadSlateConfigs: Bool
-  /// Slate config files to load, in order. `~` is expanded.
-  public var slateConfigPaths: [String]
-  /// Shortcuts imported from the Slate files while the files kept loading (for what couldn't be
-  /// imported), as `"ctrl+alt+f16"` or, behind a modal key, `"ctrl+alt+f6 x"`. The files' own
-  /// bindings on these keys are ignored, so the imported copies can be changed or deleted in
-  /// Settings. Written only when there are some.
-  public var importedSlateShortcuts: [String]
   /// Show a small HUD when an operation runs.
   public var showActionHUD: Bool
   /// Master switch for text expansion; each hotstring's own `enabled` flag is kept as is.
   public var hotstringsEnabled: Bool
 
-  public init(
-    launchAtLogin: Bool = false,
-    loadSlateConfigs: Bool = true,
-    slateConfigPaths: [String] = ["~/.slate.js", "~/.slate"],
-    importedSlateShortcuts: [String] = [],
-    showActionHUD: Bool = false,
-    hotstringsEnabled: Bool = true
-  ) {
+  public init(launchAtLogin: Bool = false, showActionHUD: Bool = false, hotstringsEnabled: Bool = true) {
     self.launchAtLogin = launchAtLogin
-    self.loadSlateConfigs = loadSlateConfigs
-    self.slateConfigPaths = slateConfigPaths
-    self.importedSlateShortcuts = importedSlateShortcuts
     self.showActionHUD = showActionHUD
     self.hotstringsEnabled = hotstringsEnabled
   }
@@ -149,7 +80,7 @@ public struct GeneralSettings: Hashable, Sendable {
 
 extension GeneralSettings: Codable {
   private enum Key: String, CodingKey {
-    case launchAtLogin, loadSlateConfigs, slateConfigPaths, importedSlateShortcuts, showActionHUD, hotstringsEnabled
+    case launchAtLogin, showActionHUD, hotstringsEnabled
   }
 
   public init(from decoder: Decoder) throws {
@@ -157,9 +88,6 @@ extension GeneralSettings: Codable {
     let d = GeneralSettings()
     self.init(
       launchAtLogin: try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin,
-      loadSlateConfigs: try c.decodeIfPresent(Bool.self, forKey: .loadSlateConfigs) ?? d.loadSlateConfigs,
-      slateConfigPaths: try c.decodeIfPresent([String].self, forKey: .slateConfigPaths) ?? d.slateConfigPaths,
-      importedSlateShortcuts: try c.decodeIfPresent([String].self, forKey: .importedSlateShortcuts) ?? [],
       showActionHUD: try c.decodeIfPresent(Bool.self, forKey: .showActionHUD) ?? d.showActionHUD,
       hotstringsEnabled: try c.decodeIfPresent(Bool.self, forKey: .hotstringsEnabled) ?? d.hotstringsEnabled)
   }
@@ -167,9 +95,6 @@ extension GeneralSettings: Codable {
   public func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: Key.self)
     try c.encode(launchAtLogin, forKey: .launchAtLogin)
-    try c.encode(loadSlateConfigs, forKey: .loadSlateConfigs)
-    try c.encode(slateConfigPaths, forKey: .slateConfigPaths)
-    if !importedSlateShortcuts.isEmpty { try c.encode(importedSlateShortcuts, forKey: .importedSlateShortcuts) }
     try c.encode(showActionHUD, forKey: .showActionHUD)
     try c.encode(hotstringsEnabled, forKey: .hotstringsEnabled)
   }

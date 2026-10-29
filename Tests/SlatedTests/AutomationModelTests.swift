@@ -72,8 +72,8 @@ let automationModelTests = Suite(
           from: Data(#"{"clipboard":{"shortcut":null},"automation":{"stopShortcut":null}}"#.utf8))
         expect(off.clipboard.shortcut == nil)
         expect(off.automation.stopShortcut == nil)
-        expectEqual(try SlatedConfiguration.decode(from: off.encoded()), off)
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        expectEqual(try roundTripped(off), off)
+        expectEqual(try roundTripped(config), config)
       }
     ),
   ])

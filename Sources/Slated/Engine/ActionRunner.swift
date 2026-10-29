@@ -31,8 +31,6 @@ final class ActionRunner {
   var onRelaunch: (() -> Void)?
   /// Shows window hints or the grid (implemented by the overlay controller).
   var overlays: OverlayPresenting?
-  /// Runs a layout defined outside the static `layouts` (JavaScript layouts). Returns false if unknown.
-  var externalLayout: ((String) -> Bool)?
   /// Auto-repeats and held inputs.
   var automation: AutomationEngine?
   /// Clipboard history (the switcher).
@@ -111,13 +109,7 @@ final class ActionRunner {
       return runSequence(steps, from: 0, anchor: window ?? Accessibility.focusedWindow(), chainKey: chainKey)
 
     case .layout(let name):
-      guard let layout = layouts[name] else {
-        if externalLayout?(name) == true {
-          report("Layout \(name)")
-          return true
-        }
-        return fail("No layout named \"\(name)\"")
-      }
+      guard let layout = layouts[name] else { return fail("No layout named \"\(name)\"") }
       applyLayout(layout)
       report("Layout \(name)")
       return true

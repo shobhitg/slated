@@ -1,6 +1,6 @@
 {
   // Shortcuts on the same keys, limited to apps, and on a built-in shortcut's keys.
-  "general": { "loadSlateConfigs": false },
+  "version": 2,
   "bindings": [
     // Limited to the same app: the second never runs there.
     { "keys": "ctrl+alt+cmd+f14", "action": "push left", "onlyInApps": ["com.example.editor"] },

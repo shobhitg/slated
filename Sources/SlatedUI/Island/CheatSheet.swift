@@ -26,12 +26,6 @@ public struct CheatSheet: Hashable, Sendable {
     }
 
     var id: String { (modal.map { $0.string + " " } ?? "") + keys.string }
-
-    /// A Slate file's shortcut, listed by what it does, as in Settings: a function Slated can
-    /// describe goes under its real section ("First Third" under Windows), not under Scripts.
-    public init(_ source: SourceBinding) {
-      self.init(keys: source.keys, modal: source.modal?.keys, action: source.action, summary: source.summary)
-    }
   }
 
   public struct Item: Hashable, Sendable, Identifiable {

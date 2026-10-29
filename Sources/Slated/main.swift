@@ -21,18 +21,14 @@ if CommandLine.arguments.contains("--smoke") {
     let status = engine.status
     let config = engine.configuration
     print("config:", engine.store.fileURL.path, engine.store.loadError ?? "ok")
-    print("native: \(config.bindings.count) bindings, \(config.hotstrings.count) hotstrings, capsLock: \(config.keyboard.capsLock.rawValue), loadSlateConfigs: \(config.general.loadSlateConfigs)")
-    for source in engine.sources.sources {
-      print("source:", source.path, source.loaded ? "loaded" : "not loaded", "\(source.bindings.count) bindings")
-      for d in source.diagnostics { print("  ", d) }
-      // As Settings lists them: what each shortcut does, even when it runs a function.
-      for binding in source.bindings {
-        switch binding.function {
-        case nil: print("  ", "\(binding.id): \(binding.title)")
-        case .described: print("  ", "\(binding.id): \(binding.title) (a function)")
-        case .undescribed(let reason): print("  ", "\(binding.id): \(binding.title) (\(reason ?? "unknown"))")
-        }
-      }
+    print("native: \(config.bindings.count) bindings, \(config.hotstrings.count) hotstrings, capsLock: \(config.keyboard.capsLock.rawValue), \(config.layouts.count) layouts, \(config.windows.values.count) window settings")
+    // What Overview would say about a Slate config a first run or the migration imported.
+    if let notice = SlateImportNotice.load() {
+      print(
+        "slate notice: \(notice.added) added, \(notice.alreadyThere) already there, \(notice.notConverted.count) not converted, from \(notice.fileNames)"
+      )
+      for item in notice.notConverted { print("   not converted:", item.description) }
+      for problem in notice.problems { print("   problem:", problem) }
     }
     print("hotkeys:", status.hotkeys.count, "registered,", status.hotkeys.values.filter { $0 == .active }.count, "active")
     for (key, value) in status.hotkeys.sorted(by: { $0.key < $1.key }) where value != .active {

@@ -8,7 +8,10 @@ struct GeneralPane: View {
   var body: some View {
     @Bindable var model = model
     PaneScroll {
-      PaneHeader(pane: .general, subtitle: "Startup, feedback and where your settings live.")
+      PaneHeader(
+        pane: .general,
+        subtitle: "These settings are in ~/.config/slated/settings.json; shortcuts, hotstrings and the Hyper key "
+          + "are in config.json beside it.")
       SettingsCard(title: "Startup", symbol: "power") {
         ToggleRow(
           title: "Launch at login",
@@ -39,8 +42,17 @@ struct GeneralPane: View {
       }
       IslandCard()
       WindowBehaviorCard()
-      SettingsCard(title: "Configuration File", symbol: "doc.badge.gearshape") {
-        FactRow(label: "Location", value: displayPath(model.services.configurationFileURL.path), monospaced: true)
+      SettingsCard(
+        title: "Configuration Files", symbol: "doc.badge.gearshape",
+        footer:
+          "Shortcuts, hotstrings and the Hyper key are in \(displayPath(model.services.configurationFileURL.path)); "
+          + "these settings are in \(model.services.settingsFileURL.lastPathComponent). Edit either by hand "
+          + "and Slated picks up the change."
+      ) {
+        FactRow(
+          label: "Shortcuts", value: displayPath(model.services.configurationFileURL.path), monospaced: true)
+        CardDivider()
+        FactRow(label: "Settings", value: displayPath(model.services.settingsFileURL.path), monospaced: true)
         CardDivider()
         HStack(spacing: 8) {
           SaveStatusLabel()
@@ -179,7 +191,7 @@ private struct WindowBehaviorCard: View {
       ) {
         // What Undo keeps, as the engine reads the setting. Not `Int(_:)` of the raw number, which traps
         // on what a hand edit or an imported Slate config can put there: 1e20, Infinity, NaN.
-        let moves = max(model.configuration.settings.undoMaxStackSize, 1)
+        let moves = max(model.configuration.windows.undoMaxStackSize, 1)
         Stepper("\(moves) moves", value: undoMaxStackSize, in: 1...50)
           .font(.system(size: 12.5).monospacedDigit())
           .fixedSize()
@@ -190,20 +202,20 @@ private struct WindowBehaviorCard: View {
   /// The undo history stepper's value: a whole number in its range, whatever config.json holds.
   private var undoMaxStackSize: Binding<Double> {
     Binding(
-      get: { Double(min(max(model.configuration.settings.undoMaxStackSize, 1), 50)) },
-      set: { model.configuration.settings["undoMaxStackSize"] = .number($0) })
+      get: { Double(min(max(model.configuration.windows.undoMaxStackSize, 1), 50)) },
+      set: { model.configuration.windows["undoMaxStackSize"] = .number($0) })
   }
 
   private func bool(_ key: String, default value: Bool) -> Binding<Bool> {
     Binding(
-      get: { model.configuration.settings.bool(key, default: value) },
-      set: { model.configuration.settings[key] = .bool($0) })
+      get: { model.configuration.windows.bool(key, default: value) },
+      set: { model.configuration.windows[key] = .bool($0) })
   }
 
   private func number(_ key: String, default value: Double) -> Binding<Double> {
     Binding(
-      get: { model.configuration.settings.double(key, default: value) },
-      set: { model.configuration.settings[key] = .number($0) })
+      get: { model.configuration.windows.double(key, default: value) },
+      set: { model.configuration.windows[key] = .number($0) })
   }
 }
 
@@ -223,7 +235,9 @@ struct SaveStatusLabel: View {
         )
       case .failed(let message): return ("Couldn't save: \(message)", "xmark.octagon.fill", Theme.critical)
       case .blocked:
-        return ("Saving paused until config.json can be read", "exclamationmark.triangle.fill", Theme.caution)
+        return (
+          "Saving paused until \(model.unreadableFileName) can be read", "exclamationmark.triangle.fill", Theme.caution
+        )
       }
     }()
     Label {

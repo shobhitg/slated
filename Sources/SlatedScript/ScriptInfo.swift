@@ -320,23 +320,4 @@ extension SlateScriptEngine {
       "newWindowSizeX": value(frame.width), "newWindowSizeY": value(frame.height),
     ]
   }
-
-  // MARK: Events
-
-  /// What Slate passed to event callbacks after the event name.
-  func eventPayload(_ event: ScriptEvent) -> Any {
-    let undefined = undefinedValue
-    switch event {
-    case .windowOpened(let window), .windowFocused(let window), .windowTitleChanged(let window):
-      return windowObject(window) ?? undefined
-    case .windowMoved(let window), .windowResized(let window):
-      guard let info = host.windowInfo(window) else { return undefined }
-      return appObject(host.app(pid: info.pid) ?? ScriptAppInfo(pid: info.pid, name: "")) ?? undefined
-    case .windowClosed(let app), .appOpened(let app), .appClosed(let app), .appHidden(let app), .appUnhidden(let app),
-      .appActivated(let app), .appDeactivated(let app):
-      return appObject(app) ?? undefined
-    case .screenConfigurationChanged:
-      return undefined
-    }
-  }
 }

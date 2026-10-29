@@ -8,6 +8,9 @@ struct OverviewPane: View {
   var body: some View {
     PaneScroll {
       HeroCard()
+      if let report = model.slateImportNotice {
+        SlateImportNoticeCard(report: report)
+      }
       RunningAutomationsCard(hidesWhenIdle: true)
         .animation(Theme.spring, value: model.activeAutomations.isEmpty)
       VStack(alignment: .leading, spacing: 10) {
@@ -18,6 +21,41 @@ struct OverviewPane: View {
       QuickTips()
       NextSteps()
     }
+  }
+}
+
+// MARK: - Slate import
+
+/// Said once, after a first run or the move to two config files imported the Slate config: its
+/// shortcuts are Slated's now, and Slated no longer reads the Slate file.
+struct SlateImportNoticeCard: View {
+  let report: SlateImportReport
+  @Environment(AppModel.self) private var model
+
+  var body: some View {
+    Notice(style: .success, title: title, message: message, symbol: "square.and.arrow.down.fill") {
+      HStack(spacing: 8) {
+        Button("Show Shortcuts") { model.selectedPane = .windows }
+        Button("Got It") { model.dismissSlateImportNotice() }
+      }
+      .buttonStyle(.soft)
+      .controlSize(.small)
+      .padding(.top, 4)
+    }
+  }
+
+  private var title: String {
+    "Your \(report.fileNames) shortcuts are now part of Slated's config"
+  }
+
+  private var message: String {
+    var text =
+      "Slated doesn't read \(report.fileNames) any more: edit them here or in ~/.config/slated/config.json."
+    let skipped = report.notConverted
+    if !skipped.isEmpty {
+      text += " \(skipped.count) couldn't be converted: \(skipped.map(\.displayName).joined(separator: ", "))."
+    }
+    return text
   }
 }
 
@@ -167,10 +205,11 @@ private struct StatusGrid: View {
           Button(model.problemBindingCount > 0 ? "Review" : "Edit") { model.selectedPane = .windows }
         }
         StatusTile(
-          title: "Slate Config", symbol: "doc.text.fill", tint: SettingsPane.slate.tint,
-          value: slateValue, state: slateState, detail: slateDetail
+          title: "Config Files", symbol: "doc.text.fill", tint: SettingsPane.general.tint,
+          value: model.loadError == nil ? "Up to date" : "Can't read \(model.unreadableFileName)",
+          state: model.loadError == nil ? .good : .attention, detail: "config.json and settings.json"
         ) {
-          Button("Details") { model.selectedPane = .slate }
+          Button("Show") { model.revealConfigurationFile() }
         }
       }
       HStack(spacing: 12) {
@@ -228,30 +267,10 @@ private struct StatusGrid: View {
     if duplicates > 0 { parts.append("\(duplicates) duplicate\(duplicates == 1 ? "" : "s")") }
     if failed > 0 { parts.append("\(failed) failed") }
     if parts.isEmpty {
-      return "\(model.configuration.bindings.count) in Slated · \(model.sourceBindingCount) from Slate"
+      let count = model.configuration.bindings.count
+      return "\(count) shortcut\(count == 1 ? "" : "s") in config.json"
     }
     return parts.joined(separator: " · ")
-  }
-
-  private var loadedSources: [SlateSource] { model.sources.filter(\.loaded) }
-
-  private var slateValue: String {
-    if !model.configuration.general.loadSlateConfigs { return "Off" }
-    guard let first = loadedSources.first else { return "None found" }
-    return loadedSources.count == 1 ? first.displayName : "\(loadedSources.count) files"
-  }
-
-  private var slateState: TileState {
-    if model.sources.contains(where: { $0.errorCount > 0 }) { return .attention }
-    return loadedSources.isEmpty ? .neutral : .good
-  }
-
-  private var slateDetail: String {
-    if !model.configuration.general.loadSlateConfigs { return "Slate files are ignored" }
-    if loadedSources.isEmpty { return "No ~/.slate or ~/.slate.js" }
-    let errors = model.sources.reduce(0) { $0 + $1.errorCount }
-    let count = "\(model.sourceBindingCount) bindings"
-    return errors > 0 ? "\(count) · \(errors) error\(errors == 1 ? "" : "s")" : count
   }
 }
 
@@ -496,19 +515,18 @@ private struct NextSteps: View {
 
   private var steps: [Step] {
     var steps: [Step] = []
-    let copyable = model.sources.flatMap(\.bindings).filter { $0.action != nil && !model.isCopied($0) }
     if !model.hyperKeyEnabled {
       steps.append(
         Step(
           title: "Turn on the Hyper key", detail: "Caps Lock becomes ⌃⌥⇧⌘ — room for dozens of shortcuts.",
           symbol: "capslock.fill", tint: SettingsPane.keyboard.tint, run: { model.selectedPane = .keyboard }))
     }
-    if !copyable.isEmpty {
+    if let slate = model.slateConfigPath, model.configuration.bindings.isEmpty {
       steps.append(
         Step(
-          title: "Bring over Slate bindings", detail: "\(copyable.count) can be copied into Slated and edited here.",
+          title: "Import your Slate config", detail: "Bring the shortcuts in \(slate) into Slated, to edit here.",
           symbol: "square.and.arrow.down.on.square", tint: SettingsPane.slate.tint,
-          run: { model.selectedPane = .windows }))
+          run: { model.importSlateConfigFromUI() }))
     }
     if model.configuration.hotstrings.count < 3 {
       steps.append(

@@ -38,6 +38,7 @@ enum MainMenu {
     let menu = NSMenu(title: "File")
     menu.addItem(item("Reload Configuration", #selector(AppDelegate.reload), "r", target: app))
     menu.addItem(item("Open Config File", #selector(AppDelegate.openConfig), target: app))
+    menu.addItem(item("Open Settings File", #selector(AppDelegate.openSettings), target: app))
     menu.addItem(item("Import Slate Config into Slated…", #selector(AppDelegate.importSlate), target: app))
     menu.addItem(.separator())
     menu.addItem(item("Close Window", #selector(NSWindow.performClose(_:)), "w"))

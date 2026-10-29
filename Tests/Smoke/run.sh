@@ -37,12 +37,22 @@ expect_true() {  # name, command...
   if "$@"; then echo "✔ $name"; passed=$((passed + 1)); else echo "✘ $name"; failed=$((failed + 1)); fi
 }
 
-# 1. First run without any Slate config: the built-in starter bindings, written to config.json.
+# 1. First run without any Slate config: the built-in starter bindings, written to config.json, and
+#    Slated's settings to settings.json.
 home=$(new_home)
 out=$(smoke "$home")
 expect_output "first run without a Slate config starts from the built-in bindings" "$out" "native: 21 bindings, 0 hotstrings, capsLock: hyper"
 expect_true "first run writes a valid config.json" \
   /usr/bin/python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$home/.config/slated/config.json"
+expect_true "first run writes a valid settings.json" \
+  /usr/bin/python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$home/.config/slated/settings.json"
+expect_true "config.json holds what keys do, settings.json how Slated behaves" /usr/bin/python3 -I -c '
+import json, sys
+config, settings = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
+assert sorted(config) == ["bindings", "defaults", "hotstrings", "keyboard", "layouts", "version"], sorted(config)
+assert sorted(settings) == ["automation", "clipboard", "general", "island", "version", "windows"], sorted(settings)
+assert config["version"] == settings["version"] == 2
+' "$home/.config/slated/config.json" "$home/.config/slated/settings.json"
 expect_output "the event log records the start" "$(log_of "$home")" '"event":"app.start"'
 expect_true "a smoke run leaves the keyboard alone" grep -qE '"keyboardChanges":false.*"mode":"smoke"' "$home/Library/Logs/Slated/slated.log"
 expect_output "the event log records the new config" "$(log_of "$home")" '"event":"config.created"'
@@ -52,64 +62,100 @@ expect_output "the event log records a clean quit" "$(log_of "$home")" '"event":
 expect_output "the notch island is on by default" "$out" "island: on cheat sheet after 0.5 s failures shown"
 expect_output "the Hyper cheat sheet lists every Hyper shortcut" "$out" "cheat sheet: 22 Hyper shortcuts (Windows, Displays, Automation)"
 expect_true "every log line is valid JSON" /usr/bin/python3 -I -c 'import json,sys; [json.loads(l) for l in open(sys.argv[1])]' "$home/Library/Logs/Slated/slated.log"
-before=$(shasum "$home/.config/slated/config.json")
+before=$(shasum "$home/.config/slated/config.json" "$home/.config/slated/settings.json")
 out=$(smoke "$home")
 expect_output "second run reuses the existing config" "$out" "native: 21 bindings"
-expect_true "second run doesn't rewrite config.json" test "$before" = "$(shasum "$home/.config/slated/config.json")"
+expect_true "second run rewrites neither file" \
+  test "$before" = "$(shasum "$home/.config/slated/config.json" "$home/.config/slated/settings.json")"
 
-# 2. First run with a ~/.slate.js: the Slate config is the default, loaded as-is.
+# 2. First run with a ~/.slate.js: its shortcuts are imported into config.json, once. Slated doesn't
+#    read the file after that.
 home=$(new_home)
 cp "$FIXTURES/slate.js" "$home/.slate.js"
 out=$(smoke "$home")
-expect_output "an existing ~/.slate.js stays the default" "$out" "native: 0 bindings"
-expect_output "~/.slate.js loads all its bindings" "$out" "source: ~/.slate.js loaded 4 bindings"
+expect_output "an existing ~/.slate.js is imported on a first run" "$out" "native: 4 bindings"
+expect_output "Overview says what was imported" "$out" \
+  "slate notice: 4 added, 0 already there, 0 not converted, from ~/.slate.js"
 # 4 from the file, plus Slated's clipboard switcher (⇧⌘V) and automation stop (Hyper+Esc).
-expect_output "~/.slate.js bindings are registered as hotkeys" "$out" "hotkeys: 6 registered"
-expect_output "the event log records the Slate file" "$(log_of "$home")" '"bindings":4,"kind":"javascript"'
-# Every shortcut in it runs a function; each is listed by what it does, as Settings shows it.
-expect_output "a function is listed by what it does" "$out" "hyper+a: Left Half (a function)"
-expect_output "a function that differs by orientation names both" "$out" \
-  "hyper+f: Push Left / Top Left Corner (a function)"
-expect_output "the cheat sheet groups functions by what they do" "$out" \
-  "cheat sheet: 5 Hyper shortcuts (Windows, Automation)"
-expect_output "the event log records how many functions it could describe" "$(log_of "$home")" \
-  '"data":{"described":4,"functions":4'
+expect_output "the imported shortcuts are registered as hotkeys" "$out" "hotkeys: 6 registered"
+expect_output "the event log says the config came from the Slate config" "$(log_of "$home")" '"from":"Slate config"'
+expect_output "the cheat sheet groups them by what they do" "$out" "cheat sheet: 5 Hyper shortcuts (Windows, Automation)"
+expect_true "a function is imported as what it does" /usr/bin/python3 -I -c '
+import json, sys
+bindings = {b["keys"]: b["action"] for b in json.load(open(sys.argv[1]))["bindings"]}
+assert bindings["hyper+a"]["op"] == "move" and bindings["hyper+a"]["width"] == "screenSizeX/2", bindings
+assert bindings["hyper+f"]["op"] == "by-orientation", bindings["hyper+f"]
+' "$home/.config/slated/config.json"
+echo 'slate.bind("z:ctrl,shift,alt,cmd", "undo");' >>"$home/.slate.js"
+out=$(smoke "$home")
+expect_output "a change to ~/.slate.js after the import changes nothing" "$out" "native: 4 bindings"
 
-# 2a. A third that turns with the display is named by position; a function whose result depends on
-#     the window stays "JavaScript Function", with the reason.
+# 2a. A function whose result depends on the window isn't converted; the notice says which, by keys.
 home=$(new_home)
 cp "$FIXTURES/slate-functions.js" "$home/.slate.js"
 out=$(smoke "$home")
-expect_output "thirds that turn with the display read naturally" "$out" "hyper+f: First Third (a function)"
-expect_output "a function Slated can't describe says why" "$out" \
-  "hyper+t: JavaScript Function (depends on the focused app or window title)"
-expect_output "the cheat sheet lists the third under Windows and the rest under Scripts" "$out" \
-  "cheat sheet: 3 Hyper shortcuts (Windows, Automation, Scripts)"
+expect_output "a third that turns with the display is imported" "$out" "native: 1 bindings"
+expect_output "what couldn't be converted is listed by its keys, with why" "$out" \
+  "not converted: hyper+t: depends on the focused app or window title"
+expect_output "the cheat sheet lists only what Slated runs" "$out" "cheat sheet: 2 Hyper shortcuts (Windows, Automation)"
 
-# 2b. With "Load Slate config files" off, the files are still listed, as not loaded, so onboarding and
-#     Settings can offer to turn loading back on. None of their shortcuts are registered.
+# 2b. The move to two files: a version 1 config.json (the author's: no bindings of its own, Slate files
+#     loading, settings in every section) with a ~/.slate.js. Migrated once, the old file kept.
+legacy='{
+  // Version 1: everything in one file.
+  "version": 1,
+  "general": { "loadSlateConfigs": true, "slateConfigPaths": ["~/.slate.js", "~/.slate"], "showActionHUD": true },
+  "settings": { "nudgePercentOf": "windowSize" },
+  "island": { "cheatSheetDelay": 0.8 },
+  "keyboard": { "capsLock": "hyper" },
+  "bindings": [],
+  "hotstrings": [ { "trigger": ";sig", "replacement": "Best" } ],
+}'
 home=$(new_home)
+mkdir -p "$home/.config/slated"
+printf '%s\n' "$legacy" >"$home/.config/slated/config.json"
 cp "$FIXTURES/slate.js" "$home/.slate.js"
+out=$(smoke "$home")
+expect_output "a version 1 config.json keeps its keyboard and hotstrings, and gains the Slate shortcuts" "$out" \
+  "native: 4 bindings, 1 hotstrings, capsLock: hyper"
+expect_output "its island settings carry over" "$out" "island: on cheat sheet after 0.8 s"
+expect_output "Overview says what was imported" "$out" "slate notice: 4 added"
+expect_output "the event log records the migration, in counts" "$(log_of "$home")" '"event":"config.migrated"'
+expect_output "with how many shortcuts it imported" "$(log_of "$home")" '"imported":4'
+expect_true "the old config.json is kept as config.v1.json" \
+  test "$(cat "$home/.config/slated/config.v1.json")" = "$legacy"
+expect_true "its settings moved to settings.json, settings as windows" /usr/bin/python3 -I -c '
+import json, sys
+config, settings = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
+assert config["version"] == 2 and "general" not in config and "settings" not in config, config
+assert settings["windows"]["nudgePercentOf"] == "windowSize", settings["windows"]
+assert settings["general"]["showActionHUD"] is True and "loadSlateConfigs" not in settings["general"]
+' "$home/.config/slated/config.json" "$home/.config/slated/settings.json"
+before=$(shasum "$home/.config/slated/"*.json)
+out=$(smoke "$home")
+expect_true "migrating is done once: the next run changes no file" test "$before" = "$(shasum "$home/.config/slated/"*.json)"
+expect_true "and logs no second migration" test "$(grep -c '"event":"config.migrated"' "$home/Library/Logs/Slated/slated.log")" -eq 1
+# With the Slate files turned off, nothing is imported.
+home=$(new_home)
 mkdir -p "$home/.config/slated"
 echo '{ "general": { "loadSlateConfigs": false } }' >"$home/.config/slated/config.json"
+cp "$FIXTURES/slate.js" "$home/.slate.js"
 out=$(smoke "$home")
-expect_output "with loading off, ~/.slate.js is still listed, as not loaded" "$out" "source: ~/.slate.js not loaded 0 bindings"
-expect_output "and so is ~/.slate, which isn't there" "$out" "source: ~/.slate not loaded 0 bindings"
-expect_output "with loading off, no Slate shortcut is registered" "$out" "hotkeys: 2 registered"
-expect_output "the event log says why ~/.slate.js isn't loaded" "$(log_of "$home")" '"reason":"loading is off"'
+expect_output "a version 1 config with Slate files off imports nothing" "$out" "native: 0 bindings"
+expect_true "and says nothing about an import" bash -c '! grep -q "slate notice" <<<"$1"' _ "$out"
 
-# 3. A classic ~/.slate file.
+# 3. A classic ~/.slate file, imported on a first run: its bindings, layout and setting.
 home=$(new_home)
 cp "$FIXTURES/slate" "$home/.slate"
 out=$(smoke "$home")
-expect_output "a classic ~/.slate loads" "$out" "source: ~/.slate loaded 2 bindings"
+expect_output "a classic ~/.slate is imported" "$out" "native: 2 bindings, 0 hotstrings, capsLock: off, 1 layouts, 1 window settings"
 
 # 4. Hand-edited config.json with comments and trailing commas.
 home=$(new_home)
 mkdir -p "$home/.config/slated"
 cp "$FIXTURES/config-hand-edited.json" "$home/.config/slated/config.json"
 out=$(smoke "$home")
-expect_output "hand-edited JSON with comments loads" "$out" "native: 1 bindings, 2 hotstrings, capsLock: off, loadSlateConfigs: false"
+expect_output "hand-edited JSON with comments loads" "$out" "native: 1 bindings, 2 hotstrings, capsLock: off"
 
 # 4b. Built-in shortcuts can be turned off with null.
 home=$(new_home)
@@ -200,11 +246,13 @@ home=$(new_home)
 mkdir -p "$home/.config/slated" "$home/dotfiles"
 cp "$FIXTURES/config-hand-edited.json" "$home/dotfiles/config.json"
 ln -s "$home/dotfiles/config.json" "$home/.config/slated/config.json"
-out=$(SLATED_SMOKE_STEPS=save smoke "$home")
+out=$(SLATED_SMOKE_STEPS="save add-binding" smoke "$home")
 expect_output "saving through a symlinked config.json works" "$out" "settings save: saved"
 expect_true "config.json is still a symlink after saving" test -L "$home/.config/slated/config.json"
-expect_true "the save went into the dotfiles copy" \
-  /usr/bin/python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$home/dotfiles/config.json"
+expect_true "the save went into the dotfiles copy" /usr/bin/python3 -I -c '
+import json, sys
+assert len(json.load(open(sys.argv[1]))["bindings"]) == 2
+' "$home/dotfiles/config.json"
 
 # 5d. A config.json linking to a file that isn't there (dotfiles not cloned yet, a volume not mounted,
 #     a branch switch) is an error, not a first run: the link stays, nothing is written in its place
@@ -237,22 +285,27 @@ out=$(smoke "$home")
 expect_output "an unknown operation is named in the error" "$out" "Unknown operation \"teleport\""
 expect_output "the error says where the problem is" "$out" "bindings[0]"
 
-# 6a. Errors that quote private text, in config.json, ~/.slate and ~/.slate.js: an insert-text that types
-#     words without quotes, and a JavaScript TypeError that quotes a value (a window title, say). The
-#     event log leaves the text out; Settings still shows the whole message.
+# 6a. Errors that quote private text, in config.json, and in a ~/.slate and ~/.slate.js being imported:
+#     an insert-text that types words without quotes, and a JavaScript TypeError that quotes a value (a
+#     window title, say). The event log leaves the text out; Settings and the import alert still show
+#     the whole message.
 home=$(new_home)
 mkdir -p "$home/.config/slated"
 cp "$FIXTURES/config-private-text.json" "$home/.config/slated/config.json"
-cp "$FIXTURES/slate-private-text" "$home/.slate"
-cp "$FIXTURES/slate-private-text.js" "$home/.slate.js"
 out=$(SLATED_SMOKE_STEPS=save smoke "$home")
 expect_output "Settings shows an insert-text error whole" "$out" "write insert-text 'SECRETPHRASE my bank pin 4321'"
-expect_output "Settings shows a JavaScript error whole" "$out" "(In 'title()', 'title' is \"SECRETTITLE"
-expect_true "the event log has none of the private text" \
-  bash -c '! grep -q SECRET "$1"' _ "$home/Library/Logs/Slated/slated.log"
 expect_output "the log still says where the config.json error is" "$(log_of "$home")" \
   'Invalid operation \"insert-text … (at bindings[0].action)'
-expect_output "the log still names the JavaScript error" "$(log_of "$home")" 'line 5: TypeError: title is not a function."'
+for file in slate-private-text slate-private-text.js; do
+  home=$(new_home)
+  mkdir -p "$home/.config/slated"
+  echo '{ "version": 2 }' >"$home/.config/slated/config.json"
+  cp "$FIXTURES/$file" "$home/$([ "$file" = slate-private-text ] && echo .slate || echo .slate.js)"
+  out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+  expect_output "the import alert shows what $file couldn't convert, whole" "$out" "SECRET"
+  expect_true "the event log has none of $file's private text" \
+    bash -c '! grep -q SECRET "$1"' _ "$home/Library/Logs/Slated/slated.log"
+done
 
 # 7. Two bindings on the same keys: the first wins, the second is flagged.
 home=$(new_home)
@@ -325,7 +378,7 @@ expect_output "a crashed previous run is recorded" "$(log_of "$home")" '"event":
 
 # 9. Hand edits are picked up while Slated runs, however the editor saves: in place (nano, Sublime
 #    Text, `>` in a shell), or into a dotfiles folder config.json links to.
-started() { grep -q '"event":"config.loaded"' "$1/Library/Logs/Slated/slated.log" 2>/dev/null; }
+started() { grep -qE '"event":"config\.(loaded|migrated|created)"' "$1/Library/Logs/Slated/slated.log" 2>/dev/null; }
 edit_when_started() {  # home, command run once Slated has loaded its config
   local home="$1"; shift
   for _ in $(seq 1 100); do started "$home" && break; sleep 0.1; done
@@ -368,27 +421,6 @@ cp "$FIXTURES/config-no-builtins.json" "$home/.config/slated/config.json"
 SLATED_SMOKE_STEPS=hand-edit-then-save SLATED_SMOKE_EDIT="$FIXTURES/config-broken.json" smoke "$home" >/dev/null
 expect_true "an unreadable hand edit made just before a save isn't overwritten" \
   cmp -s "$FIXTURES/config-broken.json" "$home/.config/slated/config.json"
-
-# 10. A ~/.slate.js event handler runs once per event, however often the file reloads (every settings
-#     save reloads it), and not at all once Slate files stop loading.
-script_calls() { grep -c '"message":"screens changed"' "$1/Library/Logs/Slated/slated.log"; }
-home=$(new_home)
-cp "$FIXTURES/slate-events.js" "$home/.slate.js"
-SLATED_SMOKE_STEPS="reload reload reload screens-changed" smoke "$home" >/dev/null
-expect_true "a reloaded script's event handler runs once per event" test "$(script_calls "$home")" -eq 1
-home=$(new_home)
-cp "$FIXTURES/slate-events.js" "$home/.slate.js"
-SLATED_SMOKE_STEPS="stop-loading-slate screens-changed" smoke "$home" >/dev/null
-expect_true "a script that's no longer loaded gets no events" test "$(script_calls "$home")" -eq 0
-# The same file listed twice (as ~/.slate.js and by its full path) loads once.
-home=$(new_home)
-cp "$FIXTURES/slate-events.js" "$home/.slate.js"
-mkdir -p "$home/.config/slated"
-printf '{ "general": { "slateConfigPaths": ["~/.slate.js", "%s/.slate.js"] } }\n' "$home" >"$home/.config/slated/config.json"
-out=$(SLATED_SMOKE_STEPS=screens-changed smoke "$home")
-expect_true "a file listed twice runs its event handler once per event" test "$(script_calls "$home")" -eq 1
-expect_output "the second listing says it's the same file" "$out" "Same file as ~/.slate.js, which is already loaded"
-expect_true "and its shortcuts aren't bound twice" bash -c '! grep -q "duplicate:" <<<"$1"' _ "$out"
 
 # 11. Clipboard history forgets unpinned items past retentionDays (30 by default) whenever a copy is
 #     recorded, not only when settings are applied (at launch). One is 29.5 days old at launch.
@@ -441,83 +473,140 @@ expect_true "it holds their SHA-256 instead, which restoring matches windows by"
   grep -q "\"titleHash\":\"$(printf %s "$title" | shasum -a 256 | cut -d' ' -f1)\"" "$snapshots"
 expect_true "the snapshot is still there" grep -q '"work"' "$snapshots"
 
-# 13. "Import Slate Config into Slated…" with a Slate file that converts only in part, so it keeps loading.
-setting_of() {  # home, name: the setting in config.json, or "none"
-  /usr/bin/python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("settings", {}).get(sys.argv[2], "none"))' \
-    "$1/.config/slated/config.json" "$2"
+# 13. "Import Slate Config into Slated…" with a Slate file that converts only in part, into an existing
+#     configuration. What doesn't convert is listed; the file isn't read again.
+setting_of() {  # home, name: the window setting in settings.json, or "none"
+  /usr/bin/python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("windows", {}).get(sys.argv[2], "none"))' \
+    "$1/.config/slated/settings.json" "$2"
+}
+existing_config() {  # home: a version 2 config.json, so the run isn't a first run
+  mkdir -p "$1/.config/slated"
+  echo '{ "version": 2 }' >"$1/.config/slated/config.json"
 }
 home=$(new_home)
+existing_config "$home"
 cp "$FIXTURES/slate-import.js" "$home/.slate.js"
-out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
-expect_output "the import says what stays in the Slate file" "$out" \
+out=$(SLATED_SMOKE_STEPS="import-slate import-slate" smoke "$home")
+expect_output "the import says how many shortcuts it added" "$out" "import alert: Imported 2 shortcuts"
+expect_output "the import lists what it couldn't convert" "$out" \
   'slate.config("windowHintsCharacters"): its value comes from a JavaScript function'
-expect_true "a static setting is copied into config.json" test "$(setting_of "$home" nudgePercentOf)" = screenSize
-expect_true "a setting a function computes isn't copied, so the script keeps setting it" \
-  test "$(setting_of "$home" windowHintsCharacters)" = none
-expect_output "a file with something left in it keeps loading" "$out" "loadSlateConfigs: true"
-expect_output "Slated's copies replace the file's" "$out" "the Slate file's own copies of them are ignored"
-# Then the imported shortcuts are Settings' to change: deleting or moving one doesn't bring back the
-# Slate file's copy, which stays loaded for what wasn't imported.
+expect_output "a shortcut that needs JavaScript is listed by its keys" "$out" "ctrl+alt+f17: uses JavaScript logic"
+expect_true "a static setting is copied into settings.json" test "$(setting_of "$home" nudgePercentOf)" = screenSize
+expect_true "a setting a function computes isn't copied" test "$(setting_of "$home" windowHintsCharacters)" = none
+expect_output "importing again adds nothing twice" "$out" "import alert: Your Slate shortcuts are already in Slated"
+expect_output "and says why" "$out" "2 shortcuts were already in Slated on the same keys"
+expect_output "the event log records the import, in counts" "$(log_of "$home")" '"event":"slate.imported"'
+# The imported shortcuts are Slated's to change: deleting or moving one sticks, as the file isn't read.
 home=$(new_home)
+existing_config "$home"
 cp "$FIXTURES/slate-import.js" "$home/.slate.js"
 out=$(SLATED_SMOKE_STEPS="import-slate edit-imported print-hotkeys" smoke "$home")
 expect_true "a deleted imported shortcut stays deleted" bash -c '! grep -q "hotkey ctrl+alt+f16:" <<<"$1"' _ "$out"
 expect_true "a moved one leaves its old keys free" bash -c '! grep -q "hotkey ctrl+alt+f18:" <<<"$1"' _ "$out"
 expect_output "and works on its new keys" "$out" "hotkey ctrl+alt+f19: active"
-expect_output "what wasn't imported still runs from the file" "$out" "hotkey ctrl+alt+f17: active"
-expect_true "config.json lists the imported shortcuts" /usr/bin/python3 -I -c '
-import json, sys
-general = json.load(open(sys.argv[1]))["general"]
-assert general["importedSlateShortcuts"] == ["ctrl+alt+f16", "ctrl+alt+f18"], general
-' "$home/.config/slated/config.json"
-# A window event handler never runs in Slated, so it doesn't keep the file loaded, and the alert says so.
+expect_true "what wasn't converted doesn't run" bash -c '! grep -q "hotkey ctrl+alt+f17:" <<<"$1"' _ "$out"
+# A window event handler never ran in Slated; the import lists it.
 home=$(new_home)
+existing_config "$home"
 cp "$FIXTURES/slate-window-events.js" "$home/.slate.js"
 out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
-expect_output "the import says a window event handler never runs" "$out" \
-  "slate.on(\"windowOpened\"): Slated doesn't deliver window events, so this never runs"
-expect_output "and turns the file off" "$out" "loadSlateConfigs: false"
-# A script that fails on the import's pretend Mac keeps loading, and the alert says why.
+expect_output "the import lists an event handler as not converted" "$out" \
+  'slate.on("windowOpened"): event handlers need JavaScript, which Slated doesn'"'"'t run'
+# A script that fails on the import's pretend Mac: what came before the error is imported, and the
+# alert says the import may not match this Mac.
 home=$(new_home)
+existing_config "$home"
 cp "$FIXTURES/slate-shell.js" "$home/.slate.js"
 out=$(SLATED_SMOKE_STEPS="import-slate print-hotkeys" smoke "$home")
 expect_output "an import that hit an error says so" "$out" "it hit an error on a test Mac: .slate.js, line 4"
-expect_output "and keeps the file loading" "$out" "loadSlateConfigs: true"
-expect_output "so the binding after the error still works" "$out" "hotkey ctrl+alt+f17: active"
-expect_output "and nothing that may not match this Mac is imported" "$out" "native: 0 bindings"
-# A display default naming a layout is imported in config.json's shape, so the file can turn off.
+expect_output "and says it may not match this Mac" "$out" "may not match what your Slate config does on this Mac"
+expect_output "the binding before the error is imported" "$out" "hotkey ctrl+alt+f16: active"
+# A display default naming a layout is imported in config.json's shape.
 home=$(new_home)
+existing_config "$home"
 cp "$FIXTURES/slate-defaults.js" "$home/.slate.js"
 out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
-expect_true "a display default is imported" /usr/bin/python3 -I -c '
+expect_true "a display default and its layout are imported" /usr/bin/python3 -I -c '
 import json, sys
 config = json.load(open(sys.argv[1]))
 assert config["defaults"] == [{"target": "coding", "count": 2}], config["defaults"]
 assert [layout["name"] for layout in config["layouts"]] == ["coding"], config["layouts"]
 ' "$home/.config/slated/config.json"
-expect_output "so nothing keeps the file loaded" "$out" "loadSlateConfigs: false"
 # An edit in Settings still waiting to be saved neither undoes the import nor is lost to it.
 home=$(new_home)
+existing_config "$home"
 cp "$FIXTURES/slate-defaults.js" "$home/.slate.js"
 out=$(SLATED_SMOKE_SECONDS=3 SLATED_SMOKE_STEPS=edit-then-import smoke "$home")
-expect_output "the import survives a pending Settings save" "$out" "loadSlateConfigs: false"
+expect_output "the import survives a pending Settings save" "$out" "import alert: Imported 1 shortcut"
 expect_output "and Settings shows it, with the edit" "$out" "after the debounce, Settings shows 1 bindings, HUD true"
-expect_true "config.json has both" /usr/bin/python3 -I -c '
+expect_true "config.json has the import and settings.json the edit" /usr/bin/python3 -I -c '
 import json, sys
-config = json.load(open(sys.argv[1]))
-assert len(config["bindings"]) == 1 and config["general"]["showActionHUD"] is True, config
-' "$home/.config/slated/config.json"
-# Slated's own display default wins over a Slate file's for the same displays, as its bindings do.
+config, settings = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
+assert len(config["bindings"]) == 1 and settings["general"]["showActionHUD"] is True, (config, settings)
+' "$home/.config/slated/config.json" "$home/.config/slated/settings.json"
+# With nothing to import, the menu item says where it looked.
 home=$(new_home)
-cp "$FIXTURES/slate-default-everywhere.js" "$home/.slate.js"
-mkdir -p "$home/.config/slated"
-printf '{ "layouts": [{ "name": "native" }], "defaults": [%s] }\n' \
+existing_config "$home"
+out=$(SLATED_SMOKE_STEPS=import-slate smoke "$home")
+expect_output "with no Slate config, the import says where it looked" "$out" "looked for ~/.slate.js and ~/.slate"
+# Slated never runs a Slate file: its display defaults and event handlers do nothing.
+home=$(new_home)
+existing_config "$home"
+printf '{ "version": 2, "layouts": [{ "name": "native" }], "defaults": [%s] }\n' \
   "$(for n in 1 2 3 4 5 6; do printf '{ "target": "native", "count": %s }' "$n"; [ "$n" -lt 6 ] && printf ', '; done)" \
   >"$home/.config/slated/config.json"
+cp "$FIXTURES/slate-default-everywhere.js" "$home/.slate.js"
 SLATED_SMOKE_STEPS=screens-changed smoke "$home" >/dev/null
-expect_true "config.json's display default wins over the Slate file's" \
+expect_true "config.json's display default runs, never the Slate file's" \
   bash -c 'grep -q "\"action\":\"layout native\"" "$1" && ! grep -q "\"action\":\"layout file\"" "$1"' _ \
   "$home/Library/Logs/Slated/slated.log"
+home=$(new_home)
+existing_config "$home"
+cp "$FIXTURES/slate-events.js" "$home/.slate.js"
+SLATED_SMOKE_STEPS=screens-changed smoke "$home" >/dev/null
+expect_true "a ~/.slate.js event handler never runs" \
+  bash -c '! grep -q "screens changed" "$1"' _ "$home/Library/Logs/Slated/slated.log"
+
+# 14. Each file is written only when its own part changes: an island switch writes settings.json, a
+#     new shortcut config.json.
+home=$(new_home)
+smoke "$home" >/dev/null
+config_sum() { shasum "$1/.config/slated/config.json"; }
+settings_sum() { shasum "$1/.config/slated/settings.json"; }
+before_config=$(config_sum "$home")
+before_settings=$(settings_sum "$home")
+out=$(SLATED_SMOKE_STEPS=toggle-island smoke "$home")
+expect_output "the island switch takes effect" "$out" "island: off"
+expect_true "an island change leaves config.json alone" test "$before_config" = "$(config_sum "$home")"
+expect_true "and writes settings.json" test "$before_settings" != "$(settings_sum "$home")"
+before_settings=$(settings_sum "$home")
+SLATED_SMOKE_STEPS=add-binding smoke "$home" >/dev/null
+expect_true "a new shortcut leaves settings.json alone" test "$before_settings" = "$(settings_sum "$home")"
+expect_true "and writes config.json" test "$before_config" != "$(config_sum "$home")"
+
+# 15. A settings.json that can't be read is reported by name, and neither file is saved over.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+echo '{ "version": 2 }' >"$home/.config/slated/config.json"
+echo '{ "island": { "enabled": "yes" } }' >"$home/.config/slated/settings.json"
+out=$(SLATED_SMOKE_STEPS=save smoke "$home")
+expect_true "a broken settings.json is reported by name" \
+  grep -qE "^config: .* Couldn't read .*settings.json: .*island.enabled" <<<"$out"
+expect_output "Settings pauses saving while settings.json can't be read" "$out" "settings save: refused: Couldn't read"
+expect_true "the broken settings.json is left as it was" \
+  test "$(cat "$home/.config/slated/settings.json")" = '{ "island": { "enabled": "yes" } }'
+expect_output "the event log records the error with the file" "$(log_of "$home")" 'settings.json'
+
+# 16. A hand edit to settings.json is picked up while Slated runs.
+home=$(new_home)
+mkdir -p "$home/.config/slated"
+echo '{ "version": 2 }' >"$home/.config/slated/config.json"
+echo '{ "version": 2 }' >"$home/.config/slated/settings.json"
+edit_when_started "$home" bash -c 'echo "{ \"island\": { \"enabled\": false } }" > "$1"' _ \
+  "$home/.config/slated/settings.json" &
+out=$(SLATED_SMOKE_SECONDS=3 smoke "$home"); wait
+expect_output "an edit to settings.json is reloaded while running" "$out" "island: off"
+expect_true "the event log names the file" grep -q 'settings.json"},"event":"config.changed_on_disk"' "$home/Library/Logs/Slated/slated.log"
 
 echo
 echo "$passed passed, $failed failed"

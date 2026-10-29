@@ -153,16 +153,12 @@ extension AppModel {
     return runtimeStatus.hotkeys[BindingStatusKey.key(keys, modal: nil)]
   }
 
-  /// Keys (`BindingStatusKey` form) already taken by enabled bindings, loaded Slate files and the
-  /// built-in shortcuts.
+  /// Keys (`BindingStatusKey` form) already taken by enabled bindings and the built-in shortcuts.
   var usedShortcutKeys: Set<String> {
     var used = Set(
       configuration.bindings.filter { $0.enabled && !$0.keys.key.isEmpty }.map {
         BindingStatusKey.key($0.keys, modal: $0.modal)
       })
-    if configuration.general.loadSlateConfigs {
-      for source in sources where source.loaded { used.formUnion(source.bindings.map(\.id)) }
-    }
     for builtIn in BuiltInShortcut.allCases {
       if let keys = builtIn.keys(in: configuration) { used.insert(BindingStatusKey.key(keys, modal: nil)) }
     }

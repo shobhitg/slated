@@ -77,9 +77,7 @@ struct SettingsSidebar: View {
     case .automation where !model.automationBindings.isEmpty:
       SidebarBadge(text: "\(model.automationBindings.count)")
     case .layouts:
-      SidebarBadge(text: "\(model.configuration.layouts.count + model.sources.reduce(0) { $0 + $1.layouts.count })")
-    case .slate where model.sources.contains { $0.errorCount > 0 }:
-      Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(Theme.caution)
+      SidebarBadge(text: "\(model.configuration.layouts.count)")
     case .overview where !model.runtimeStatus.accessibilityGranted:
       Image(systemName: "exclamationmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.caution)
     default:

@@ -27,7 +27,7 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Hashable, Sendable
     case .automation: return "Automation"
     case .keyboard: return "Keyboard"
     case .layouts: return "Layouts"
-    case .slate: return "Slate Compatibility"
+    case .slate: return "Import from Slate"
     case .general: return "General"
     case .about: return "About"
     }
@@ -43,8 +43,6 @@ public enum GetStartedStep: Int, CaseIterable, Sendable {
 public enum BindingSelection: Hashable, Sendable {
   /// One of Slated's own (editable) bindings.
   case slated(UUID)
-  /// A read-only binding from a Slate file; `id` is `SourceBinding.id`.
-  case source(path: String, id: String)
 }
 
 /// Which layout is selected in Settings → Layouts.
@@ -52,7 +50,6 @@ public enum LayoutSelection: Hashable, Sendable {
   /// One of Slated's own layouts. `index` is its place in `layouts` (see `AppModel.layoutIndex`): a
   /// layout copied in config.json shares its name with the original.
   case slated(name: String, index: Int? = nil)
-  case source(path: String, name: String)
 }
 
 /// A short confirmation shown at the bottom of the main window.

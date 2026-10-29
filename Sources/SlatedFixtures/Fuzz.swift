@@ -862,24 +862,11 @@ func fuzzConfigFile(_ rng: inout FuzzRNG, count: Int) -> FixtureFile {
   var decode: [J] = []
   for i in 0..<count {
     let input = randomConfigJSON(&rng)
-    var item: [String: J] = ["name": .string("fuzz \(i)"), "input": .string(input)]
-    do {
-      let config = try SlatedConfiguration.decode(from: Data(input.utf8))
-      do {
-        let encoded = String(decoding: try config.encoded(), as: UTF8.self)
-        item["encoded"] = .string(maskRandomUUIDs(encoded, input: input))
-        let again = try SlatedConfiguration.decode(from: config.encoded())
-        item["roundTrips"] = .bool(again == config)
-        if again != config { FileHandle.standardError.write(Data("config round trip differs: \(input)\n".utf8)) }
-        let encodedAgain = String(decoding: try again.encoded(), as: UTF8.self)
-        if encodedAgain != encoded { FileHandle.standardError.write(Data("config re-encode differs: \(input)\n".utf8)) }
-      } catch {
-        item["encodeError"] = errorJ(error)
-      }
-    } catch {
-      item["error"] = errorJ(error)
+    let item = configFilesJ("fuzz \(i)", input, nil)
+    if case .object(let fields) = item, fields["roundTrips"] == .bool(false) {
+      FileHandle.standardError.write(Data("config round trip differs: \(input)\n".utf8))
     }
-    decode.append(.object(item))
+    decode.append(item)
   }
   return FixtureFile(name: "config.json", description: "fuzz", sections: ["decode": decode], depth: ["decode": 2])
 }
@@ -1136,20 +1123,7 @@ func fuzzJSON5ConfigFile(_ rng: inout FuzzRNG, count: Int) -> FixtureFile {
   for i in 0..<count {
     var input = json5Mutation(randomConfigJSON(&rng), &rng)
     if ProcessInfo.processInfo.environment["SLATED_FUZZ_DAMAGE"] != nil { input = damage(input, &rng) }
-    var item: [String: J] = ["name": .string("json5 fuzz \(i)"), "input": .string(input)]
-    do {
-      let config = try SlatedConfiguration.decode(from: Data(input.utf8))
-      do {
-        let encoded = String(decoding: try config.encoded(), as: UTF8.self)
-        item["encoded"] = .string(maskRandomUUIDs(encoded, input: input))
-        item["roundTrips"] = .bool(try SlatedConfiguration.decode(from: config.encoded()) == config)
-      } catch {
-        item["encodeError"] = errorJ(error)
-      }
-    } catch {
-      item["error"] = errorJ(error)
-    }
-    decode.append(.object(item))
+    decode.append(configFilesJ("json5 fuzz \(i)", input, nil))
   }
   return FixtureFile(name: "config.json", description: "fuzz", sections: ["decode": decode], depth: ["decode": 2])
 }

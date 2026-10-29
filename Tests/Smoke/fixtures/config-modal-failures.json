@@ -1,7 +1,7 @@
 {
   // Modal keys macOS won't register, so the bindings behind them can never run: one isn't a key at
   // all, the other is another binding's shortcut.
-  "general": { "loadSlateConfigs": false },
+  "version": 2,
   "clipboard": { "shortcut": null },
   "automation": { "stopShortcut": null },
   "bindings": [

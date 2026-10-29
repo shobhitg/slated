@@ -286,14 +286,14 @@ let uiHostingContractTests = Suite(
           expectEqual(model.binding(work2Key.id)?.action, .layout(name: "Work 2"))
           window.close()
 
-          // Through a Slate file's layout name (the preview's ~/.slate.js has “Writing”).
+          // Through another layout's name (the preview imported “Writing” from its ~/.slate.js).
           model = AppModel(services: PreviewServices())
           let writingKey = HotkeyBinding(keys: hyper("w"), action: .layout(name: "Writing"))
           model.configuration.bindings.append(writingKey)
           model.selectedLayout = .slated(name: "Coding")
           window = hostingWindow(LayoutsPane().environment(model).frame(width: 900, height: 600))
           try type("Writing Room", in: window) { $0.selectAll(nil) }
-          expectEqual(model.configuration.layouts.map(\.name), ["Writing Room"])
+          expectEqual(model.configuration.layouts.map(\.name), ["Writing Room", "Writing", "Meeting"])
           expectEqual(model.binding(writingKey.id)?.action, .layout(name: "Writing"))
           window.close()
         }
@@ -344,7 +344,7 @@ let uiHostingContractTests = Suite(
           editor.insertText("Deep Work", replacementRange: NSRange(location: NSNotFound, length: 0))
           spin()
           // Refused (Settings is read-only meanwhile), and the field says so, as fields bound to the model do.
-          expectEqual(model.configuration.layouts.map(\.name), ["Coding"])
+          expectEqual(model.configuration.layouts.map(\.name), ["Coding", "Writing", "Meeting"])
           expectEqual(field.stringValue, "Coding")
           window.close()
         }
@@ -430,14 +430,14 @@ let uiHostingContractTests = Suite(
           ]
           for click in clicks {
             let model = AppModel(services: PreviewServices(scenario: .empty))
-            model.configuration.settings["undoMaxStackSize"] = click.value
+            model.configuration.windows["undoMaxStackSize"] = click.value
             let window = hostingWindow(GeneralPane().environment(model).frame(width: 760, height: 1400))
             // SwiftUI's Stepper is an NSStepper that reports each click as a step from 0.
             let stepper = try require(firstView(NSStepper.self, in: try require(window.contentView)), "no stepper")
             stepper.doubleValue += click.up ? stepper.increment : -stepper.increment
             expect(stepper.sendAction(stepper.action, to: stepper.target))
             spin(0.1)
-            expectEqual(model.configuration.settings["undoMaxStackSize"], .number(click.then))
+            expectEqual(model.configuration.windows["undoMaxStackSize"], .number(click.then))
             window.close()
           }
         }

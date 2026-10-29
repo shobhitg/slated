@@ -10,7 +10,7 @@ WORK="$(mktemp -d)"
 export SLATED_HOME="$WORK/home" SLATED_INSTALL_DIR="$WORK/Applications" SLATED_SIGN_IDENTITY="-"
 mkdir -p "$SLATED_HOME/.config/slated"
 # No bindings and no Slate files: the test app registers no hotkeys and leaves Caps Lock alone.
-echo '{ "general": { "loadSlateConfigs": false }, "keyboard": { "capsLock": "off" } }' > "$SLATED_HOME/.config/slated/config.json"
+echo '{ "version": 2, "keyboard": { "capsLock": "off" } }' > "$SLATED_HOME/.config/slated/config.json"
 APP="$SLATED_INSTALL_DIR/Slated.app"
 LOG="$SLATED_HOME/Library/Logs/Slated/slated.log"
 passed=0

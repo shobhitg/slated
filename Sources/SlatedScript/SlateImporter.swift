@@ -1,8 +1,8 @@
 import Foundation
 import SlatedCore
 
-/// Converts a Slate JavaScript config into plain Slated bindings, so it can be edited in the UI and the
-/// script retired.
+/// Converts a Slate JavaScript config into plain Slated bindings, layouts, display defaults and
+/// settings. Slated doesn't run Slate files; this is how their shortcuts come over.
 ///
 /// Static operations convert directly. A bound function is run on pretend Macs (`ProbeSetup`): for each
 /// orientation of the focused window's screen, twice in a row (catches state), with another app and
@@ -14,20 +14,19 @@ import SlatedCore
 public enum SlateImporter {
   public struct Result: Sendable {
     public var bindings: [HotkeyBinding]
+    /// Layouts (`slate.layout`) whose steps are all plain operations.
+    public var layouts: [Layout]
     /// Display defaults (`slate.default`) that name a layout or snapshot.
     public var defaults: [ScreenDefault]
-    /// Keystrokes that couldn't be converted, with the reason.
+    /// `slate.config` values that aren't functions.
+    public var settings: SlateSettings
+    /// What couldn't be converted (keystrokes and `slate.*` calls), with the reason.
     public var skipped: [(keystroke: String, reason: String)]
-    /// What the import leaves out because it never runs in Slated anyway (handlers for window
-    /// events), with the reason. Unlike `skipped`, these don't need the file to stay loaded.
-    public var neverRun: [(keystroke: String, reason: String)]
-    /// `slate.config` names whose value comes from a function. They stay in the script (and are
-    /// skipped): a copy in Slated's settings would freeze today's value and, since Slated's own
-    /// settings win, override the function for good.
+    /// `slate.config` names whose value comes from a function. They're skipped: a copy would freeze
+    /// the value the pretend Mac gave.
     public var functionSettings: [String]
     /// Why this import may not match what the script does on the real Mac: errors on the pretend Mac,
-    /// shell commands or window changes while loading. The app then imports nothing from the file
-    /// and keeps it loaded.
+    /// shell commands or window changes while loading.
     public var problems: [String]
     /// Everything the pretend run reported while loading, errors and warnings.
     public var diagnostics: [Diagnostic]
@@ -74,24 +73,21 @@ public enum SlateImporter {
         HotkeyBinding(name: nil, keys: binding.keys, modal: binding.modal, action: action, repeats: repeats))
     }
 
-    // The app turns the Slate files off after an import that skipped nothing, so everything else the
-    // script set up that doesn't become part of Slated's config is listed too; the file then keeps
-    // running it. Plain layouts and settings are imported by the app; plain display defaults are in
-    // the result.
-    var neverRun: [(String, String)] = []
+    // Everything else the script set up that doesn't become part of Slated's config is listed, so
+    // nothing stops working without a word.
     for event in ScriptEventName.allCases where loaded.events.contains(event) {
-      let handler = "slate.on(\"\(event.rawValue)\")"
-      if ScriptEventName.delivered.contains(event) {
-        skipped.append((handler, "event handlers need JavaScript"))
-      } else {
-        neverRun.append((handler, "Slated doesn't deliver window events, so this never runs"))
-      }
+      skipped.append(("slate.on(\"\(event.rawValue)\")", "event handlers need JavaScript, which Slated doesn't run"))
     }
     for name in engine.configFunctions.keys.sorted() {
       skipped.append(("slate.config(\"\(name)\")", "its value comes from a JavaScript function"))
     }
-    for layout in loaded.layouts where layout.staticLayout == nil {
-      skipped.append(("slate.layout(\"\(layout.name)\")", "has steps that run JavaScript"))
+    var layouts: [Layout] = []
+    for layout in loaded.layouts {
+      if let plain = layout.staticLayout {
+        layouts.append(plain)
+      } else {
+        skipped.append(("slate.layout(\"\(layout.name)\")", "has steps that run JavaScript"))
+      }
     }
     var defaults: [ScreenDefault] = []
     for entry in loaded.defaults {
@@ -101,10 +97,11 @@ public enum SlateImporter {
         skipped.append(("slate.default(\(describe(entry.condition)))", "runs JavaScript"))
       }
     }
+    var settings = loaded.settings
+    for name in engine.configFunctions.keys { settings[name] = nil }
     return Result(
-      bindings: bindings, defaults: defaults, skipped: skipped, neverRun: neverRun,
-      functionSettings: engine.configFunctions.keys.sorted(),
-      problems: problems, diagnostics: loaded.diagnostics)
+      bindings: bindings, layouts: layouts, defaults: defaults, settings: settings, skipped: skipped,
+      functionSettings: engine.configFunctions.keys.sorted(), problems: problems, diagnostics: loaded.diagnostics)
   }
 
   /// What trying a bound function on the pretend Macs found.
@@ -113,28 +110,6 @@ public enum SlateImporter {
     case converted(Action)
     /// Why it needs JavaScript, e.g. "depends on the focused app or window title".
     case skipped(String)
-  }
-
-  /// What each bound function in a Slate JavaScript config does, found the way the import finds it,
-  /// so the file's shortcuts can be listed as "Left Half" instead of "JavaScript function".
-  ///
-  /// The file runs again, in an engine of its own on the pretend Macs: the script the app runs keeps
-  /// its state, and nothing happens on this Mac. Nothing is described when the file runs shell
-  /// commands or changes windows while loading, since it may then set itself up differently here.
-  public static func describeFunctions(
-    path: String, readFile: @escaping (String) -> String? = { try? String(contentsOfFile: $0, encoding: .utf8) }
-  ) -> FunctionDescriptions {
-    let host = ProbeHost()
-    let engine = SlateScriptEngine(host: host, readFile: readFile)
-    let loaded = engine.load(path: path)
-    if host.effects.contains(.shell) { return FunctionDescriptions(problem: FunctionDescriptions.shellWhileLoading) }
-    if !host.effects.isEmpty { return FunctionDescriptions(problem: FunctionDescriptions.windowsWhileLoading) }
-    var probes: [FunctionDescriptions.Site: Probe] = [:]
-    for binding in loaded.bindings where binding.target.action == nil {
-      let site = FunctionDescriptions.Site(binding)
-      if probes[site] == nil { probes[site] = probe(binding, engine: engine, host: host) }
-    }
-    return FunctionDescriptions(probes: probes)
   }
 
   /// Runs a bound function on every pretend Mac in `ProbeSetup.orientations`; see the type's
@@ -171,35 +146,6 @@ public enum SlateImporter {
     case .count(let count): return count == 1 ? "1 screen" : "\(count) screens"
     case .resolutions(let resolutions): return resolutions.joined(separator: ", ")
     }
-  }
-}
-
-/// What `SlateImporter.describeFunctions` found for one file.
-public struct FunctionDescriptions: Sendable {
-  /// Why none of the file's functions could be tried, e.g. "the file runs shell commands while loading".
-  public var problem: String?
-  var probes: [Site: SlateImporter.Probe] = [:]
-
-  static let shellWhileLoading = "the file runs shell commands while loading"
-  static let windowsWhileLoading = "the file moves or focuses windows while loading"
-
-  /// Where a `slate.bind` was made, which identifies it in another load of the same file.
-  struct Site: Hashable {
-    var keys: KeyCombo
-    var modal: ModalKey?
-    var file: String?
-    var line: Int?
-
-    init(_ binding: ScriptBinding) {
-      (keys, modal, file, line) = (binding.keys, binding.modal, binding.file, binding.line)
-    }
-  }
-
-  /// What `binding`, from another load of the same file, does. Matched by its keys and where it was
-  /// bound, since a script can bind differently on another Mac; `nil` when this load didn't bind it.
-  public func probe(for binding: ScriptBinding) -> SlateImporter.Probe? {
-    if let problem { return .skipped(problem) }
-    return probes[Site(binding)]
   }
 }
 

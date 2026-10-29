@@ -12,7 +12,7 @@ let starterTests = Suite(
         let starter = SlatedConfiguration.starter
         expectEqual(starter.bindings.count, 21)
         expectEqual(starter.keyboard.capsLock, .hyper)
-        let decoded = try SlatedConfiguration.decode(from: starter.encoded())
+        let decoded = try roundTripped(starter)
         expectEqual(decoded, starter)
         expectEqual(Set(starter.bindings.map(\.keys)).count, 21)  // no duplicate shortcuts
       }
@@ -144,8 +144,8 @@ func importerChecks() throws {
   expectEqual(Dictionary(uniqueKeysWithValues: real.bindings.map { ($0.keys, $0.action) }), starter)
 }
 
-/// Importing turns the Slate files off when nothing was skipped (Engine.importSlateConfigs), so anything
-/// the import doesn't carry over must be listed as skipped, or it would silently stop running.
+/// Slated doesn't run Slate files, so anything the import doesn't carry over must be listed as skipped,
+/// or it would silently stop working.
 @MainActor
 func importerReportsWhatItLeavesBehind() throws {
   let script = """
@@ -162,21 +162,20 @@ func importerReportsWhatItLeavesBehind() throws {
     """
   let result = SlateImporter.importJavaScript(path: "/events.js", readFile: { _ in script })
   expectEqual(result.bindings.count, 1)
-  // So the app doesn't copy its value into Slated's settings, where it would override the function.
+  // A function's value isn't frozen into Slated's settings; a plain value is imported.
   expectEqual(result.functionSettings, ["defaultToCurrentScreen"])
+  expectEqual(result.settings.values, ["nudgePercentOf": .string("windowSize")])
   expectEqual(
-    result.skipped.map(\.keystroke),
+    result.skipped.map { "\($0.keystroke): \($0.reason)" },
     [
-      #"slate.on("appActivated")"#, #"slate.config("defaultToCurrentScreen")"#,
-      #"slate.layout("js")"#, "slate.default(2 screens)",
+      #"slate.on("windowOpened"): event handlers need JavaScript, which Slated doesn't run"#,
+      #"slate.on("appActivated"): event handlers need JavaScript, which Slated doesn't run"#,
+      #"slate.config("defaultToCurrentScreen"): its value comes from a JavaScript function"#,
+      #"slate.layout("js"): has steps that run JavaScript"#, "slate.default(2 screens): runs JavaScript",
     ])
-  // A display default naming a layout or snapshot is plain data: it becomes one of Slated's own.
+  // Plain layouts and display defaults naming a layout or snapshot are data: they become Slated's own.
+  expectEqual(result.layouts.map(\.name), ["plain"])
   expectEqual(result.defaults, [ScreenDefault(target: "plain", condition: .resolutions(["1440x900", "1920x1080"]))])
-  // Slated never delivers window events, so these handlers don't run with or without the import, and
-  // don't keep the file loaded.
-  expectEqual(
-    result.neverRun.map { "\($0.keystroke): \($0.reason)" },
-    [#"slate.on("windowOpened"): Slated doesn't deliver window events, so this never runs"#])
 
   // A config with only bindings and plain layouts leaves nothing behind.
   let plain = SlateImporter.importJavaScript(
