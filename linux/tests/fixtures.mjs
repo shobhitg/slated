@@ -579,6 +579,12 @@ export const checkers = {
           expectEqual(history.search(c.query).map((item) => item.text), c.results, `search ${show(c.query)}`);
         }
       },
+      fileNames() {
+        for (const c of data.fileNames) {
+          countCheck();
+          expectEqual(core.fileDisplayName(c.path), c.name, `name of ${show(c.path)}`);
+        }
+      },
       coding() {
         for (const c of data.coding) {
           const outcome = attempt(() => core.ClipboardHistory.fromJSON(JSON.parse(c.json)).toJSON());

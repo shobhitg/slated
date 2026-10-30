@@ -93,16 +93,18 @@ export class ClipboardHistory {
   }
 
   /**
-   * Records copied files (absolute paths, in order). Returns false for none. The same files copied
-   * again move to the top with a new id, keeping their pin. The item's text is the files' names,
+   * Records copied files. Only absolute paths (starting with "/") are kept, in order, repeats and
+   * all; returns false when none is. The same files copied again (another files item with an equal
+   * list) move to the top with a new id, keeping their pin. The item's text is the files' names,
    * one per line.
-   * @param {string[]} files
+   * @param {string[]} paths
    * @param {{app?: string|null, at: number, limit: number}} options  `at` in Swift's Date encoding.
    */
-  addFiles(files, {app = null, at, limit}) {
-    if (!Array.isArray(files) || files.length === 0) return false;
+  addFiles(paths, {app = null, at, limit}) {
+    const files = (Array.isArray(paths) ? paths : []).filter((path) => typeof path === 'string' && path.startsWith('/'));
+    if (files.length === 0) return false;
     let pinned = false;
-    const existing = this._items.findIndex((item) => item.files && sameFiles(item.files, files));
+    const existing = this._items.findIndex((item) => isFiles(item) && sameFiles(item.files, files));
     if (existing >= 0) {
       pinned = this._items[existing].pinned;
       this._items.splice(existing, 1);
@@ -202,8 +204,11 @@ const copyImage = (image) => ({
   ...(image.name !== undefined && image.name !== null ? {name: image.name} : {}),
 });
 
-/** Whether an item is copied text (not an image or files): only text merges with text. */
-const isText = (item) => !item.image && !item.files;
+/** Swift's `isFiles`: a files list (even an empty one) and no image. */
+const isFiles = (item) => Array.isArray(item.files) && !item.image;
+
+/** Whether an item is copied text (neither an image nor files): only text merges with text. */
+const isText = (item) => !item.image && !isFiles(item);
 
 /** The same paths in the same order, compared as Swift compares strings. */
 const sameFiles = (a, b) => a.length === b.length && a.every((path, i) => stringEquals(path, b[i]));
