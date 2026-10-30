@@ -77,7 +77,7 @@ beforeEach(() => {
   homes.push(home);
   Object.assign(gnome.state, {
     clipboard: null, clipboardMimeTypes: [], clipboardWrites: [], clipboardContent: {}, clipboardReads: [], typed: [],
-    textureLoads: [], pointer: [0, 0], textInputFocus: null, focused: null, scaleFactor: 1,
+    textureLoads: [], pointer: [0, 0], textInputFocus: null, focused: null, scaleFactor: 1, fileQueries: null, home,
   });
   world = {
     home,
@@ -853,5 +853,233 @@ test('the St picker shows an image as a thumbnail and, selected, larger beside t
   s.showSwitcher();
   const placeholder = panel._list.children[0].find((a) => a.style_class === 'slated-clipboard-image-placeholder');
   assert.equal(placeholder.length, 1, 'a missing file shows a placeholder');
+  s.stop();
+});
+
+// --- Copied files and screenshots ------------------------------------------------------------------
+
+const Files = await import('../../gnome-extension/lib/platform/clipboardFiles.js');
+const encode = (text) => new TextEncoder().encode(text);
+const decode = (bytes) => new TextDecoder().decode(bytes);
+
+/** Files in the test home's Documents: {name: contents} (a name ending in "/" is a folder). Returns their paths. */
+function makeFiles(spec) {
+  return Object.entries(spec).map(([name, contents]) => {
+    const path = join(world.home, 'Documents', name);
+    if (name.endsWith('/')) mkdirSync(path, {recursive: true});
+    else {
+      mkdirSync(dirname(path), {recursive: true});
+      writeFileSync(path, contents);
+    }
+    return name.endsWith('/') ? path.slice(0, -1) : path;
+  });
+}
+
+/** Nautilus copies files: its own list, a URI list and the names as text. */
+function nautilusCopy(paths, {operation = 'copy'} = {}) {
+  const uris = paths.map(Files.fileUri);
+  gnome.copyContent(
+    {'x-special/gnome-copied-files': encode([operation, ...uris].join('\n')), 'text/uri-list': encode(uris.map((u) => `${u}\r\n`).join(''))},
+    {text: paths.map((p) => p.split('/').pop()).join('\n')},
+  );
+}
+
+test('file URIs and the copied-files formats', () => {
+  assert.equal(Files.fileUri('/home/me/a b#?é;[x]%.txt'), 'file:///home/me/a%20b%23%3F%C3%A9%3B%5Bx%5D%25.txt');
+  assert.equal(Files.fileUri("/keep/-._~!$&'()*+,=:@"), "file:///keep/-._~!$&'()*+,=:@", 'what GLib leaves unescaped');
+  for (const path of ['/home/me/a b#?é;[x]%.txt', '/日本/😀', '/']) assert.equal(Files.pathFromFileUri(Files.fileUri(path)), path, path);
+  assert.equal(Files.pathFromFileUri('file://localhost/etc/hosts'), '/etc/hosts');
+  assert.equal(Files.pathFromFileUri('FILE:///x%c3%a9'), '/xé', 'scheme and escapes in any case');
+  for (const uri of ['https://example.com/a', 'smb://server/share/a', 'file://server/share/a', 'file:relative', 'file:///a%FF',
+    'file:///a%00b', 'file:///a%G1', 'file:///a#frag', '']) {
+    assert.equal(Files.pathFromFileUri(uri), null, uri);
+  }
+  assert.deepEqual(Files.parseCopiedFiles('copy\nfile:///home/me/a%20b.pdf\nfile:///home/me/%C3%A9t%C3%A9\n'), ['/home/me/a b.pdf', '/home/me/été']);
+  assert.deepEqual(Files.parseCopiedFiles('cut\r\nfile:///a\r\nfile:///a\r\n'), ['/a'], 'a cut too, each file once');
+  assert.deepEqual(Files.parseCopiedFiles('# a comment\r\nhttps://example.com/\r\nsmb://nas/x\r\nfile:///b\r\n'), ['/b'], 'local files only');
+  assert.deepEqual(Files.parseCopiedFiles('https://example.com/'), []);
+  assert.deepEqual(Files.parseCopiedFiles(null), []);
+  assert.equal(Files.copiedFilesText(['/a b', '/c']), 'copy\nfile:///a%20b\nfile:///c');
+});
+
+test('files copied in Files are one item: their names as text, read from Nautilus’s list; the log has only how many', () => {
+  const s = service();
+  world.app = appIdentity('org.gnome.Nautilus');
+  const [report, photo] = makeFiles({'quarterly report.pdf': 'pdf', 'été.png': png(4, 3)});
+  nautilusCopy([report, photo]);
+  const item = s.history.items[0];
+  assert.deepEqual(item.files, [report, photo]);
+  assert.equal(item.text, 'quarterly report.pdf\nété.png');
+  assert.equal(item.sourceApp, 'org.gnome.Nautilus');
+  assert.deepEqual(gnome.state.clipboardReads, ['x-special/gnome-copied-files'], 'the text that comes with them isn’t read');
+  assert.deepEqual(world.log.named('clipboard.captured').at(-1).data, {kind: 'files', count: 2, app: 'org.gnome.Nautilus', items: 1});
+  const logged = JSON.stringify(world.log.events);
+  for (const secret of ['quarterly', 'été', world.home, 'Documents']) assert.ok(!logged.includes(secret), `no ${secret} in the log`);
+
+  gnome.copy('in between');
+  nautilusCopy([report, photo], {operation: 'cut'});
+  assert.equal(s.count, 2, 'the same files again move up');
+  assert.deepEqual(s.history.items[0].files, [report, photo]);
+
+  gnome.state.clipboardReads = [];
+  gnome.copyContent({'text/uri-list': encode(`${Files.fileUri(report)}\r\n`)}, {text: report});
+  assert.deepEqual(gnome.state.clipboardReads, ['text/uri-list'], 'a URI list alone (Dolphin, Qt apps)');
+  assert.deepEqual(s.history.items[0].files, [report]);
+
+  gnome.copyContent({'text/uri-list': encode('https://example.com/page\r\n')}, {text: 'https://example.com/page'});
+  assert.equal(s.history.items[0].text, 'https://example.com/page', 'web links stay text');
+  assert.equal(s.history.items[0].files, undefined);
+  assert.equal(s.count, 4);
+
+  gnome.state.clipboardReads = [];
+  world.app = appIdentity('window:3', ['com.bitwarden.desktop']);
+  nautilusCopy([photo]);
+  assert.deepEqual(gnome.state.clipboardReads, [], 'excluded apps aren’t read');
+  assert.equal(s.count, 4);
+
+  gnome.loop.advance(1000);
+  const saved = JSON.parse(readFileSync(world.path, 'utf8'));
+  assert.deepEqual(saved.items.find((i) => i.files)?.files, [report], 'saved in the Mac app’s format');
+  s.stop();
+  rmSync(report);
+  const again = service();
+  assert.deepEqual(again.history.items.filter((i) => i.files).map((i) => i.files), [[report], [report, photo]], 'moved files stay listed');
+  again.stop();
+});
+
+test('pasting files puts Nautilus’s list back, leaves out what was moved or deleted, and nothing when all are gone', () => {
+  const s = service();
+  const [a, b] = makeFiles({'a.txt': 'a', 'b.txt': 'b'});
+  nautilusCopy([a, b]);
+  gnome.copy('newer text');
+  s.showSwitcher();
+  const item = () => s.history.items.find((i) => i.files); // a new id each time it moves up
+  s.switcherModel.paste(item().id);
+  assert.deepEqual(gnome.state.clipboardMimeTypes, ['x-special/gnome-copied-files']);
+  assert.equal(decode(gnome.state.clipboardContent['x-special/gnome-copied-files']), Files.copiedFilesText([a, b]));
+  assert.equal(s.count, 2, 'Slated’s own write isn’t a new copy');
+  assert.deepEqual(s.history.items[0].files, [a, b], 'moved to the top');
+  gnome.loop.advance(150);
+  assert.equal(world.pastes, 1);
+  assert.deepEqual(world.log.named('clipboard.pasted').at(-1).data, {kind: 'files', count: 2, app: 'org.gnome.TextEditor'});
+
+  rmSync(a);
+  s.showSwitcher();
+  s.switcherModel.paste(item().id);
+  assert.equal(decode(gnome.state.clipboardContent['x-special/gnome-copied-files']), Files.copiedFilesText([b]));
+  assert.deepEqual(s.history.items[0].files, [a, b], 'the item keeps both');
+  assert.equal(s.count, 2);
+  assert.deepEqual(world.log.named('clipboard.pasted').at(-1).data, {kind: 'files', count: 2, missing: 1, app: 'org.gnome.TextEditor'});
+  gnome.loop.advance(150);
+
+  rmSync(b);
+  gnome.copy('on the clipboard');
+  s.showSwitcher();
+  s.switcherModel.paste(item().id);
+  gnome.loop.advance(500);
+  assert.equal(gnome.state.clipboard, 'on the clipboard', 'all gone: the clipboard is left alone');
+  assert.equal(world.pastes, 2, 'and nothing is pasted');
+  const skipped = world.log.named('clipboard.paste_skipped').at(-1);
+  assert.deepEqual([skipped.data, skipped.level], [{reason: 'files missing', count: 2}, 'notice']);
+  s.apply({pasteAfterSelecting: false});
+  writeFileSync(b, 'back');
+  s.showSwitcher();
+  s.switcherModel.paste(item().id);
+  assert.deepEqual(world.log.named('clipboard.copied').at(-1).data, {kind: 'files', count: 2, missing: 1});
+  s.stop();
+});
+
+test('screenshots GNOME copies are images from GNOME Shell itself, left out with `screenshots` off', () => {
+  const s = service();
+  const shot = png(1920, 1080, {fill: 9});
+  gnome.screenshot(shot);
+  assert.equal(s.history.items[0].image?.file, `${sha256(shot)}.png`);
+  assert.deepEqual(world.log.named('clipboard.captured').at(-1).data, {
+    kind: 'image', source: 'screenshot', bytes: shot.length, width: 1920, height: 1080, items: 1,
+  });
+  gnome.copyContent({'image/png': png(8, 8)});
+  assert.equal(world.log.named('clipboard.captured').at(-1).data.source, undefined, 'an app’s image isn’t a screenshot');
+
+  s.apply({screenshots: false});
+  gnome.screenshot(png(1920, 1080, {fill: 5}));
+  assert.equal(s.count, 2);
+  assert.equal(world.log.named('clipboard.skipped').at(-1).data.reason, 'screenshots are off');
+  gnome.copyContent({'image/png': png(9, 9)});
+  assert.equal(s.count, 3, 'apps’ images are still kept');
+  s.showSwitcher();
+  s.switcherModel.paste(s.history.items.find((i) => i.image?.width === 1920).id);
+  assert.equal(s.count, 3, 'Slated’s own paste of a screenshot isn’t a copy either way');
+  assert.equal(s.history.items[0].image.width, 1920);
+  s.stop();
+});
+
+test('picker text for files and named images', () => {
+  assert.equal(Picker.filesTitle(['/home/me/report.pdf']), 'report.pdf');
+  assert.equal(Picker.filesTitle(['/home/me/report.pdf', '/home/me/Photos/', '/x']), 'report.pdf + 2 more');
+  assert.equal(Picker.fileDetails({size: 2_450_000, kind: 'PNG image'}), '2.4 MB · PNG image');
+  assert.equal(Picker.fileDetails({size: null, kind: 'Folder'}), 'Folder');
+  const named = {file: 'a.png', width: 1, height: 1, bytes: 1, name: 'Screenshot 2026-10-30 at 09.41.png'};
+  assert.equal(imageTitle(named, 'Firefox'), 'Screenshot 2026-10-30 at 09.41.png');
+  assert.equal(Picker.rowHeight({text: 'a', files: ['/a']}), PICKER.imageRowHeight, 'files rows are as tall as image rows');
+  assert.deepEqual(Picker.filePreviewSize(), {width: 216, height: 118}, 'an icon, two lines, room for a name');
+  assert.deepEqual(Picker.filePreviewSize({width: 1600, height: 900}), {width: 256, height: 189});
+  assert.equal(Picker.MISSING, 'Moved or deleted');
+});
+
+test('the St picker shows files with their thumbnail or icon, dims them when gone, and previews them beside the picker', () => {
+  const s = service({}, {makeSwitcher: (model, svc) => (world.panel = new ClipboardPicker({model, imagePath: (i) => svc.imagePath(i), onClosed: () => svc.pickerClosed()}))});
+  gnome.addWindow({id: 'files', app: {id: 'org.gnome.Nautilus', name: 'Files'}, frame: {x: 0, y: 32, width: 800, height: 600}});
+  const [pdf, photo, folder, gone] = makeFiles({'report.pdf': 'pdf', 'photo.png': png(1600, 900), 'Folder/': null, 'gone.txt': 'x'});
+  // GNOME already made thumbnails of the PDF (Files does as you browse).
+  const md5 = createHash('md5').update(Files.fileUri(pdf)).digest('hex');
+  const normal = join(world.home, '.cache/thumbnails/normal', `${md5}.png`);
+  const large = join(world.home, '.cache/thumbnails/large', `${md5}.png`);
+  for (const [path, size] of [[normal, 128], [large, 256]]) {
+    mkdirSync(dirname(path), {recursive: true});
+    writeFileSync(path, png(size * 0.75, size));
+  }
+  nautilusCopy([gone]);
+  nautilusCopy([folder]);
+  nautilusCopy([photo]);
+  nautilusCopy([pdf, photo]);
+  rmSync(gone);
+  gnome.caret({x: 300, y: 200, width: 2, height: 18});
+  gnome.state.fileQueries = [];
+  s.showSwitcher();
+  const panel = world.panel;
+  const rows = panel._list.children;
+  const text = (row, cls = 'slated-clipboard-text') => row.find((a) => a.style_class === cls)[0]?.text;
+  assert.deepEqual(rows.map((r) => text(r)), ['report.pdf + 1 more', 'photo.png', 'Folder', 'gone.txt']);
+  assert.ok(rows.every((r) => r.height === 36), 'as tall as image rows');
+  const icon = (row) => row.find((a) => String(a.style_class).includes('slated-clipboard-file-thumbnail'))[0].children[0];
+  assert.equal(icon(rows[0]).gicon.file.path, normal, 'the thumbnail GNOME made, the small one for a row');
+  assert.deepEqual(icon(rows[1]).gicon, {themed: 'image-png'}, 'else the icon for its type');
+  assert.deepEqual(icon(rows[2]).gicon, {themed: 'inode-directory'});
+  assert.ok(String(rows[3].style_class).includes('slated-clipboard-missing'), 'gone: dimmed');
+  assert.equal(text(rows[3], 'slated-clipboard-missing-label'), 'Moved or deleted');
+  assert.ok(!rows.slice(0, 3).some((r) => String(r.style_class).includes('missing')));
+  assert.deepEqual(gnome.state.fileQueries.sort(), [folder, gone, pdf, photo].sort(), 'one look at each file, the first still there');
+
+  // The selected row is previewed beside the picker.
+  let preview = panel._preview;
+  assert.ok(preview, 'the first row is selected');
+  const captions = () => preview.children.filter((a) => a.text !== undefined).map((a) => a.text);
+  assert.deepEqual(captions(), ['report.pdf + 1 more', '3 bytes · PDF document']);
+  assert.deepEqual(gnome.state.textureLoads.at(-1), {path: large, width: 180, height: 240, paintScale: 1, resourceScale: 1}, 'its large thumbnail');
+  assert.deepEqual([preview.width, preview.height], [216, 240 + 38 + 16]);
+  const key = (keysym) => panel._entry.clutter_text.emit('key-press-event', {...fakeEvent({keysym}), get_key_code: () => 0, get_state: () => 0});
+  key(0xff54);
+  preview = panel._preview;
+  assert.deepEqual(gnome.state.textureLoads.at(-1), {path: photo, width: 240, height: 135, paintScale: 1, resourceScale: 1}, 'an image file itself, fitted');
+  assert.deepEqual(captions(), ['photo.png', `${formatBytes(statSync(photo).size)} · PNG image`]);
+  key(0xff54);
+  preview = panel._preview;
+  assert.deepEqual(preview.find((a) => a.style_class === 'slated-clipboard-preview-icon')[0].gicon, {themed: 'inode-directory'});
+  assert.deepEqual(captions(), ['Folder', 'Folder']);
+  assert.deepEqual([preview.width, preview.height], [216, 118]);
+  key(0xff54);
+  assert.equal(panel._preview, null, 'nothing to preview when the files are gone');
+  key(0xff0d);
+  assert.equal(world.log.named('clipboard.paste_skipped').at(-1).data.reason, 'files missing');
   s.stop();
 });

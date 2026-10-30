@@ -395,6 +395,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     get_home_dir: () => state.home,
     get_user_config_dir: () => `${state.home}/.config`,
     get_user_state_dir: () => `${state.home}/.local/state`,
+    get_user_cache_dir: () => `${state.home}/.cache`,
     file_test: fileTest,
     mkdir_with_parents(path) {
       mkdirSync(path, {recursive: true});
@@ -414,6 +415,10 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     compute_checksum_for_data(type, data) {
       if (type !== 2) throw new Error('only SHA-256 in the fake');
       return createHash('sha256').update(data).digest('hex');
+    },
+    compute_checksum_for_string(type, text) {
+      if (type !== 0) throw new Error('only MD5 for strings in the fake');
+      return createHash('md5').update(text, 'utf8').digest('hex');
     },
     // GLib.Bytes: GJS builds one from a Uint8Array.
     Bytes: class {
@@ -473,8 +478,15 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       };
     }
     query_info() {
+      state.fileQueries?.push(this.path);
       const stats = statSync(this.path);
-      return {get_size: () => stats.size, get_attribute_uint64: () => Math.floor(stats.mtimeMs / 1000)};
+      return {
+        get_size: () => stats.size,
+        get_attribute_uint64: () => Math.floor(stats.mtimeMs / 1000),
+        get_file_type: () => (stats.isDirectory() ? 2 : 1),
+        // standard::fast-content-type: guessed from the name alone.
+        get_attribute_string: () => contentTypeOf(this.path),
+      };
     }
     delete() {
       unlinkSync(this.path);
@@ -506,8 +518,31 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     }
   }
 
+  const CONTENT_TYPES = {png: 'image/png', jpg: 'image/jpeg', pdf: 'application/pdf', txt: 'text/plain'};
+  const contentTypeOf = (path) => CONTENT_TYPES[/\.([a-z0-9]+)$/i.exec(path)?.[1]?.toLowerCase()] ?? 'application/octet-stream';
+  const TYPE_DESCRIPTIONS = {
+    'image/png': 'PNG image', 'image/jpeg': 'JPEG image', 'application/pdf': 'PDF document', 'text/plain': 'plain text document',
+    'inode/directory': 'Folder',
+  };
+
+  // GdkPixbuf.Pixbuf.get_file_info: a PNG's format and size from its header; [null, 0, 0] otherwise.
+  const GdkPixbuf = {
+    Pixbuf: {
+      get_file_info(path) {
+        state.imageInfoReads?.push(path);
+        const bytes = readFileSync(path);
+        if (bytes.length < 24 || bytes.readUInt32BE(0) !== 0x89504e47) return [null, 0, 0];
+        return [{name: 'png'}, bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+      },
+    },
+  };
+
   const Gio = {
     File: {new_for_path: (path) => new FakeFile(path)},
+    FileType: {UNKNOWN: 0, REGULAR: 1, DIRECTORY: 2},
+    ThemedIcon: {new: (name) => ({themed: name})},
+    content_type_get_icon: (type) => ({themed: type.replace('/', '-')}),
+    content_type_get_description: (type) => TYPE_DESCRIPTIONS[type] ?? 'unknown',
     FileIcon: class {
       constructor({file}) {
         this.file = file;
@@ -603,6 +638,9 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     WindowType: {NORMAL: 0, DESKTOP: 1, DOCK: 2, DIALOG: 3, MODAL_DIALOG: 4, TOOLBAR: 5, MENU: 6, UTILITY: 7},
     MaximizeFlags: {HORIZONTAL: 1, VERTICAL: 2, BOTH: 3},
     SelectionType: {SELECTION_PRIMARY: 0, SELECTION_CLIPBOARD: 1, SELECTION_DND: 2},
+    // What St.Clipboard writes (GNOME Shell's own copies, the screenshot tool's among them); apps'
+    // copies come from Wayland or X11 sources.
+    SelectionSourceMemory: class {},
     is_wayland_compositor: () => true,
   };
 
@@ -621,7 +659,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       state.clipboardContent = {};
       state.clipboardMimeTypes = ['text/plain;charset=utf-8'];
       state.clipboardWrites.push(text);
-      selectionSignals.emit('owner-changed', 1, null);
+      selectionSignals.emit('owner-changed', 1, new Meta.SelectionSourceMemory());
     },
     get_content: (_type, mimeType, callback) => {
       state.clipboardReads.push(mimeType);
@@ -633,7 +671,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       state.clipboardContent = {[mimeType]: new Uint8Array(bytes.toArray())};
       state.clipboardMimeTypes = [mimeType];
       state.clipboardWrites.push({mimeType, bytes: bytes.get_size()});
-      selectionSignals.emit('owner-changed', 1, null);
+      selectionSignals.emit('owner-changed', 1, new Meta.SelectionSourceMemory());
     },
   };
 
@@ -898,6 +936,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     modules: {
       'gi://GLib': GLib,
       'gi://Gio': Gio,
+      'gi://GdkPixbuf': GdkPixbuf,
       'gi://Meta': Meta,
       'gi://Shell': Shell,
       'gi://St': St,
@@ -953,6 +992,14 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       state.clipboardContent = {...content};
       state.clipboardMimeTypes = [...(text === null ? [] : ['text/plain;charset=utf-8']), ...Object.keys(content)];
       selectionSignals.emit('owner-changed', 1, {});
+    },
+
+    /** GNOME's screenshot tool copies a screenshot: a PNG put on the clipboard by GNOME Shell itself. */
+    screenshot(bytes) {
+      state.clipboard = null;
+      state.clipboardContent = {'image/png': bytes};
+      state.clipboardMimeTypes = ['image/png'];
+      selectionSignals.emit('owner-changed', 1, new Meta.SelectionSourceMemory());
     },
 
     /**
