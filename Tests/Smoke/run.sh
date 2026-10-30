@@ -460,6 +460,31 @@ expect_output "deleting it deletes its file" "$out" "clipboard images after dele
 expect_true "the log has the image's size, never its file" bash -c \
   'grep -q "\"kind\":\"image\"" <<<"$1" && ! grep -qE "[0-9a-f]{64}|\.png" <<<"$1"' _ "$(log_of "$home")"
 
+# 11c. Screenshots saved as files: with a home of its own, Slated watches only that home's Desktop (never
+#      the real screenshot folder). One saved while clipboard.screenshots is on is added under its name and
+#      left in place; with the setting off the folder isn't watched. Files copied in the Finder are one
+#      item, put back as files, without the ones deleted since; with none left the clipboard is untouched.
+#      The log has kinds and counts, never a file's name or path.
+home=$(new_home)
+mkdir -p "$home/Desktop"
+out=$(SLATED_SMOKE_SECONDS=12 SLATED_SMOKE_STEPS="clipboard-files clipboard-screenshots" smoke "$home")
+expect_output "the test home's Desktop is watched" "$out" 'screenshot folder: watching(folder: "Desktop")'
+expect_output "a screenshot is added under its name, and its file is left in place" "$out" \
+  "screenshots recorded: 1, named Screenshot 2026-10-30 at 09.41.12.png, file left in place"
+expect_output "with the setting off, the folder isn't watched and nothing is added" "$out" \
+  "with the setting off: 1 recorded, folder off"
+expect_output "files copied in the Finder are one item named by the files" "$out" \
+  "files copied: 1 item, 2 files, text their names"
+expect_output "picking it puts both files back" "$out" "files put back: 2"
+expect_output "a deleted file is left out" "$out" "files put back after one was deleted: 1"
+expect_output "with every file gone, the clipboard is left alone" "$out" "with both deleted, the clipboard holds: left alone"
+expect_true "the log says why, with counts" bash -c \
+  'grep -q "\"reason\":\"files missing\"" <<<"$1" && grep -q "\"source\":\"screenshot\"" <<<"$1" && grep -q "\"kind\":\"files\"" <<<"$1"' \
+  _ "$(log_of "$home")"
+expect_true "the log never names a file, and its clipboard events hold no path" bash -c \
+  '! grep -qE "SECRET-NAME|Screenshot 2026" <<<"$1" && ! grep "\"event\":\"clipboard\." <<<"$1" | grep -qF "$2"' \
+  _ "$(log_of "$home")" "$home"
+
 # 12. Saved snapshots (`snapshot … save`) keep a SHA-256 of each window title, never the title. A file
 #     saved before that, with titles, is read and rewritten at launch.
 home=$(new_home)

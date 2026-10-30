@@ -107,6 +107,10 @@ enum SmokeSteps {
       print("switcher: Return \(model.pasteAfterSelecting ? "pastes" : "copies")")
     case "clipboard-images":
       clipboardImages(engine)
+    case "clipboard-screenshots":
+      clipboardScreenshots(engine)
+    case "clipboard-files":
+      clipboardFiles(engine)
     case "import-slate":
       // "Import Slate Config into Slated…" in the menus; prints what its alert says.
       do {
@@ -227,6 +231,87 @@ enum SmokeSteps {
     // Putting it back moved it to the top, as a new item.
     service.delete(id: service.history.items.first(where: \.isImage)?.id ?? item.id)
     print("clipboard images after deleting it: \(files().count) files")
+    service.stop()
+  }
+
+  /// A screenshot saved into the test home's Desktop (the only screenshot folder a run with
+  /// SLATED_HOME watches) while `clipboard.screenshots` is on, and another after it's turned off,
+  /// through the engine's own clipboard service. Saved as screencapture does: hidden, then renamed.
+  /// The watcher reports on the main queue, so each check runs later on it (about 4 s in all; give
+  /// the run SLATED_SMOKE_SECONDS=12).
+  private static func clipboardScreenshots(_ engine: Engine) {
+    let desktop = URL(fileURLWithPath: SlatedPaths.home).appendingPathComponent("Desktop")
+    let clipboard = engine.clipboard
+    let screenshots = { clipboard.history.items.filter { $0.image?.name != nil } }
+    print("screenshot folder: \(clipboard.screenshotStatus)")
+    let first = saveScreenshot("Screenshot 2026-10-30 at 09.41.12.png", in: desktop, red: 0.2)
+    later(2) {
+      print(
+        "screenshots recorded: \(screenshots().count), named \(screenshots().first?.image?.name ?? "none"), "
+          + "file \(FileManager.default.fileExists(atPath: first.path) ? "left in place" : "gone")")
+      var config = engine.configuration
+      config.clipboard.screenshots = false
+      do { try engine.save(config) } catch { print("save failed:", error.localizedDescription) }
+      later(0.5) {
+        saveScreenshot("Screenshot 2026-10-30 at 09.42.00.png", in: desktop, red: 0.7)
+        later(1.5) {
+          print("with the setting off: \(screenshots().count) recorded, folder \(clipboard.screenshotStatus)")
+        }
+      }
+    }
+  }
+
+  private static func later(_ seconds: Double, _ work: @escaping @MainActor () -> Void) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { MainActor.assumeIsolated(work) }
+  }
+
+  @discardableResult
+  private static func saveScreenshot(_ name: String, in folder: URL, red: CGFloat) -> URL {
+    let context = CGContext(
+      data: nil, width: 48, height: 30, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(red: red, green: 0.5, blue: 0.9, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: 48, height: 30))
+    let png = NSBitmapImageRep(cgImage: context.makeImage()!).representation(using: .png, properties: [:])!
+    let temporary = folder.appendingPathComponent(".\(name)")
+    FileManager.default.createFile(atPath: temporary.path, contents: png)
+    let flag = try! PropertyListSerialization.data(fromPropertyList: true, format: .binary, options: 0)
+    _ = flag.withUnsafeBytes { setxattr(temporary.path, Screenshots.attribute, $0.baseAddress, $0.count, 0, 0) }
+    let final = folder.appendingPathComponent(name)
+    try? FileManager.default.moveItem(at: temporary, to: final)
+    return final
+  }
+
+  /// Files copied (on a private pasteboard), put back, then put back again after one and then both
+  /// were deleted.
+  private static func clipboardFiles(_ engine: Engine) {
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.github.slated.smoke.\(UUID().uuidString)"))
+    defer { pasteboard.releaseGlobally() }
+    let service = ClipboardService(pasteboard: pasteboard)
+    var settings = engine.configuration.clipboard
+    settings.screenshots = false
+    service.apply(settings)
+    let folder = URL(fileURLWithPath: SlatedPaths.home).appendingPathComponent("Copied files")
+    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let files = ["SECRET-NAME report.pdf", "SECRET-NAME notes.txt"].map { folder.appendingPathComponent($0) }
+    for file in files { FileManager.default.createFile(atPath: file.path, contents: Data("x".utf8)) }
+    service.record(PasteboardWatcher.Copy(text: "names", files: files, sourceApp: "com.apple.finder"))
+    let items = service.history.items.filter(\.isFiles)
+    let named = items.first?.text == "SECRET-NAME report.pdf\nSECRET-NAME notes.txt"
+    print("files copied: \(items.count) item, \(items.first?.files?.count ?? 0) files, text \(named ? "their names" : "wrong")")
+    // Putting an item back moves it to the top as a new item: look it up each time.
+    let copy = { service.history.items.first(where: \.isFiles).map { service.copy(id: $0.id) } }
+    let putBack = { PasteboardWatcher.fileURLs(on: pasteboard).count }
+    copy()
+    print("files put back: \(putBack())")
+    try? FileManager.default.removeItem(at: files[1])
+    copy()
+    print("files put back after one was deleted: \(putBack())")
+    try? FileManager.default.removeItem(at: files[0])
+    pasteboard.clearContents()
+    pasteboard.setString("left alone", forType: .string)
+    copy()
+    print("with both deleted, the clipboard holds: \(pasteboard.string(forType: .string) ?? "something else")")
     service.stop()
   }
 
