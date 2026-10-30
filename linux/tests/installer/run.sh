@@ -226,6 +226,8 @@ check "--verify: out of date says to update Slated" bash -c 'test "$1" -eq 1 && 
 out="$(STUB_SHELL_STATE=INITIALIZED XDG_SESSION_TYPE=x11 verify)"
 check "--verify: enabled but not started says to log in again (or Alt+F2 r on Xorg)" bash -c 'test "$1" -eq 1 && grep -q "GNOME Shell hasn.t started it yet (State: INITIALIZED). Fix: log out and back in, or press Alt+F2, type r and press Enter." <<<"$2"' _ "$?" "$out"
 check "...never looking at the build first" lacks "$out" "Running: build"
+out="$(STUB_SHELL_UNREACHABLE=1 verify)"
+check "--verify where GNOME Shell can't be asked (ssh): says to run it in the GNOME session" bash -c 'test "$1" -eq 1 && grep -q "Couldn.t ask GNOME Shell about Slated from here (over ssh, say). Fix: run linux/install.sh --verify in your GNOME session." <<<"$2"' _ "$?" "$out"
 
 # The installer turns the switch on (asking first, yes by default) and enables Slated, also when the
 # installed copy is up to date and the install step is skipped.

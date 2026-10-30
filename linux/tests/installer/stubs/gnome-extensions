@@ -63,6 +63,7 @@ case "$1" in
     enabled_list add "$2"
     ;;
   info)
+    [ "${STUB_SHELL_UNREACHABLE:-0}" = 1 ] && { echo "Failed to connect to GNOME Shell" >&2; exit 1; }
     known "$2" || { echo "Extension “$2” doesn't exist" >&2; exit 2; }
     enabled=No
     enabled_list has "$2" && enabled=Yes

@@ -368,11 +368,14 @@ PY
 # GNOME's Extensions switch (the Extensions app's main switch): while it's off, no user extension runs.
 extensions_switch_off() { have gsettings && [ "$(gsettings get org.gnome.shell disable-user-extensions 2>/dev/null)" = "true" ]; }
 
-# `gnome-extensions info` → "Yes|ACTIVE" (Enabled|State), or nothing when GNOME Shell doesn't know
-# Slated (a fresh install before the next login) or can't be asked.
+# `gnome-extensions info` → "Yes|ACTIVE" (Enabled|State); nothing when GNOME Shell doesn't know Slated
+# (a fresh install before the next login); "unreachable" when GNOME Shell can't be asked (over ssh).
 shell_info() {
   local out
-  out="$(gnome-extensions info "$UUID" 2>/dev/null)" || return 0
+  if ! out="$(gnome-extensions info "$UUID" 2>&1)"; then
+    [[ "$out" == *exist* ]] || echo unreachable
+    return 0
+  fi
   python3 -I - "$out" <<'PY'
 import sys
 fields = {}
@@ -413,6 +416,10 @@ check_shell() {
     return 1
   fi
   info="$(shell_info)"
+  if [ "$info" = unreachable ]; then
+    note "Couldn't ask GNOME Shell about Slated from here (over ssh, say). Fix: run linux/install.sh --verify in your GNOME session."
+    return 2
+  fi
   if [ -z "$info" ]; then
     note "GNOME Shell doesn't know Slated yet: it starts it when you next log in. Fix: $(relogin_fix)."
     return 2
@@ -453,7 +460,7 @@ wait_for_shell() {
   local info
   for _ in $(seq 1 30); do
     info="$(shell_info || true)"
-    case "$info" in "" | *"|ACTIVE" | *"|ENABLED" | *"|ERROR" | *"|OUT OF DATE") return 0 ;; esac
+    case "$info" in "" | unreachable | *"|ACTIVE" | *"|ENABLED" | *"|ERROR" | *"|OUT OF DATE") return 0 ;; esac
     sleep 0.1
   done
 }
