@@ -82,28 +82,12 @@ func selectBinding(named name: String) -> @MainActor (AppModel) -> Void {
   }
 }
 
-/// Selects the first Slate binding whose summary ("throw 1 resize") or title ("Middle Third") is `text`.
-func selectSourceBinding(_ text: String) -> @MainActor (AppModel) -> Void {
-  { model in
-    for source in model.sources {
-      if let binding = source.bindings.first(where: { $0.summary == text || $0.title == text }) {
-        model.selectedBinding = .source(path: source.path, id: binding.id)
-        return
-      }
-    }
-  }
-}
-
 var shots: [Shot] = [
   settings("settings-overview", pane: .overview),
   settings("settings-windows", pane: .windows, configure: selectBinding(named: "Left Half")),
   settings("settings-windows-chain", pane: .windows, configure: selectBinding(named: "Cycle Left")),
   settings("settings-windows-failed", pane: .windows, configure: selectBinding(named: "Window Hints")),
   settings("settings-windows-duplicate", pane: .windows, configure: selectBinding(named: "Almost Maximize")),
-  settings("settings-windows-source", pane: .windows, configure: selectSourceBinding("throw 1 resize")),
-  // A function Slated could describe by trying it, and one it couldn't.
-  settings("settings-windows-function", pane: .windows, configure: selectSourceBinding("Middle Third")),
-  settings("settings-windows-javascript", pane: .windows, configure: selectSourceBinding("JavaScript Function")),
   settings("settings-windows-new", pane: .windows) { model in model.newBinding() },
   settings("settings-hotstrings", pane: .hotstrings) { model in
     model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
@@ -128,9 +112,6 @@ var shots: [Shot] = [
   settings("settings-overview-running", pane: .overview, services: running),
   settings("settings-keyboard", pane: .keyboard),
   settings("settings-layouts", pane: .layouts) { model in model.selectedLayout = .slated(name: "Coding") },
-  settings("settings-layouts-source", pane: .layouts) { model in
-    if let source = model.sources.first { model.selectedLayout = .source(path: source.path, name: "Meeting") }
-  },
   settings("settings-slate", pane: .slate),
   settings("settings-general", pane: .general),
   settings("settings-about", pane: .about),
@@ -152,6 +133,16 @@ for step in GetStartedStep.allCases {
       model.getStartedStep = step
     })
 }
+// The Slate step when a Slate config turned up after the first run (offers the import), and when there's none.
+shots.append(
+  settings(
+    "getstarted-4-slateConfig-to-import", scenario: .empty, pane: .getStarted,
+    configure: { model in model.getStartedStep = .slateConfig },
+    services: { services in services.slateConfig = "~/.slate.js" }))
+shots.append(
+  settings("getstarted-4-slateConfig-none", scenario: .empty, pane: .getStarted) { model in
+    model.getStartedStep = .slateConfig
+  })
 
 /// The clipboard picker as it opens, and with an image selected: its preview beside it, as the app
 /// places it (to the right, top level with the row).

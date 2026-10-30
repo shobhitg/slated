@@ -1,7 +1,7 @@
 import SlatedCore
 import SwiftUI
 
-/// Slate layouts: several apps arranged at once. Slated's own are editable, Slate files' read-only.
+/// Layouts (Slate's `layout`): several apps arranged at once.
 struct LayoutsPane: View {
   @Environment(AppModel.self) private var model
 
@@ -19,7 +19,7 @@ struct LayoutsPane: View {
       .padding(.top, 22)
       .padding(.bottom, 16)
       Rectangle().fill(Theme.hairline).frame(height: 0.5)
-      if model.configuration.layouts.isEmpty && model.sources.allSatisfy({ $0.layouts.isEmpty }) {
+      if model.configuration.layouts.isEmpty {
         EmptyStateView(
           symbol: "rectangle.3.group", title: "No layouts yet",
           message:
@@ -46,17 +46,8 @@ struct LayoutsPane: View {
     case .slated(let name, _):
       if let index = model.selectedLayoutIndex, let layout = model.layoutBinding(name, at: index) {
         // Keyed by position, not name: renaming mustn't rebuild the editor (and drop focus) on every keystroke.
-        LayoutDetail(layout: layout, source: nil, index: index)
+        LayoutDetail(layout: layout, index: index)
           .id("slated|\(index)")
-      } else {
-        noSelection
-      }
-    case .source(let path, let name):
-      if let source = model.sources.first(where: { $0.path == path }),
-        let layout = source.layouts.first(where: { $0.name == name })
-      {
-        LayoutDetail(layout: .constant(layout), source: source)
-          .id("\(path)|\(name)")
       } else {
         noSelection
       }
@@ -91,21 +82,6 @@ private struct LayoutList: View {
         }
       } header: {
         Text("Slated").font(.system(size: 11.5, weight: .semibold)).pinnedHeaderBackground()
-      }
-      ForEach(model.sources.filter { !$0.layouts.isEmpty }) { source in
-        Section {
-          ForEach(source.layouts, id: \.name) { layout in
-            LayoutRow(layout: layout).tag(LayoutSelection.source(path: source.path, name: layout.name))
-          }
-        } header: {
-          HStack(spacing: 5) {
-            Image(systemName: "lock.fill").font(.system(size: 9, weight: .semibold))
-            Text(source.displayName).font(.system(size: 11.5, weight: .semibold))
-            Spacer()
-            Text("Read-only").font(.system(size: 10.5)).foregroundStyle(.tertiary)
-          }
-          .pinnedHeaderBackground()
-        }
       }
     }
     .listStyle(.inset)
@@ -149,11 +125,9 @@ private struct LayoutRow: View {
   }
 }
 
-/// A layout's apps, triggers and preview. Editable when `source` is nil; `index` is then the
-/// layout's place in `layouts`.
+/// A layout's apps, triggers and preview. `index` is the layout's place in `layouts`.
 private struct LayoutDetail: View {
   @Binding var layout: WindowLayout
-  let source: SlateSource?
   let index: Int?
   @Environment(AppModel.self) private var model
   @State private var confirmDelete = false
@@ -164,14 +138,11 @@ private struct LayoutDetail: View {
   /// `AppModel.typeLayoutName`).
   @State private var nameArrivals: [String: Set<LayoutReference>] = [:]
 
-  init(layout: Binding<WindowLayout>, source: SlateSource?, index: Int? = nil) {
+  init(layout: Binding<WindowLayout>, index: Int?) {
     _layout = layout
-    self.source = source
     self.index = index
     _nameDraft = State(initialValue: layout.wrappedValue.name)
   }
-
-  private var editable: Bool { source == nil }
 
   var body: some View {
     ScrollView {
@@ -179,9 +150,7 @@ private struct LayoutDetail: View {
         header
         LayoutPreviewCard(layout: layout)
         appsCard
-        if editable || !layout.before.isEmpty || !layout.after.isEmpty {
-          beforeAfterCard
-        }
+        beforeAfterCard
       }
       .padding(24)
       .frame(maxWidth: 640, alignment: .leading)
@@ -199,61 +168,46 @@ private struct LayoutDetail: View {
     HStack(alignment: .center, spacing: 12) {
       IconTile(symbol: "rectangle.3.group", tint: SettingsPane.layouts.tint, size: 38)
       VStack(alignment: .leading, spacing: 5) {
-        if editable {
-          let nameProblem = model.layoutNameProblem(nameDraft, renaming: layout.name, at: index)
-          TextField("Layout name", text: $nameDraft)
-            .textFieldStyle(.plain)
-            .font(.system(size: 19, weight: .bold))
-            .onChange(of: nameDraft) { _, name in commitName(name) }
-            // A refused name can become usable with no keystroke, e.g. when the other layout is deleted.
-            .onChange(of: nameProblem) { _, problem in
-              if problem == nil { commitName(nameDraft) }
-            }
-          if let problem = nameProblem {
-            Label(problem, systemImage: "exclamationmark.circle.fill")
-              .font(.system(size: 11.5))
-              .foregroundStyle(Theme.critical)
+        let nameProblem = model.layoutNameProblem(nameDraft, renaming: layout.name, at: index)
+        TextField("Layout name", text: $nameDraft)
+          .textFieldStyle(.plain)
+          .font(.system(size: 19, weight: .bold))
+          .onChange(of: nameDraft) { _, name in commitName(name) }
+          // A refused name can become usable with no keystroke, e.g. when the other layout is deleted.
+          .onChange(of: nameProblem) { _, problem in
+            if problem == nil { commitName(nameDraft) }
           }
-        } else {
-          Text(layout.name).font(.system(size: 19, weight: .bold))
+        if let problem = nameProblem {
+          Label(problem, systemImage: "exclamationmark.circle.fill")
+            .font(.system(size: 11.5))
+            .foregroundStyle(Theme.critical)
         }
-        HStack(spacing: 8) {
-          if let source {
-            StatusPill(text: "Read-only · \(source.displayName)", color: Theme.neutral, symbol: "lock.fill")
-          }
-          triggers
-        }
+        HStack(spacing: 8) { triggers }
       }
       Spacer()
-      if editable {
-        Menu {
-          Button("Delete…", role: .destructive) { confirmDelete = true }
-        } label: {
-          Image(systemName: "ellipsis.circle").font(.system(size: 15))
-        }
-        .accessibilityLabel("More")
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+      Menu {
+        Button("Delete…", role: .destructive) { confirmDelete = true }
+      } label: {
+        Image(systemName: "ellipsis.circle").font(.system(size: 15))
       }
+      .accessibilityLabel("More")
+      .menuStyle(.borderlessButton)
+      .menuIndicator(.hidden)
+      .fixedSize()
     }
   }
 
   @ViewBuilder private var triggers: some View {
     let triggers = model.triggers(forLayout: layout.name)
     if triggers.isEmpty {
-      if editable {
-        Button {
-          model.selectedPane = .windows
-          model.addBinding(action: .layout(name: layout.name))
-        } label: {
-          Label("Add a Shortcut", systemImage: "plus")
-        }
-        .buttonStyle(.link)
-        .font(.system(size: 12))
-      } else {
-        Text("No shortcut").font(.system(size: 12)).foregroundStyle(.tertiary)
+      Button {
+        model.selectedPane = .windows
+        model.addBinding(action: .layout(name: layout.name))
+      } label: {
+        Label("Add a Shortcut", systemImage: "plus")
       }
+      .buttonStyle(.link)
+      .font(.system(size: 12))
     } else {
       ForEach(Array(triggers.enumerated()), id: \.offset) { _, trigger in
         KeyComboView(combo: trigger.keys, modal: trigger.modal, size: .small)
@@ -264,8 +218,7 @@ private struct LayoutDetail: View {
   private var appsCard: some View {
     SettingsCard(
       title: "Apps", symbol: "square.stack.3d.up",
-      footer: editable
-        ? "Operations apply to an app's windows in order: the first to its first window, and so on." : nil
+      footer: "Operations apply to an app's windows in order: the first to its first window, and so on."
     ) {
       VStack(spacing: 0) {
         if layout.apps.isEmpty {
@@ -277,27 +230,25 @@ private struct LayoutDetail: View {
         }
         ForEach(layout.apps.indices, id: \.self) { index in
           if index > 0 { CardDivider() }
-          LayoutAppRow(app: appBinding(index), editable: editable) { layout.apps.remove(at: index) }
+          LayoutAppRow(app: appBinding(index)) { layout.apps.remove(at: index) }
         }
-        if editable {
-          CardDivider()
-          HStack {
-            Menu {
-              ForEach(model.runningApps.filter { app in !layout.apps.contains { $0.app == app.name } }) { app in
-                Button(app.name) {
-                  layout.apps.append(LayoutApp(app: app.name, operations: [WindowPresets.preset("maximize").action]))
-                }
+        CardDivider()
+        HStack {
+          Menu {
+            ForEach(model.runningApps.filter { app in !layout.apps.contains { $0.app == app.name } }) { app in
+              Button(app.name) {
+                layout.apps.append(LayoutApp(app: app.name, operations: [WindowPresets.preset("maximize").action]))
               }
-            } label: {
-              Label("Add App", systemImage: "plus.circle.fill").font(.system(size: 12.5, weight: .medium))
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            Spacer()
+          } label: {
+            Label("Add App", systemImage: "plus.circle.fill").font(.system(size: 12.5, weight: .medium))
           }
-          .padding(.horizontal, 16)
-          .padding(.vertical, 10)
+          .menuStyle(.borderlessButton)
+          .fixedSize()
+          Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
       }
     }
   }
@@ -307,19 +258,11 @@ private struct LayoutDetail: View {
       VStack(alignment: .leading, spacing: 14) {
         VStack(alignment: .leading, spacing: 6) {
           Text("Before arranging").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-          if editable {
-            OperationListEditor(operations: $layout.before, depth: 1, isChain: false)
-          } else {
-            ReadOnlyOperations(operations: layout.before)
-          }
+          OperationListEditor(operations: $layout.before, depth: 1, isChain: false)
         }
         VStack(alignment: .leading, spacing: 6) {
           Text("After arranging").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-          if editable {
-            OperationListEditor(operations: $layout.after, depth: 1, isChain: false)
-          } else {
-            ReadOnlyOperations(operations: layout.after)
-          }
+          OperationListEditor(operations: $layout.after, depth: 1, isChain: false)
         }
       }
       .padding(16)
@@ -343,7 +286,6 @@ private struct LayoutDetail: View {
 
 private struct LayoutAppRow: View {
   @Binding var app: LayoutApp
-  let editable: Bool
   let onRemove: () -> Void
   @Environment(AppModel.self) private var model
   @State private var showOptions = false
@@ -353,37 +295,26 @@ private struct LayoutAppRow: View {
       HStack(spacing: 10) {
         let info = model.runningApps.first { $0.name == app.app }
         AppIconView(path: info?.path, bundleID: info?.bundleID, size: 26)
-        if editable {
-          AppNameField(name: $app.app, showsIcon: false)
-            .frame(maxWidth: 240)
-        } else {
-          Text(app.app).font(.system(size: 13, weight: .semibold))
-        }
+        AppNameField(name: $app.app, showsIcon: false)
+          .frame(maxWidth: 240)
         Spacer()
         optionTags
-        if editable {
-          Menu {
-            Button(showOptions ? "Hide Options" : "Show Options") { showOptions.toggle() }
-            Divider()
-            Button("Remove App", role: .destructive, action: onRemove)
-          } label: {
-            Image(systemName: "ellipsis")
-          }
-          .accessibilityLabel("Options for \(app.app.isEmpty ? "this app" : app.app)")
-          .menuStyle(.borderlessButton)
-          .menuIndicator(.hidden)
-          .fixedSize()
+        Menu {
+          Button(showOptions ? "Hide Options" : "Show Options") { showOptions.toggle() }
+          Divider()
+          Button("Remove App", role: .destructive, action: onRemove)
+        } label: {
+          Image(systemName: "ellipsis")
         }
+        .accessibilityLabel("Options for \(app.app.isEmpty ? "this app" : app.app)")
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
       }
-      if editable {
-        OperationListEditor(operations: $app.operations, depth: 1, isChain: false)
-          .padding(.leading, 36)
-        if showOptions {
-          OptionsEditor(options: $app.options)
-            .padding(.leading, 36)
-        }
-      } else {
-        ReadOnlyOperations(operations: app.operations)
+      OperationListEditor(operations: $app.operations, depth: 1, isChain: false)
+        .padding(.leading, 36)
+      if showOptions {
+        OptionsEditor(options: $app.options)
           .padding(.leading, 36)
       }
     }
@@ -435,29 +366,6 @@ private struct OptionsEditor: View {
   }
 }
 
-private struct ReadOnlyOperations: View {
-  let operations: [Action]
-
-  var body: some View {
-    if operations.isEmpty {
-      Text("None").font(.system(size: 12)).foregroundStyle(.tertiary)
-    } else {
-      VStack(alignment: .leading, spacing: 6) {
-        ForEach(Array(operations.enumerated()), id: \.offset) { _, operation in
-          HStack(spacing: 8) {
-            ActionGlyph(action: operation, width: 24, height: 16)
-            Text(ActionDescriber.title(operation)).font(.system(size: 12.5))
-            Text(ActionDescriber.detail(operation))
-              .font(.system(size: 10.5, design: .monospaced))
-              .foregroundStyle(.tertiary)
-              .lineLimit(1)
-          }
-        }
-      }
-    }
-  }
-}
-
 /// Every app's first window, placed by its first operation, on the miniature screens.
 private struct LayoutPreviewCard: View {
   let layout: WindowLayout
@@ -504,7 +412,7 @@ private struct LayoutPreviewCard: View {
     for (index, app) in layout.apps.enumerated() {
       guard let operation = app.operations.first,
         let placement = PlacementCalculator.place(
-          operation, screens: model.screens, settings: model.configuration.settings)
+          operation, screens: model.screens, settings: model.configuration.windows)
       else { continue }
       switch placement.state {
       case .placed(let frame):

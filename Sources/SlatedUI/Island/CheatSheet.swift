@@ -4,7 +4,7 @@ import SlatedCore
 /// The shortcuts the island lists while you hold the Hyper key (or after pressing a modal key),
 /// grouped by what they do and sorted in keyboard order.
 public struct CheatSheet: Hashable, Sendable {
-  /// One shortcut from any source: Slated's bindings, Slate files or Slated's built-ins.
+  /// One shortcut: one of Slated's bindings or built-ins.
   public struct Shortcut: Hashable, Sendable {
     public var keys: KeyCombo
     /// The modal key that must be pressed first, if any.
@@ -26,12 +26,6 @@ public struct CheatSheet: Hashable, Sendable {
     }
 
     var id: String { (modal.map { $0.string + " " } ?? "") + keys.string }
-
-    /// A Slate file's shortcut, listed by what it does, as in Settings: a function Slated can
-    /// describe goes under its real section ("First Third" under Windows), not under Scripts.
-    public init(_ source: SourceBinding) {
-      self.init(keys: source.keys, modal: source.modal?.keys, action: source.action, summary: source.summary)
-    }
   }
 
   public struct Item: Hashable, Sendable, Identifiable {

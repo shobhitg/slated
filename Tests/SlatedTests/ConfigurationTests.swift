@@ -2,18 +2,89 @@ import Foundation
 
 @testable import SlatedCore
 
+/// Writes both files and reads them back, as a save and the next launch do.
+func roundTripped(_ config: SlatedConfiguration) throws -> SlatedConfiguration {
+  try SlatedConfiguration.decodeFiles(config: config.encodedConfigFile(), settings: config.encodedSettingsFile())
+    .configuration
+}
+
+/// A file's top-level keys, in the order written.
+func topLevelKeys(_ data: Data) -> [String] {
+  String(decoding: data, as: UTF8.self).split(separator: "\n").filter { $0.hasPrefix("  \"") }
+    .map { String($0.split(separator: "\"")[1]) }
+}
+
 let configurationTests = Suite(
   "Configuration",
   [
     (
-      "imported Slate shortcuts round-trip, and aren't written when there are none",
+      "config.json holds what keys do, settings.json how Slated behaves",
       {
-        let json = #"{"general": {"importedSlateShortcuts": ["hyper+a", "ctrl+alt+f6 x"]}}"#
-        let config = try SlatedConfiguration.decode(from: Data(json.utf8))
-        expectEqual(config.general.importedSlateShortcuts, ["hyper+a", "ctrl+alt+f6 x"])
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
-        let none = String(decoding: try SlatedConfiguration().encoded(), as: UTF8.self)
-        expect(!none.contains("importedSlateShortcuts"), none)
+        let config = SlatedConfiguration.starter
+        expectEqual(
+          topLevelKeys(try config.encodedConfigFile()),
+          ["bindings", "defaults", "hotstrings", "keyboard", "layouts", "version"])
+        expectEqual(
+          topLevelKeys(try config.encodedSettingsFile()),
+          ["automation", "clipboard", "general", "island", "version", "windows"])
+        let both = String(decoding: try config.encodedConfigFile() + config.encodedSettingsFile(), as: UTF8.self)
+        expect(both.contains(#""version" : 2"#), both)
+        for gone in ["loadSlateConfigs", "slateConfigPaths", "importedSlateShortcuts"] {
+          expect(!both.contains(gone), gone)
+        }
+        expectEqual(try roundTripped(config), config)
+      }
+    ),
+    (
+      "a version 1 config.json reads as one value: its settings sections, and what it said about Slate",
+      {
+        let v1 = #"""
+          {"version": 1, "general": {"showActionHUD": true, "loadSlateConfigs": false,
+            "slateConfigPaths": ["~/a.js"], "importedSlateShortcuts": ["hyper+a"]},
+           "settings": {"nudgePercentOf": "screenSize"}, "island": {"enabled": false},
+           "keyboard": {"capsLock": "hyper"}, "later": 1}
+          """#
+        let files = try SlatedConfiguration.decodeFiles(config: Data(v1.utf8), settings: nil)
+        let config = files.configuration
+        expectEqual(config.version, 2)
+        expect(config.general.showActionHUD)
+        expectEqual(config.windows["nudgePercentOf"], .string("screenSize"))
+        expect(!config.island.enabled)
+        expectEqual(config.keyboard.capsLock, .hyper)
+        expectEqual(config.unknownSections, ["later": .int(1)])
+        expectEqual(
+          files.legacy,
+          LegacyConfig(
+            loadSlateConfigs: false, slateConfigPaths: ["~/a.js"], importedSlateShortcuts: ["hyper+a"],
+            settingsMoved: true, hadSettings: true))
+        // With a settings.json there, it wins: the old sections are dropped, broken or not.
+        let withSettings = try SlatedConfiguration.decodeFiles(
+          config: Data(#"{"version": 1, "general": {"launchAtLogin": "yes"}, "island": {"enabled": false}}"#.utf8),
+          settings: Data(#"{"general": {"launchAtLogin": true}}"#.utf8))
+        expect(withSettings.configuration.general.launchAtLogin)
+        expect(withSettings.configuration.island.enabled)
+        expectEqual(withSettings.legacy?.settingsMoved, false)
+        // A version 2 file isn't legacy; a version 2 file with a settings section is.
+        expect(try SlatedConfiguration.decodeFiles(config: Data(#"{"version": 2}"#.utf8), settings: nil).legacy == nil)
+        let mixed = try SlatedConfiguration.decodeFiles(
+          config: Data(#"{"version": 2, "general": {}}"#.utf8), settings: nil)
+        expect(mixed.legacy != nil)
+      }
+    ),
+    (
+      "a file that can't be read is named",
+      {
+        func file(_ config: String, _ settings: String?) -> ConfigFile? {
+          let read = Result {
+            try SlatedConfiguration.decodeFiles(config: Data(config.utf8), settings: settings.map { Data($0.utf8) })
+          }
+          guard case .failure(let error) = read else { return nil }
+          return (error as? ConfigFileError)?.file
+        }
+        expectEqual(file(#"{"bindings": 5}"#, nil), .config)
+        expectEqual(file(#"{"version": 2}"#, #"{"island": {"enabled": "yes"}}"#), .settings)
+        expectEqual(file(#"{"version": 2}"#, "{"), .settings)
+        expectEqual(file(#"{"general": {"launchAtLogin": "yes"}}"#, nil), .config)
       }
     ),
     (
@@ -78,8 +149,7 @@ let configurationTests = Suite(
         expectEqual(config.keyboard.capsLock, .hyper)
         expectEqual(config.keyboard.hyperModifiers, .hyper)
         expectEqual(config.hotstrings.first?.replacement, "¯\\_(ツ)_/¯")
-        expect(config.general.loadSlateConfigs)
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        expectEqual(try roundTripped(config), config)
       }
     ),
     (
@@ -99,7 +169,7 @@ let configurationTests = Suite(
             SequenceStep(.focus(.right)),
             SequenceStep(.push(direction: .left, style: .none, screen: nil), keepWindow: true),
           ]))
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        expectEqual(try roundTripped(config), config)
         let noKeys = #"{"bindings": [{"keys": "a", "modal": {}, "action": "undo"}]}"#
         expectThrows { _ = try SlatedConfiguration.decode(from: Data(noKeys.utf8)) }
       }
@@ -180,7 +250,7 @@ let numericEdgeTests = Suite(
         let slate = SlateConfigParser.parse("config undoMaxStackSize inf", homeDirectory: "/tmp") { _ in nil }
         expectEqual(slate.settings.undoMaxStackSize, 1_000_000_000_000_000)
         let json5 = try SlatedConfiguration.decode(from: Data(#"{"settings": {"undoMaxStackSize": Infinity}}"#.utf8))
-        expectEqual(json5.settings.undoMaxStackSize, 1_000_000_000_000_000)
+        expectEqual(json5.windows.undoMaxStackSize, 1_000_000_000_000_000)
         expectEqual(SlateSettings(["undoMaxStackSize": .number(1e20)]).undoMaxStackSize, 1_000_000_000_000_000)
         expectEqual(SlateSettings(["undoMaxStackSize": .number(-1e20)]).undoMaxStackSize, -1_000_000_000_000_000)
         expectEqual(SlateSettings(["undoMaxStackSize": .number(.nan)]).undoMaxStackSize, 10)
@@ -231,7 +301,7 @@ let crossPlatformBugTests = Suite(
       {
         let config = try SlatedConfiguration.decode(from: Data(#"{"keyboard":{"hyperModifiers":["fn","ctrl"]}}"#.utf8))
         expectEqual(config.keyboard.hyperModifiers, [.function, .control])
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        expectEqual(try roundTripped(config), config)
       }
     ),
     (
@@ -241,10 +311,10 @@ let crossPlatformBugTests = Suite(
           ScreenDefault(target: "coding", condition: .count(2)),
           ScreenDefault(target: "big", condition: .resolutions(["2560x1440", "1920x1080"])),
         ])
-        let text = String(decoding: try config.encoded(), as: UTF8.self)
+        let text = String(decoding: try config.encodedConfigFile(), as: UTF8.self)
         expect(text.contains(#""count" : 2,"#) && text.contains(#""resolutions" : ["#), text)
         expect(!text.contains("condition") && !text.contains("_0"), text)
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        expectEqual(try roundTripped(config), config)
         let old = #"""
           {"defaults": [{"target": "coding", "condition": {"count": {"_0": 2}}},
                         {"target": "big", "condition": {"resolutions": {"_0": ["2560x1440", "1920x1080"]}}}]}
@@ -310,24 +380,24 @@ let crossPlatformBugTests = Suite(
               "b": .array([.int(1), .double(2.5), .string("x"), .null, .bool(true), .object([:])]),
             ]),
           ])
-        let text = String(decoding: try config.encoded(), as: UTF8.self)
-        let topLevel = text.split(separator: "\n").filter { $0.hasPrefix("  \"") }.map { $0.split(separator: "\"")[1] }
+        let text = String(decoding: try config.encodedConfigFile(), as: UTF8.self)
         expectEqual(
-          topLevel,
-          [
-            "aaa", "automation", "bindings", "clipboard", "defaults", "general", "hotstrings", "island", "keyboard",
-            "layouts", "settings", "version", "zzz",
-          ])
+          topLevelKeys(try config.encodedConfigFile()),
+          ["aaa", "bindings", "defaults", "hotstrings", "keyboard", "layouts", "version", "zzz"])
         expect(text.contains(#""a" : 9007199254740993,"#), text)
-        expect(!text.contains("someday"), text)
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        let settings = String(decoding: try config.encodedSettingsFile(), as: UTF8.self)
+        expect(settings.contains(#""launchAtLogin" : true"#) && !settings.contains("someday"), settings)
+        expectEqual(try roundTripped(config), config)
         // Known sections win over unknown ones of the same name, and the initializer doesn't need them.
+        // Neither file takes the other's sections: config.json would read as version 1 again.
         var edited = SlatedConfiguration(bindings: [])
         expectEqual(edited.unknownSections, [:])
-        edited.unknownSections = ["bindings": .string("not a list"), "later": .null]
-        let again = try SlatedConfiguration.decode(from: edited.encoded())
+        edited.unknownSections = ["bindings": .string("not a list"), "general": .null, "later": .null]
+        edited.unknownSettings = ["island": .null, "keyboard": .int(1), "soon": .bool(true)]
+        let again = try roundTripped(edited)
         expectEqual(again.bindings, [])
         expectEqual(again.unknownSections, ["later": .null])
+        expectEqual(again.unknownSettings, ["keyboard": .int(1), "soon": .bool(true)])
       }
     ),
   ])

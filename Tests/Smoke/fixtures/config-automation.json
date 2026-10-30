@@ -1,7 +1,7 @@
 {
   // Game automation: a plain key only inside one game, a mouse side button, a limited, jittered
   // auto-clicker, and a modifier on its own (not allowed as a shortcut).
-  "general": { "loadSlateConfigs": false },
+  "version": 2,
   "bindings": [
     { "name": "Hold left click in the game", "keys": "f", "onlyInApps": ["com.example.game"],
       "action": { "op": "hold", "input": "mouse:left" } },

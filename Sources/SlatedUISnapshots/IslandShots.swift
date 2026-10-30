@@ -64,13 +64,11 @@ import SwiftUI
   ]
 }
 
-/// A ~/.slate.js like the author's, as the island lists it: every shortcut runs a function, unnamed,
-/// and described by trying it (into the starter's operations, which are the same).
+/// A ~/.slate.js like the author's once imported, as the island lists it: the starter's operations,
+/// unnamed.
 @MainActor private var slateShortcuts: [CheatSheet.Shortcut] {
-  StarterBindings.all.map {
-    CheatSheet.Shortcut(
-      SourceBinding(keys: $0.keys, summary: "JavaScript function", action: $0.action, function: .described))
-  } + [CheatSheet.Shortcut(keys: KeyCombo(string: "hyper+esc")!, name: "Stop automations", action: .stopAutomations)]
+  StarterBindings.all.map { CheatSheet.Shortcut(keys: $0.keys, action: $0.action) }
+    + [CheatSheet.Shortcut(keys: KeyCombo(string: "hyper+esc")!, name: "Stop automations", action: .stopAutomations)]
 }
 
 @MainActor private var modalSheet: CheatSheet {

@@ -14,7 +14,10 @@ class LiveServices: AppServices {
 
   var configurationFileURL: URL { engine.store.fileURL }
 
-  /// Throws while config.json can't be read, so Settings pauses saving instead of overwriting it.
+  var settingsFileURL: URL { engine.store.settingsURL }
+
+  /// Throws while config.json or settings.json can't be read, so Settings pauses saving instead of
+  /// overwriting it.
   func loadConfiguration() throws -> SlatedConfiguration {
     if let error = engine.store.loadError { throw ConfigUnreadable(message: error) }
     return engine.configuration
@@ -24,7 +27,24 @@ class LiveServices: AppServices {
 
   func runtimeStatus() -> RuntimeStatus { engine.status }
 
-  func slateSources() -> [SlateSource] { engine.sources.sources }
+  func slateConfigPath() -> String? { engine.slateConfigPath }
+
+  func importSlateConfig() throws -> SlateImportReport {
+    Log.record("ui.import_slate")
+    do {
+      return try engine.importSlateConfigs()
+    } catch {
+      Log.error("slate.import_failed", LogPrivacy.message(error.localizedDescription))
+      throw error
+    }
+  }
+
+  func slateImportNotice() -> SlateImportReport? { engine.slateImportNotice }
+
+  func dismissSlateImportNotice() {
+    Log.record("ui.slate_notice_dismissed")
+    engine.dismissSlateImportNotice()
+  }
 
   func screens() -> [ScreenInfo] { Screens.current() }
 

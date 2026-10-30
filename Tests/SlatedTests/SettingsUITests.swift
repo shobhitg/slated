@@ -29,7 +29,11 @@ private func hyper(_ key: String) -> KeyCombo { KeyCombo(key: key, modifiers: .h
     status.hotstringsActive = false
     return status
   }
-  func slateSources() -> [SlateSource] { base.slateSources() }
+  var settingsFileURL: URL { base.settingsFileURL }
+  func slateConfigPath() -> String? { base.slateConfigPath() }
+  func importSlateConfig() throws -> SlateImportReport { try base.importSlateConfig() }
+  func slateImportNotice() -> SlateImportReport? { base.slateImportNotice() }
+  func dismissSlateImportNotice() { base.dismissSlateImportNotice() }
   func screens() -> [ScreenInfo] { base.screens() }
   func runningApplications() -> [AppInfo] { base.runningApplications() }
   func requestAccessibilityPermission() {}
@@ -578,56 +582,74 @@ let uiModelTests = Suite(
             expect(false, "Window Hints should fail")
           }
           expect(model.state(for: try binding("Paste as Plain Text")) == .disabled)
-          let others = model.otherUses(of: hyper("n"), modal: nil, excluding: nil)
-          expect(others.contains { $0.contains(".slate.js") })
         }
       }
     ),
     (
-      "a Slate binding imported while its file keeps loading shows as imported, not as another use",
+      "importing the Slate config adds what Slated doesn't have, and again adds nothing",
       {
         try onMain {
-          let model = AppModel(services: PreviewServices())
-          let source = try require(model.sources.first?.bindings.first { $0.keys == hyper("n") })
-          expect(model.state(for: source) != .imported)
-          model.configuration.general.importedSlateShortcuts = [source.id]
-          expect(model.state(for: source) == .imported)
-          let others = model.otherUses(of: hyper("n"), modal: nil, excluding: nil)
-          expect(!others.contains { $0.contains(".slate.js") }, "\(others)")
-        }
-      }
-    ),
-    (
-      "onboarding still shows the Slate config after its switch turns loading off, so it can go back on",
-      {
-        try onMain {
-          let services = PreviewServices(scenario: .firstRun)
+          let services = PreviewServices(scenario: .empty)
+          services.slateConfig = "~/.slate.js"
           let model = AppModel(services: services)
-          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
-          model.configuration.general.loadSlateConfigs = false  // not saved yet
-          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
-          model.saveNow()
-          // Like the app: listed, but not loaded.
-          expect(model.sources.contains { $0.exists && !$0.loaded })
-          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
-          model.configuration.general.loadSlateConfigs = true  // not saved yet, so still not loaded
-          expectEqual(model.slateFilesFound.map(\.displayName), ["~/.slate.js"])
-          model.saveNow()
-          expectEqual(model.slateFilesFound.filter(\.loaded).map(\.displayName), ["~/.slate.js"])
+          // An edit still waiting for its debounce is saved first, so the import builds on it.
+          model.configuration.general.showActionHUD = true
+          let first = try model.importSlateConfig()
+          expect(first.added > 0)
+          expectEqual(first.alreadyThere, 0)
+          expectEqual(model.configuration.bindings.count, first.added)
+          expect(model.configuration.general.showActionHUD)
+          expect(services.configuration.general.showActionHUD)
+          let again = try model.importSlateConfig()
+          expectEqual(again.added, 0)
+          expectEqual(again.alreadyThere, first.added)
+          expectEqual(model.configuration.bindings.count, first.added)
+          expectEqual(again.title, "Your Slate shortcuts are already in Slated")
+          // Plain words, by key combo: no JavaScript.
+          expect(first.message.contains("2 couldn't be converted:\nctrl+alt+cmd+t: depends on"), first.message)
         }
       }
     ),
     (
-      "copies static Slate bindings into Slated",
+      "with no Slate config there's nothing to import, and Get Started offers the starter shortcuts",
       {
         try onMain {
-          let model = AppModel(services: PreviewServices())
-          let source = try require(model.sources.first?.bindings.first { $0.action != nil })
-          expect(!model.isCopied(source))
-          model.copyIntoSlated(source)
-          expect(model.isCopied(source))
-          expectEqual(model.configuration.bindings.last?.keys, source.keys)
-          expect(model.selectedBinding == .slated(model.configuration.bindings.last!.id))
+          let services = PreviewServices(scenario: .empty)
+          let model = AppModel(services: services)
+          expect(model.slateConfigPath == nil)
+          expectThrows { _ = try model.importSlateConfig() }
+          model.importSlateConfigFromUI()
+          expect(model.toast?.style == .failure)
+          expect(model.lastSlateImport == nil)
+          services.slateConfig = "~/.slate"
+          model.refresh()
+          expectEqual(model.slateConfigPath, "~/.slate")
+          model.importSlateConfigFromUI()
+          expect(model.lastSlateImport != nil)
+        }
+      }
+    ),
+    (
+      "the notice about an imported Slate config stays until dismissed",
+      {
+        try onMain {
+          let services = PreviewServices(scenario: .configured)
+          let model = AppModel(services: services)
+          let notice = try require(model.slateImportNotice)
+          expectEqual(notice.fileNames, "~/.slate.js")
+          expectEqual(notice.notConverted.map(\.what), ["ctrl+alt+cmd+t", "alt+tab"])
+          // Shown as keys, as everywhere else; what isn't a shortcut, as written.
+          let display = { (keys: String) in KeyCombo(string: keys)?.display() ?? "?" }
+          expectEqual(notice.notConverted.first?.displayName, display("ctrl+alt+cmd+t"))
+          expectEqual(SlateImport.Item("ctrl+alt+f6 x", "").displayName, display("ctrl+alt+f6") + " " + display("x"))
+          expectEqual(SlateImport.Item("line 3", "").displayName, "line 3")
+          expectEqual(SlateImport.Item(#"slate.layout("a+b c")"#, "").displayName, #"slate.layout("a+b c")"#)
+          model.refresh()
+          expect(model.slateImportNotice != nil)
+          model.dismissSlateImportNotice()
+          expect(model.slateImportNotice == nil)
+          model.refresh()
+          expect(model.slateImportNotice == nil, "dismissed in the app too")
         }
       }
     ),
@@ -803,10 +825,10 @@ let uiModelTests = Suite(
       }
     ),
     (
-      "renaming a layout never takes a Slate file's layout name, or another's with spaces around it",
+      "renaming a layout never takes another's name, with spaces around it or not",
       {
         try onMain {
-          // Slated's “Coding” (hyper+1 applies it); the Slate file has “Writing” and “Meeting”.
+          // “Coding” (hyper+1 applies it), and “Writing” and “Meeting”, imported from the ~/.slate.js.
           let services = PreviewServices()
           let model = AppModel(services: services)
           let writingKey = HotkeyBinding(keys: hyper("w"), action: .layout(name: "Writing"))
@@ -824,11 +846,11 @@ let uiModelTests = Suite(
             model.saveNow()
             let disk = services.configuration
             expect(
-              !disk.layouts.contains { $0.name.trimmingCharacters(in: .whitespaces) == "Writing" },
-              "after typing “\(typed)” Slated's layout would replace the Slate file's")
+              disk.layouts.filter { $0.name.trimmingCharacters(in: .whitespaces) == "Writing" }.count == 1,
+              "after typing “\(typed)” two layouts would be “Writing”")
             expectEqual(disk.bindings.first { $0.id == writingKey.id }?.action, .layout(name: "Writing"))
           }
-          expectEqual(model.configuration.layouts.map(\.name), ["Writing Room"])
+          expectEqual(model.configuration.layouts.map(\.name), ["Writing Room", "Writing", "Meeting"])
           expectEqual(model.binding(writingKey.id)?.action, .layout(name: "Writing"))
           expectEqual(model.binding(codingKey.id)?.action, .layout(name: "Writing Room"))
         }

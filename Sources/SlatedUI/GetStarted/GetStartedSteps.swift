@@ -162,11 +162,7 @@ struct HyperKeyStep: View {
 
   /// Points out when the user's own shortcuts already use ⌃⌥⇧⌘, so the choice is obvious.
   private var hyperSubtitle: String {
-    let fromSlate = model.sources.filter(\.loaded).flatMap(\.bindings).filter {
-      $0.keys.modifiers.isSuperset(of: .hyper)
-    }.count
-    let fromSlated = model.configuration.bindings.filter { $0.keys.modifiers.isSuperset(of: .hyper) }.count
-    let total = fromSlate + fromSlated
+    let total = model.configuration.bindings.filter { $0.keys.modifiers.isSuperset(of: .hyper) }.count
     guard total > 0, !model.hyperKeyEnabled else { return "You can change this any time under Keyboard." }
     return "\(total) of your shortcuts use ⌃⌥⇧⌘. Turn this on to press them with Caps Lock. "
       + "(If Karabiner-Elements does this today, turn its Caps Lock rule off.)"
@@ -213,17 +209,21 @@ struct HyperKeyStep: View {
 
 // MARK: - Slate config
 
+/// What became of the user's Slate config: imported (a first run does that by itself), there to
+/// import, or not there, when the starter shortcuts are offered instead.
 struct SlateConfigStep: View {
   @Environment(AppModel.self) private var model
 
   var body: some View {
-    let found = model.slateFilesFound
+    let imported = model.lastSlateImport ?? model.slateImportNotice
+    let found = model.slateConfigPath
     VStack(spacing: 22) {
       ZStack {
         IconTile(
-          symbol: found.isEmpty ? "doc.badge.plus" : "doc.text.magnifyingglass", tint: SettingsPane.slate.tint, size: 64
-        )
-        if !found.isEmpty {
+          symbol: imported != nil
+            ? "square.and.arrow.down.fill" : (found == nil ? "doc.badge.plus" : "doc.text.magnifyingglass"),
+          tint: SettingsPane.slate.tint, size: 64)
+        if imported != nil {
           Image(systemName: "checkmark.circle.fill")
             .font(.system(size: 22))
             .foregroundStyle(.white, Theme.positive)
@@ -231,77 +231,46 @@ struct SlateConfigStep: View {
         }
       }
       .padding(.top, 6)
-      if found.isEmpty {
+      if let imported {
+        StepTitle(title: "Your Slate shortcuts are in Slated", subtitle: Self.importedText(imported))
+        if !imported.notConverted.isEmpty {
+          Label(
+            "\(imported.notConverted.count) couldn't be converted: "
+              + imported.notConverted.map(\.displayName).joined(separator: ", "),
+            systemImage: "info.circle"
+          )
+          .font(.system(size: 11.5))
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: 480)
+        }
+      } else if let found {
+        StepTitle(
+          title: "Your Slate config is here",
+          subtitle: "Import \(found) to bring its shortcuts, layouts and settings into Slated, where you can "
+            + "change them. Your file stays as it is; Slated doesn't run it.")
+        Button("Import \(found)") { model.importSlateConfigFromUI() }
+          .buttonStyle(.gradient)
+      } else {
         StepTitle(
           title: "Start with a few great shortcuts",
           subtitle:
             "No ~/.slate or ~/.slate.js here — no problem. Add a starter set now and make it yours under Windows."
         )
-      } else if !found.contains(where: \.loaded) {
-        StepTitle(
-          title: "Your Slate config is here",
-          subtitle: "Slated isn't loading it. Turn it on to run its shortcuts alongside Slated's own. "
-            + "Nothing is converted or changed."
-        )
-      } else {
-        StepTitle(
-          title: "Your Slate config works as-is",
-          subtitle:
-            "Slated found \(bindingCount(found)) bindings and will run them alongside its own. Nothing is converted or changed."
-        )
-        VStack(spacing: 0) {
-          ForEach(Array(found.enumerated()), id: \.element.id) { index, source in
-            if index > 0 { CardDivider(inset: 54) }
-            SourceSummaryRow(source: source)
-          }
-          CardDivider(inset: 0)
-          ToggleRow(
-            title: "Load my Slate config", subtitle: "Turn off to start fresh with only Slated's own shortcuts.",
-            symbol: "arrow.triangle.2.circlepath", tint: SettingsPane.slate.tint,
-            isOn: Binding(
-              get: { model.configuration.general.loadSlateConfigs },
-              set: { model.configuration.general.loadSlateConfigs = $0 }))
-        }
-        .frame(maxWidth: 480)
-        .cardStyle(padding: 0)
       }
-      if model.configuration.bindings.isEmpty || found.isEmpty {
+      // The starter set when there's nothing of the user's to bring over (or what came over has no
+      // shortcuts); a Slate config waiting to be imported comes first.
+      if imported == nil ? found == nil : model.configuration.bindings.isEmpty {
         StarterShortcutsCard()
       }
     }
   }
 
-  private func bindingCount(_ sources: [SlateSource]) -> Int { sources.reduce(0) { $0 + $1.bindings.count } }
-}
-
-private struct SourceSummaryRow: View {
-  let source: SlateSource
-
-  var body: some View {
-    HStack(spacing: 12) {
-      IconTile(
-        symbol: source.kind == .javascript ? "curlybraces" : "doc.plaintext", tint: SettingsPane.slate.tint, size: 26)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(source.displayName).font(.system(size: 13, weight: .semibold, design: .monospaced))
-        Text(
-          source.loaded
-            ? "\(source.bindings.count) bindings" + (source.layouts.isEmpty ? "" : " · \(source.layouts.count) layouts")
-            : "Not loaded"
-        )
-        .font(.system(size: 11.5))
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-      }
-      .fixedSize()
-      Spacer(minLength: 8)
-      HStack(spacing: 6) {
-        ForEach(Array(source.bindings.prefix(2).enumerated()), id: \.offset) { _, binding in
-          KeyComboView(combo: binding.keys, modal: binding.modal, size: .small)
-        }
-      }
-    }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 12)
+  static func importedText(_ report: SlateImportReport) -> String {
+    let added =
+      report.added > 0
+      ? "Slated imported \(report.added) shortcut\(report.added == 1 ? "" : "s") from \(report.fileNames)."
+      : "The shortcuts in \(report.fileNames) were already in Slated."
+    return added + " Change them under Windows; Slated doesn't read \(report.fileNames) any more."
   }
 }
 
@@ -393,10 +362,7 @@ struct DoneStep: View {
     }
   }
 
-  private var totalShortcuts: Int {
-    model.configuration.bindings.filter(\.enabled).count
-      + (model.configuration.general.loadSlateConfigs ? model.sourceBindingCount : 0)
-  }
+  private var totalShortcuts: Int { model.configuration.bindings.filter(\.enabled).count }
 
   private var tipBinding: (keys: KeyCombo, modal: ModalKey?, title: String)? {
     if let binding = model.configuration.bindings.first(where: {
@@ -404,12 +370,10 @@ struct DoneStep: View {
     }) {
       return (binding.keys, binding.modal, "to snap this window to the \(BindingTitle.title(for: binding))")
     }
-    if model.configuration.general.loadSlateConfigs,
-      let binding = model.sources.flatMap(\.bindings).first(where: {
-        $0.action.map { WindowPresets.matching($0) != nil } ?? false
-      })
-    {
-      return (binding.keys, binding.modal, "for \(ActionDescriber.title(binding.action!))")
+    if let binding = model.configuration.bindings.first(where: {
+      $0.enabled && WindowPresets.matching($0.action) != nil
+    }) {
+      return (binding.keys, binding.modal, "for \(ActionDescriber.title(binding.action))")
     }
     return nil
   }

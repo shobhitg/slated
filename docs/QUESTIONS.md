@@ -202,6 +202,9 @@ None of this affects your `~/.slate.js` except the first item, by at most a poin
 16. ~~**Universal Clipboard.**~~ **Decided (2026-10-27): this Mac only.** Slated's temporary paste of a
     hotstring replacement or insert-text is written as this-Mac-only, so your other devices never get
     it. Real copies and clipboard history picks are left alone.
+*17–19 are superseded by the config split (2026-10-29, below): Slate files no longer load, so
+nothing "keeps loading" and `importedSlateShortcuts` is only read once, to migrate.*
+
 17. **Importing a `~/.slate.js` with `slate.on` handlers.** *Now:* handlers for events Slated
     delivers (app events, display changes) are listed as staying in the file, which keeps loading.
     Window-event handlers, which Slated never runs, are reported as such and don't keep it loading
@@ -256,3 +259,46 @@ such as "ﬃ"), and keyd started by hand (not through systemd) isn't noticed on 
   as PNG, a few MB).
 - **The picker still makes Slated the active app while it's open** (as the switcher did), so the
   app you're in shows as inactive for that moment; pasting brings it back first.
+
+## Config split (2026-10-29): decisions
+
+Your direction: everything configuration-based, in two files, without catering to the old Slate.
+On the Mac side (the GNOME port follows the same spec):
+
+- **Files:** `config.json` (version 2: `keyboard`, `bindings`, `hotstrings`, `layouts`, `defaults`)
+  and `settings.json` (`general`, `windows`, `clipboard`, `automation`, `island`). One configuration
+  in memory; a save writes only the file whose part changed, so a hand-formatted file with comments
+  stays as it is until you change something in it. A missing `settings.json` is all defaults; a
+  deleted `config.json` is written again on the next save (otherwise the next launch would be a
+  first run).
+- **`settings` is now `windows`**, in the model too (`SlatedConfiguration.windows`).
+- **Slate files are never run.** The live loader, JavaScript hotkeys, event handlers, JavaScript
+  layouts and display defaults, the read-only Slate rows in Windows and Layouts, and the Slate
+  Compatibility page as it was are gone. That page is now **Import from Slate**: an Import button,
+  what the last import did, and what couldn't be converted. The JavaScript engine stays, to import.
+- **Import reads `~/.slate.js`, else `~/.slate`** (one file, as Slate does). The migration reads
+  your old `slateConfigPaths` (both files when both exist), else the same.
+- **A script whose import may not match this Mac** (it runs `slate.shell` or moves windows while
+  loading, or stops with an error on the pretend Mac) is now imported anyway, as far as it got, and
+  the alert and the Import page say it may not match. Before, nothing was imported and the file kept
+  loading; with no loading, importing nothing would lose every shortcut. *Question:* or would you
+  rather import nothing from such a file?
+- **Merge rule:** what Slated has wins: a shortcut with the same keys, modal key and app filter
+  (an off one counts), a layout of the same name, an equal display default, a setting already set.
+  Within one Slate file, the first binding on a key wins. Re-importing adds nothing twice; a
+  shortcut you deleted after importing comes back on the next manual import (there's no list of
+  imported shortcuts any more).
+- **Not converted, listed by keys** (`hyper+t`, shown as ⌃⌥⇧⌘T) with why: functions that depend on
+  the window or app, every `slate.on` handler, layouts and display defaults with JavaScript steps,
+  and `config` values from functions. A classic `~/.slate` line that doesn't parse is listed as
+  `line N`.
+- **Migration** happens at load on either platform, once: `config.v1.json` beside `config.json`
+  (never overwritten; if it can't be written, nothing is migrated that launch); an existing
+  `settings.json` wins over the old sections; settings.json is left untouched when it says the same.
+  Logged as `config.migrated` with counts only.
+- **The notice** ("Your ~/.slate.js shortcuts are now part of Slated's config…") is kept in
+  `~/Library/Application Support/Slated/slate-import-notice.json` until you click Got It, so it shows
+  whenever the window next opens (also after a first-run import; Get Started uses it too).
+- **Fixtures:** `fixtures/config.json` now pins both files (`config`, `settings`, `legacy`,
+  `errorFile`, and a `files` section). Until the GNOME port reads that shape, `make linux-test`
+  fails on it.

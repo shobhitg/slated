@@ -2,13 +2,13 @@ import Foundation
 import JavaScriptCore
 import SlatedCore
 
-/// Runs Slate JavaScript configs (`~/.slate.js`) on JavaScriptCore and collects what they register.
+/// Runs Slate JavaScript configs (`~/.slate.js`) on JavaScriptCore and collects what they register,
+/// for the import (`SlateImporter`), which runs it against a pretend Mac.
 ///
-/// Every `load` starts a fresh JavaScript context. Plain operations come out as `Action`s the app
-/// performs itself; anything that needs JavaScript at run time (bound functions, layout steps,
-/// event handlers) stays in the engine and runs through `invoke(_:)`, `run(_:on:)` and
-/// `dispatch(event:)`. Scripts can't crash the app: exceptions and API misuse become `Diagnostic`s
-/// with file and line.
+/// Every `load` starts a fresh JavaScript context. Plain operations come out as `Action`s; bound
+/// functions and layout steps stay in the engine and run through `invoke(_:)` and `run(_:on:)`, so
+/// the import can see what they do. `slate.on` handlers are recorded, never run. Scripts can't crash
+/// the app: exceptions and API misuse become `Diagnostic`s with file and line.
 @MainActor
 public final class SlateScriptEngine {
   public let host: any ScriptHost
@@ -129,20 +129,6 @@ public final class SlateScriptEngine {
       case .action(let action): return host.perform(action, on: window)
       case .callback(let id): return runCallback(id, on: window)
       }
-    }
-  }
-
-  /// Calls the `slate.on` handlers for `event`.
-  @discardableResult
-  public func dispatch(event: ScriptEvent) -> ScriptRunResult {
-    activity {
-      guard let handlers = eventHandlers[event.name], !handlers.isEmpty else { return true }
-      let payload = eventPayload(event)
-      var success = true
-      for handler in handlers where callJS(handler, [event.name.rawValue, payload]).threw {
-        success = false
-      }
-      return success
     }
   }
 

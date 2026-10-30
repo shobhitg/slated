@@ -514,7 +514,7 @@ let slateScriptTests = Suite(
       }
     ),
     (
-      "dispatches events with Slate's payloads",
+      "records which events have handlers, for the import to list, without running them",
       {
         try onMain {
           let host = FakeScriptHost()
@@ -529,17 +529,7 @@ let slateScriptTests = Suite(
               """)
           expectEqual(result.events, [.windowFocused, .appActivated, .windowMoved, .screenConfigurationChanged])
           expectEqual(result.diagnostics.map(\.line), [5])
-          expect(engine.dispatch(event: .windowFocused(FakeScriptHost.terminal)).success)
-          expect(engine.dispatch(event: .appActivated(FakeScriptHost.terminalApp)).success)
-          expect(engine.dispatch(event: .windowMoved(FakeScriptHost.safariBack)).success)
-          expect(engine.dispatch(event: .screenConfigurationChanged).success)
-          expect(engine.dispatch(event: .appClosed(FakeScriptHost.safari)).success)
-          expectEqual(
-            host.logs,
-            [
-              "windowFocused zsh", "appActivated Terminal", "windowMoved Safari",
-              "screenConfigurationChanged undefined",
-            ])
+          expectEqual(host.logs, [])
         }
       }
     ),

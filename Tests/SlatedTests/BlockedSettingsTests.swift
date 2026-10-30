@@ -31,7 +31,11 @@ private struct Unreadable: LocalizedError {
     try base.saveConfiguration(configuration)
   }
   func runtimeStatus() -> RuntimeStatus { base.runtimeStatus() }
-  func slateSources() -> [SlateSource] { base.slateSources() }
+  var settingsFileURL: URL { base.settingsFileURL }
+  func slateConfigPath() -> String? { base.slateConfigPath() }
+  func importSlateConfig() throws -> SlateImportReport { try base.importSlateConfig() }
+  func slateImportNotice() -> SlateImportReport? { base.slateImportNotice() }
+  func dismissSlateImportNotice() { base.dismissSlateImportNotice() }
   func screens() -> [ScreenInfo] { base.screens() }
   func runningApplications() -> [AppInfo] { base.runningApplications() }
   func requestAccessibilityPermission() {}
@@ -126,7 +130,7 @@ let blockedSettingsTests = Suite(
           expect(arrivals.isEmpty)
           model.addLayout()
           model.deleteLayout("Coding", at: 0)
-          expectEqual(model.configuration.layouts.map(\.name), ["Coding"])
+          expectEqual(model.configuration.layouts.map(\.name), ["Coding", "Writing", "Meeting"])
           expect(model.selectedLayout == .slated(name: "Coding", index: 0), "the editor would close")
           expect(model.toast?.message.contains("Fix config.json first") ?? false, "not “Deleted layout”")
         }

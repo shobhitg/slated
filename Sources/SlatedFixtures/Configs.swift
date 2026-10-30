@@ -35,13 +35,10 @@ private let fullConfig = #"""
   }
   """#
 
+/// docs/CONFIG.md's config.json example, with ids so the output doesn't depend on random ones.
 private let configMarkdownExample = #"""
   {
-    "general": {
-      "launchAtLogin": true,
-      "loadSlateConfigs": true,          // also load ~/.slate.js and ~/.slate
-      "showActionHUD": false             // flash a small confirmation after each action
-    },
+    "version": 2,
 
     // Caps Lock becomes ⌃⌥⇧⌘ (Hyper) while held.
     "keyboard": {
@@ -68,12 +65,25 @@ private let configMarkdownExample = #"""
       { "id": "B0000000-0000-4000-8000-000000000001", "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯" },
       { "id": "B0000000-0000-4000-8000-000000000002", "trigger": "brb", "replacement": "be right back", "fire": "afterDelimiter", "wordBoundary": true },
       { "id": "B0000000-0000-4000-8000-000000000003", "trigger": ";today", "replacement": "{date:yyyy-MM-dd}" }
-    ],
-
-    // Slate's global settings (`config name value` in .slate files).
-    "settings": { "defaultToCurrentScreen": true, "nudgePercentOf": "screenSize" }
+    ]
   }
   """#
+
+/// docs/CONFIG.md's settings.json example.
+private let settingsMarkdownExample = #"""
+  {
+    "version": 2,
+    "general": {
+      "launchAtLogin": true,
+      "showActionHUD": false,            // name each action as it runs (in the notch island)
+      "hotstringsEnabled": true          // the switch for all hotstrings
+    },
+
+    // How window operations behave: Slate's global settings (`config name value` in .slate files).
+    "windows": { "defaultToCurrentScreen": true, "nudgePercentOf": "screenSize" }
+  }
+  """#
+
 
 /// docs/CONFIG.md's "Game automation" example, wrapped in an object.
 private let configMarkdownAutomation = #"""
@@ -205,12 +215,6 @@ private let decodeCases: [(String, String)] = [
   ("clipboard shortcut as a number", #"{"clipboard": {"shortcut": 5}}"#),
   ("automation is not an object", #"{"automation": []}"#),
   ("full configuration", fullConfig),
-  (
-    "Slate shortcuts imported while the files keep loading",
-    #"{"general": {"importedSlateShortcuts": ["hyper+a", "ctrl+alt+f6 x"]}}"#
-  ),
-  ("no imported Slate shortcuts: not written", #"{"general": {"importedSlateShortcuts": []}}"#),
-  ("imported Slate shortcuts as text", #"{"general": {"importedSlateShortcuts": "hyper+a"}}"#),
   ("docs/CONFIG.md example (JSON with comments)", configMarkdownExample),
   (
     "ConfigurationTests: missing keys and comments",
@@ -222,7 +226,7 @@ private let decodeCases: [(String, String)] = [
     #"""
     {
       // Hand-edited: comments and trailing commas are allowed.
-      "general": { "loadSlateConfigs": false },
+      "version": 2,
       "keyboard": { "capsLock": "off" },
       "bindings": [
         { "keys": "hyper+w", "action": "push top bar-resize:screenSizeY/2" },
@@ -236,11 +240,11 @@ private let decodeCases: [(String, String)] = [
   ),
   (
     "smoke fixture: duplicates",
-    #"{ "general": { "loadSlateConfigs": false }, "bindings": [ { "keys": "ctrl+alt+cmd+f13", "action": "push left" }, { "keys": "ctrl+alt+cmd+f13", "action": "push right" } ] }"#
+    #"{ "version": 2, "bindings": [ { "keys": "ctrl+alt+cmd+f13", "action": "push left" }, { "keys": "ctrl+alt+cmd+f13", "action": "push right" } ] }"#
   ),
   (
     "smoke fixture: unknown operation",
-    #"{ "general": { "loadSlateConfigs": false }, "bindings": [ { "keys": "hyper+a", "action": { "op": "teleport" } } ] }"#
+    #"{ "version": 2, "bindings": [ { "keys": "hyper+a", "action": { "op": "teleport" } } ] }"#
   ),
   ("smoke fixture: broken JSON", #"{ "bindings": [ { "keys": "hyper+a", "action":"#),
   // JSON5
@@ -581,42 +585,114 @@ func maskRandomUUIDs(_ text: String, input: String) -> String {
   return result
 }
 
-func configurationFixtures() -> FixtureFile {
-  let decodeCases = decodeCases + numberTokenCases
-  let decode: [J] = decodeCases.map { name, input in
-    var item: [String: J] = ["name": .string(name), "input": .string(input)]
-    do {
-      let config = try SlatedConfiguration.decode(from: Data(input.utf8))
-      do {
-        let encoded = String(decoding: try config.encoded(), as: UTF8.self)
-        let masked = maskRandomUUIDs(encoded, input: input)
-        item["encoded"] = .string(masked)
-        // Whether decoding what Swift wrote gives the same configuration back (fn in hyperModifiers
-        // isn't written, so it doesn't).
-        let again = try SlatedConfiguration.decode(from: config.encoded())
-        item["roundTrips"] = .bool(again == config)
-      } catch {
-        // Decoded, but JSON can't hold the value (infinity or NaN).
-        item["encodeError"] = errorJ(error)
-      }
-    } catch {
-      item["error"] = errorJ(error)
+/// Two files at once: a version 1 config.json and an existing settings.json, the shapes the migration
+/// meets. `(name, config.json, settings.json)`.
+private let fileCases: [(String, String, String?)] = [
+  ("docs/CONFIG.md examples (JSON with comments)", configMarkdownExample, settingsMarkdownExample),
+  ("version 2 config.json, no settings.json", #"{"version": 2, "keyboard": {"capsLock": "hyper"}}"#, nil),
+  (
+    "version 2: both files",
+    #"{"version": 2, "bindings": [{"id": "F0000000-0000-4000-8000-000000000001", "keys": "hyper+a", "action": "push left"}]}"#,
+    #"{"version": 2, "general": {"showActionHUD": true}, "windows": {"nudgePercentOf": "screenSize"}, "island": {"enabled": false}}"#
+  ),
+  ("settings.json alone (config.json empty)", "{}", #"{"clipboard": {"maxItems": 5}}"#),
+  (
+    "legacy config.json: its settings move to settings.json, settings becomes windows",
+    #"{"version": 1, "general": {"launchAtLogin": true, "loadSlateConfigs": true, "slateConfigPaths": ["~/.slate.js", "~/.slate"]}, "settings": {"undoMaxStackSize": 20}, "clipboard": {"maxItems": 50}, "keyboard": {"capsLock": "hyper"}}"#,
+    nil
+  ),
+  (
+    "legacy config.json with a settings.json there: settings.json wins",
+    #"{"version": 1, "general": {"showActionHUD": true, "loadSlateConfigs": false}, "settings": {"undoMaxStackSize": 20}, "island": {"enabled": false}, "hotstrings": [{"id": "F0000000-0000-4000-8000-000000000002", "trigger": "brb", "replacement": "be right back"}]}"#,
+    #"{"version": 2, "general": {"launchAtLogin": true}}"#
+  ),
+  (
+    "legacy: imported Slate shortcuts are kept for the migration",
+    #"{"general": {"importedSlateShortcuts": ["hyper+a", "ctrl+alt+f6 x"]}}"#, nil
+  ),
+  (
+    "legacy fields of the wrong type are ignored",
+    #"{"general": {"loadSlateConfigs": "no", "slateConfigPaths": 5, "importedSlateShortcuts": "hyper+a"}}"#, nil
+  ),
+  ("version 2 with a settings section is legacy", #"{"version": 2, "island": {"cheatSheet": false}}"#, nil),
+  ("windows in config.json is unknown there", #"{"version": 2, "windows": {"a": 1}}"#, nil),
+  ("settings in settings.json is unknown there", #"{"version": 2}"#, #"{"settings": {"a": 1}, "later": [1]}"#),
+  ("a newer version in settings.json is kept", #"{"version": 2}"#, #"{"version": 3}"#),
+  ("broken settings.json", #"{"version": 2}"#, #"{"general": {"launchAtLogin": "yes"}}"#),
+  ("settings.json with a syntax error", #"{"version": 2}"#, #"{"general": "#),
+  (
+    "broken legacy section, settings.json there: dropped, not an error",
+    #"{"version": 1, "general": {"launchAtLogin": "yes"}}"#, "{}"
+  ),
+  ("broken legacy section, no settings.json: an error in config.json", #"{"general": {"launchAtLogin": "yes"}}"#, nil),
+]
+
+/// `SlatedConfiguration.decodeFiles` on config.json `input` (and settings.json `settingsInput`), then
+/// both files as Swift writes them.
+func configFilesJ(_ name: String, _ input: String, _ settingsInput: String?) -> J {
+  var item: [String: J] = ["name": .string(name), "input": .string(input)]
+  if let settingsInput { item["settingsInput"] = .string(settingsInput) }
+  do {
+    let files = try SlatedConfiguration.decodeFiles(
+      config: Data(input.utf8), settings: settingsInput.map { Data($0.utf8) })
+    if let legacy = files.legacy {
+      item["legacy"] = [
+        "loadSlateConfigs": .bool(legacy.loadSlateConfigs),
+        "slateConfigPaths": legacy.slateConfigPaths.map { .array($0.map(J.string)) } ?? .null,
+        "importedSlateShortcuts": .array(legacy.importedSlateShortcuts.map(J.string)),
+        "settingsMoved": .bool(legacy.settingsMoved), "hadSettings": .bool(legacy.hadSettings),
+      ]
+    } else {
+      item["legacy"] = .null
     }
-    return .object(item)
+    let config = files.configuration
+    do {
+      let known = input + (settingsInput ?? "")
+      let configText = String(decoding: try config.encodedConfigFile(), as: UTF8.self)
+      let settingsText = String(decoding: try config.encodedSettingsFile(), as: UTF8.self)
+      item["config"] = .string(maskRandomUUIDs(configText, input: known))
+      item["settings"] = .string(maskRandomUUIDs(settingsText, input: known))
+      // Whether reading what Swift wrote gives the same configuration back (fn in hyperModifiers isn't
+      // written, so it doesn't).
+      let again = try SlatedConfiguration.decodeFiles(
+        config: config.encodedConfigFile(), settings: config.encodedSettingsFile()
+      ).configuration
+      item["roundTrips"] = .bool(again == config)
+    } catch {
+      // Decoded, but JSON can't hold the value (infinity or NaN).
+      item["encodeError"] = errorJ(error)
+    }
+  } catch let error as ConfigFileError {
+    item["error"] = errorJ(error.error)
+    item["errorFile"] = .string(error.file.rawValue)
+  } catch {
+    item["error"] = errorJ(error)
   }
+  return .object(item)
+}
+
+func configurationFixtures() -> FixtureFile {
+  let decode = (decodeCases + numberTokenCases).map { configFilesJ($0.0, $0.1, nil) }
+  let files = fileCases.map { configFilesJ($0.0, $0.1, $0.2) }
   return FixtureFile(
     name: "config.json",
     description:
-      "SlatedConfiguration.decode (JSON5 allowed) → encoded(): `encoded` is the exact text Swift writes (pretty, sorted "
-      + "keys); `encodeError` when the value decodes but JSON can't hold it. UUIDs Swift generated for entries without "
-      + "an id read \"RANDOM-UUID\".",
-    sections: ["decode": decode],
-    depth: ["decode": 2])
+      "SlatedConfiguration.decodeFiles(config:settings:) (JSON5 allowed) on config.json `input` and settings.json "
+      + "`settingsInput` (missing: no settings.json), then encodedConfigFile() and encodedSettingsFile(): `config` and "
+      + "`settings` are the exact texts Swift writes (pretty, sorted keys). A version 1 config.json (or one with "
+      + "general/settings/clipboard/automation/island) is `legacy`: its settings sections become settings.json's "
+      + "(`settings` as `windows`) unless settingsInput is given, which wins; `legacy` is what it said about Slate files. "
+      + "`error` and `errorFile` when a file can't be read; `encodeError` when the value decodes but JSON can't hold it. "
+      + "UUIDs Swift generated for entries without an id read \"RANDOM-UUID\". `decode`: one config.json each, as a "
+      + "version 1 file with everything in it; `files`: both files.",
+    sections: ["decode": decode, "files": files],
+    depth: ["decode": 2, "files": 2])
 }
 
 func starterFixtures() -> FixtureFile {
   let starter = SlatedConfiguration.starter
-  let encoded = maskRandomUUIDs(String(decoding: try! starter.encoded(), as: UTF8.self), input: "")
+  let encoded = maskRandomUUIDs(String(decoding: try! starter.encodedConfigFile(), as: UTF8.self), input: "")
+  let settings = String(decoding: try! starter.encodedSettingsFile(), as: UTF8.self)
   let bindings: [J] = starter.bindings.map { binding in
     [
       "name": .optional(binding.name), "keys": .string(binding.keys.string), "action": actionJ(binding.action),
@@ -627,10 +703,14 @@ func starterFixtures() -> FixtureFile {
     name: "starter.json",
     description:
       "SlatedConfiguration.starter: the configuration a new install starts with (the author's Slate setup on the Hyper "
-      + "key). Binding ids are random in Swift, so they read \"RANDOM-UUID\".",
+      + "key). `encoded` is its config.json, `encodedSettings` its settings.json. Binding ids are random in Swift, so "
+      + "they read \"RANDOM-UUID\".",
     sections: ["bindings": bindings],
-    extra: ["encoded": .string(encoded), "config": parseJ(encoded)],
-    depth: ["config": 1])
+    extra: [
+      "encoded": .string(encoded), "config": parseJ(encoded), "encodedSettings": .string(settings),
+      "settings": parseJ(settings),
+    ],
+    depth: ["config": 1, "settings": 1])
 }
 
 private let slateValueInputs: [String] = [

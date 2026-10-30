@@ -93,7 +93,7 @@ struct ActionParameters: View {
     case .switchApp:
       Notice(
         style: .info, title: "Not available yet",
-        message: "Slated keeps this binding so your Slate file loads, but the app switcher doesn't run yet.")
+        message: "Slated keeps this binding, from your Slate config, but the app switcher doesn't run yet.")
     case .snapshot:
       VStack(alignment: .leading, spacing: 10) {
         LabeledField("Name", labelWidth: 56) {
@@ -443,7 +443,7 @@ struct ScreenRefPicker: View {
   }
 }
 
-/// Picks one of the layouts defined in config.json or a Slate file.
+/// Picks one of the layouts defined in config.json.
 struct LayoutPicker: View {
   @Binding var name: String
   @Environment(AppModel.self) private var model

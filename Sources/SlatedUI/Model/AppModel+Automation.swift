@@ -78,7 +78,7 @@ extension AppModel {
   }
 
   /// What already uses `keys`, for a binding about to be added with `apps`: Slated bindings that
-  /// can be live at the same time, loaded Slate files and the built-in shortcuts.
+  /// can be live at the same time and the built-in shortcuts.
   func otherUses(ofNewKeys keys: KeyCombo, onlyInApps apps: [String]) -> [String] {
     guard !keys.key.isEmpty else { return [] }
     let probe = HotkeyBinding(keys: keys, action: .stopAutomations, onlyInApps: apps)
@@ -86,13 +86,6 @@ extension AppModel {
     var uses = configuration.bindings
       .filter { $0.enabled && BindingStatusKey.key($0.keys, modal: $0.modal) == key && $0.sharesApps(with: probe) }
       .map { "“\(BindingTitle.title(for: $0))”" }
-    if configuration.general.loadSlateConfigs {
-      for source in sources where source.loaded {
-        for binding in source.bindings where binding.id == key {
-          uses.append("“\(binding.title)” in \(source.displayName)")
-        }
-      }
-    }
     for builtIn in BuiltInShortcut.allCases where builtIn.keys(in: configuration) == keys {
       uses.append(builtIn.title)
     }

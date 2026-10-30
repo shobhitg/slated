@@ -143,53 +143,6 @@ public enum ScriptEventName: String, CaseIterable, Hashable, Sendable {
   case windowOpened, windowClosed, windowMoved, windowResized, windowFocused, windowTitleChanged
   case appOpened, appClosed, appHidden, appUnhidden, appActivated, appDeactivated
   case screenConfigurationChanged
-
-  /// The events the app delivers to `slate.on` handlers (JavaScriptSources). Slated doesn't watch
-  /// windows, so handlers for window events never run.
-  public static let delivered: Set<ScriptEventName> = [
-    .appOpened, .appClosed, .appHidden, .appUnhidden, .appActivated, .appDeactivated, .screenConfigurationChanged,
-  ]
-}
-
-/// Something that happened, for `SlateScriptEngine.dispatch(event:)`.
-///
-/// Callbacks receive `(eventName, payload)`. As in Slate, the payload is a window object for
-/// `windowOpened`, `windowFocused` and `windowTitleChanged`; an app object for the app events and for
-/// `windowClosed`, `windowMoved` and `windowResized`; and `undefined` for
-/// `screenConfigurationChanged`.
-public enum ScriptEvent: Hashable, Sendable {
-  case windowOpened(WindowHandle)
-  /// The window is gone, so the event carries its app.
-  case windowClosed(ScriptAppInfo)
-  case windowMoved(WindowHandle)
-  case windowResized(WindowHandle)
-  case windowFocused(WindowHandle)
-  case windowTitleChanged(WindowHandle)
-  case appOpened(ScriptAppInfo)
-  case appClosed(ScriptAppInfo)
-  case appHidden(ScriptAppInfo)
-  case appUnhidden(ScriptAppInfo)
-  case appActivated(ScriptAppInfo)
-  case appDeactivated(ScriptAppInfo)
-  case screenConfigurationChanged
-
-  public var name: ScriptEventName {
-    switch self {
-    case .windowOpened: return .windowOpened
-    case .windowClosed: return .windowClosed
-    case .windowMoved: return .windowMoved
-    case .windowResized: return .windowResized
-    case .windowFocused: return .windowFocused
-    case .windowTitleChanged: return .windowTitleChanged
-    case .appOpened: return .appOpened
-    case .appClosed: return .appClosed
-    case .appHidden: return .appHidden
-    case .appUnhidden: return .appUnhidden
-    case .appActivated: return .appActivated
-    case .appDeactivated: return .appDeactivated
-    case .screenConfigurationChanged: return .screenConfigurationChanged
-    }
-  }
 }
 
 /// Everything a script registered while it loaded.

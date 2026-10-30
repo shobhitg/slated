@@ -233,6 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
     menu.addItem(withTitle: "Reload Configuration", action: #selector(reload), keyEquivalent: "r").target = self
     menu.addItem(withTitle: "Open Config File", action: #selector(openConfig), keyEquivalent: "").target = self
+    menu.addItem(withTitle: "Open Settings File", action: #selector(openSettings), keyEquivalent: "").target = self
     menu.addItem(withTitle: "Show Log", action: #selector(showLog), keyEquivalent: "").target = self
     menu.addItem(.separator())
     menu.addItem(withTitle: "Quit Slated", action: #selector(quitFromMenu), keyEquivalent: "q").target = self
@@ -253,10 +254,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     return true
   }
 
-  /// Slate files are loaded, so there's something to import.
-  private var canImportSlate: Bool {
-    engine.configuration.general.loadSlateConfigs && engine.sources.sources.contains(where: { $0.loaded })
-  }
+  /// There's a ~/.slate.js or ~/.slate to import.
+  private var canImportSlate: Bool { engine.slateConfigPath != nil }
 
   private func quit() {
     Log.record("ui.quit")
@@ -319,12 +318,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     Log.record("menu.import_slate")
     let alert = NSAlert()
     do {
-      let summary = try model.importSlateConfigs(engine)
+      let summary = try model.importSlateConfig()
       alert.messageText = summary.title
       alert.informativeText = summary.message
     } catch {
-      Log.error("slate.import_failed", LogPrivacy.message(error.localizedDescription))
-      alert.messageText = "Couldn't import"
+      alert.messageText = "Couldn't import your Slate config"
       alert.informativeText = error.localizedDescription
     }
     NSApp.activate()
@@ -334,6 +332,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
   @objc func openConfig() {
     Log.record("menu.open_config")
     NSWorkspace.shared.open(engine.store.fileURL)
+  }
+
+  /// settings.json; when it isn't there (deleted by hand: every setting at its default), the folder.
+  @objc func openSettings() {
+    Log.record("menu.open_settings")
+    let url = engine.store.settingsURL
+    if FileManager.default.fileExists(atPath: url.path) {
+      NSWorkspace.shared.open(url)
+    } else {
+      NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL])
+    }
   }
 
   @objc func showLog() {

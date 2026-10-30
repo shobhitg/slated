@@ -14,11 +14,6 @@ enum BindingState: Equatable {
   case notSaved(String, wasSaved: Bool)
   case saving
   case paused
-  /// Slate config loading is switched off.
-  case slateOff
-  /// A Slate file's binding that was imported (`general.importedSlateShortcuts`): Slated's copy runs
-  /// instead.
-  case imported
   /// Not (yet) reported by the engine.
   case inactive
 }
@@ -110,20 +105,6 @@ extension AppModel {
     configuration.bindings.append(contentsOf: fresh)
   }
 
-  /// Copies a static Slate binding into Slated's own bindings, where it can be edited.
-  func copyIntoSlated(_ source: SourceBinding) {
-    guard let action = source.action else { return }
-    let binding = HotkeyBinding(keys: source.keys, modal: source.modal, action: action)
-    configuration.bindings.append(binding)
-    selectedBinding = .slated(binding.id)
-    showToast("Copied into Slated. Remove it from your Slate file to avoid a duplicate.", symbol: "doc.on.doc.fill")
-  }
-
-  /// True when Slated already has a binding with the same keys and action as `source`.
-  func isCopied(_ source: SourceBinding) -> Bool {
-    configuration.bindings.contains { $0.keys == source.keys && $0.modal == source.modal && $0.action == source.action }
-  }
-
   func state(for binding: HotkeyBinding) -> BindingState {
     let wasSaved = saved.bindings.contains { $0.id == binding.id }
     if binding.keys.key.isEmpty && !wasSaved { return .new }
@@ -136,13 +117,6 @@ extension AppModel {
     return state(forKey: BindingStatusKey.key(binding.keys, modal: binding.modal))
   }
 
-  func state(for source: SourceBinding) -> BindingState {
-    if !configuration.general.loadSlateConfigs { return .slateOff }
-    if configuration.general.importedSlateShortcuts.contains(source.id) { return .imported }
-    if runtimeStatus.paused { return .paused }
-    return state(forKey: source.id)
-  }
-
   private func state(forKey key: String) -> BindingState {
     switch runtimeStatus.hotkeys[key] {
     case .active: return .active
@@ -153,7 +127,7 @@ extension AppModel {
     }
   }
 
-  /// Slate bindings, Slated bindings and Slated's built-in shortcuts (clipboard history, stop
+  /// Slated bindings and Slated's built-in shortcuts (clipboard history, stop
   /// automations) that share `keys` with the given one, for duplicate hints.
   func otherUses(
     of keys: KeyCombo, modal: ModalKey?, excluding id: UUID?, excludingBuiltIn: BuiltInShortcut? = nil
@@ -167,14 +141,6 @@ extension AppModel {
           && (editing.map { $0.sharesApps(with: other) } ?? true)
       }
       .map { "“\(BindingTitle.title(for: $0))”" }
-    if configuration.general.loadSlateConfigs {
-      for source in sources where source.loaded {
-        for binding in source.bindings
-        where binding.id == key && !configuration.general.importedSlateShortcuts.contains(binding.id) {
-          uses.append("“\(binding.title)” in \(source.displayName)")
-        }
-      }
-    }
     if modal == nil {
       // A binding that runs the same thing as the built-in shortcut doesn't get in its way.
       let action = id.flatMap { binding($0)?.action }
@@ -198,15 +164,6 @@ extension AppModel {
       if case .failed = $0 { return true }
       return $0 == .duplicate
     }.count
-  }
-
-  var sourceBindingCount: Int { sources.filter(\.loaded).reduce(0) { $0 + $1.bindings.count } }
-
-  /// The Slate config files onboarding shows, with the switch that loads them: those that loaded, and
-  /// while loading is off (as last saved, which is what the engine ran), those that are there, so the
-  /// switch stays to turn it back on.
-  var slateFilesFound: [SlateSource] {
-    sources.filter { $0.exists && ($0.loaded || !saved.general.loadSlateConfigs) }
   }
 
   // MARK: Hotstrings
@@ -349,8 +306,7 @@ extension AppModel {
   }
 
   /// Why `name` can't become the name of the layout now called `current` (the one at `index`, see
-  /// `layoutIndex`), if it can't. A Slate file's layout names are taken too, as for `addLayout`:
-  /// Slated's layouts replace Slate's of the same name, for the Slate file's shortcuts as well.
+  /// `layoutIndex`), if it can't.
   func layoutNameProblem(_ name: String, renaming current: String, at index: Int? = nil) -> String? {
     let trimmed = name.trimmingCharacters(in: .whitespaces)
     if trimmed.isEmpty { return "Name the layout." }
@@ -358,9 +314,7 @@ extension AppModel {
     let own = layoutIndex(current, at: index)
     // Spaces around a name don't show in any list: “Work ” would look like a second “Work”.
     let isTrimmed = { (layout: WindowLayout) in layout.name.trimmingCharacters(in: .whitespaces) == trimmed }
-    let taken =
-      configuration.layouts.indices.contains { $0 != own && isTrimmed(configuration.layouts[$0]) }
-      || sources.contains { $0.layouts.contains(where: isTrimmed) }
+    let taken = configuration.layouts.indices.contains { $0 != own && isTrimmed(configuration.layouts[$0]) }
     return taken ? "Another layout already has this name." : nil
   }
 
@@ -428,26 +382,8 @@ extension AppModel {
     configuration = config
   }
 
-  /// Bindings (Slated and Slate) that apply the named layout.
+  /// Bindings that apply the named layout.
   func triggers(forLayout name: String) -> [(keys: KeyCombo, modal: ModalKey?)] {
-    var result = configuration.bindings.filter { $0.action == .layout(name: name) }.map { ($0.keys, $0.modal) }
-    for source in sources {
-      for binding in source.bindings where binding.action == .layout(name: name) {
-        result.append((binding.keys, binding.modal))
-      }
-    }
-    return result
+    configuration.bindings.filter { $0.action == .layout(name: name) }.map { ($0.keys, $0.modal) }
   }
-}
-
-extension SlateSource {
-  /// `~/.slate.js`-style path for display.
-  var displayName: String {
-    let home = NSHomeDirectory()
-    return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
-  }
-
-  var fileName: String { (path as NSString).lastPathComponent }
-
-  var errorCount: Int { diagnostics.filter { $0.severity == .error }.count }
 }

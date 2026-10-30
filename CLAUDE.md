@@ -27,19 +27,19 @@ Primary user: the author, daily, for a few months before a public release. Open 
 | Shape | One regular app, `Slated.app`: always in the Dock, one main window (Get Started during setup, then the panes) that a menu bar icon also opens; AppKit shell + SwiftUI. Closing the window keeps it running | Accessibility permission is granted per signed app bundle. A menu-bar-only agent with separate windows confused the author (2026-10-27). |
 | Build | SwiftPM + `Makefile`; `scripts/bundle.sh` assembles and signs the `.app`. No Xcode project | Machine has only the Command Line Tools; plain-text project files. |
 | Platform | macOS 14+, Swift 6 language mode, Apple Silicon first (universal for releases) | |
-| Native config | JSON at `~/.config/slated/config.json` (`SlatedConfiguration`), read with JSON5 allowed | The UI must write it; Codable round-trips with zero dependencies. |
-| Slate compatibility | `~/.slate.js` (JavaScriptCore) and `~/.slate` (classic syntax) are loaded live alongside the native config, read-only in the UI | The author's existing config is `~/.slate.js` and uses JS logic. |
+| Native config | Two JSON files in `~/.config/slated`, read with JSON5 allowed, the only source of truth (2026-10-29): `config.json` (version 2: keyboard, bindings, hotstrings, layouts, defaults) and `settings.json` (general, windows, clipboard, automation, island). One `SlatedConfiguration` in memory (`ConfigFiles.swift`); `ConfigFileStore` writes only the file whose part changed and migrates a version 1 `config.json` once (kept as `config.v1.json`) | The UI must write it; Codable round-trips with zero dependencies. The author: "everything configuration-based", two files are fine. |
+| Slate compatibility | `~/.slate.js` (JavaScriptCore, on a pretend Mac) and `~/.slate` (classic syntax) are only imported into the native config (`SlateConfigImport`, merge: what Slated has wins), never run | No compatibility promise beyond migrating the author's files; one source of truth. |
 | Actions on disk | JSON objects with `"op"` + Slate's JS parameter names (same shape as `slate.operation(name, {...})`); a bare string is Slate operation syntax | One shape for JSON, JS and the UI. |
 | Hyper key | `hidutil` maps Caps Lock → F18; a `CGEventTap` adds ⌃⌥⇧⌘ while F18 is held | No driver/system extension (unlike Karabiner). Doesn't work under Secure Input. |
 | Hotstrings | Same event tap: in-memory buffer → delete trigger with backspaces → type or paste replacement | |
 | Hotkeys | Carbon `RegisterEventHotKey` | Standard, needs no extra permission. |
 | Tests | `Tests/SlatedTests` is an executable harness (`make test`) mirroring Swift Testing's API | Swift Testing and XCTest ship with Xcode, not the CLT. Migrate when Xcode is installed. |
 | Bundle ID | `io.github.shobhit-aida.slated` (provisional, see `docs/QUESTIONS.md`) | Changing it later resets Accessibility permission. |
-| Defaults | First run: an existing Slate config is the default (loaded as-is); otherwise `SlatedConfiguration.starter`, the author's `~/.slate.js` in native form (a test checks they match) | The author asked for their Slate config to be the default; JavaScript isn't required. |
-| Linux | A GNOME Shell extension (GNOME 46–51, Wayland; 50–51 untested) in `linux/`: JavaScript port of the engine in `lib/core/` pinned to Swift by golden vectors (`fixtures/`, `make fixtures`), platform layer in `lib/platform/`, libadwaita prefs; hotstrings via espanso, Hyper via keyd (recommended, the author's choice) with xkb `caps:hyper` as the fallback | Wayland lets only the compositor manage windows, grab shortcuts or overlay UI. Same `config.json` on both platforms. |
+| Defaults | First run: an existing Slate config is the default, imported into `config.json`; otherwise `SlatedConfiguration.starter`, the author's `~/.slate.js` in native form (a test checks they match). Both files are written | The author asked for their Slate config to be the default; JavaScript isn't required. |
+| Linux | A GNOME Shell extension (GNOME 46–51, Wayland; 50–51 untested) in `linux/`: JavaScript port of the engine in `lib/core/` pinned to Swift by golden vectors (`fixtures/`, `make fixtures`), platform layer in `lib/platform/`, libadwaita prefs; hotstrings via espanso, Hyper via keyd (recommended, the author's choice) with xkb `caps:hyper` as the fallback | Wayland lets only the compositor manage windows, grab shortcuts or overlay UI. Same `config.json` and `settings.json` on both platforms. |
 | Notch island | A borderless, non-activating panel at the top center of the active display (`Overlays/IslandPresenter`), drawn by `SlatedUI/Island`. Ordered out when idle; never takes focus; takes clicks only while the pointer is over running automations | Uses the notch's dead space with public API only; must never get in the way of the app you're in. |
 | UI parity | The Mac and GNOME UIs mirror each other: the same main-window pages and first-run flow, the same minimal clipboard picker, and the island (at the top center on Linux). Platform differences only where the platform forces them | The author's plan (2026-10-27): one product on both systems. |
-| Scripting | JavaScript (JavaScriptCore) only for Slate compatibility; everyday config is JSON + the UI. `by-orientation` covers the one bit of logic the author's script had | Author doesn't need JS; JSC is built in if real scripting is ever wanted. |
+| Scripting | JavaScript (JavaScriptCore) only to import Slate configs; everyday config is JSON + the UI. `by-orientation` covers the one bit of logic the author's script had | Author doesn't need JS; JSC is built in if real scripting is ever wanted. |
 
 ## Architecture
 
@@ -48,9 +48,9 @@ Sources/
   SlatedCore/    Pure Swift (Foundation + CoreGraphics types). Model (SlatedConfiguration, Action,
                  KeyCombo, Hotstring…), Slate syntax + expression parsing, frame math, hotstring matching.
   SlatedSystem/  macOS boundary: Accessibility windows/apps, screens, Carbon hotkeys, key-code mapping,
-                 event tap, Hyper key, text injection, permissions.
-  SlatedScript/  Slate's JavaScript API (`slate.*`, `S.*`) on JavaScriptCore, talking to the app
-                 through a host protocol.
+                 event tap, Hyper key, text injection, permissions, the two config files on disk.
+  SlatedScript/  Slate's JavaScript API (`slate.*`, `S.*`) on JavaScriptCore, run against a pretend
+                 Mac to import `~/.slate.js` (`SlateConfigImport`).
   SlatedUI/      SwiftUI: the main window (sidebar, panes, Get Started). Talks to the app only through
                  the `AppServices` protocol (AppServices.swift); `PreviewServices` provides sample data.
   Slated/        The app: AppDelegate hosts the UI (main window, menus, status item);

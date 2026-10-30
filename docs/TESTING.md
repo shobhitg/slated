@@ -7,8 +7,9 @@
 | Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, repeat timing), the settings app's view models (validation, editors, layouts, clipboard picker and its placement, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction). |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
-| Your config | `StarterTests.swift`, `SlateDescriptionTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, the importer converts it completely, and Settings describes every function in it in well under a second. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
-| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, hand-edited, broken and symlinked config.json, unknown operations, duplicate shortcuts, automation config, island settings and the Hyper cheat sheet, config races and reloads, log privacy. It also checks what lands in the event log, including crash detection. |
+| Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
+| Config files and import | `ConfigFileStoreTests.swift`, `SlateImportTests.swift`, `ConfigurationTests.swift` | `make test` | config.json and settings.json in temporary homes: the migration of a version 1 config.json and its Slate config (backup never overwritten, an existing settings.json winning, idempotent, broken files left alone), first runs, saves that write only their own file; the Slate import and its merge rule. |
+| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, the migration of a version 1 config.json, the Slate import, saves that write only their own file, hand-edited, broken and symlinked config.json and settings.json, unknown operations, duplicate shortcuts, automation config, island settings and the Hyper cheat sheet, config races and reloads, log privacy. It also checks what lands in the event log, including crash detection. |
 | Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch (a test run, which leaves the keyboard alone), confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), SIGQUIT, uninstall, `--purge`, and a hung Slated forced to quit whose Caps Lock mapping comes off (a stand-in `hidutil` on `PATH`). Launches the app for a few seconds. |
 | Installer scripts | `Tests/Installer/test_restore_caps_lock.py` | `make test-scripts` | `scripts/restore-caps-lock.py` against a stand-in `hidutil`, for every case in `Tests/Installer/caps-lock-cases.json`; `HIDRemapperTests` checks Slated against the same cases, so the installer and the app agree on which Caps Lock mapping is Slated's. |
 | Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~4,500 curated inputs, ~16,400 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
@@ -72,7 +73,7 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `screens.json` | Screen setups, screen references and their resolution, ordering. |
    | `frames.json` | `targetFrame` for every geometry operation × setup × window × settings, and `targetOrigin`. |
    | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
-   | `config.json` | `config.json` decoding (JSON5 included, `onlyInApps`, clipboard and automation settings) and the exact text Swift writes. |
+   | `config.json` | Reading config.json and settings.json (JSON5 included, `onlyInApps`, clipboard and automation settings, version 1 files and what they say about Slate) and the exact text Swift writes for each. |
    | `starter.json`, `settings.json`, `hotstrings.json` | The starter config; Slate settings; hotstring typing sessions and templates. |
    | `cheatsheet.json` | The island's cheat sheet (SlatedUI's `CheatSheet`): every kind of action's title, section, region and symbol, names and script summaries, and whole Hyper and modal sheets in keyboard order. |
 
@@ -188,7 +189,7 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       only behind other windows). Right-clicking the menu bar icon opens the small classic menu. ⌘Q
       quits and restores Caps Lock.
 - [ ] The menus work: About Slated opens About, Settings… (⌘,), Pause Slated (checkmark), Hide,
-      Quit; File → Reload Configuration (⌘R), Open Config File, Close Window (⌘W); Edit → Undo, Cut,
+      Quit; File → Reload Configuration (⌘R), Open Config File, Open Settings File, Close Window (⌘W); Edit → Undo, Cut,
       Copy, Paste and Select All in a text field (a hotstring's replacement); Window → Minimize.
 - [ ] With Launch at Login on, logging in starts Slated without opening its window (once set up).
 - [ ] The main window takes keyboard focus.
@@ -299,21 +300,33 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       Settings → Automation → Show an indicator then previews the pill instead of the island.
 - [ ] No black shape stays at the notch once the island has nothing to show.
 
-**Slate compatibility**
-- [ ] `~/.slate.js` loads (the menu shows 21 hotkeys). Editing and saving it reloads within 2 seconds.
-- [ ] Settings → Windows lists each of its function shortcuts by what it does ("Left Half", "First
-      Third", "Throw to Right Display, Resized"), captioned "JavaScript function"; the detail says
-      it runs a function in `~/.slate.js`. Holding Caps Lock lists them under Windows and Displays,
-      not Scripts. Pressing them still runs the functions (`scripts/logs.py --grep script.binding`).
-- [ ] Add a function that checks `win.title()` to a copy of `~/.slate.js`: it stays "JavaScript
-      Function", captioned "Depends on the focused app or window title", and under Scripts.
-- [ ] "Import Slate Config into Slated…" converts all bindings and stops loading the file.
+**Config files and Slate import** (back up `~/.config/slated` first: `cp -R ~/.config/slated ~/slated-backup`)
+- [ ] Migration of your version 1 config: with your old `config.json` (version 1, 0 bindings,
+      `loadSlateConfigs` true) and `~/.slate.js` in place, install and launch. `~/.config/slated` now
+      has `config.v1.json` (your old file, unchanged), `config.json` (version 2, your hotstrings, the
+      Hyper key and 21 bindings from `~/.slate.js`) and `settings.json` (your general, island,
+      clipboard and automation settings; Slate's `config` values under `windows`). Overview says
+      "Your ~/.slate.js shortcuts are now part of Slated's config…" until you click Got It. Every
+      Hyper shortcut works as before. `scripts/logs.py --grep config.migrated` shows counts only.
+- [ ] Relaunch: nothing is migrated again, `config.v1.json` is unchanged, and the notice stays gone.
+- [ ] Editing `~/.slate.js` now changes nothing in Slated. "Import Slate Config into Slated…" then
+      says the shortcuts are already in Slated (adds only new keys).
+- [ ] Hand edit of each file: change a binding's keys in `config.json`, save in your editor: Slated
+      picks it up within a second and Settings shows it. Turn the island off in `settings.json`: the
+      island goes away, and `config.json` is untouched (same modification time).
+- [ ] In Settings, toggle a General or Island setting: only `settings.json` changes. Add a shortcut:
+      only `config.json` changes. Comments you put in the other file stay.
+- [ ] Break `settings.json` (delete a closing brace): the banner names `settings.json` and says
+      where; Settings is read-only; nothing is written to either file. Fix it: everything comes back.
+- [ ] File → Open Config File and Open Settings File (and the menu bar icon's menu) open each file.
+- [ ] Settings → Import from Slate lists what the last import did and what couldn't be converted,
+      by keys. With no `~/.slate.js` or `~/.slate`, its Import button is off.
+- [ ] Get Started on a first run with a `~/.slate.js` (`make reset-permissions`, move
+      `~/.config/slated` away): the Slate step says what was imported; without one, it offers the
+      starter shortcuts.
 - [ ] With Settings open, change something and import within half a second: Settings then shows the
       imported bindings, and the change is still there after reopening Settings.
-- [ ] Add a binding whose function moves the window (`win.move(...)`) to a copy of `~/.slate.js` and
-      import: the alert lists it as staying in the file and says the file's copies of the imported
-      shortcuts are ignored. In Settings → Slate Compatibility the imported ones show "Imported";
-      deleting one in Windows leaves its keys doing nothing, and the moving one still works.
+
 
 **Displays**
 - [ ] Plugging in or removing a display applies a matching `default` layout.

@@ -46,10 +46,10 @@ let islandSettingsTests = Suite(
       {
         var config = SlatedConfiguration()
         config.island = IslandSettings(enabled: false, cheatSheet: false, cheatSheetDelay: 1.25, showFailures: false)
-        let text = String(decoding: try config.encoded(), as: UTF8.self)
+        let text = String(decoding: try config.encodedSettingsFile(), as: UTF8.self)
         expect(text.contains(#""island" : {"#), "island section missing:\n\(text)")
         expect(text.contains(#""cheatSheetDelay" : 1.25"#))
-        expectEqual(try SlatedConfiguration.decode(from: config.encoded()), config)
+        expectEqual(try roundTripped(config), config)
       }
     ),
     (
@@ -215,35 +215,17 @@ let uiCheatSheetTests = Suite(
       }
     ),
     (
-      "a Slate file's functions are listed by what they do, the same in Settings and here",
+      "shortcuts are grouped by what they do, and one with only a summary goes under Scripts",
       {
         try onMain {
           let firstThird = try require(WindowPresets.orientation.first).action
           let throwRight = Action.throwWindow(screen: .relative(.right), width: "screenSizeX", height: "screenSizeY")
-          let described = SourceBinding(
-            keys: try combo("hyper+f"), summary: "JavaScript function", action: firstThird, function: .described)
-          let thrown = SourceBinding(
-            keys: try combo("hyper+right"), summary: "JavaScript function", action: throwRight, function: .described)
-          let unknown = SourceBinding(
-            keys: try combo("hyper+i"), summary: "JavaScript function",
-            function: .undescribed(reason: "depends on the focused app or window title"))
-          let plain = SourceBinding(
-            keys: try combo("hyper+s"), summary: "push up", action: .push(direction: .up, style: .none, screen: nil))
-
-          // Settings: the title says what it does, the caption that it's a function, or why it can't.
-          expectEqual(described.title, "First Third")
-          expectEqual(described.caption, "JavaScript function")
-          expectEqual(unknown.title, "JavaScript Function")
-          expectEqual(unknown.caption, "Depends on the focused app or window title")
-          expectEqual(unknown.undescribedReason, "depends on the focused app or window title")
-          expectEqual(plain.caption, "push up")
-          expect(described.runsFunction && unknown.runsFunction && !plain.runsFunction)
-          // With no operation and no reason, it's still a function.
-          let bare = SourceBinding(keys: try combo("hyper+j"), summary: "JavaScript function")
-          expectEqual(bare.caption, "Runs code in your Slate file")
-
-          // The cheat sheet groups them by what they do, under the same titles.
-          let shortcuts = [described, thrown, unknown, plain].map(CheatSheet.Shortcut.init)
+          let shortcuts = [
+            CheatSheet.Shortcut(keys: try combo("hyper+f"), action: firstThird),
+            CheatSheet.Shortcut(keys: try combo("hyper+right"), action: throwRight),
+            CheatSheet.Shortcut(keys: try combo("hyper+i"), summary: "JavaScript function"),
+            CheatSheet.Shortcut(keys: try combo("hyper+s"), action: .push(direction: .up, style: .none, screen: nil)),
+          ]
           let sheet = CheatSheet.hyper(shortcuts, hyperModifiers: .hyper)
           expectEqual(sheet.sections.map(\.title), ["Windows", "Displays", "Scripts"])
           expectEqual(

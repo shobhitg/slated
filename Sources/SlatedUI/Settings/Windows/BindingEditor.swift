@@ -270,7 +270,7 @@ struct PlacementPreviewCard: View {
 
   var body: some View {
     let placement = PlacementCalculator.place(
-      action, screens: model.screens, settings: model.configuration.settings, step: step)
+      action, screens: model.screens, settings: model.configuration.windows, step: step)
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 8) {
         Image(systemName: "eye").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.accent)

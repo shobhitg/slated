@@ -77,9 +77,7 @@ struct SettingsSidebar: View {
     case .automation where !model.automationBindings.isEmpty:
       SidebarBadge(text: "\(model.automationBindings.count)")
     case .layouts:
-      SidebarBadge(text: "\(model.configuration.layouts.count + model.sources.reduce(0) { $0 + $1.layouts.count })")
-    case .slate where model.sources.contains { $0.errorCount > 0 }:
-      Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(Theme.caution)
+      SidebarBadge(text: "\(model.configuration.layouts.count)")
     case .overview where !model.runtimeStatus.accessibilityGranted:
       Image(systemName: "exclamationmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.caution)
     default:
@@ -187,11 +185,11 @@ private struct SaveStatusFooter: View {
 
   private var help: String {
     switch model.saveState {
-    case .saved: return "Changes are saved to config.json as you make them."
-    case .pending: return "Saving to config.json…"
+    case .saved: return "Changes are saved to config.json and settings.json as you make them."
+    case .pending: return "Saving…"
     case .partiallySaved: return "Items with errors keep their last saved version until they're fixed."
     case .failed(let message): return message
-    case .blocked: return "config.json can't be read, so Slated won't overwrite it."
+    case .blocked: return "\(model.unreadableFileName) can't be read, so Slated won't overwrite it."
     }
   }
 }

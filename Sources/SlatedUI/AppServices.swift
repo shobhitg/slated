@@ -19,71 +19,6 @@ public struct AppInfo: Identifiable, Hashable, Sendable {
   }
 }
 
-/// A binding defined in a Slate config file (read-only in the UI).
-public struct SourceBinding: Identifiable, Hashable, Sendable {
-  /// What Slated can tell about a shortcut that runs a JavaScript function.
-  public enum Function: Hashable, Sendable {
-    /// `action` is what the function does, found by trying it on pretend Macs as the import does.
-    /// It's for showing only: pressing the shortcut still runs the function.
-    case described
-    /// What it does can't be shown, and why when known ("depends on the focused app or window title").
-    case undescribed(reason: String?)
-  }
-
-  public var id: String { (modal.map { $0.keys.string + " " } ?? "") + keys.string }
-  public var keys: KeyCombo
-  public var modal: ModalKey?
-  /// Short description, e.g. "corner top-left" or "JavaScript function".
-  public var summary: String
-  /// The operation when it is static, or what a JavaScript function does when Slated can tell.
-  public var action: Action?
-  /// Set when the shortcut runs a JavaScript function.
-  public var function: Function?
-
-  public init(
-    keys: KeyCombo, modal: ModalKey? = nil, summary: String, action: Action? = nil, function: Function? = nil
-  ) {
-    self.keys = keys
-    self.modal = modal
-    self.summary = summary
-    self.action = action
-    self.function = function
-  }
-}
-
-/// A Slate config file Slated loads alongside its own configuration.
-public struct SlateSource: Identifiable, Hashable, Sendable {
-  public enum Kind: String, Hashable, Sendable {
-    /// `~/.slate.js`
-    case javascript
-    /// `~/.slate`
-    case classic
-  }
-
-  public var id: String { path }
-  public var path: String
-  public var kind: Kind
-  public var exists: Bool
-  public var loaded: Bool
-  public var bindings: [SourceBinding]
-  /// Layouts the file defines (`slate.layout(...)` / `layout` lines), shown read-only in Settings.
-  public var layouts: [Layout]
-  public var diagnostics: [Diagnostic]
-
-  public init(
-    path: String, kind: Kind, exists: Bool, loaded: Bool, bindings: [SourceBinding] = [],
-    layouts: [Layout] = [], diagnostics: [Diagnostic] = []
-  ) {
-    self.path = path
-    self.kind = kind
-    self.exists = exists
-    self.loaded = loaded
-    self.bindings = bindings
-    self.layouts = layouts
-    self.diagnostics = diagnostics
-  }
-}
-
 /// Whether a hotkey is live.
 public enum HotkeyStatus: Hashable, Sendable {
   case active
@@ -132,23 +67,35 @@ public struct RuntimeStatus: Hashable, Sendable {
 /// `PreviewServices` (sample data for previews and UI snapshots).
 @MainActor
 public protocol AppServices: AnyObject {
+  /// config.json: what your keys do (keyboard, bindings, hotstrings, layouts, display defaults).
   var configurationFileURL: URL { get }
-  /// The configuration in config.json. Throws when the file can't be read or decoded, even if the
-  /// app keeps running what it loaded before: the UI then stops saving rather than overwrite the
-  /// user's file with that older (or, at launch, empty) configuration.
+  /// settings.json, beside it: how Slated behaves (general, windows, clipboard, automation, island).
+  var settingsFileURL: URL { get }
+  /// The configuration in config.json and settings.json. Throws when either can't be read or decoded,
+  /// even if the app keeps running what it loaded before: the UI then stops saving rather than
+  /// overwrite the user's file with that older (or, at launch, empty) configuration.
   func loadConfiguration() throws -> SlatedConfiguration
-  /// Persists the configuration and applies it immediately (re-registers hotkeys, hotstrings, Hyper).
+  /// Persists the configuration (writing only the file whose part changed) and applies it
+  /// immediately (re-registers hotkeys, hotstrings, Hyper).
   func saveConfiguration(_ configuration: SlatedConfiguration) throws
   func runtimeStatus() -> RuntimeStatus
-  /// Every configured Slate file, also while `general.loadSlateConfigs` is off (then `loaded` is
-  /// false), so Settings can show them as off rather than missing.
-  func slateSources() -> [SlateSource]
+  /// The Slate config "Import Slate Config" reads (`~/.slate.js`, else `~/.slate`), as written there;
+  /// nil when there's none.
+  func slateConfigPath() -> String?
+  /// Adds the Slate config's shortcuts, layouts, display defaults and settings to Slated's
+  /// configuration, keeping what Slated already has, and saves it. Throws when there's no Slate config
+  /// or saving fails.
+  func importSlateConfig() throws -> SlateImportReport
+  /// What a first run or the migration of a version 1 config imported from the Slate config, until
+  /// `dismissSlateImportNotice`.
+  func slateImportNotice() -> SlateImportReport?
+  func dismissSlateImportNotice()
   func screens() -> [ScreenInfo]
   func runningApplications() -> [AppInfo]
   /// Shows the system Accessibility prompt and adds Slated to the list in System Settings.
   func requestAccessibilityPermission()
   func openAccessibilitySettings()
-  /// Reloads the config file and Slate sources from disk.
+  /// Reloads config.json and settings.json from disk.
   func reload()
   func revealConfigurationFile()
   /// Shows a file in the Finder, e.g. a Slate config. `path` may start with `~`.
