@@ -3,12 +3,13 @@
 // cleanup on disable. The runtime runs on the real engine (lib/core) in xkb Hyper mode.
 
 import assert from 'node:assert/strict';
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {dirname, join} from 'node:path';
+import {join} from 'node:path';
 import {after, afterEach, beforeEach, mock, test} from 'node:test';
 
 import * as realCore from '../../gnome-extension/lib/core/index.js';
+import {writeConfigFiles} from './config-files.mjs';
 import {createFakeGnome} from './fake-gnome.mjs';
 import {leftHalf} from './fixtures.mjs';
 
@@ -76,9 +77,9 @@ after(() => {
 const configPath = () => join(home, '.config/slated/config.json');
 const statePath = (name) => join(home, '.local/state/slated', name);
 
+/** config.json and settings.json, version 2, from one object (Hyper on unless it says otherwise). */
 function writeConfig(config) {
-  mkdirSync(dirname(configPath()), {recursive: true});
-  writeFileSync(configPath(), JSON.stringify({general: {loadSlateConfigs: false}, keyboard: {capsLock: 'hyper'}, ...config}, null, 2));
+  writeConfigFiles(home, {keyboard: {capsLock: 'hyper'}, ...config});
 }
 
 function events(name) {
@@ -413,7 +414,7 @@ test('a modal key shows in the island, then its keys after the delay, and goes w
 // --- Banners -------------------------------------------------------------------------------------------
 
 test('what a shortcut did shows as a banner where the window went; why one failed too, unless showFailures is off', () => {
-  start({bindings, general: {loadSlateConfigs: false, showActionHUD: true}});
+  start({bindings, general: {showActionHUD: true}});
   gnome.addWindow({id: 1, app: firefox, frame: {x: 100, y: 100, width: 800, height: 600}});
   assert.ok(gnome.press('<Hyper>a'));
   assert.equal(shown(), true);
@@ -432,7 +433,7 @@ test('what a shortcut did shows as a banner where the window went; why one faile
   assert.equal(shown(), false);
   runtime.stop();
 
-  start({bindings, general: {loadSlateConfigs: false, showActionHUD: true}, island: {showFailures: false}});
+  start({bindings, general: {showActionHUD: true}, island: {showFailures: false}});
   assert.ok(gnome.press('<Hyper>a'));
   assert.equal(shown(), false, 'showFailures off');
   assert.equal(events('action.failed').at(-1).data.error, 'No focused window to move', 'still logged');
@@ -475,7 +476,7 @@ test('running automations show in the island; hovering opens it up and Stop stop
 });
 
 test('with the island off, the pill and the HUD come back; turning it on moves what runs into the island', () => {
-  start({bindings, general: {loadSlateConfigs: false, showActionHUD: true}, island: {enabled: false}});
+  start({bindings, general: {showActionHUD: true}, island: {enabled: false}});
   const window = gnome.addWindow({id: 1, app: game, frame: {x: 100, y: 100, width: 800, height: 600}});
   assert.ok(gnome.press('<Hyper>a'));
   assert.equal(hud()?.style_class, 'slated-hud');
@@ -487,7 +488,7 @@ test('with the island off, the pill and the HUD come back; turning it on moves w
   releaseHyper();
   assert.equal(holder(), null, 'no island at all');
 
-  writeConfig({bindings, general: {loadSlateConfigs: false, showActionHUD: true}});
+  writeConfig({bindings, general: {showActionHUD: true}});
   gnome.fileChanged(configPath());
   gnome.loop.advance(300);
   // A reload stops automations (safety); start one again.
@@ -502,7 +503,7 @@ test('with the island off, the pill and the HUD come back; turning it on moves w
 // --- Disable ---------------------------------------------------------------------------------------------
 
 test('disabling removes the island, its timers, signal handlers and input region', () => {
-  start({bindings, general: {loadSlateConfigs: false, showActionHUD: true}});
+  start({bindings, general: {showActionHUD: true}});
   gnome.addWindow({id: 1, app: game, frame: {x: 0, y: 0, width: 800, height: 600}});
   assert.ok(gnome.press('<Hyper>f'));
   gnome.loop.advance(150);

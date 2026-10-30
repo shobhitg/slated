@@ -294,10 +294,11 @@ run_nested() {
 
 # --- keyd (Caps Lock as Hyper with all four modifiers) ----------------------------------------------
 
-# keyd's file is root's, so the extension can't change it: it follows config.json at install time,
-# like the Mac app follows it live. keyboard.capsLockAlone "escape" (or --tap-escape) makes a tap
-# send Escape, and the island's cheat-sheet delay says how long a tap can be; keyboard.hyperModifiers
-# without cmd ("Meh") leaves out Super. Read leniently, since config.json may have comments and
+# keyd's file is root's, so the extension can't change it: it follows Slated's configuration at
+# install time, like the Mac app follows it live. config.json's keyboard.capsLockAlone "escape" (or
+# --tap-escape) makes a tap send Escape, and settings.json's island cheat-sheet delay says how long a
+# tap can be (a version 1 config.json not yet split keeps the island itself); keyboard.hyperModifiers
+# without cmd ("Meh") leaves out Super. Read leniently, since the files may have comments and
 # trailing commas.
 config_wants_tap_escape() {
   [ "$TAP_ESCAPE" = 1 ] && return 0
@@ -317,14 +318,18 @@ PY
 keyd_sends() { if config_wants_meh; then echo "Ctrl+Alt+Shift"; else echo "Ctrl+Alt+Shift+Super"; fi; }
 # How long Caps Lock can be held and still be a tap, in milliseconds. As on the Mac (Engine.swift):
 # the cheat-sheet delay while the island shows the cheat sheet, so looking at it never sends Escape
-# (0.15 s at least, the island's own minimum; 1 s at most), else 1 s.
+# (0.15 s at least, the island's own minimum; 1 s at most), else 1 s. The island is in settings.json,
+# or in config.json until Slated has split a version 1 file.
 config_tap_timeout_ms() {
-  python3 -I - "$CONFIG_DIR/config.json" <<'PY'
+  python3 -I - "$CONFIG_DIR/settings.json" "$CONFIG_DIR/config.json" <<'PY'
 import re, sys
-try:
-    text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-except OSError:
-    text = ""
+text = ""
+for path in sys.argv[1:]:
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+        break
+    except OSError:
+        continue
 # Without comments (strings kept whole), so a commented-out setting doesn't count.
 text = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', lambda m: m.group(0) if m.group(0)[0] == '"' else "", text, flags=re.S)
 m = re.search(r'"island"\s*:\s*\{([^{}]*)\}', text)

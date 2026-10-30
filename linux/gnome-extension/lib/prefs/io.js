@@ -1,5 +1,6 @@
-// File access for the preferences window (GJS): reading and atomically writing config.json, appending
-// to the event log, watching status.json and config.json, and reading build-info.json.
+// File access for the preferences window (GJS): reading and atomically writing config.json and
+// settings.json, appending to the event log, watching status.json and the configuration, and reading
+// build-info.json.
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -67,6 +68,16 @@ function ensureParent(path, mode) {
 export function writeTextAtomic(path, text) {
   ensureParent(path, 0o700);
   Gio.File.new_for_path(path).replace_contents(encoder.encode(text), null, false, Gio.FileCreateFlags.NONE, null);
+}
+
+/**
+ * Writes a file only if it doesn't exist yet (config.v1.json, the copy a migration keeps): true when
+ * it wrote it. Two Slated processes migrating at once would write the same text.
+ */
+export function writeTextIfMissing(path, text) {
+  if (fileExists(path)) return false;
+  writeTextAtomic(path, text);
+  return true;
 }
 
 /** Appends text to a file: open, append, close, so it never holds the log open or races a rotation. */

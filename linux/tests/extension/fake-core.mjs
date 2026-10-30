@@ -3,7 +3,8 @@
 // which returns null while the core is still the stub that throws "Not implemented yet".
 //
 // Shapes follow the core's documented contract: actions are config.json JSON objects, KeyCombo is
-// {key, modifiers}, rects are {x, y, width, height} in top-left global coordinates.
+// {key, modifiers}, rects are {x, y, width, height} in top-left global coordinates. The configuration
+// files are always read with the real core (ConfigStore goes through lib/prefs/migration.js).
 
 import * as RealCore from '../../gnome-extension/lib/core/index.js';
 
@@ -263,37 +264,6 @@ export function formatOperation(action) {
   }
 }
 
-// --- Configuration -------------------------------------------------------------------------------
-
-export function decodeConfiguration(text) {
-  const raw = JSON.parse(String(text).replace(/^\s*\/\/.*$/gm, ''));
-  const general = {launchAtLogin: false, loadSlateConfigs: true, slateConfigPaths: ['~/.slate.js', '~/.slate'], showActionHUD: false, hotstringsEnabled: true, ...(raw.general ?? {})};
-  const keyboard = {capsLock: 'off', capsLockAlone: 'nothing', hyperModifiers: [...HYPER], ...(raw.keyboard ?? {})};
-  const bindings = (raw.bindings ?? []).map((b, i) => {
-    let action;
-    try {
-      action = canonicalAction(b.action);
-    } catch (e) {
-      throw new SlatedError(e.kind ?? 'invalidSyntax', `${e.message} (at bindings[${i}].action)`);
-    }
-    const keys = parseKeyCombo(b.keys);
-    if (!keys) throw new SlatedError('invalidSyntax', `Invalid key combo "${b.keys}" (at bindings[${i}].keys)`);
-    return {id: b.id ?? `binding-${i}`, name: b.name, keys, modal: b.modal ? {keys: parseKeyCombo(b.modal.keys), toggle: !!b.modal.toggle} : undefined, action, repeats: b.repeats, enabled: b.enabled ?? true};
-  });
-  const hotstrings = (raw.hotstrings ?? []).map((h) => ({enabled: true, caseSensitive: true, fire: 'immediately', wordBoundary: false, method: 'auto', onlyInApps: [], exceptInApps: [], replacement: '', ...h}));
-  const island = {enabled: true, cheatSheet: true, cheatSheetDelay: 0.5, showFailures: true, ...(raw.island ?? {})};
-  return {version: 1, general, settings: raw.settings ?? {}, keyboard, bindings, layouts: raw.layouts ?? [], defaults: raw.defaults ?? [], hotstrings, island};
-}
-
-export function encodeConfiguration(config) {
-  const sort = (v) => (Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v);
-  return JSON.stringify(sort(config), null, 2);
-}
-
-export function starterConfiguration() {
-  return decodeConfiguration(JSON.stringify({keyboard: {capsLock: 'hyper'}, bindings: [{name: 'Left half', keys: 'hyper+a', action: {op: 'move', x: 'screenOriginX', y: 'screenOriginY', width: 'screenSizeX/2', height: 'screenSizeY'}}]}));
-}
-
 export function toGnomeAccelerator(combo, {hyperMode} = {}) {
   const mods = combo.modifiers ?? [];
   const names = {ctrl: '<Control>', alt: '<Alt>', shift: '<Shift>', cmd: '<Super>'};
@@ -423,23 +393,6 @@ export function targetOrigin(action, context, actualSize) {
   return plan(action, context).origin(actualSize);
 }
 
-export function parseSlateConfig(text, {path} = {}) {
-  const result = {settings: {}, bindings: [], layouts: [], defaults: [], diagnostics: []};
-  String(text)
-    .split('\n')
-    .forEach((line, index) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return;
-      const [directive, ...rest] = trimmed.split(/\s+/);
-      if (directive === 'config') result.settings[rest[0]] = rest.slice(1).join(' ') === 'true' ? true : rest.slice(1).join(' ');
-      else if (directive === 'bind') {
-        const parsed = parseKeystroke(rest[0]);
-        result.bindings.push({id: `${path}#${index}`, keys: parsed.keys, modal: parsed.modal ?? undefined, action: parseOperation(rest.slice(1).join(' ')), enabled: true});
-      } else result.diagnostics.push({severity: 'error', message: `Unknown directive "${directive}"`, file: path, line: index + 1});
-    });
-  return result;
-}
-
 export const fakeCore = {
   SlatedError,
   parseKeyCombo,
@@ -448,14 +401,10 @@ export const fakeCore = {
   evaluateExpression,
   parseOperation,
   formatOperation,
-  decodeConfiguration,
-  encodeConfiguration,
-  starterConfiguration,
   toGnomeAccelerator,
   resolveScreen,
   targetFrame,
   targetOrigin,
-  parseSlateConfig,
 };
 
 /** The real core once it is implemented; null while lib/core/index.js is still the stub. */

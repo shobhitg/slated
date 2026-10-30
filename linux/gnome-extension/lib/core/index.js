@@ -59,7 +59,8 @@ export {targetFrame, targetOrigin, resolveScreen, screenContaining, orderedLeftT
 // --- Configuration (config.json) ------------------------------------------------------------------
 /**
  * decodeConfiguration(text) → configuration with every default filled in (JSON5 comments, trailing
- *   commas, unquoted keys allowed); throws SlatedError("invalidConfiguration") with `codingPath`.
+ *   commas, unquoted keys allowed); throws SlatedError("invalidConfiguration") with `codingPath`. It reads
+ *   both files' sections in one object (version 1's `settings` as `windows`); see configFiles.js for the files.
  * encodeConfiguration(config) → stable pretty JSON (sorted keys), byte for byte as Swift writes it.
  * starterConfiguration() → the author's Slate setup in native form (21 Hyper bindings), used on first
  *   run without a Slate config.
@@ -80,6 +81,29 @@ export {
   readSettings,
   randomUUID,
 } from './config.js';
+
+// --- The two files (config.json and settings.json) -------------------------------------------------
+/**
+ * decodeConfigurationFiles(configText|null, settingsText|null) → {configuration, settingsExtras, legacy,
+ *   configObject, settingsObject}: both files as one configuration; settings.json wins over version 1's
+ *   settings sections in config.json. Errors name the file (`error.file`).
+ * encodeConfigurationFiles(configuration, settingsExtras) → {config, settings}: the two files' texts.
+ * isLegacyLayout(parsed config.json) → version 1's single file, to migrate; legacySlateOptions(parsed)
+ *   → {load, paths, imported}, version 1's Slate loading options. parseConfigText(text, file) → object.
+ * CONFIG_SECTIONS, SETTINGS_SECTIONS: which sections each file holds; CONFIG_FILE, SETTINGS_FILE, BACKUP_FILE.
+ */
+export {
+  decodeConfigurationFiles,
+  encodeConfigurationFiles,
+  isLegacyLayout,
+  legacySlateOptions,
+  parseConfigText,
+  CONFIG_SECTIONS,
+  SETTINGS_SECTIONS,
+  CONFIG_FILE,
+  SETTINGS_FILE,
+  BACKUP_FILE,
+} from './configFiles.js';
 
 // --- Keys -----------------------------------------------------------------------------------------
 /**

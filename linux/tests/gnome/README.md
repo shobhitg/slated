@@ -21,8 +21,9 @@ Shell runs with `SLATED_DEBUG=1`:
   extension releasing a held key (the test window records what it receives);
 - clipboard history records the test window's copy, saves it with mode 0600, keeps the text out of
   the log, and the switcher opens;
-- `~/.slate.js` loads, reloads on change, and its function binding runs `win.doOperation` with an
-  orientation check;
+- a version 1 `config.json` is migrated: `config.v1.json` keeps it, its settings move to
+  `settings.json`, and `~/.slate.js`'s function binding (an orientation check) is imported as a
+  `by-orientation` shortcut that places the window;
 - Caps Lock → Hyper in xkb mode adds `caps:hyper` while keeping other options;
 - disabling the extension writes `running: false`, logs `app.quit` and removes the xkb option;
 - every log line is valid JSON with the shared schema, with no `runtime.error` events and no window
@@ -86,7 +87,8 @@ These are the things a headless shell can't show. Use GNOME 46–49 on Wayland.
    disappears when hotstrings are turned off.
 8. Lock the screen and unlock: shortcuts work again afterwards, and Caps Lock is a plain Caps Lock on
    the lock screen.
-9. `~/.slate.js`: edit and save it. The bindings reload within a second (`slate.loaded` in the log).
+9. `~/.slate.js` isn't read: editing it changes nothing. Settings → General → **Import Slate Config
+   into Slated…** brings in new shortcuts from it; ones Slated already has are left alone.
 10. Game automation, with a game or any app that counts clicks:
     - `repeat 0.1 'click left'` on a shortcut clicks until you press it again. The red "running" pill
       shows at the top with the stop shortcut, and the stop shortcut ends it.

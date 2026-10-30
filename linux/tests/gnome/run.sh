@@ -63,10 +63,13 @@ NoDisplay=true
 EOF
 
   # Shortcuts on all four modifiers (no GNOME default uses them); Hyper starts off so the xkb option is
-  # only touched by the step that tests it.
+  # only touched by the step that tests it. Version 2: config.json and settings.json.
+  cat >"$XDG_CONFIG_HOME/slated/settings.json" <<'EOF'
+{"version": 2, "general": {"showActionHUD": true}}
+EOF
   cat >"$XDG_CONFIG_HOME/slated/config.json" <<'EOF'
 {
-  "general": {"loadSlateConfigs": false, "showActionHUD": true},
+  "version": 2,
   "keyboard": {"capsLock": "off"},
   "bindings": [
     {"name": "Left half", "keys": "hyper+a",

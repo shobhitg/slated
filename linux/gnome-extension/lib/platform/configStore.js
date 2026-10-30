@@ -1,32 +1,27 @@
-// Loads, saves and watches `~/.config/slated/config.json` (the same file and format as on macOS),
-// decoding and encoding it with the core. A port of the macOS ConfigStore.
+// Loads and watches Slated's configuration: `~/.config/slated/config.json` (what your keys do) and
+// `settings.json` beside it (how Slated behaves), the same files and format as on macOS. A port of
+// the macOS ConfigStore.
 //
-// First run behaves as on macOS: if `~/.slate.js` or `~/.slate` exists, Slated starts with an empty
-// configuration so the Slate file is the default; otherwise with the built-in starter bindings.
+// Reading, creating and migrating the files is lib/prefs/migration.js, shared with the settings
+// window (pure JavaScript, no GTK): whichever process sees a version 1 config.json first migrates it,
+// and the other then finds version 2. A first run imports a Slate config (~/.slate.js, else
+// ~/.slate) or starts from the starter bindings. The extension doesn't save edits; the settings
+// window does, and the extension picks them up through the file monitors.
 
-import * as Core from '../core/index.js';
+import {loadConfigFiles} from '../prefs/migration.js';
 
-import {exists, readText, watchFile, writeTextAtomic} from './files.js';
+import {exists, readText, watchFile, writeTextAtomic, writeTextIfMissing} from './files.js';
 import {Debouncer} from './timers.js';
-import {expandHome} from './util.js';
-
-export const DEFAULT_SLATE_PATHS = Object.freeze(['~/.slate.js', '~/.slate']);
 
 /**
- * A configuration with every default and nothing bound, used only while the core can't decode one
- * (e.g. a development build without the engine). Same defaults as Swift's SlatedConfiguration.
+ * A configuration with every default and nothing bound, used only while no configuration could be
+ * read. Same defaults as Swift's SlatedConfiguration.
  */
 export function emptyConfiguration() {
   return {
-    version: 1,
-    general: {
-      launchAtLogin: false,
-      loadSlateConfigs: true,
-      slateConfigPaths: [...DEFAULT_SLATE_PATHS],
-      showActionHUD: false,
-      hotstringsEnabled: true,
-    },
-    settings: {},
+    version: 2,
+    general: {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true},
+    windows: {},
     keyboard: {capsLock: 'off', capsLockAlone: 'nothing', hyperModifiers: ['ctrl', 'alt', 'shift', 'cmd']},
     bindings: [],
     layouts: [],
@@ -37,103 +32,116 @@ export function emptyConfiguration() {
       excludedApps: [], pasteAfterSelecting: true,
     },
     automation: {stopShortcut: 'hyper+esc', stopOnAppSwitch: true, maxRunMinutes: 0, showIndicator: true},
+    island: {enabled: true, cheatSheet: true, cheatSheetDelay: 0.5, showFailures: true},
   };
 }
 
-/** Whether a first run should defer to an existing Slate config. */
-export function hasSlateConfig(home, fileExists = exists) {
-  return DEFAULT_SLATE_PATHS.some((path) => fileExists(expandHome(path, home)));
+/** A file's text, null when it doesn't exist; throws when it exists but can't be read. */
+function readOrThrow(path) {
+  const text = readText(path);
+  if (text === null && exists(path)) throw new Error('it exists but could not be read (check its permissions)');
+  return text;
 }
 
 export class ConfigStore {
-  constructor({path, home, log, timers, core = Core}) {
-    this.path = path;
+  /**
+   * @param {object} options
+   * @param {{config: string, settings: string, backup: string, record: string}} options.paths
+   *   config.json, settings.json, config.v1.json and config-migration.json
+   * @param {string} options.home the home folder, for Slate files
+   * @param {object} [options.log] the EventLog
+   * @param {object} options.timers
+   */
+  constructor({paths, home, log, timers}) {
+    this.paths = paths;
+    this.path = paths.config;
     this._home = home;
     this._log = log;
     this._timers = timers;
-    this._core = core;
     /** The active configuration, or null when none could ever be read. */
     this.configuration = null;
-    /** Why the file on disk couldn't be used, if it couldn't. */
+    /** Why the files on disk couldn't be used, if they couldn't (naming the file). */
     this.loadError = null;
-    this._lastText = null;
-    this._watcher = null;
+    this._lastTexts = {config: null, settings: null};
+    this._watchers = [];
     this._changed = null;
   }
 
+  /** The files, for migration.loadConfigFiles. */
+  _io() {
+    const {config, settings, backup, record} = this.paths;
+    return {
+      home: this._home,
+      readConfig: () => readOrThrow(config),
+      readSettings: () => readOrThrow(settings),
+      writeConfig: (text) => writeTextAtomic(config, text),
+      writeSettings: (text) => writeTextAtomic(settings, text),
+      backupConfig: (text) => writeTextIfMissing(backup, text),
+      readFile: (path) => readText(path),
+      readRecord: () => readText(record),
+      writeRecord: (text) => writeTextAtomic(record, text),
+    };
+  }
+
   /**
-   * Reads the file, creating it on first run. On a parse error the previous configuration stays active
-   * and `loadError` explains the problem.
+   * Reads both files, creating them on a first run and migrating version 1. When a file can't be
+   * read, the previous configuration stays active and `loadError` explains the problem.
    */
   load() {
-    const text = readText(this.path);
-    if (text === null && !exists(this.path)) {
-      this._createFirstRun();
+    const log = (event, data = {}, level = 'info') => this._log?.record(event, data, level);
+    const result = loadConfigFiles(this._io(), {by: 'gnome-extension', log});
+    if (result.error) {
+      const file = result.error.file ?? 'config.json';
+      const message = describe(result.error);
+      this.loadError = message.startsWith("Couldn't read") ? message : `Couldn't read ${file}: ${message}`;
+      this._lastTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
+      this._log?.error('config.error', this.loadError, {path: file === 'settings.json' ? this.paths.settings : this.paths.config});
       return;
     }
-    try {
-      this.configuration = this._core.decodeConfiguration(text ?? '');
-      this._lastText = text;
-      this.loadError = null;
-      this._log?.record('config.loaded', this.summary());
-    } catch (e) {
-      this.loadError = `Couldn't read ${this.path}: ${e.message ?? e}`;
-      this._log?.error('config.error', this.loadError, {path: this.path});
-    }
+    this.configuration = result.configuration;
+    this._lastTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
+    this.loadError = result.writeError ? `Couldn't write the configuration: ${describe(result.writeError)}` : null;
+    this._log?.record('config.loaded', this.summary());
   }
 
-  _createFirstRun() {
-    const deferToSlate = hasSlateConfig(this._home);
-    try {
-      const configuration = deferToSlate ? this._core.decodeConfiguration('{}') : this._core.starterConfiguration();
-      this.save(configuration);
-      this._log?.record('config.created', {
-        path: this.path,
-        from: deferToSlate ? 'empty (Slate config is the default)' : 'starter bindings',
-      });
-    } catch (e) {
-      this.loadError = `Couldn't create ${this.path}: ${e.message ?? e}`;
-      this._log?.error('config.error', this.loadError, {path: this.path});
-    }
-  }
-
-  save(configuration) {
-    const text = this._core.encodeConfiguration(configuration);
-    writeTextAtomic(this.path, text.endsWith('\n') ? text : `${text}\n`);
-    this._lastText = readText(this.path);
-    this.configuration = configuration;
-    this.loadError = null;
-  }
-
-  /** Calls `onExternalChange` after the file changes on disk (hand edits, the preferences app). */
+  /** Calls `onExternalChange` after either file changes on disk (hand edits, the settings window). */
   startWatching(onExternalChange) {
     this.stopWatching();
     this._changed = new Debouncer(this._timers, 200, () => {
-      const text = readText(this.path);
-      if (text === null || text === this._lastText) return;
-      this._log?.record('config.changed_on_disk', {path: this.path});
+      const texts = {config: readText(this.paths.config), settings: readText(this.paths.settings)};
+      if (texts.config === null) return;
+      if (texts.config === this._lastTexts.config && texts.settings === this._lastTexts.settings) return;
+      this._log?.record('config.changed_on_disk', {path: this.paths.config});
       this.load();
       onExternalChange();
     });
-    this._watcher = watchFile(this.path, () => this._changed.trigger());
+    this._watchers = [this.paths.config, this.paths.settings].map((path) => watchFile(path, () => this._changed.trigger()));
   }
 
   stopWatching() {
     this._changed?.cancel();
-    this._watcher?.cancel();
+    for (const watcher of this._watchers) watcher?.cancel();
     this._changed = null;
-    this._watcher = null;
+    this._watchers = [];
   }
 
   summary() {
     const c = this.configuration ?? {};
     return {
-      path: this.path,
+      path: this.paths.config,
       bindings: c.bindings?.length ?? 0,
       hotstrings: c.hotstrings?.length ?? 0,
       layouts: c.layouts?.length ?? 0,
       capsLock: c.keyboard?.capsLock ?? 'off',
-      loadSlateConfigs: c.general?.loadSlateConfigs ?? true,
     };
   }
+}
+
+/** "bindings[2].id: …" for decoding errors, as the settings window says it. */
+function describe(error) {
+  const path = Array.isArray(error?.codingPath) && error.codingPath.length
+    ? error.codingPath.map((key, i) => (typeof key === 'number' ? `[${key}]` : i ? `.${key}` : String(key))).join('')
+    : '';
+  const message = error?.message ?? String(error);
+  return path ? `${path}: ${message}` : message;
 }

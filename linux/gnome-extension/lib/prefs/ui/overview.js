@@ -1,6 +1,7 @@
 // Settings → Overview: status at a glance from status.json and GNOME Shell, clear guidance when
 // Slated isn't running, the last thing it did, tips drawn from the user's own setup and next steps,
-// with a link back to Get Started (port of OverviewPane.swift).
+// with a link back to Get Started (port of OverviewPane.swift). After the move to version 2 imported
+// your Slate config, it says so once, until dismissed.
 
 import Adw from 'gi://Adw';
 import GLib from 'gi://GLib';
@@ -10,9 +11,20 @@ import {hotkeyCounts} from '../status.js';
 import {espansoGuidance} from '../hotstrings.js';
 import {matchingPreset} from '../presets.js';
 import {bindingTitle, actionTitle, containsAutomation} from '../actions.js';
-import {plural, formatList, truncate, singleLine} from '../util.js';
+import {plural, formatList, truncate, singleLine, tildify} from '../util.js';
 import {box, label, button, icon, keycaps, pill, group, triggerChip, launchFile} from './widgets.js';
 import {slatedMark} from './about.js';
+import {importSlateDialog} from './slateimport.js';
+
+/** "Open Config File" or "Open Settings File" (the Mac's menu items), and the file it opens. */
+export function openFileAction(ctx, file, parent) {
+  const settings = file === 'settings.json';
+  const path = settings ? ctx.paths.settingsFile : ctx.paths.configFile;
+  return {
+    label: settings ? 'Open Settings File' : 'Open Config File',
+    run: () => launchFile(path, parent, {onError: e => ctx.toast(e.message)}),
+  };
+}
 
 function greeting() {
   const hour = GLib.DateTime.new_now_local().get_hour();
@@ -84,14 +96,23 @@ export function createOverviewPane(ctx) {
   heroGroup.add(hero);
   prefs.add(heroGroup);
 
+  // The one-time notice after the move to version 2 imported your Slate config (as on the Mac).
+  const noticeGroup = group();
+  const noticeRow = new Adw.ActionRow({use_markup: false, title: '', subtitle: '', activatable: false});
+  noticeRow.set_title_lines(0);
+  noticeRow.set_subtitle_lines(0);
+  noticeRow.add_prefix(icon('dialog-information-symbolic', {size: 20}));
+  noticeRow.add_suffix(button('Dismiss', () => model.dismissMigrationNotice(), {classes: ['flat']}));
+  noticeGroup.add(noticeRow);
+  prefs.add(noticeGroup);
+
   // Status
   const statusGroup = group({title: 'Status'});
   const extensionRow = statusRow('Slated', 'system-run-symbolic');
   const hyperRow = statusRow('Hyper Key', 'input-keyboard-symbolic');
   const hotstringsRow = statusRow('Hotstrings', 'insert-text-symbolic');
   const shortcutsRow = statusRow('Shortcuts', 'focus-windows-symbolic');
-  const slateRow = statusRow('Slate Config', 'text-x-generic-symbolic');
-  for (const r of [extensionRow, hyperRow, hotstringsRow, shortcutsRow, slateRow]) statusGroup.add(r.row);
+  for (const r of [extensionRow, hyperRow, hotstringsRow, shortcutsRow]) statusGroup.add(r.row);
   prefs.add(statusGroup);
 
   // Activity
@@ -148,10 +169,12 @@ export function createOverviewPane(ctx) {
 
     greet.set_label(greeting().toUpperCase());
     if (model.loadError) {
-      headline.set_label('config.json needs a fix');
-      detail.set_label(`Slated can't read your configuration file, so it keeps running what it last loaded. Edits here won't be saved until the file is fixed.\n${model.loadError}`);
-      primaryAction = () => launchFile(ctx.paths.configFile, prefs, {onError: e => ctx.toast(e.message)});
-      primary.set_label('Open config.json');
+      const file = model.loadErrorFile ?? 'config.json';
+      headline.set_label(`${file} needs a fix`);
+      detail.set_label(`Slated can't read ${file}, so it keeps running what it last loaded. Edits here won't be saved until the file is fixed.\n${model.loadError}`);
+      const open = openFileAction(ctx, file, prefs);
+      primaryAction = open.run;
+      primary.set_label(open.label);
       primary.set_visible(true);
     } else {
       headline.set_label(summary.title);
@@ -179,6 +202,12 @@ export function createOverviewPane(ctx) {
         : {label: shellState.state === 'inactive' ? 'Off' : 'Not running', style: 'warning'},
       action: running ? null : actions[summary.action] ?? null,
     });
+    const notice = model.migrationNotice(tildify(ctx.paths.configFile, ctx.paths.home));
+    noticeGroup.set_visible(Boolean(notice));
+    if (notice) {
+      noticeRow.set_title(notice.text);
+      noticeRow.set_subtitle(notice.unconvertible ?? '');
+    }
     const hyperOn = config.keyboard.capsLock === 'hyper';
     // GNOME's keyboard option always sends the Hyper modifier, whatever hyperModifiers says (see Keyboard).
     const mods = running && status.hyper.mode === 'xkb' ? 'the Hyper modifier'
@@ -208,18 +237,9 @@ export function createOverviewPane(ctx) {
     if (counts.failed) problems.push(`${counts.failed} failed`);
     shortcutsRow.update({
       value: problems.length && running ? problems.join(' · ')
-        : `${config.bindings.length} in Slated · ${model.sourceBindingCount()} from Slate${running ? ` · ${counts.active} active` : ''}`,
+        : `${plural(config.bindings.length, 'shortcut')}${running ? ` · ${counts.active} active` : ''}`,
       state: !running ? {label: 'Waiting', style: 'dim'} : problems.length ? {label: 'Attention', style: 'warning'} : {label: `${counts.active} active`, style: 'success'},
       action: {label: problems.length && running ? 'Review' : 'Edit', run: () => ctx.navigate('windows')},
-    });
-    const loaded = model.sources.filter(s => s.exists);
-    const errors = loaded.reduce((n, s) => n + (model.sourceStatus(s)?.diagnostics.length ?? s.diagnostics.filter(d => d.severity === 'error').length), 0);
-    slateRow.update({
-      value: !model.slateLoading ? 'Slate files are ignored' : !loaded.length ? 'No ~/.slate or ~/.slate.js'
-        : `${loaded.map(s => s.displayPath).join(', ')} · ${plural(model.sourceBindingCount(), 'binding')}${errors ? ` · ${plural(errors, 'problem')}` : ''}`,
-      state: !model.slateLoading ? {label: 'Off', style: 'dim'} : errors ? {label: 'Problems', style: 'warning'}
-        : loaded.length ? {label: 'Loaded', style: 'success'} : {label: 'None', style: 'dim'},
-      action: {label: 'Details', run: () => ctx.navigate('slate')},
     });
 
     // Activity
@@ -231,9 +251,11 @@ export function createOverviewPane(ctx) {
 
     // Next steps (as on the Mac: up to three). GNOME starts Slated with the session: no "Launch at login".
     const next = [];
-    const copyable = model.sources.flatMap(s => s.bindings).filter(b => !model.isCopied(b));
     if (!hyperOn) next.push({title: 'Turn on the Hyper key', detail: 'Caps Lock becomes ✦ — room for dozens of shortcuts.', run: () => ctx.navigate('keyboard')});
-    if (copyable.length && model.slateLoading) next.push({title: 'Bring over Slate bindings', detail: `${copyable.length} can be copied into Slated and edited here.`, run: () => ctx.navigate('slate')});
+    if (model.slateImportSuggested) {
+      next.push({title: 'Import your Slate config', detail: `Bring the shortcuts in ${model.slateFiles[0].displayPath} into Slated, where you can edit them.`,
+        run: () => importSlateDialog(ctx)});
+    }
     if (config.hotstrings.length < 3) next.push({title: 'Add a hotstring', detail: 'Type a short trigger, get a whole sentence.', run: () => ctx.navigate('hotstrings', {newHotstring: true})});
     if (config.clipboard?.enabled === false) next.push({title: 'Turn on clipboard history', detail: 'Paste anything you copied earlier, from one shortcut.', run: () => ctx.navigate('clipboard')});
     if (!config.bindings.some(b => containsAutomation(b.action))) {

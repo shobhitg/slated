@@ -1,5 +1,5 @@
-// config.json defaults and a lenient reader, used by the preferences while the engine's
-// decodeConfiguration/encodeConfiguration (lib/core) are still stubs. Defaults match Swift's
+// Configuration defaults and a lenient reader, used by the preferences should the engine's
+// decodeConfiguration/encodeConfiguration (lib/core) be stubs. Defaults match Swift's
 // SlatedConfiguration (Sources/SlatedCore/Model/Configuration.swift).
 //
 // Pure ES module.
@@ -7,16 +7,8 @@
 import {isObject, stableStringify} from './util.js';
 import {newId} from './ids.js';
 
-export const DEFAULT_SLATE_PATHS = ['~/.slate.js', '~/.slate'];
-
 export function defaultGeneral() {
-  return {
-    launchAtLogin: false,
-    loadSlateConfigs: true,
-    slateConfigPaths: [...DEFAULT_SLATE_PATHS],
-    showActionHUD: false,
-    hotstringsEnabled: true,
-  };
+  return {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true};
 }
 
 export function defaultKeyboard() {
@@ -185,13 +177,17 @@ function fillLayout(raw) {
  * are, so saving never drops them.
  */
 export function fillDefaults(raw, makeId = newId) {
-  const c = isObject(raw) ? raw : {};
+  const c = isObject(raw) ? {...raw} : {};
   if (raw !== undefined && !isObject(raw)) throw new Error('config.json must contain a JSON object');
+  const windows = isObject(c.windows) ? c.windows : isObject(c.settings) ? c.settings : {};
+  delete c.settings;
+  const general = {...defaultGeneral(), ...(isObject(c.general) ? c.general : {})};
+  for (const key of ['loadSlateConfigs', 'slateConfigPaths', 'importedSlateShortcuts']) delete general[key];
   return {
     ...c,
-    version: Number.isInteger(c.version) ? c.version : 1,
-    general: {...defaultGeneral(), ...(isObject(c.general) ? c.general : {})},
-    settings: isObject(c.settings) ? {...c.settings} : {},
+    version: Number.isInteger(c.version) && c.version > 2 ? c.version : 2,
+    general,
+    windows: {...windows},
     keyboard: {...defaultKeyboard(), ...(isObject(c.keyboard) ? c.keyboard : {})},
     bindings: (Array.isArray(c.bindings) ? c.bindings : []).map(b => fillBinding(b, makeId)),
     layouts: (Array.isArray(c.layouts) ? c.layouts : []).map(fillLayout),

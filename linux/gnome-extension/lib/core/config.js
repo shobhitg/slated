@@ -1,5 +1,10 @@
-// Slated's configuration (config.json) and the Action model (port of Configuration.swift,
-// Action.swift's Codable conformance, SlateSettings.swift and Starter.swift).
+// Slated's configuration and the Action model (port of Configuration.swift, Action.swift's Codable
+// conformance, SlateSettings.swift and Starter.swift).
+//
+// In memory the configuration is one value. On disk it's two files (configFiles.js): config.json
+// (keyboard, bindings, hotstrings, layouts, defaults) and settings.json (general, windows, clipboard,
+// automation, island). The functions here read and write the whole value in one object, as Swift's
+// Codable does; `windows` is Slate's window settings, which version 1 called `settings`.
 //
 // Every value here is plain JSON-shaped data in its canonical form, exactly what Swift's encoder
 // writes: an action is {op: "push", direction: "up", style: "bar-resize:screenSizeY/2"}, a binding is
@@ -27,7 +32,8 @@ import {compareStrings, lowercased, shortNumber} from './text.js';
 
 export {readSettings};
 
-export const CURRENT_VERSION = 1;
+/** The configuration format: 2 splits it into config.json and settings.json (configFiles.js). */
+export const CURRENT_VERSION = 2;
 
 // --- Decoding helpers (Swift's keyed containers) ---------------------------------------------------
 
@@ -428,7 +434,7 @@ export function isAutomation(action) {
 // --- Configuration -------------------------------------------------------------------------------
 
 function defaultGeneral() {
-  return {launchAtLogin: false, loadSlateConfigs: true, slateConfigPaths: ['~/.slate.js', '~/.slate'], showActionHUD: false, hotstringsEnabled: true};
+  return {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true};
 }
 
 function defaultKeyboard() {
@@ -502,21 +508,18 @@ function island(v, path) {
 
 const defaultOptions = () => ({ignoreFail: false, mainFirst: false, mainLast: false, repeat: false, repeatLast: false, sortTitle: false});
 
+/**
+ * Version 1's Slate keys (loadSlateConfigs, slateConfigPaths, importedSlateShortcuts) aren't read:
+ * Slate files are only imported now, and the migration reads those keys from the file itself.
+ */
 function general(v, path) {
   const c = new Keyed(v, path);
   const d = defaultGeneral();
-  const out = {
+  return {
     launchAtLogin: c.optional('launchAtLogin', bool) ?? d.launchAtLogin,
-    loadSlateConfigs: c.optional('loadSlateConfigs', bool) ?? d.loadSlateConfigs,
-    slateConfigPaths: c.optional('slateConfigPaths', arrayOf(str)) ?? d.slateConfigPaths,
     showActionHUD: c.optional('showActionHUD', bool) ?? d.showActionHUD,
     hotstringsEnabled: c.optional('hotstringsEnabled', bool) ?? d.hotstringsEnabled,
   };
-  // Shortcuts imported from Slate files that keep loading; the files' own bindings on these keys are
-  // ignored. Written only when there are some, as in Swift.
-  const imported = c.optional('importedSlateShortcuts', arrayOf(str)) ?? [];
-  if (imported.length) out.importedSlateShortcuts = imported;
-  return out;
 }
 
 /** One Slate `config` value: a boolean, a number or text, as in SettingValue's decoding. */
@@ -529,7 +532,8 @@ function settingValue(v, path) {
   return str(v, path);
 }
 
-function settings(v, path) {
+/** Slate's window settings (`windows`; version 1's `settings`): name → value. */
+function windowSettings(v, path) {
   const c = new Keyed(v, path);
   const out = {};
   for (const key of Object.keys(c.value)) put(out, key, settingValue(c.value[key], [...path, key]));
@@ -664,8 +668,12 @@ function hotstring(v, path) {
   return out;
 }
 
-/** config.json's top-level sections; others are kept as read (Swift's unknownSections). */
-const SECTIONS = new Set(['version', 'general', 'settings', 'keyboard', 'bindings', 'layouts', 'defaults', 'hotstrings', 'clipboard', 'automation', 'island']);
+/**
+ * The top-level sections; others are kept as read (Swift's unknownSections). `settings` is version 1's
+ * name for `windows`, read when there's no `windows`.
+ */
+const SECTIONS = Object.freeze(['version', 'general', 'windows', 'settings', 'keyboard', 'bindings', 'layouts', 'defaults', 'hotstrings', 'clipboard', 'automation', 'island']);
+const KNOWN_SECTIONS = new Set(SECTIONS);
 
 /** Any JSON value as Swift's JSONValue reads it: whole numbers that fit in an Int stay exact, other numbers are Doubles. */
 function jsonValue(v, path) {
@@ -677,12 +685,19 @@ function jsonValue(v, path) {
   return out;
 }
 
+/** A version below the current one (or none) reads as the current one; whole numbers may be BigInts. */
+function atLeastCurrent(version) {
+  return version === undefined || version < CURRENT_VERSION ? CURRENT_VERSION : version;
+}
+
 function configuration(v, path) {
   const c = new Keyed(v, path);
   const out = {
-    version: c.optional('version', int) ?? CURRENT_VERSION,
+    // What's in memory is always the current model (version 1's Slate keys and `settings` are read
+    // as version 2 has them); a newer version stays as written.
+    version: atLeastCurrent(c.optional('version', int)),
     general: c.optional('general', general) ?? defaultGeneral(),
-    settings: c.optional('settings', settings) ?? {},
+    windows: c.optional('windows', windowSettings) ?? c.optional('settings', windowSettings) ?? {},
     keyboard: c.optional('keyboard', keyboard) ?? defaultKeyboard(),
     bindings: c.optional('bindings', arrayOf(binding)) ?? [],
     layouts: c.optional('layouts', arrayOf(layout)) ?? [],
@@ -694,7 +709,7 @@ function configuration(v, path) {
   };
   // Sections a newer Slated wrote stay at the top level, so they're written back, sorted in with the rest.
   for (const key of Object.keys(c.value)) {
-    if (!SECTIONS.has(key)) put(out, key, jsonValue(c.value[key], c.at(key)));
+    if (!KNOWN_SECTIONS.has(key)) put(out, key, jsonValue(c.value[key], c.at(key)));
   }
   return out;
 }
@@ -789,7 +804,7 @@ export function starterConfiguration() {
   return {
     version: CURRENT_VERSION,
     general: defaultGeneral(),
-    settings: {},
+    windows: {},
     keyboard: {...defaultKeyboard(), capsLock: 'hyper'},
     bindings: STARTER.map(([name, key, action]) => ({
       action: JSON.parse(JSON.stringify(action)),

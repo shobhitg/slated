@@ -296,7 +296,7 @@ export default suite('Validation', [
     after.bindings.push({id: 'b', keys: 'hyper+b', action: {op: 'undo'}, enabled: true});
     after.hotstrings[0].replacement = 'more secret';
     after.keyboard.capsLock = 'hyper';
-    after.settings.undoMaxStackSize = 20;
+    after.windows.undoMaxStackSize = 20;
     const changes = configChanges(before, after);
     expect(changes.includes('binding changed: Left (hyper+s)'), changes.join(' | '));
     expect(changes.some(c => c.startsWith('binding added: ') && c.endsWith('(hyper+b)')), 'added binding');
@@ -308,7 +308,7 @@ export default suite('Validation', [
     const off = JSON.parse(JSON.stringify(before));
     off.general.hotstringsEnabled = false;
     expectEqual(configChanges(before, off),
-      ['general: launchAtLogin false, loadSlateConfigs true, showActionHUD false, hotstringsEnabled false']);
+      ['general: launchAtLogin false, showActionHUD false, hotstringsEnabled false']);
   }],
   ['clipboard and automation settings changes are logged, app ids only counted', () => {
     const before = decodeConfiguration('{}');

@@ -70,7 +70,7 @@ function validFrame(frame) {
  *   implemented yet (shown as a quiet "Preview unavailable").
  * @param {object} options
  * @param {Array} options.screens ScreenInfo list
- * @param {object} [options.settings] Slate settings (config.json "settings")
+ * @param {object} [options.settings] Slate's window settings (settings.json "windows")
  * @param {number} [options.step] for a chain, which press to preview (wraps around)
  * @param {number} [options.startScreen] index into `screens` of the screen the sample window starts on
  */

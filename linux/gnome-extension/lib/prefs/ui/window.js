@@ -6,8 +6,8 @@
 // column on narrow widths. Each section has its own Adw.NavigationView so editors open as drill-down
 // pages with a back button. Get Started (first-run setup) leads the sidebar until it's finished, and
 // the window opens on it; afterwards it opens on Overview, never on the pane it was left on. The
-// window keeps the model in sync with config.json and status.json through file monitors, and asks
-// GNOME Shell over D-Bus whether the extension is running.
+// window keeps the model in sync with config.json, settings.json and status.json through file
+// monitors, and asks GNOME Shell over D-Bus whether the extension is running.
 
 import Adw from 'gi://Adw';
 import GLib from 'gi://GLib';
@@ -17,7 +17,7 @@ import {PrefsModel} from '../model.js';
 import {slatedPaths} from '../paths.js';
 import {lastStart} from '../eventlog.js';
 import {sessionId} from '../util.js';
-import {readText, readTail, writeTextAtomic, readBuildInfo, watchFile, glibScheduler, EventLogWriter} from '../io.js';
+import {readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter} from '../io.js';
 import {getExtensionInfo, setExtensionEnabled, requestLogout} from '../shell.js';
 import {installStyles} from './style.js';
 import {box, label, icon, badge as badgeLabel, emptyState} from './widgets.js';
@@ -31,7 +31,6 @@ import {createClipboardPane} from './clipboard.js';
 import {createAutomationPane} from './automation.js';
 import {createKeyboardPane} from './keyboard.js';
 import {createLayoutsPane} from './layouts.js';
-import {createSlatePane} from './slate.js';
 import {createGeneralPane} from './general.js';
 import {createAboutPane} from './about.js';
 
@@ -44,7 +43,6 @@ const PANES = [
   ['automation', 'Automation', 'input-gaming-symbolic', createAutomationPane],
   ['keyboard', 'Keyboard', 'input-keyboard-symbolic', createKeyboardPane],
   ['layouts', 'Layouts', 'view-dual-symbolic', createLayoutsPane],
-  ['slate', 'Slate Compatibility', 'text-x-generic-symbolic', createSlatePane],
   ['general', 'General', 'preferences-system-symbolic', createGeneralPane],
   ['about', 'About', 'help-about-symbolic', createAboutPane],
 ];
@@ -72,6 +70,11 @@ export class SlatedSettings {
         home: this.paths.home,
         readConfig: () => readText(this.paths.configFile),
         writeConfig: text => writeTextAtomic(this.paths.configFile, text),
+        readSettings: () => readText(this.paths.settingsFile),
+        writeSettings: text => writeTextAtomic(this.paths.settingsFile, text),
+        backupConfig: text => writeTextIfMissing(this.paths.backupFile, text),
+        readRecord: () => readText(this.paths.migrationFile),
+        writeRecord: text => writeTextAtomic(this.paths.migrationFile, text),
         readFile: path => {
           try {
             return readText(path);
@@ -95,6 +98,7 @@ export class SlatedSettings {
 
     this.watchers = [
       watchFile(this.paths.configFile, () => this.model.syncFromDisk(), 250),
+      watchFile(this.paths.settingsFile, () => this.model.syncFromDisk(), 250),
       watchFile(this.paths.statusFile, () => this._readStatus(), 150),
     ];
     // GNOME Shell doesn't announce extension state changes to other processes; ask now and then.
@@ -155,11 +159,12 @@ export class SlatedSettings {
     requestLogout().catch(error => this.toast(`Couldn't open the log-out dialog: ${error.message}`));
   }
 
-  /** Saves, re-reads everything, and nudges the extension to reload config.json. */
+  /** Saves, re-reads everything, and nudges the extension to reload the configuration. */
   reload() {
     this.model.reload();
     if (!this.model.loadError && !this.model.firstRun) {
       try {
+        // The extension watches both files; rewriting one as it is makes it read both.
         const text = readText(this.paths.configFile);
         if (text !== null) writeTextAtomic(this.paths.configFile, text);
       } catch (error) {
@@ -171,7 +176,7 @@ export class SlatedSettings {
     this._readStatus();
     this._refreshShell();
     this.model.log('ui.reload');
-    this.toast(this.model.loadError ? "config.json still can't be read. Overview shows what to fix." : 'Configuration reloaded');
+    this.toast(this.model.loadError ? `${this.model.loadErrorFile ?? 'config.json'} still can't be read. Overview shows what to fix.` : 'Configuration reloaded');
   }
 
   /** Opens Get Started on request (Overview's link). After setup it starts over from the welcome. */
@@ -338,7 +343,7 @@ export class SlatedSettings {
     if (this.closed) return;
     const summary = this.model.summary();
     this.windowTitle.set_subtitle(this.model.loadError ? 'config.json needs a fix' : summary.running ? 'Running' : summary.title);
-    const save = saveStateText(this.model.saveState);
+    const save = saveStateText({...this.model.saveState, file: this.model.loadErrorFile});
     this.saveLabel.set_label(save.text);
     this.saveIcon.set_from_icon_name(SAVE_ICONS[save.style] ?? SAVE_ICONS.dim);
     this.saveIcon.set_css_classes(save.style === 'success' ? ['success'] : save.style === 'warning' ? ['warning'] : save.style === 'error' ? ['error'] : ['dim-label']);

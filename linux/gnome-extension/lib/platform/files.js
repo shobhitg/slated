@@ -34,6 +34,13 @@ export function writeTextAtomic(path, text) {
   GLib.file_set_contents(path, encoder.encode(text));
 }
 
+/** Writes a file only if it doesn't exist yet (config.v1.json): true when it wrote it. */
+export function writeTextIfMissing(path, text) {
+  if (exists(path)) return false;
+  writeTextAtomic(path, text);
+  return true;
+}
+
 /**
  * Writes `text` so only you can read it (mode 0600, for private content like clipboard history),
  * replacing the file atomically and creating its folder (0700). Throws on failure.

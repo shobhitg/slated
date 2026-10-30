@@ -1,6 +1,7 @@
-// The running extension's brain: loads configuration from every source, registers shortcuts, sets up
-// the Hyper key and hotstrings, runs actions, and publishes status. A port of the macOS Engine
-// (Sources/Slated/Engine/Engine.swift).
+// The running extension's brain: loads the configuration (config.json and settings.json), registers
+// shortcuts, sets up the Hyper key and hotstrings, runs actions, and publishes status. A port of the
+// macOS Engine (Sources/Slated/Engine/Engine.swift). Slate files aren't read here: they're imported
+// into the configuration (lib/prefs/migration.js).
 //
 // `start()` never throws: each part starts on its own, and a part that fails is logged
 // (`runtime.error`) while the rest keeps working. `stop()` undoes everything `start()` did.
@@ -15,7 +16,7 @@ import {ActionRunner, errorMessage} from './actions.js';
 import {AutomationEngine, OWN_APPS, automationShortcuts, sendsKeys, whileHeldRepeat} from './automation.js';
 import {ClipboardService} from './clipboard.js';
 import {bindingKey, comboOf, modalOf} from './combos.js';
-import {ConfigStore, DEFAULT_SLATE_PATHS, emptyConfiguration} from './configStore.js';
+import {ConfigStore, emptyConfiguration} from './configStore.js';
 import {DebugService} from './debug.js';
 import {EspansoSync} from './espanso.js';
 import {readText} from './files.js';
@@ -31,15 +32,13 @@ import {KeybindingManager, MutterGrabber, readKeyboardRepeat, releaseTiming} fro
 import {EventLog, LogFile, journalMirror} from './log.js';
 import {OverlayController} from './overlays.js';
 import * as Paths from './paths.js';
-import {GnomeScriptHost, ScriptEvents} from './scriptHost.js';
 import {MonitorWatcher, currentScreens} from './screens.js';
 import {SleepWatcher} from './sleep.js';
-import {SlateSources} from './slateSources.js';
 import {SnapshotStore} from './snapshots.js';
 import {StatusFile, buildStatus} from './status.js';
 import {InputSynthesizer} from './synth.js';
 import {Debouncer, Timers} from './timers.js';
-import {appMatchesAny, conditionMatches, defaultEntry, diagnosticText, resolutionOf, shortcutLabel, truthyText} from './util.js';
+import {appMatchesAny, conditionMatches, defaultEntry, resolutionOf, shortcutLabel, truthyText} from './util.js';
 import * as Windows from './windows.js';
 
 /** How many recently focused apps status.json lists (for the settings window's app picker). */
@@ -164,11 +163,10 @@ export class SlatedRuntime {
 
     this._step('config', () => {
       this._store = new ConfigStore({
-        path: Paths.configPath(),
+        paths: {config: Paths.configPath(), settings: Paths.settingsPath(), backup: Paths.backupPath(), record: Paths.migrationRecordPath()},
         home: this._home,
         log: this._log,
         timers: this._timers,
-        core: this.core,
       });
       this._store.load();
       this._store.startWatching(() => this.scheduleApply('config changed'));
@@ -283,26 +281,6 @@ export class SlatedRuntime {
       this._rememberApp(this._focusedApp);
       this._keybindings?.setFocusedApp(this._focusedApp);
     });
-    this._step('slate sources', () => {
-      this._scriptHost = new GnomeScriptHost({runner: this._runner, log: this._log, home: this._home});
-      this._scriptEvents = new ScriptEvents({host: this._scriptHost, timers: this._timers, dispatch: (event) => this._sources?.dispatch(event)});
-      this._sources = new SlateSources({
-        core: this.core,
-        log: this._log,
-        runner: this._runner,
-        host: this._scriptHost,
-        events: this._scriptEvents,
-        platform: this._platform,
-        timers: this._timers,
-        home: this._home,
-        onChange: () => this.scheduleApply('Slate file changed'),
-        onDiagnostics: (diagnostics) => {
-          this._lastError = diagnostics.map(diagnosticText).join('\n');
-          this._publishStatus();
-        },
-      });
-      this._runner.externalLayout = (name) => this._sources.runLayout(name);
-    });
     this._step('hyper key', () => {
       this._hyperManager = new HyperManager({
         log: this._log,
@@ -357,7 +335,6 @@ export class SlatedRuntime {
     });
     this._step('focus', () => this._focusTracker?.destroy());
     this._step('config', () => this._store?.stopWatching());
-    this._step('slate sources', () => this._sources?.destroy());
     this._step('shortcuts', () => this._keybindings?.destroy());
     this._step('clipboard', () => this._clipboard?.stop());
     this._step('overlays', () => this._overlays?.destroy());
@@ -378,8 +355,8 @@ export class SlatedRuntime {
     this._log?.record('app.quit', {reason: locked ? 'screen locked' : 'disabled', hyperRestored}, 'notice');
     this._log?.close();
 
-    this._debugService = this._monitors = this._screensChanged = this._store = this._sources = null;
-    this._scriptEvents = this._scriptHost = this._keybindings = this._overlays = this._hud = null;
+    this._debugService = this._monitors = this._screensChanged = this._store = null;
+    this._keybindings = this._overlays = this._hud = null;
     this._input = this._platform = this._snapshots = this._runner = this._hyperManager = this._espanso = null;
     this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = this._sleepWatcher = null;
     this._island = this._hyperHold = null;
@@ -394,11 +371,10 @@ export class SlatedRuntime {
     return this._store?.configuration ?? emptyConfiguration();
   }
 
-  /** Re-registers everything from the current configuration and Slate sources. */
+  /** Re-registers everything from the current configuration. */
   apply() {
     if (!this._started) return;
     const config = this._configuration();
-    const general = config.general ?? {};
 
     // Safety: a reload re-grabs every trigger, so nothing keeps running or stays held across it.
     this._step('automation', () => {
@@ -410,15 +386,12 @@ export class SlatedRuntime {
     const island = islandSettings(config.island);
     this._step('island', () => this._island?.apply(island));
 
-    this._step('slate sources', () => {
-      const paths = general.loadSlateConfigs === false ? [] : (general.slateConfigPaths ?? DEFAULT_SLATE_PATHS);
-      this._sources?.load(paths);
-    });
-    const settings = {...(this._sources?.settings ?? {}), ...(config.settings ?? {})};
+    // Slate's window settings (settings.json's `windows`).
+    const settings = {...(config.windows ?? {})};
     this._settings = settings;
     if (this._runner) {
       this._runner.settings = settings;
-      this._runner.setLayouts([...(this._sources?.layouts ?? []), ...(config.layouts ?? [])]);
+      this._runner.setLayouts(config.layouts ?? []);
     }
 
     this._step('hyper key', () => {
@@ -452,13 +425,8 @@ export class SlatedRuntime {
       // second press stops them instead.
       const repeat = readKeyboardRepeat();
       this._whileHeldMode = repeat.enabled ? 'key-repeat' : 'toggle';
-      // Slated's own bindings come first so they win over Slate-file duplicates; the built-in
-      // clipboard and stop shortcuts come last, so a binding on the same keys wins (as on macOS).
-      // Shortcuts imported from a Slate file that keeps loading are the settings window's now: the
-      // file's copies would come back as soon as one is deleted or moved there.
-      const imported = new Set(Array.isArray(general.importedSlateShortcuts) ? general.importedSlateShortcuts : []);
-      const slateEntries = (this._sources?.entries(settings) ?? []).filter((entry) => !imported.has(entry.id));
-      const entries = [...this._configEntries(config, settings), ...slateEntries, ...this._builtInEntries(config)];
+      // The built-in clipboard and stop shortcuts come last, so a binding on the same keys wins (as on macOS).
+      const entries = [...this._configEntries(config, settings), ...this._builtInEntries(config)];
       this._shortcutEntries = entries;
       this._logWhileHeld(entries);
       this._keybindings.apply(entries, {
@@ -719,22 +687,17 @@ export class SlatedRuntime {
     if (!this._runner) return;
     const screens = currentScreens();
     this._log.record('display.changed', {screens: screens.length, resolutions: screens.map(resolutionOf).sort(), reason});
-    // config.json's come first, as with bindings: an imported default edited in the settings window wins
-    // over the copy still in a Slate file that keeps loading.
-    const defaults = [...(this._configuration().defaults ?? []).map(defaultEntry).filter(Boolean), ...(this._sources?.defaults ?? [])];
+    const defaults = (this._configuration().defaults ?? []).map(defaultEntry).filter(Boolean);
     const trigger = `display change (${screens.length} screens)`;
     for (const entry of defaults) {
       if (!conditionMatches(entry.condition, screens)) continue;
       if (this._runner.layouts.has(entry.target)) {
         this._runner.run({op: 'layout', name: entry.target}, {trigger});
-      } else if (this._sources?.runLayout(entry.target)) {
-        this._log.record('action.done', {trigger, action: `layout ${entry.target}`, source: 'JavaScript'});
       } else {
         this._runner.run({op: 'activate-snapshot', name: entry.target}, {trigger});
       }
       break;
     }
-    this._sources?.runCallbackDefaults(screens);
     this._publishStatus();
   }
 
@@ -749,7 +712,6 @@ export class SlatedRuntime {
       hyper: this._hyper,
       hotstrings: this._hotstrings,
       hotkeys: this._keybindings?.statuses ?? {},
-      sources: this._sources?.sources ?? [],
       automation: {
         running: running ? (this._automation?.active ?? []).map((a) => a.title) : [],
         shortcuts: running ? automationShortcuts(this._automation?.active ?? []) : [],

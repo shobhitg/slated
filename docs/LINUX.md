@@ -1,7 +1,9 @@
 # Slated for Linux (GNOME)
 
 Slated for Linux is a **GNOME Shell extension** with a settings window. It uses the same files as
-the Mac app: your Slated `config.json`, `~/.slate.js` and `~/.slate`.
+the Mac app: `~/.config/slated/config.json` (what your keys do) and `settings.json` beside it (how
+Slated behaves). A `~/.slate.js` or `~/.slate` is imported into them once; Slated doesn't read
+Slate files after that ([Your Slate config](#your-slate-config)).
 
 > **Status:** early development, for GNOME 46–51 (Ubuntu 24.04 to 26.04, Fedora 40 to 45). It was
 > written and reviewed against GNOME 46–49; 50 and 51 load it but haven't been tested yet. There's no
@@ -15,9 +17,9 @@ under [Limitations](#limitations): it works only on GNOME, and updates load when
 
 | Part | What it does | Where |
 |---|---|---|
-| Extension | Window management, shortcuts, overlays, the island, Slate configs, the Hyper key, espanso's match file, game automation, clipboard history, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
+| Extension | Window management, shortcuts, overlays, the island, the Hyper key, espanso's match file, game automation, clipboard history, status and log | `linux/gnome-extension/extension.js`, `lib/platform/` |
 | Engine | Expressions, Slate syntax, window math and config: the JavaScript port of `SlatedCore` | `linux/gnome-extension/lib/core/` |
-| Settings | The libadwaita preferences window: GNOME's version of the Mac settings app | `linux/gnome-extension/prefs.js`, `lib/prefs/` |
+| Settings | The libadwaita preferences window: GNOME's version of the Mac settings app. Also the Slate importer and the config migration, which the extension shares | `linux/gnome-extension/prefs.js`, `lib/prefs/` |
 
 ## Install
 
@@ -80,8 +82,8 @@ In many keyboard layouts, GNOME's option puts Hyper on the same modifier as Supe
 ✦A and Super+A as the same shortcut. keyd avoids that.
 
 keyd's configuration is a system file that the extension can't change. The installer writes it from
-`config.json`, using `keyboard.capsLockAlone` (tap for Escape), `keyboard.hyperModifiers` (Meh) and
-the island's cheat-sheet settings (how long a tap can be, below). **After changing any of them in
+`config.json`'s `keyboard.capsLockAlone` (tap for Escape) and `keyboard.hyperModifiers` (Meh), and
+`settings.json`'s island cheat-sheet settings (how long a tap can be, below). **After changing any of them in
 Settings, run `linux/install.sh --hyper-keyd` again.** `--tap-escape` turns the tap on whatever
 `config.json` says. If keyd already has another configuration, the installer doesn't write its own.
 Instead it prints the lines to add to yours. To remove the file the installer wrote, run
@@ -130,7 +132,7 @@ others, and from the very top over a fullscreen window. It shows:
   run (`island.showFailures`).
 
 Settings → General → Island has the Mac's switches and the cheat-sheet delay. Turning the island
-off (`"island": {"enabled": false}`) brings back the bottom HUD and the red pill
+off (`"island": {"enabled": false}` in `settings.json`) brings back the bottom HUD and the red pill
 ([CONFIG.md](CONFIG.md#notch-island)).
 
 GNOME tells an extension about keys only through its own shortcuts, never about Caps Lock going down
@@ -157,16 +159,15 @@ the page you left it on.
 
 | Section | What's there |
 |---|---|
-| Get Started | First-run setup, as on the Mac: welcome, the Hyper key, hotstrings, your Slate config, done. GNOME needs no permission, so instead the Hyper key step recommends keyd (with the `linux/install.sh --hyper-keyd` command until it's set up) and the hotstrings step checks espanso, with "Skip for Now" until it's in sync. The Slate config step loads your Slate files as they are, or offers the starter shortcuts. Done lists what works and a shortcut to try. It leads the sidebar until you finish it (the badge says which step you're on); Overview → What's Next → **Get Started** opens it again |
-| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, tips from your own shortcuts, and what to do next |
-| Windows | Your shortcuts plus your Slate files' shortcuts (read-only), searchable, with keycaps and status. A `~/.slate.js` function is named by what it does ("First Third", captioned "JavaScript function"), or says why it can't be. Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
+| Get Started | First-run setup, as on the Mac: welcome, the Hyper key, hotstrings, your Slate config, done. GNOME needs no permission, so instead the Hyper key step recommends keyd (with the `linux/install.sh --hyper-keyd` command until it's set up) and the hotstrings step checks espanso, with "Skip for Now" until it's in sync. The Slate config step says what was imported from your Slate config (and what couldn't be converted), offers **Import…** when one is there but wasn't imported, or the starter shortcuts when there's none. Done lists what works and a shortcut to try. It leads the sidebar until you finish it (the badge says which step you're on); Overview → What's Next → **Get Started** opens it again |
+| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, tips from your own shortcuts, and what to do next. After the move to two files imported your Slate config, it says so once, until you dismiss it. A file that can't be read is named, with **Open Config File** or **Open Settings File** |
+| Windows | Your shortcuts, searchable, with keycaps and status (imported Slate shortcuts are ordinary ones). Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
 | Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
 | Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, privacy (secrets, excluded apps), and the picker's keys. Shows how many items are saved |
 | Automation | What runs now, your automations, eleven recipes (auto-click, hold a button or key, sprint and crouch toggles, spam a key, click N times, double-click, a walk-then-click macro), the safety settings, and what GNOME does differently |
 | Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh |
-| Layouts | Arrange several apps at once. Layouts from Slate files are read-only |
-| Slate Compatibility | Your Slate files' status and problems, **Import into Slated**, and which files to load |
-| General | Turn Slated on or off, the action banner, the island (on or off, the Caps Lock cheat sheet and its delay, explaining shortcuts that can't run), window behavior, where the config and log are, and this build |
+| Layouts | Arrange several apps at once |
+| General | Turn Slated on or off, the action banner, the island (on or off, the Caps Lock cheat sheet and its delay, explaining shortcuts that can't run), window behavior, **Files** (where things live, **Open Config File**, **Open Settings File**, **Import Slate Config into Slated…**), the log, and this build |
 | About | Version, credits, license, and debug information for bug reports |
 
 Adding a recipe makes an ordinary shortcut and opens its editor with the shortcut recorder running;
@@ -178,23 +179,77 @@ with keyd. The editor has the Mouse & Keys actions: click, press or release, hol
 (what repeats, how often, toggle or while held, a number of runs, humanized timing), wait and stop
 automations.
 
-Changes save as you make them, after a short pause. Anything with an error, such as a half-typed
-expression or an empty trigger, is flagged where you edit it and isn't written to `config.json`
-until you fix it. If `config.json` can't be read, Settings stops saving so nothing in the file is
-lost, and the Overview shows the error.
+Changes save as you make them, after a short pause, to the file they belong in: a shortcut,
+hotstring or Hyper key change rewrites only `config.json`, an island or clipboard setting only
+`settings.json`. Anything with an error, such as a half-typed expression or an empty trigger, is
+flagged where you edit it and isn't written until you fix it. If either file can't be read,
+Settings stops saving so nothing in it is lost, and the Overview names the file and the problem.
 
-**Import into Slated** runs your `~/.slate.js` on a stand-in desktop with one landscape and one
-portrait screen. Each shortcut whose function always does the same thing becomes an ordinary
-Slated shortcut. One that does different things on the two screens becomes a `by-orientation`
-shortcut. Shortcuts that need JavaScript while they run stay in your Slate file, and the import
-lists them with the reason. If everything converts, Slated stops loading your Slate files. You can
-turn that back on in Slate Compatibility. Otherwise the Slate files keep loading for the rest.
+There's no Slate Compatibility page any more: Slated doesn't load Slate files, so there's nothing
+live to show. **Import Slate Config into Slated…** (General → Files, and Get Started) is the Mac's
+menu command of that name.
+
+## Your Slate config
+
+Slated doesn't read `~/.slate.js` or `~/.slate` while it runs. Their shortcuts, layouts, display
+defaults and settings become part of Slated's own files, once:
+
+- **On a first run** (no `config.json` yet), Slated imports `~/.slate.js`, else `~/.slate`. Without
+  either it starts from the starter shortcuts.
+- **When an older Slated's `config.json` is found** (below), Slated imports the Slate files it used
+  to load.
+- **Any time**, with **Import Slate Config into Slated…**.
+
+Importing runs your `~/.slate.js` on stand-in desktops with a landscape and a portrait screen. Each
+shortcut whose function always does the same thing becomes an ordinary Slated shortcut; one that
+does different things on the two screens becomes a `by-orientation` shortcut. A shortcut whose keys,
+modal key and app filter Slated already has is left alone, so importing again only brings over
+what's new. What needs JavaScript while it runs can't be converted, and the import lists it by its
+keys, with the reason. Your Slate file is never changed.
+
+### From one file to two
+
+Slated used to keep everything in `config.json` (version 1) and load your Slate files live. Now
+`config.json` (version 2) holds the keyboard, bindings, hotstrings, layouts and display defaults,
+and `settings.json` the rest. When the extension or the settings window finds a version 1
+`config.json`, it:
+
+1. copies it to `config.v1.json` beside it (an existing copy is never overwritten);
+2. moves `general`, `settings` (now `windows`), `clipboard`, `automation` and `island` to
+   `settings.json`, unless `settings.json` exists already (then that wins);
+3. imports the Slate files it loaded (`general.slateConfigPaths`, else `~/.slate.js`, else `~/.slate`),
+   unless `general.loadSlateConfigs` was false, skipping the shortcuts in
+   `general.importedSlateShortcuts` (imported before, maybe changed or deleted since);
+4. writes `settings.json`, then `config.json`, and logs `config.migrated` with counts only;
+5. records what it imported in `~/.local/state/slated/config-migration.json`. The settings window's
+   Overview then says, once: "Your ~/.slate.js shortcuts are now part of Slated's config. Slated
+   doesn't read ~/.slate.js any more: edit them here or in ~/.config/slated/config.json." It adds how
+   many couldn't be converted, and which.
+
+A file that doesn't parse isn't migrated: Settings shows what's wrong, and nothing is written until
+it's fixed. The next start finds version 2, so nothing happens twice.
+
+**Where it runs.** Whichever process reads the old file first: usually the extension, as GNOME Shell
+starts it at login after an update. Both use the same code, `lib/prefs/migration.js` and the Slate
+importer, which are plain JavaScript without GTK (a test checks that), so the extension migrates
+completely, Slate import included. That keeps your shortcuts working from the first login after the
+update, before the settings window is ever opened: the extension doesn't load Slate files any more,
+so a migration that left the import to the settings window would leave them dead until then. Your
+`~/.slate.js` ran inside GNOME Shell at every login before; the import runs it there one last time,
+on stand-in desktops. The settings window, a separate process, migrates when it's opened first, for
+example right after `linux/install.sh` while GNOME Shell still runs the previous build. Either way the
+record tells the settings window what to say, and dismissing the notice is remembered there.
+The Mac app reads both layouts too, so files shared between the two migrate on whichever opens them
+first.
 
 ## Files
 
 | File | Written by | |
 |---|---|---|
-| `~/.config/slated/config.json` | Settings (and you) | The configuration, shared with the Mac app (see [CONFIG.md](CONFIG.md)). The extension watches it and applies changes. |
+| `~/.config/slated/config.json` | Settings (and you) | What your keys do: the Hyper key, shortcuts, hotstrings, layouts and display defaults. Shared with the Mac app (see [CONFIG.md](CONFIG.md)). The extension watches it and applies changes |
+| `~/.config/slated/settings.json` | Settings (and you) | How Slated behaves: `general`, `windows` (Slate's window settings), `clipboard`, `automation`, `island`. Watched like `config.json` |
+| `~/.config/slated/config.v1.json` | The migration | The version 1 `config.json`, as it was before the move to two files. Never overwritten |
+| `~/.local/state/slated/config-migration.json` | The migration | What a first run or the migration imported from your Slate config, for Get Started and the Overview's notice (`noticeDismissed` once you dismiss it) |
 | `~/.local/state/slated/status.json` | Extension | What's running, read by the settings window (format below) |
 | `~/.local/state/slated/slated.log` | Extension and settings | The event log: JSON Lines with the same events as on the Mac (`app.start`, `action.done`, `config.saved`, `ui.*`…) |
 | `~/.local/state/slated/snapshots.json` | Extension | Saved window snapshots |
@@ -205,8 +260,9 @@ turn that back on in Slate Compatibility. Otherwise the Slate files keep loading
 | `~/.local/share/gnome-shell/extensions/<uuid>/build-info.json` | `linux/install.sh` | `{"version", "commit", "builtAt", "build"}` of the installed build |
 
 These locations follow `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` if you set them. As on the Mac,
-`SLATED_HOME` replaces the home folder and `SLATED_CONFIG` replaces the config file path. Tests use
-these to point everything at a throwaway home.
+`SLATED_HOME` replaces the home folder and `SLATED_CONFIG` replaces the path of `config.json`
+(`settings.json` and `config.v1.json` go beside it). Tests use these to point everything at a
+throwaway home.
 
 `status.json`:
 
@@ -215,7 +271,6 @@ these to point everything at a throwaway home.
  "hyper": {"wanted": true, "mode": "xkb", "active": true},
  "hotstrings": {"engine": "espanso", "espansoInstalled": true, "matchFile": "~/.config/espanso/match/slated.yml", "count": 3},
  "hotkeys": {"hyper+a": "active", "hyper+q": "failed: <reason>", "hyper+w": "duplicate", "hyper+z": "disabled"},
- "sources": [{"path": "~/.slate.js", "kind": "javascript", "exists": true, "loaded": true, "bindings": 21, "diagnostics": []}],
  "screens": [{"displayID": 1, "name": "Built-in display", "isMain": true, "scale": 1,
               "frame": {"x": 0, "y": 0, "width": 1920, "height": 1080},
               "visibleFrame": {"x": 0, "y": 32, "width": 1920, "height": 1048}}],
@@ -249,11 +304,11 @@ these to point everything at a throwaway home.
 | Caps Lock tapped alone → Escape | ✓ | With keyd |
 | Hotstrings | Built in, with per-app filters | Through espanso, which Slated keeps in sync. No per-app filters |
 | `insert-text`, `keystroke`, `open-url`, `shell` actions | ✓ | ✓ |
-| `~/.slate.js`, `~/.slate` | JavaScriptCore | GJS, inside GNOME Shell |
-| `~/.slate.js` functions in Settings and the cheat sheet | Named by what they do ("First Third"), found by running the script on pretend Macs | Settings → Windows: the same names, from the importer's run on pretend desktops |
+| `~/.slate.js`, `~/.slate` | Imported once into `config.json` (JavaScriptCore runs the script on pretend Macs) | The same, with the settings window's importer (run on pretend desktops) |
+| Config files | `config.json` and `settings.json` | The same files; a version 1 `config.json` migrates on either |
 | Settings | SwiftUI window | libadwaita window |
 | Status at a glance | Overview in Slated's window | Settings → Overview |
-| First-run setup (Get Started) | Accessibility permission, Hyper key, Slate config | No permission. Hyper key (keyd recommended), espanso for hotstrings, Slate config |
+| First-run setup (Get Started) | Accessibility permission, Hyper key, Slate config (imported) | No permission. Hyper key (keyd recommended), espanso for hotstrings, Slate config (imported) |
 | Start at login | Login item | Runs with your session while the extension is enabled |
 | Permissions | Accessibility, granted once | None needed |
 | Installing an update | `./install.sh` relaunches the app | Log out and back in (Wayland) or Alt+F2 `r` (Xorg). A nested shell lets you try it first |
@@ -284,8 +339,10 @@ these to point everything at a throwaway home.
   do the tap-for-Escape or Meh, and in many layouts it shares a modifier with Super.
 - **Shortcuts GNOME already uses** (Super+A, Super+Tab…) stay GNOME's, and Slated reports them as
   failed. Pick other keys, or change GNOME's in GNOME Settings → Keyboard → Keyboard Shortcuts.
-- **`~/.slate.js` runs inside GNOME Shell.** An endless loop in it freezes the whole desktop, not
-  just Slated. Errors show up in Settings → Slate Compatibility.
+- **A `~/.slate.js` imported by the extension runs inside GNOME Shell**, once, when it migrates an
+  older `config.json` or on a first run. An endless loop in it would freeze the desktop then. To
+  avoid that, open Slated's settings before logging in with the new build: the settings window,
+  a separate process, migrates first.
 - **GNOME reports only key presses, not releases.** `repeat … while-held` notices that you let go
   when the key's auto-repeat stops: about 0.1 s later, or as soon as you press or release another
   key, since GNOME repeats only the last key pressed. With key repeat turned off in GNOME Settings, or
@@ -333,7 +390,7 @@ change without logging out. It shares your settings, `config.json` and log with 
 
 | What you changed | How to see it |
 |---|---|
-| Settings window (`prefs.js`, `lib/prefs/`) | Run `linux/install.sh`, then close and reopen the settings window |
+| Settings window (`prefs.js`, `lib/prefs/`) | Run `linux/install.sh`, then close and reopen the settings window. `lib/prefs/migration.js` and `importer.js` also run in the extension: see below for that |
 | Extension or engine | Run `linux/install.sh --nested`, or run `linux/install.sh` and log out and back in |
 
 Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
@@ -341,10 +398,10 @@ Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
 | Command | What it covers |
 |---|---|
 | `make linux-test` | The engine under Node, held to the Swift behavior by golden vectors. `gjs -m linux/tests/run.mjs` runs the same tests under GJS |
-| `make linux-test-prefs` | The settings logic (model, validation, presets, automation recipes, import, status), plus the whole settings UI driven on mock GTK and libadwaita |
+| `make linux-test-prefs` | The settings logic (model, validation, presets, automation recipes, import, the two files and the migration, status), plus the whole settings UI driven on mock GTK and libadwaita |
 | `make linux-test-prefs-gjs` | The settings logic tests under GJS |
 | `make linux-test-gtk` | The settings window on real GTK 4 and libadwaita (needs `gjs gir1.2-adw-1 xvfb dbus`) |
-| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: shortcuts, per-app grabs, automation timing and safety stops, the island and its cheat sheet, clipboard history, status and log (Node 22.15+) |
+| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: both config files, first runs and the migration, shortcuts, per-app grabs, automation timing and safety stops, the island and its cheat sheet, clipboard history, status and log (Node 22.15+) |
 | `make linux-test-installer` | `linux/install.sh` against stand-ins for GNOME's tools, plus `scripts/logs.py`'s log locations |
 | `linux/tests/gnome/run.sh` | The extension in a real GNOME Shell |
 | `node linux/tests/prefs/coverage.mjs` | Which settings code no test runs |
@@ -378,8 +435,9 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | A shortcut says "Couldn't register" | GNOME or another extension already uses those keys. Pick other keys, or free them in GNOME Settings → Keyboard → Keyboard Shortcuts. |
 | Caps Lock isn't Hyper | Settings → Keyboard shows which method is active and whether it works. With keyd, check `sudo systemctl status keyd`, and that a config in `/etc/keyd` maps `capslock` in its `[main]` section. |
 | Hotstrings don't expand | Settings → Hotstrings shows espanso's status. Check `espanso status` and `espanso log`. |
-| Editing `config.json` by hand changes nothing | The file must be valid JSON (comments and trailing commas are fine). Settings → Overview shows what's wrong, and `scripts/logs.py --errors` shows what the extension saw. |
-| Settings says it can't read `config.json` | The message names the spot, such as `bindings[2].id`. Ids must be UUIDs: delete a bad `"id"` line and Slated makes a new one. Settings won't save until the file reads, so nothing in it is lost. Operations from a newer Slated for Mac than the engine knows also stop it here. |
+| Editing `config.json` or `settings.json` by hand changes nothing | The file must be valid JSON (comments and trailing commas are fine), and each setting in its own file (`island` in `settings.json`, `bindings` in `config.json`). Settings → Overview shows what's wrong, and `scripts/logs.py --errors` shows what the extension saw. |
+| Settings says it can't read `config.json` or `settings.json` | The message names the file and the spot, such as `bindings[2].id`. Ids must be UUIDs: delete a bad `"id"` line and Slated makes a new one. Settings won't save until the file reads, so nothing in either file is lost. Operations from a newer Slated for Mac than the engine knows also stop it here. |
+| My `~/.slate.js` changes don't do anything | Slated doesn't read Slate files any more. Edit the shortcuts in Settings → Windows (or `config.json`), or run **Import Slate Config into Slated…** to bring over new ones. `scripts/logs.py --grep config.migrated` shows what the migration imported; `config.v1.json` is the old file. |
 | A `while-held` repeat keeps going after I let go | Check that Repeat Keys is on in GNOME Settings → Keyboard (`status.json` says `"whileHeld": "toggle"` otherwise). A repeat that types keys always needs a second press. `scripts/logs.py --grep automation.while_held` says which bindings work like toggles and why. |
 | An automation stops by itself | `scripts/logs.py --grep automation.stopped` gives the reason: switching apps or opening the overview (`automation.stopOnAppSwitch`), the time limit (`automation.maxRunMinutes`), the stop shortcut, going to sleep, or a config change. |
 | An automation shortcut does nothing in the overview | By design: an auto-clicker started there would click into it. Close the overview first. `scripts/logs.py --grep automation.start_ignored` lists the presses Slated ignored. |

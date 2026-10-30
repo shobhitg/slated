@@ -10,7 +10,8 @@
 
 import {keysCombo, keysString, isHyper} from './keys.js';
 import {matchingPreset, starterBindings} from './presets.js';
-import {actionTitle, bindingTitle} from './actions.js';
+import {bindingTitle} from './actions.js';
+import {importedText} from './migration.js';
 import {espansoGuidance} from './hotstrings.js';
 import {plural, isObject} from './util.js';
 
@@ -56,18 +57,13 @@ export function primaryTitle(step, {hotstringsReady = true} = {}) {
   }
 }
 
-/** The Slate files' bindings that run: none while Slated doesn't load the files. */
-export function loadedSourceBindings(sources, slateLoading) {
-  return slateLoading ? sources.filter(s => s.exists).flatMap(s => s.bindings) : [];
-}
-
 /**
  * The Hyper switch's subtitle (HyperKeyStep.hyperSubtitle): points out when the user's own shortcuts
  * already use all four Hyper modifiers, so the choice is obvious.
  */
-export function hyperSubtitle({bindings, sourceBindings, hyperOn}) {
+export function hyperSubtitle({bindings, hyperOn}) {
   const usesHyper = b => isHyper(keysCombo(b.keys).modifiers);
-  const count = bindings.filter(usesHyper).length + sourceBindings.filter(usesHyper).length;
+  const count = bindings.filter(usesHyper).length;
   if (!count || hyperOn) return 'You can change this any time under Keyboard.';
   return `${count === 1 ? '1 of your shortcuts uses' : `${count} of your shortcuts use`} ✦ (Ctrl+Alt+Shift+Super). `
     + `Turn this on to press ${count === 1 ? 'it' : 'them'} with Caps Lock.`;
@@ -134,36 +130,42 @@ export function hotstringsStep({config, status, running}) {
 }
 
 /**
- * The Slate config step (SlateConfigStep): the Slate files found, whether Slated loads them, and
- * whether to offer the starter shortcuts (when Slated has none of its own, or there's no Slate file).
+ * The Slate config step (SlateConfigStep). Slated doesn't load Slate files: a first run imports one
+ * into its own shortcuts, and so does the move from version 1. The step says what was imported (from
+ * config-migration.json's record), or offers the import when a Slate config is here but wasn't
+ * imported, or the starter shortcuts when there's none (or Slated has no shortcuts of its own).
+ * @param {object} args
+ * @param {object|null} args.record what a migration or first run imported (migration.js)
+ * @param {Array} args.slateFiles the Slate configs found (model.slateFiles)
+ * @param {boolean} args.importedHere whether an import ran in this window (settings-window.json)
+ * @param {Array} args.bindings Slated's bindings
  */
-export function slateStep({sources, slateLoading, bindings}) {
-  const found = sources.filter(s => s.exists);
-  const count = found.reduce((n, s) => n + s.bindings.length, 0);
-  const offerStarter = !bindings.length || !found.length;
-  if (!found.length) {
+export function slateStep({record, slateFiles, importedHere = false, bindings}) {
+  const offerStarter = !bindings.length || !slateFiles.length;
+  const files = slateFiles.map(f => f.displayPath);
+  if (record?.slate) {
     return {
-      state: 'none', found, offerStarter, title: 'Start with a few great shortcuts',
-      subtitle: 'No ~/.slate or ~/.slate.js here — no problem. Add a starter set now and make it yours under Windows.',
+      state: 'imported', offerStarter, offerImport: false, title: 'Your Slate shortcuts are in Slated',
+      subtitle: `${importedText(record)} Edit them under Windows. Slated doesn't read Slate files any more.`,
     };
   }
-  if (!slateLoading) {
+  if (importedHere) {
     return {
-      state: 'off', found, offerStarter, title: 'Your Slate config is here',
-      subtitle: "Slated isn't loading it. Turn it on to run its shortcuts alongside Slated's own. Nothing is converted or changed.",
+      state: 'imported', offerStarter, offerImport: true, title: 'Your Slate shortcuts are in Slated',
+      subtitle: "Edit them under Windows. Slated doesn't read Slate files any more; import again any time to bring over new ones.",
+    };
+  }
+  if (slateFiles.length) {
+    return {
+      state: 'found', offerStarter, offerImport: true, title: 'Your Slate config is here',
+      subtitle: `Import the shortcuts in ${files.join(' and ')} to use them in Slated. Slated doesn't read Slate files directly, `
+        + "and your file isn't changed.",
     };
   }
   return {
-    state: 'loaded', found, offerStarter, title: 'Your Slate config works as-is',
-    subtitle: `Slated found ${plural(count, 'binding')} and will run them alongside its own. Nothing is converted or changed.`,
+    state: 'none', offerStarter, offerImport: false, title: 'Start with a few great shortcuts',
+    subtitle: 'No ~/.slate or ~/.slate.js here — no problem. Add a starter set now and make it yours under Windows.',
   };
-}
-
-/** A Slate file's line in the Slate config step: "21 bindings · 2 layouts", or why it isn't loaded. */
-export function sourceSummary(source, slateLoading) {
-  if (source.error) return source.error;
-  if (!slateLoading) return 'Not loaded';
-  return plural(source.bindings.length, 'binding') + (source.layouts.length ? ` · ${plural(source.layouts.length, 'layout')}` : '');
 }
 
 /** Whether every starter shortcut's keys are taken by one of Slated's own bindings already. */
@@ -198,20 +200,10 @@ export function doneChecklist({summary, config, status, running, totalShortcuts}
 
 /**
  * "Try it now" on the done step (DoneStep.tipBinding): one of Slated's shortcuts that snaps a window
- * to a half, else a Slate file's shortcut that places it ("for first third").
+ * to a half.
  * @returns {{keys, modal, text: string}|null}
  */
-export function tryItTip({bindings, sourceBindings}) {
+export function tryItTip({bindings}) {
   const own = bindings.find(b => b.enabled !== false && keysString(b.keys) && matchingPreset(b.action)?.group === 'halves');
-  if (own) return {keys: own.keys, modal: own.modal ?? null, text: `to snap this window to the ${bindingTitle(own)}`.toLowerCase()};
-  for (const b of sourceBindings) {
-    let action = b.action ?? null;
-    try {
-      if (!action) action = b.probe?.()?.action ?? null;
-    } catch {
-      action = null;
-    }
-    if (action && matchingPreset(action)) return {keys: b.keys, modal: b.modal ?? null, text: `for ${actionTitle(action)}`.toLowerCase()};
-  }
-  return null;
+  return own ? {keys: own.keys, modal: own.modal ?? null, text: `to snap this window to the ${bindingTitle(own)}`.toLowerCase()} : null;
 }

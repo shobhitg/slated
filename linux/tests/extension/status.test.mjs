@@ -11,16 +11,6 @@ const state = {
   hyper: {wanted: true, mode: 'xkb', active: true},
   hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
   hotkeys: {'hyper+z': 'disabled', 'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate'},
-  sources: [
-    {
-      path: '~/.slate.js',
-      kind: 'javascript',
-      exists: true,
-      loaded: true,
-      bindings: new Array(21).fill({}),
-      diagnostics: [{severity: 'warning', message: 'Hmm', file: '/home/me/.slate.js', line: 4}],
-    },
-  ],
   automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
   clipboard: {enabled: true, items: 12},
   recentApps: [{id: 'steam_app_1086940', name: 'steam_app_1086940'}, {id: 'firefox', name: 'Firefox'}],
@@ -38,7 +28,6 @@ test('status.json has exactly the schema the preferences app reads', () => {
     'hyper',
     'hotstrings',
     'hotkeys',
-    'sources',
     'automation',
     'clipboard',
     'recentApps',
@@ -53,9 +42,6 @@ test('status.json has exactly the schema the preferences app reads', () => {
     hyper: {wanted: true, mode: 'xkb', active: true},
     hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
     hotkeys: {'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate', 'hyper+z': 'disabled'},
-    sources: [
-      {path: '~/.slate.js', kind: 'javascript', exists: true, loaded: true, bindings: 21, diagnostics: ['.slate.js, line 4: Hmm']},
-    ],
     automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
     clipboard: {enabled: true, items: 12},
     recentApps: [{id: 'steam_app_1086940', name: 'steam_app_1086940'}, {id: 'firefox', name: 'Firefox'}],
@@ -69,7 +55,6 @@ test('missing parts get safe defaults', () => {
   assert.deepEqual(status.hyper, {wanted: false, mode: 'off', active: false});
   assert.deepEqual(status.hotstrings, {engine: 'none', espansoInstalled: false, matchFile: null, count: 0});
   assert.deepEqual(status.hotkeys, {});
-  assert.deepEqual(status.sources, []);
   assert.deepEqual(status.automation, {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'});
   assert.deepEqual(status.clipboard, {enabled: true, items: 0});
   assert.deepEqual(status.recentApps, []);

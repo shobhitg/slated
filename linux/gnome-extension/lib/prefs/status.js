@@ -20,7 +20,6 @@ export function emptyStatus() {
     hyper: {wanted: false, mode: 'off', active: false},
     hotstrings: {engine: 'none', espansoInstalled: false, matchFile: null, count: 0},
     hotkeys: {},
-    sources: [],
     screens: null,
     // What runs now (titles as the indicator shows them), the shortcuts that started it, and whether
     // while-held repeats stop as you let go ("key-repeat") or work like toggles ("toggle").
@@ -102,16 +101,6 @@ export function parseStatus(text) {
   }
   if (isObject(raw.hotkeys)) {
     for (const [key, value] of Object.entries(raw.hotkeys)) status.hotkeys[key] = hotkeyState(value);
-  }
-  if (Array.isArray(raw.sources)) {
-    status.sources = raw.sources.filter(isObject).map(s => ({
-      path: str(s.path) ?? '',
-      kind: s.kind === 'classic' ? 'classic' : 'javascript',
-      exists: bool(s.exists),
-      loaded: bool(s.loaded),
-      bindings: num(s.bindings),
-      diagnostics: Array.isArray(s.diagnostics) ? s.diagnostics.map(String) : [],
-    }));
   }
   if (Array.isArray(raw.screens)) {
     const screens = raw.screens.map(screenInfo).filter(Boolean);
@@ -243,29 +232,23 @@ export function runningSummary({status, shell, build = null, runningCommit = nul
  * The binding state shown in lists and editors (port of AppModel.state(for:)).
  *
  * @param {object} args
- * @param {object} args.binding the binding (a config binding, or a Slate source binding)
+ * @param {object} args.binding the binding
  * @param {string} args.key its status.json "hotkeys" key (keys.statusKey)
  * @param {object|undefined} args.saved the same binding as last saved (Slated bindings only)
  * @param {Array} args.issues validation issues for this binding
  * @param {object} args.status parsed status.json
  * @param {boolean} args.running whether the extension is running
  */
-export function bindingState({binding, key, saved, issues = [], status, running, slateLoading = true, isSource = false, imported = false}) {
-  if (isSource) {
-    if (!slateLoading) return {state: 'slate-off'};
-    // In general.importedSlateShortcuts: Slated's copy runs instead.
-    if (imported) return {state: 'imported'};
-  } else {
-    const wasSaved = Boolean(saved);
-    const keys = binding.keys;
-    const empty = !keys || (typeof keys === 'string' ? !keys.trim() : !keys.key);
-    if (empty && !wasSaved) return {state: 'new'};
-    if (binding.enabled === false) return {state: 'disabled'};
-    const error = issues.find(i => i.severity === 'error');
-    if (error) return {state: 'not-saved', message: error.message, wasSaved};
-    // Key order doesn't matter: a binding made here lists its fields in another order than config.json.
-    if (!saved || !deepEqual(saved, binding)) return {state: 'saving'};
-  }
+export function bindingState({binding, key, saved, issues = [], status, running}) {
+  const wasSaved = Boolean(saved);
+  const keys = binding.keys;
+  const empty = !keys || (typeof keys === 'string' ? !keys.trim() : !keys.key);
+  if (empty && !wasSaved) return {state: 'new'};
+  if (binding.enabled === false) return {state: 'disabled'};
+  const error = issues.find(i => i.severity === 'error');
+  if (error) return {state: 'not-saved', message: error.message, wasSaved};
+  // Key order doesn't matter: a binding made here lists its fields in another order than config.json.
+  if (!saved || !deepEqual(saved, binding)) return {state: 'saving'};
   if (!running) return {state: 'not-running'};
   const reported = status.hotkeys?.[key];
   if (!reported) return {state: 'inactive'};
@@ -283,8 +266,6 @@ export function statePresentation(state) {
   case 'not-saved': return {label: 'Not saved', style: 'error', icon: 'dialog-error-symbolic', row: state.message};
   case 'saving': return {label: 'Saving…', style: 'dim', icon: null, row: null};
   case 'not-running': return {label: 'Not running', style: 'dim', icon: null, row: null};
-  case 'slate-off': return {label: 'Not loaded', style: 'dim', icon: null, row: 'Slate files off'};
-  case 'imported': return {label: 'Imported', style: 'dim', icon: null, row: 'Imported'};
   default: return {label: 'Not registered', style: 'dim', icon: null, row: null};
   }
 }
@@ -300,8 +281,6 @@ export function stateExplanation(state) {
     return state.wasSaved
       ? `${state.message} Until then, the last saved version of this shortcut stays in effect.`
       : `${state.message} The shortcut is saved as soon as that's fixed.`;
-  case 'slate-off': return 'Loading Slate files is turned off in Slate Compatibility.';
-  case 'imported': return "Imported into Slated's own shortcuts, where you can change it. Slated ignores this copy in your Slate file.";
   case 'not-running': return "Slated isn't running, so this shortcut does nothing right now. See Overview.";
   default: return null;
   }

@@ -74,7 +74,7 @@ export class ActionRunner {
     this.log = log;
     this.overlays = overlays;
     this.snapshots = snapshots;
-    /** Slate settings (`{defaultToCurrentScreen: true, …}`), merged from every source. */
+    /** Slate's window settings (settings.json's `windows`: `{defaultToCurrentScreen: true, …}`). */
     this.settings = {};
     this.layouts = new Map();
     /**
@@ -89,7 +89,6 @@ export class ActionRunner {
     /** Slate's `relaunch`: reload all configuration. */
     this.onRelaunch = null;
     /** Runs a layout defined in JavaScript. Returns false if there's no such layout. */
-    this.externalLayout = null;
     /** Auto-repeats and held inputs (automation.js `AutomationEngine`). */
     this.automation = null;
     /**
@@ -380,13 +379,7 @@ export class ActionRunner {
 
       case 'layout': {
         const layout = this.layouts.get(action.name);
-        if (!layout) {
-          if (this.externalLayout?.(action.name)) {
-            this._report(`Layout ${action.name}`);
-            return true;
-          }
-          return this._fail(`No layout named "${action.name}"`);
-        }
+        if (!layout) return this._fail(`No layout named "${action.name}"`);
         this._applyLayout(layout);
         this._report(`Layout ${action.name}`);
         return true;
@@ -861,7 +854,7 @@ export class ActionRunner {
     this._destroyed = true;
     this._undo = [];
     this._chains.clear();
-    this.onPerformed = this.onError = this.onFailed = this.onRelaunch = this.externalLayout = null;
+    this.onPerformed = this.onError = this.onFailed = this.onRelaunch = null;
     this.automation = this.clipboard = null;
   }
 }

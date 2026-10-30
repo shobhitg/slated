@@ -238,13 +238,6 @@ test('layouts focus their first app with layoutFocusOnActivate, and unknown name
   assert.equal(log.named('action.failed')[0].data.error, 'No layout named "nope"');
 });
 
-test('layouts defined in JavaScript run through externalLayout', () => {
-  const {runner, performed} = setup();
-  runner.externalLayout = (name) => name === 'js';
-  assert.equal(runner.run({op: 'layout', name: 'js'}, {trigger: 't'}), true);
-  assert.deepEqual(performed, ['Layout js']);
-});
-
 test('directional focus finds the nearest overlapping window; behind follows the stack', () => {
   const {platform, runner} = setup();
   runner.run({op: 'focus', direction: 'right'}, {trigger: 't'});
@@ -618,11 +611,6 @@ test('while automations can’t start, only shortcuts that would start one are i
   assert.equal(runner.run('hold key:w', {trigger: 'hotkey hyper+w'}), true, 'a second press still lets go');
   assert.deepEqual(sent, ['w down', 'w up']);
   assert.deepEqual(log.named('automation.start_ignored').map((e) => e.data), Array(3).fill({reason: 'the overview is open', trigger: 't', source: null}));
-  // A JavaScript layout that tries to start one: the layout itself still did its job.
-  runner.externalLayout = () => runner.run('hold key:w', {trigger: 'script'}) || true;
-  assert.equal(runner.run({op: 'layout', name: 'js'}, {trigger: 't'}), true);
-  assert.equal(runner.lastFailure, null);
-  assert.equal(log.named('action.done').at(-1).data.error, null);
 });
 
 test('clipboard-history opens the switcher, or fails with the reason', () => {

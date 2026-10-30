@@ -33,7 +33,7 @@ export default suite('Status and placement', [
     expectEqual(s.hyper, {wanted: true, mode: 'xkb', active: true});
     expectEqual(s.hotstrings.count, 3);
     expectEqual(s.hotkeys['hyper+q'], {state: 'failed', reason: 'already used by GNOME'});
-    expectEqual(s.sources[0], {path: '~/.slate.js', kind: 'javascript', exists: true, loaded: true, bindings: 21, diagnostics: ['line 3: oops']});
+    expectEqual(s.sources, undefined, "an older extension's Slate sources aren't read: Slate files are only imported");
     expectEqual(s.lastAction, 'Left half · firefox');
     expectEqual(s.screens, null);
     expectEqual(hotkeyCounts(s), {active: 1, failed: 1, duplicate: 1, disabled: 1, unknown: 0});
@@ -107,12 +107,6 @@ export default suite('Status and placement', [
     expectEqual(bindingState({...base, binding: {...binding, enabled: false}}).state, 'disabled');
     expectEqual(bindingState({...base, issues: [{severity: 'error', message: 'Bad.'}]}), {state: 'not-saved', message: 'Bad.', wasSaved: true});
     expectEqual(bindingState({...base, saved: {...binding, keys: 'hyper+w'}}).state, 'saving');
-    expectEqual(bindingState({binding, key: 'hyper+w', status, running: true, isSource: true}).state, 'duplicate');
-    expectEqual(bindingState({binding, key: 'hyper+w', status, running: true, isSource: true, slateLoading: false}).state, 'slate-off');
-    // Imported while the file keeps loading: Slated's copy runs, this one is ignored.
-    expectEqual(bindingState({binding, key: 'hyper+w', status, running: true, isSource: true, imported: true}).state, 'imported');
-    expectEqual(statePresentation({state: 'imported'}).label, 'Imported');
-    expect(stateExplanation({state: 'imported'}).includes('ignores this copy'));
     expectEqual(statePresentation({state: 'failed'}).row, "Couldn't register");
     expect(stateExplanation({state: 'not-saved', message: 'Bad.', wasSaved: true}).includes('last saved version'));
     expectEqual(stateExplanation({state: 'active'}), null);

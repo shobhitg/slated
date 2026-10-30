@@ -1,6 +1,7 @@
-// Reads Slate config files without running Slated, so the preferences can list their bindings and
-// import them into config.json (the macOS app's SlateImporter, Sources/SlatedScript/SlateImporter.swift,
-// and Engine.importSlateConfigs, ported to plain JavaScript).
+// Imports Slate config files into Slated's own configuration (the macOS app's SlateImporter,
+// Sources/SlatedScript/SlateImporter.swift, and Engine.importSlateConfigs, ported to plain
+// JavaScript). Slated doesn't load Slate files any more: they're converted once, by the migration
+// from version 1 (migration.js), on a first run, or when you import them again.
 //
 // ~/.slate.js runs against a fake `slate` API that records what the script registers instead of
 // doing anything. Static operations convert directly. A bound function is run on pretend desktops
@@ -94,18 +95,11 @@ export const PROBE_SETUPS = Object.freeze({
   ]),
 });
 
-/** `slate.on` events, in Slate's order (platform/slateScript.js EVENT_NAMES). */
+/** `slate.on` events, in Slate's order. */
 const EVENT_NAMES = Object.freeze([
   'windowOpened', 'windowClosed', 'windowMoved', 'windowResized', 'windowFocused', 'windowTitleChanged',
   'appOpened', 'appClosed', 'appHidden', 'appUnhidden', 'appActivated', 'appDeactivated', 'screenConfigurationChanged',
 ]);
-
-/**
- * The events the extension delivers to `slate.on` handlers (platform/scriptHost.js SUPPORTED_EVENTS,
- * which this module can't import: it uses gi://). GNOME has no hidden apps, so appHidden and
- * appUnhidden never fire.
- */
-export const DELIVERED_EVENTS = Object.freeze(new Set(EVENT_NAMES.filter(name => name !== 'appHidden' && name !== 'appUnhidden')));
 
 class ProbeError extends Error {}
 
@@ -1010,12 +1004,13 @@ export function loadSlateScript(source, {path = '~/.slate.js', home = '/home/use
 /**
  * Converts a Slate JavaScript config into Slated bindings.
  *
- * `skipped` stays in the script, which then keeps loading; `neverRun` (handlers for events GNOME never
- * delivers) isn't imported and doesn't keep it loading. `settings` leaves out the ones a function
- * computes, and `defaults` are the display defaults naming a layout, in config.json's shape.
+ * `skipped` couldn't be converted: it needs JavaScript while it runs, which Slated no longer runs (a
+ * skipped binding also has its `keys` and `modal`, as config strings), as do `slate.on` handlers.
+ * `settings` leaves out the ones a function computes, and `defaults` are the display defaults naming a
+ * layout, in config.json's shape.
  *
- * @returns {{bindings: Array, skipped: Array<{keystroke, reason}>, neverRun: Array<{keystroke, reason}>,
- *   layouts: Array, settings: object, defaults: Array, diagnostics: Array}}
+ * @returns {{bindings: Array, skipped: Array<{keystroke, reason, keys?, modal?}>, layouts: Array,
+ *   settings: object, defaults: Array, diagnostics: Array}}
  */
 export function importSlateScript(source, options = {}) {
   const makeId = options.makeId ?? newId;
@@ -1025,7 +1020,7 @@ export function importSlateScript(source, options = {}) {
   for (const binding of loaded.bindings) {
     const result = loaded.probe(binding);
     if (!result.action) {
-      skipped.push({keystroke: binding.keystroke, reason: result.reason});
+      skipped.push({keystroke: binding.keystroke, keys: binding.keys, modal: binding.modal?.keys ?? null, reason: result.reason});
       continue;
     }
     const out = {id: makeId(), keys: binding.keys, action: result.action, enabled: true};
@@ -1036,14 +1031,9 @@ export function importSlateScript(source, options = {}) {
     else if (binding.operation[HIDDEN].kind === 'function') out.repeats = false;
     bindings.push(out);
   }
-  // Slate files stop loading after an import that skipped nothing, so everything else the script set
-  // up that doesn't become part of config.json is listed too; the file then keeps running it.
-  const neverRun = [];
-  for (const event of loaded.events) {
-    const handler = `slate.on("${event}")`;
-    if (DELIVERED_EVENTS.has(event)) skipped.push({keystroke: handler, reason: 'event handlers need JavaScript'});
-    else neverRun.push({keystroke: handler, reason: "GNOME doesn't hide apps, so this never runs"});
-  }
+  // Everything else the script set up that doesn't become part of the configuration is listed too:
+  // nothing runs it once the file is imported.
+  for (const event of loaded.events) skipped.push({keystroke: `slate.on("${event}")`, reason: 'event handlers need JavaScript'});
   // A copy of a function's value in config.json would freeze it, and override the function for good.
   for (const name of loaded.functionSettings) {
     skipped.push({keystroke: `slate.config("${name}")`, reason: 'its value comes from a JavaScript function'});
@@ -1058,7 +1048,7 @@ export function importSlateScript(source, options = {}) {
       : condition.resolutions.join(', ');
     skipped.push({keystroke: `slate.default(${displays})`, reason: 'runs JavaScript'});
   }
-  return {bindings, skipped, neverRun, layouts, settings, defaults: loaded.defaults, diagnostics: loaded.diagnostics};
+  return {bindings, skipped, layouts, settings, defaults: loaded.defaults, diagnostics: loaded.diagnostics};
 }
 
 /** A classic ~/.slate file through the engine: {bindings, layouts, settings, defaults, diagnostics}. */
@@ -1081,40 +1071,52 @@ export function importClassic(text, {path, home = '/home/user', readFile = () =>
 }
 
 /**
- * The configuration after importing the given sources (port of Engine.importSlateConfigs):
- * bindings whose keys Slated already uses are left out, the scripts' settings fill in what
- * config.json doesn't set, layouts and display defaults are added once, and when everything converted,
- * Slate files stop loading (they would only duplicate the imported bindings). When they keep loading,
- * the imported shortcuts go into general.importedSlateShortcuts, so the files' own copies are ignored
- * and the imported ones can be changed or deleted here.
+ * Which binding a trigger is: its keys, modal key and app filter. An imported binding whose trigger
+ * Slated already has is left out, so importing again never duplicates anything.
+ */
+export function triggerKey(binding) {
+  const apps = Array.isArray(binding.onlyInApps) ? [...binding.onlyInApps].map(String).sort() : [];
+  return `${statusKey(binding.keys, binding.modal)}|${apps.join(',')}`;
+}
+
+/**
+ * The configuration after importing the given sources (port of Engine.importSlateConfigs): a binding
+ * whose trigger (triggerKey) Slated already has is kept and the Slate one skipped, as are the
+ * shortcuts in `alreadyImported` (version 1's general.importedSlateShortcuts: imported while the
+ * files kept loading, maybe changed or deleted since). The scripts' settings fill in what `windows`
+ * doesn't set, and layouts and display defaults are added once.
  *
  * @param {object} config the current configuration
  * @param {Array<{path: string, result: object}>} results importSlateScript/importClassic results
  * @param {object} [options]
- * @param {boolean} [options.keepLoading] keep Slate files loading even if nothing was skipped (a file
- *   couldn't be read)
+ * @param {string[]} [options.alreadyImported] statusKeys of shortcuts imported before
+ * @returns {{config, added, duplicates: string[], alreadyImported: string[], skipped}}
  */
-export function planImport(config, results, {keepLoading = false} = {}) {
+export function planImport(config, results, {alreadyImported = []} = {}) {
   const next = JSON.parse(JSON.stringify(config));
-  const bound = new Set(next.bindings.map(b => statusKey(b.keys, b.modal)));
+  const bound = new Set(next.bindings.map(triggerKey));
+  const before = new Set(alreadyImported);
   const added = [];
   const skipped = [];
-  const neverRun = [];
   const duplicates = [];
+  const earlier = [];
   for (const {path, result} of results) {
     for (const binding of result.bindings) {
-      const key = statusKey(binding.keys, binding.modal);
+      const key = triggerKey(binding);
+      if (before.has(statusKey(binding.keys, binding.modal))) {
+        earlier.push(statusKey(binding.keys, binding.modal));
+        continue;
+      }
       if (bound.has(key)) {
-        duplicates.push(key);
+        duplicates.push(statusKey(binding.keys, binding.modal));
         continue;
       }
       bound.add(key);
       next.bindings.push(binding);
       added.push(binding);
     }
-    skipped.push(...result.skipped.map(s => ({path, keystroke: s.keystroke, reason: s.reason})));
-    neverRun.push(...(result.neverRun ?? []).map(s => ({path, keystroke: s.keystroke, reason: s.reason})));
-    next.settings = {...(result.settings ?? {}), ...next.settings};
+    skipped.push(...result.skipped.map(s => ({...s, path})));
+    next.windows = {...(result.settings ?? {}), ...next.windows};
     for (const layout of result.layouts ?? []) {
       if (!next.layouts.some(l => l.name === layout.name)) next.layouts.push(layout);
     }
@@ -1123,12 +1125,5 @@ export function planImport(config, results, {keepLoading = false} = {}) {
       if (!next.defaults.some(d => deepEqual(d, entry))) next.defaults.push(entry);
     }
   }
-  const stopsLoading = !skipped.length && !keepLoading;
-  if (stopsLoading) {
-    next.general = {...next.general, loadSlateConfigs: false};
-  } else if (added.length) {
-    const imported = [...(next.general.importedSlateShortcuts ?? []), ...added.map(b => statusKey(b.keys, b.modal))];
-    next.general = {...next.general, importedSlateShortcuts: [...new Set(imported)].sort()};
-  }
-  return {config: next, added, skipped, neverRun, duplicates, stopsLoading};
+  return {config: next, added, skipped, duplicates, alreadyImported: earlier};
 }

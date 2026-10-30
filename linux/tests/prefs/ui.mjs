@@ -4,12 +4,12 @@
 //   node linux/tests/prefs/ui.mjs
 //
 // It builds the window twice, once with only GNOME 46 API ("min") and once with GNOME 49 API
-// reachable behind `in` checks ("new"), against a temporary home with a config, a status file, a
-// ~/.slate.js and a log. Then it uses every page the way a person would: Get Started on the first
+// reachable behind `in` checks ("new"), against a temporary home with config.json, settings.json, a
+// status file, a ~/.slate.js to import and a log. Then it uses every page the way a person would: Get Started on the first
 // open (and the window opening on Overview once it's finished), switching sections,
 // editing and recording shortcuts, trying every action kind, presets and nested editors, hotstrings,
-// clipboard and automation settings, recipes, app pickers, layouts, importing the Slate file, and
-// closing the window. Any unknown GTK/libadwaita API, wrong
+// clipboard and automation settings, recipes, app pickers, layouts, importing the Slate file, the
+// move from a version 1 config.json and its notice, and closing the window. Any unknown GTK/libadwaita API, wrong
 // argument count, GTK critical (removing a non-child, double parenting), unguarded newer API, or a
 // JavaScript error in a handler fails the run. It doesn't check pixels: that's the manual checklist.
 
@@ -22,12 +22,18 @@ import {createWorld, findAll, descendants, prop, MockError} from './gi/mock.mjs'
 
 // Before anything imports the preferences modules: gi://, cairo and the engine go to the mocks.
 register('./gi/hooks.mjs', import.meta.url);
-const {decodeConfiguration} = await import('../../gnome-extension/lib/prefs/engine.js');
+const {decodeConfigurationFiles} = await import('../../gnome-extension/lib/core/index.js');
 const {kindById} = await import('../../gnome-extension/lib/prefs/actions.js');
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const api = JSON.parse(fs.readFileSync(path.join(here, 'gi/api.json'), 'utf8'));
 const author = fs.readFileSync(path.join(here, 'fixtures/slate-author-like.js'), 'utf8');
+
+/** What config.json and settings.json in `files` read as, together. */
+function readFiles(files) {
+  const read = file => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
+  return decodeConfigurationFiles(read(files.configFile), read(files.settingsFile)).configuration;
+}
 const UUID = 'slated@shobhit-aida.github.io';
 
 // Fixture ids: config.json ids must be UUIDs (the engine rejects anything else, as Swift does).
@@ -60,6 +66,7 @@ const check = (condition, message) => {
 function makeHome() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'slated-prefs-ui-'));
   const config = {
+    version: 2,
     keyboard: {capsLock: 'hyper'},
     bindings: [
       {id: ID.HALF, name: 'Left half', keys: 'hyper+a', action: {op: 'push', direction: 'left', style: 'bar-resize:screenSizeX/2'}},
@@ -83,6 +90,9 @@ function makeHome() {
       {id: ID.SHRUG, trigger: ';s', replacement: '¯\\_(ツ)_/¯'},
       {id: ID.SIG, trigger: ';sig', replacement: 'Thanks', onlyInApps: ['org.gnome.Evolution']},
     ],
+  };
+  const settingsJSON = {
+    version: 2,
     // Hand-edited values the Clipboard and Automation pages offer as their own choices and keep.
     clipboard: {maxItems: 42, shortcut: null},
     automation: {showIndicator: false},
@@ -91,6 +101,7 @@ function makeHome() {
   };
   fs.mkdirSync(path.join(home, '.config/slated'), {recursive: true});
   fs.writeFileSync(path.join(home, '.config/slated/config.json'), JSON.stringify(config, null, 2));
+  fs.writeFileSync(path.join(home, '.config/slated/settings.json'), JSON.stringify(settingsJSON, null, 2));
   fs.mkdirSync(path.join(home, '.local/state/slated'), {recursive: true});
   const status = {
     session: 'abcd1234', version: '0.1.0', running: true, updatedAt: new Date().toISOString(),
@@ -101,7 +112,6 @@ function makeHome() {
     automation: {running: ['Repeat click left every 100 ms'], shortcuts: ['f'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
     clipboard: {enabled: true, items: 12},
     recentApps: [{id: 'steam_app_1086940', name: 'steam_app_1086940'}, {id: 'org.mozilla.firefox', name: 'Firefox'}],
-    sources: [{path: '~/.slate.js', kind: 'javascript', exists: true, loaded: true, bindings: 21, diagnostics: ['line 3: something odd']}],
     screens: [
       {displayID: 1, name: 'Laptop', frame: {x: 0, y: 0, width: 1920, height: 1080}, visibleFrame: {x: 0, y: 32, width: 1920, height: 1048}, isMain: true, scale: 1},
       {displayID: 2, name: 'Tall', frame: {x: 1920, y: 0, width: 1080, height: 1920}, visibleFrame: {x: 1920, y: 0, width: 1080, height: 1920}, isMain: false, scale: 1},
@@ -115,7 +125,8 @@ function makeHome() {
   const extension = path.join(home, '.local/share/gnome-shell/extensions', UUID);
   fs.mkdirSync(extension, {recursive: true});
   fs.writeFileSync(path.join(extension, 'build-info.json'), JSON.stringify({version: '0.1.0', commit: 'abc1234-dirty', builtAt: '2026-10-22T18:00:00Z'}));
-  return {home, extension, configFile: path.join(home, '.config/slated/config.json'), statusFile: path.join(home, '.local/state/slated/status.json'),
+  return {home, extension, configFile: path.join(home, '.config/slated/config.json'), settingsFile: path.join(home, '.config/slated/settings.json'),
+    statusFile: path.join(home, '.local/state/slated/status.json'),
     logFile: path.join(home, '.local/state/slated/slated.log'), keydConfig: path.join(home, 'etc-keyd-slated.conf')};
 }
 
@@ -198,7 +209,7 @@ async function run(mode) {
   await step('reads status.json, GNOME Shell\'s state, build-info.json and the running commit', async () => {
     // The Mac's sidebar, in its order: Get Started leads while setup isn't finished.
     const order = rows.map(r => world.stateOf(r).expandos._slatedId);
-    check(order.join() === 'getStarted,overview,windows,hotstrings,clipboard,automation,keyboard,layouts,slate,general,about',
+    check(order.join() === 'getStarted,overview,windows,hotstrings,clipboard,automation,keyboard,layouts,general,about',
       `sections: ${order.join()}`);
     check(model.status.session === 'abcd1234', 'status.json was read');
     check(model.shell.state === 'active', `shell state from D-Bus, got ${JSON.stringify(model.shell)}`);
@@ -243,11 +254,10 @@ async function run(mode) {
     check(world.report.launches.some(l => l.uri === 'https://espanso.org/install/linux/'), 'opens espanso\'s install page');
     next();
     onStep('slateConfig');
-    check(labels().includes('Your Slate config works as-is'), 'the ~/.slate.js loads as-is');
-    const load = titled(root, 'Adw.SwitchRow', 'Load my Slate config')[0];
-    load.set_active(false);
-    check(!model.slateLoading && labels().includes('Your Slate config is here'), 'turning it off says it isn\'t loaded');
-    load.set_active(true);
+    // Slated doesn't read ~/.slate.js: it's offered for import (done under General, below).
+    check(labels().includes('Your Slate config is here'), 'the ~/.slate.js is found');
+    check(buttons(root, 'Import…').length === 1, 'and offered for import');
+    check(rowsIn(root, (w, s) => s.props.get('title') === '~/.slate.js').length === 1, 'naming the file');
     click(buttons(root, 'Back')[0]);
     onStep('hotstrings');
     next();
@@ -291,11 +301,12 @@ async function run(mode) {
     check(shell.calls.includes('Logout'), 'asks the session manager to log out');
   });
 
-  await step('Windows lists Slated\'s and the Slate file\'s bindings with states', async () => {
+  await step('Windows lists Slated\'s bindings with states', async () => {
     settings.showPane('windows');
     const root = visible('windows');
     const all = rowsIn(root, (w, s) => (s.handlers.get('activated')?.size ?? 0) > 0);
-    check(all.length >= 7 + 21, `binding rows: ${all.length}`);
+    check(all.length >= 9, `binding rows: ${all.length}`);
+    check(!rowsIn(root, (w, s) => s.props.get('title') === '~/.slate.js').length, "no read-only Slate rows: Slate files aren't read");
     const typo = rowsIn(root, (w, s) => s.props.get('title') === 'Typo')[0];
     check((prop(world, typo, 'css-classes') ?? []).includes('slated-invalid'), 'the invalid binding is flagged');
   });
@@ -354,10 +365,13 @@ async function run(mode) {
     repeat.set_selected(0);
     check(model.binding(ID.HALF).repeats === undefined, 'default repeat');
     await settle();
-    const saved = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    const settingsText = fs.readFileSync(files.settingsFile, 'utf8');
+    await settle();
+    const saved = readFiles(files);
     check(saved.bindings.find(b => b.id === ID.HALF).name === 'Left Half!', 'saved to config.json after the pause');
     check(saved.clipboard.maxItems === 42 && saved.clipboard.shortcut === null && saved.automation.showIndicator === false,
       'the clipboard and automation sections were kept');
+    check(fs.readFileSync(files.settingsFile, 'utf8') === settingsText, 'a shortcut edit leaves settings.json alone');
     check(saved.island.enabled === false && saved.island.cheatSheetDelay === 0.8 && saved.island.cheatSheet === true,
       'the island section was kept');
   });
@@ -584,24 +598,6 @@ async function run(mode) {
     pop('windows');
   });
 
-  await step('read-only Slate bindings show what their function does, and copy into Slated', async () => {
-    const root = visible('windows');
-    // Every function in the fixture always does the same thing: each is named by what it does, as on the Mac.
-    check(!rowsIn(root, (w, s) => s.props.get('title') === 'JavaScript Function').length, 'no function left undescribed');
-    const described = rowsIn(root, (w, s) => s.props.get('subtitle') === 'JavaScript function').map(r => prop(world, r, 'title'));
-    for (const title of ['Middle Third', 'Last Two Thirds', 'Center, 50%', 'Throw to Left Display, Resized']) {
-      check(described.includes(title), `"${title}" among the functions: ${described.join(', ')}`);
-    }
-    const source = rowsIn(root, (w, s) => s.props.get('title') === 'Last Two Thirds')[0];
-    activate(source);
-    const page = visible('windows');
-    const copy = findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('label') === 'Copy into Slated')[0];
-    const before = model.configuration.bindings.length;
-    click(copy);
-    check(model.configuration.bindings.length === before + 1, 'copied');
-    pop('windows');
-  });
-
   await step('new shortcuts start recording; delete asks first', async () => {
     settings.navigate('windows', {newBinding: true});
     const page = visible('windows');
@@ -722,14 +718,33 @@ async function run(mode) {
     pop('layouts');
   });
 
-  await step('Slate Compatibility: import into Slated', async () => {
-    settings.showPane('slate');
-    const importButton = findAll(world, visible('slate'), 'Gtk.Button', (w, s) => s.props.get('label') === 'Import…')[0];
+  await step('General: Import Slate Config into Slated…, then again adds nothing', async () => {
+    settings.showPane('general');
+    const importButton = () => buttons(visible('general'), 'Import Slate Config into Slated…')[0];
     const before = model.configuration.bindings.length;
-    click(importButton);
+    const count = model.planSlateImport().added.length;
+    check(count > 10, `most of ~/.slate.js is new: ${count}`);
+    click(importButton());
     const dialog = world.report.dialogs[world.report.dialogs.length - 1];
+    check(prop(world, dialog, 'heading') === `Import ${count} shortcuts?`, `asks first: ${prop(world, dialog, 'heading')}`);
+    check(/shortcuts? Slated already has will be left alone/.test(prop(world, dialog, 'body')), `hyper+a is Slated's: ${prop(world, dialog, 'body')}`);
     world.emit(dialog, 'response', 'import');
-    check(model.configuration.bindings.length > before, 'bindings imported');
+    check(model.configuration.bindings.length === before + count, 'bindings imported');
+    check(world.report.toasts.includes(`Imported ${count} shortcuts into Slated`), 'says how many');
+    await settle();
+    check(readFiles(files).bindings.length === before + count, 'and saved to config.json');
+    click(importButton());
+    const again = world.report.dialogs[world.report.dialogs.length - 1];
+    check(prop(world, again, 'heading') === 'Nothing new to import', `again: ${prop(world, again, 'heading')}`);
+    world.emit(again, 'response', 'cancel');
+    check(model.configuration.bindings.length === before + count, 'no duplicates');
+    // Get Started now says it's done, and still offers to import again.
+    settings.showPane('getStarted');
+    model.setGetStartedStep('slateConfig');
+    check(findAll(world, visible('getStarted'), 'Gtk.Label', (w, st) => st.props.get('label') === 'Your Slate shortcuts are in Slated').length === 1,
+      'Get Started says it was imported');
+    check(buttons(visible('getStarted'), 'Import Again…').length === 1, 'and offers it again');
+    settings.showPane('overview');
   });
 
   await step('Keyboard and General edit config.json', async () => {
@@ -781,7 +796,7 @@ async function run(mode) {
     check(world.report.launches.some(l => l.file === files.logFile), 'Open Log launches the log');
   });
 
-  await step('General: the island group edits config.json, and its rows follow its switches', async () => {
+  await step('General: the island group edits settings.json, and its rows follow its switches', async () => {
     settings.showPane('general');
     const row = (cls, title) => titled(visible('general'), cls, title)[0];
     const show = row('Adw.SwitchRow', 'Show the island');
@@ -793,10 +808,11 @@ async function run(mode) {
       const list = prop(world, delay, 'model');
       return Array.from({length: list.get_n_items()}, (_, i) => list.get_string(i));
     };
-    const saved = () => decodeConfiguration(fs.readFileSync(files.configFile, 'utf8')).island;
+    const saved = () => readFiles(files).island;
+    const configText = fs.readFileSync(files.configFile, 'utf8');
     // The fixture's island is off, with the Long delay.
     check(prop(world, show, 'active') === false && prop(world, sheet, 'active') === true && prop(world, failures, 'active') === true,
-      'the switches show config.json');
+      'the switches show settings.json');
     check(choices().join() === 'Short,Medium,Long' && prop(world, delay, 'selected') === 2, `Long is selected: ${choices()}`);
     check(!enabled(sheet) && !enabled(delay) && !enabled(failures), 'with the island off, the other rows are disabled');
     check(enabled(show), '...but not the island switch');
@@ -807,7 +823,8 @@ async function run(mode) {
     check(model.configuration.island.cheatSheet === false, 'cheat sheet off');
     check(!enabled(delay) && enabled(sheet) && enabled(failures), 'with the cheat sheet off, only the delay is disabled');
     await settle();
-    check(saved().enabled === true && saved().cheatSheet === false, `saved to config.json: ${JSON.stringify(saved())}`);
+    check(saved().enabled === true && saved().cheatSheet === false, `saved to settings.json: ${JSON.stringify(saved())}`);
+    check(fs.readFileSync(files.configFile, 'utf8') === configText, 'an island setting leaves config.json alone');
     sheet.set_active(true);
     check(enabled(delay), 'the delay can be changed again');
     delay.set_selected(0);
@@ -818,8 +835,8 @@ async function run(mode) {
     check(fs.readFileSync(files.logFile, 'utf8').includes('island: enabled true, cheatSheet true, cheatSheetDelay 0.3, showFailures false'),
       'config.saved names the island change');
     // A delay set by hand (or on the Mac) is offered as its own choice.
-    const onDisk = JSON.parse(fs.readFileSync(files.configFile, 'utf8'));
-    fs.writeFileSync(files.configFile, JSON.stringify({...onDisk, island: {...onDisk.island, cheatSheetDelay: 1.25}}));
+    const onDisk = JSON.parse(fs.readFileSync(files.settingsFile, 'utf8'));
+    fs.writeFileSync(files.settingsFile, JSON.stringify({...onDisk, island: {...onDisk.island, cheatSheetDelay: 1.25}}));
     model.syncFromDisk();
     check(choices().join() === 'Short,Medium,Long,1.25 seconds' && prop(world, delay, 'selected') === 3, `a hand-set delay: ${choices()}`);
     delay.set_selected(1);
@@ -876,7 +893,7 @@ async function run(mode) {
     await settle();
     check(shell.calls.includes('EnableExtension'), 'turns it on over D-Bus');
     shell.state = 1;
-    for (const label of ['Edit', 'Details']) {
+    for (const label of ['Edit']) {
       const b = findAll(world, root, 'Gtk.Button', (w, s) => s.props.get('label') === label)[0];
       click(b);
       settings.showPane('overview');
@@ -919,32 +936,20 @@ async function run(mode) {
     check(rowsIn(automations, (w, s) => s.props.get('title') === 'Macro: Walk, Then Click').length === 1, 'listed with the automations');
   });
 
-  await step('Slate Compatibility: reload, paths, loading switch', async () => {
-    settings.showPane('slate');
-    const root = visible('slate');
-    click(buttons(root, 'Add Path')[0]);
-    check(model.configuration.general.slateConfigPaths.length === 3, 'a path added');
-    const field = titled(visible('slate'), 'Adw.EntryRow', 'File 3')[0];
-    field.set_text('~/.slate.extra.js');
-    check(model.configuration.general.slateConfigPaths[2] === '~/.slate.extra.js', 'path edited');
-    click(buttons(visible('slate'), 'Restore Defaults')[0]);
-    check(model.configuration.general.slateConfigPaths.length === 2, 'defaults restored');
-    click(buttons(visible('slate'), 'Reload')[0]);
-    check(world.report.toasts.includes('Reloaded config.json and your Slate files'), 'reload confirms');
-    titled(visible('slate'), 'Adw.SwitchRow', 'Load Slate config files')[0].set_active(false);
-    check(model.configuration.general.loadSlateConfigs === false, 'Slate files off');
-    titled(visible('slate'), 'Adw.SwitchRow', 'Load Slate config files')[0].set_active(true);
-  });
-
   await step('General: open, show and reload the configuration', async () => {
     settings.showPane('general');
     const root = visible('general');
-    for (const label of ['Open', 'Show in Files']) {
+    // The Mac's "Open Config File" and "Open Settings File".
+    for (const label of ['Open Config File', 'Open Settings File', 'Show in Files']) {
       for (const b of findAll(world, root, 'Gtk.Button', (w, s) => s.props.get('label') === label)) click(b);
     }
     check(world.report.launches.some(l => l.file === files.configFile && !l.folder), 'opens config.json');
-    check(world.report.launches.some(l => l.file === files.configFile && l.folder), 'shows config.json in Files');
-    click(findAll(world, root, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and your Slate files')[0]);
+    check(world.report.launches.some(l => l.file === files.settingsFile && !l.folder), 'opens settings.json');
+    check(world.report.launches.some(l => l.file === files.configFile && l.folder), 'shows the folder in Files');
+    const description = findAll(world, root, 'Adw.PreferencesGroup', (w, s) => s.props.get('title') === 'Files')[0];
+    check(/Shortcuts, hotstrings and the Hyper key are in ~\/\.config\/slated\/config\.json; these settings are in settings\.json/
+      .test(prop(world, description, 'description')), `says where things live: ${prop(world, description, 'description')}`);
+    click(findAll(world, root, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and settings.json')[0]);
     await settle();
     check(world.report.toasts.includes('Configuration reloaded'), 'reload confirms');
   });
@@ -997,7 +1002,7 @@ async function run(mode) {
     check(model.binding(id).action.name === 'New Layout', `its shortcut stays: ${model.binding(id).action.name}`);
     check(model.configuration.layouts.filter(l => l.name === taken).length === 1, 'no two layouts share a name');
     await settle();
-    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    const onDisk = readFiles(files);
     check(onDisk.bindings.find(b => b.id === id).action.name === 'New Layout', 'nor on disk');
     check(name.get_text() === taken, 'the field keeps what was typed');
     name.set_text(`${taken} 2`);
@@ -1010,40 +1015,24 @@ async function run(mode) {
     model.deleteLayout(`${taken} 2`);
   });
 
-  await step('typing a name through a Slate layout\'s, or one only a shortcut names, takes no shortcut along', async () => {
-    const extra = path.join(files.home, '.slate.layouts.js');
-    fs.writeFileSync(extra, 'slate.layout("Writing", {"Notes": {"operations": [slate.operation("move", '
-      + '{"x": "screenOriginX", "y": "screenOriginY", "width": "screenSizeX", "height": "screenSizeY"})]}});\n'
-      + 'slate.bind("w:ctrl,alt", slate.operation("layout", {"name": "Writing"}));\n');
-    model.update(config => {
-      config.general.slateConfigPaths.push('~/.slate.layouts.js');
-    });
-    const copied = model.copyIntoSlated(model.sources.find(s => s.file === extra).bindings[0]);
+  await step('typing a name through one only a shortcut names takes no shortcut along', async () => {
     const gaming = model.addBinding({op: 'layout', name: 'Gaming'}, {keys: 'hyper+g'});
     settings.showPane('layouts');
     click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'New Layout')[0]);
     const page = visible('layouts');
     const own = model.addBinding({op: 'layout', name: 'New Layout'}, {keys: 'hyper+9'});
     const name = titled(page, 'Adw.EntryRow', 'Name')[0];
-    const problem = titled(page, 'Adw.ActionRow', 'Not saved')[0];
     // Select all and type, a letter at a time.
     const type = text => [...text].forEach((_, i) => name.set_text(text.slice(0, i + 1)));
-    type('Writing');
-    check(prop(world, problem, 'visible') !== false && prop(world, problem, 'subtitle') === 'Another layout already has this name.',
-      `the Slate file's layout name is taken: ${prop(world, problem, 'subtitle')}`);
-    type('Writing 2');
     type('Gaming 2');
-    const names = () => [own, copied, gaming].map(id => model.binding(id).action.name);
-    check(names().join() === 'Gaming 2,Writing,Gaming', `only the layout's own shortcut follows: ${names()}`);
+    const names = () => [own, gaming].map(id => model.binding(id).action.name);
+    check(names().join() === 'Gaming 2,Gaming', `only the layout's own shortcut follows: ${names()}`);
     await settle();
-    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
-    const saved = [own, copied, gaming].map(id => onDisk.bindings.find(b => b.id === id).action.name);
-    check(saved.join() === 'Gaming 2,Writing,Gaming', `nor on disk: ${saved}`);
-    for (const id of [own, copied, gaming]) model.deleteBinding(id);
+    const onDisk = readFiles(files);
+    const saved = [own, gaming].map(id => onDisk.bindings.find(b => b.id === id).action.name);
+    check(saved.join() === 'Gaming 2,Gaming', `nor on disk: ${saved}`);
+    for (const id of [own, gaming]) model.deleteBinding(id);
     model.deleteLayout('Gaming 2');
-    model.update(config => {
-      config.general.slateConfigPaths.pop();
-    });
   });
 
   await step('a layout copied in config.json is its own: its row edits it, and deleting it keeps the original', async () => {
@@ -1060,7 +1049,7 @@ async function run(mode) {
     click(findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Delete Layout')[0]);
     world.emit(world.report.dialogs[world.report.dialogs.length - 1], 'response', 'accept');
     await settle();
-    const onDisk = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8')).layouts.filter(l => l.name === original.name);
+    const onDisk = readFiles(files).layouts.filter(l => l.name === original.name);
     check(onDisk.length === 1 && onDisk[0].apps.length === original.apps.length, `the original stays, with its apps: ${JSON.stringify(onDisk)}`);
   });
 
@@ -1125,7 +1114,7 @@ async function run(mode) {
     check(model.binding(own.id).keys === 'f7', 'one click takes it');
     pop('automation');
     await settle();
-    const saved = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    const saved = readFiles(files);
     check(saved.automation.maxRunMinutes === 5 && saved.automation.stopOnAppSwitch === false, 'saved to config.json');
   });
 
@@ -1177,7 +1166,7 @@ async function run(mode) {
     check(badge.length === 1, 'the sidebar says it\'s off');
     toggle.set_active(true);
     await settle();
-    const saved = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    const saved = readFiles(files);
     check(saved.clipboard.maxItems === 200 && saved.clipboard.persist === false && saved.clipboard.enabled, 'saved to config.json');
     const events = fs.readFileSync(files.logFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     const changes = events.filter(e => e.event === 'config.saved').flatMap(e => e.data.changes);
@@ -1187,13 +1176,18 @@ async function run(mode) {
 
   await step('hand edits and status changes on disk are picked up', async () => {
     await settle();
-    const text = fs.readFileSync(files.configFile, 'utf8');
-    const config = JSON.parse(text);
-    config.general.showActionHUD = false;
+    const settingsJSON = JSON.parse(fs.readFileSync(files.settingsFile, 'utf8'));
+    settingsJSON.general.showActionHUD = false;
+    fs.writeFileSync(files.settingsFile, JSON.stringify(settingsJSON));
+    world.touch(files.settingsFile);
+    await settle();
+    check(model.configuration.general.showActionHUD === false, 'a hand edit to settings.json adopted');
+    const config = JSON.parse(fs.readFileSync(files.configFile, 'utf8'));
+    config.keyboard.capsLockAlone = 'escape';
     fs.writeFileSync(files.configFile, JSON.stringify(config));
     world.touch(files.configFile);
     await settle();
-    check(model.configuration.general.showActionHUD === false, 'hand edit adopted');
+    check(model.configuration.keyboard.capsLockAlone === 'escape', 'and one to config.json');
     fs.writeFileSync(files.statusFile, JSON.stringify({running: false}));
     world.touch(files.statusFile);
     await settle();
@@ -1207,13 +1201,14 @@ async function run(mode) {
     await settle();
     check(model.loadError, 'the broken file is noticed');
     settings.showPane('general');
-    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and your Slate files')[0]);
-    settings.showPane('slate');
-    click(buttons(visible('slate'), 'Reload')[0]);
+    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and settings.json')[0]);
     // Toast titles are Pango markup, so the window escapes them.
-    const toasts = world.report.toasts.slice(-2).map(t => t.replace(/&#39;/g, "'"));
-    check(toasts[0] === "config.json still can't be read. Overview shows what to fix." && /^Reloaded your Slate files\. config\.json still can't/.test(toasts[1]),
-      `toasts: ${toasts.join(' | ')}`);
+    const toasts = world.report.toasts.slice(-1).map(t => t.replace(/&#39;/g, "'"));
+    check(toasts[0] === "config.json still can't be read. Overview shows what to fix.", `toasts: ${toasts.join(' | ')}`);
+    settings.showPane('overview');
+    const primary = findAll(world, visible('overview'), 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('suggested-action'))[0];
+    check(prop(world, primary, 'label') === 'Open Config File', `the Overview opens the broken file: ${prop(world, primary, 'label')}`);
+    check(findAll(world, visible('overview'), 'Gtk.Label', (w, st) => st.props.get('label') === 'config.json needs a fix').length === 1, 'and names it');
     check(fs.readFileSync(files.configFile, 'utf8') === '{"bindings": [', 'and the file is left alone');
     fs.writeFileSync(files.configFile, text);
     world.touch(files.configFile);
@@ -1229,11 +1224,9 @@ async function run(mode) {
     check(model.loadError, 'the broken file is noticed');
     fs.rmSync(files.configFile);
     settings.showPane('general');
-    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and your Slate files')[0]);
-    settings.showPane('slate');
-    click(buttons(visible('slate'), 'Reload')[0]);
-    const toasts = world.report.toasts.slice(-2);
-    check(toasts.join(' | ') === 'Configuration reloaded | Reloaded config.json and your Slate files', `toasts: ${toasts.join(' | ')}`);
+    click(findAll(world, visible('general'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Reload config.json and settings.json')[0]);
+    const toasts = world.report.toasts.slice(-1);
+    check(toasts.join(' | ') === 'Configuration reloaded', `toasts: ${toasts.join(' | ')}`);
     check(prop(world, settings.windowTitle, 'subtitle') !== 'config.json needs a fix', 'no fix asked for a file that\'s gone');
     model.update(config => {
       config.general.showActionHUD = !config.general.showActionHUD;
@@ -1243,7 +1236,7 @@ async function run(mode) {
     fs.writeFileSync(files.configFile, text);
     world.touch(files.configFile);
     await settle();
-    check(!model.loadError && model.saveState.kind === 'saved', 'back to the file as it was');
+    check(!model.loadError && model.saveState.kind !== 'blocked', `back to the file as it was: ${JSON.stringify(model.saveState)}`);
   });
 
   await step('Overview counts the hotstrings that expand here: the extension leaves Mac-only ones out of espanso', async () => {
@@ -1285,6 +1278,38 @@ async function run(mode) {
     check(String(prop(world, dialog, 'debug-info')).includes('abc1234-dirty'), 'debug info names the build');
   });
 
+  await step('a version 1 config.json is migrated, and the Overview says so once', async () => {
+    // As an older Slated (or the Mac app before the split) wrote it: everything in one file, Slate files loading.
+    const settingsText = fs.readFileSync(files.settingsFile, 'utf8');
+    fs.rmSync(files.settingsFile);
+    const v1 = {version: 1, general: {loadSlateConfigs: true, slateConfigPaths: ['~/.slate.js']}, settings: {undoMaxStackSize: 7},
+      island: {enabled: false}, keyboard: {capsLock: 'hyper'}, bindings: [{id: ID.HALF, keys: 'hyper+a', action: {op: 'undo'}}]};
+    fs.writeFileSync(files.configFile, JSON.stringify(v1));
+    world.touch(files.configFile);
+    await settle();
+    const backup = path.join(files.home, '.config/slated/config.v1.json');
+    check(fs.existsSync(backup) && JSON.parse(fs.readFileSync(backup, 'utf8')).version === 1, 'config.v1.json keeps the old file');
+    const migrated = readFiles(files);
+    check(JSON.parse(fs.readFileSync(files.configFile, 'utf8')).version === 2, 'config.json is version 2');
+    check(migrated.windows.undoMaxStackSize === 7 && migrated.island.enabled === false, 'the settings moved to settings.json');
+    check(migrated.bindings.length > 15 && migrated.bindings[0].action.op === 'undo', "~/.slate.js imported; Slated's own hyper+a kept");
+    settings.showPane('overview');
+    const notice = rowsIn(visible('overview'), (w, st) => String(st.props.get('title')).startsWith('Your ~/.slate.js shortcuts'))[0];
+    check(notice && prop(world, notice, 'title') === "Your ~/.slate.js shortcuts are now part of Slated's config. Slated doesn't read "
+      + '~/.slate.js any more: edit them here or in ~/.config/slated/config.json.', `the notice: ${notice && prop(world, notice, 'title')}`);
+    check(findAll(world, visible('overview'), 'Gtk.Label', (w, st) => st.props.get('label') === 'Import your Slate config').length === 0,
+      'and no suggestion to import it again');
+    click(buttons(visible('overview'), 'Dismiss')[0]);
+    const noticeGroup = findAll(world, visible('overview'), 'Adw.PreferencesGroup').find(g => findAll(world, g, 'Adw.ActionRow').includes(notice));
+    check(noticeGroup && prop(world, noticeGroup, 'visible') === false, 'dismissed: the notice is gone');
+    const record = JSON.parse(fs.readFileSync(path.join(files.home, '.local/state/slated/config-migration.json'), 'utf8'));
+    check(record.kind === 'migration' && record.noticeDismissed === true, 'for good');
+    const events = fs.readFileSync(files.logFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    const event = events.find(e => e.event === 'config.migrated');
+    check(event && event.data.by === 'settings' && event.data.settingsMoved === true && event.data.slate.imported > 15, `logged: ${JSON.stringify(event?.data)}`);
+    fs.writeFileSync(files.settingsFile, settingsText);
+  });
+
   await step('closing saves, logs and stops watching', async () => {
     model.update(config => {
       config.general.showActionHUD = true;
@@ -1292,7 +1317,7 @@ async function run(mode) {
     window.close();
     check(settings.closed, 'closed');
     check(world.monitors.every(m => m.cancelled), 'file monitors cancelled');
-    const saved = decodeConfiguration(fs.readFileSync(files.configFile, 'utf8'));
+    const saved = readFiles(files);
     check(saved.general.showActionHUD === true, 'the pending edit was saved on close');
     const events = fs.readFileSync(files.logFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     const names = new Set(events.map(e => e.event));
