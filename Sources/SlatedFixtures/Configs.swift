@@ -132,7 +132,8 @@ private let configMarkdownClipboard = #"""
     "retentionDays": 30,            // pinned items are kept regardless
     "ignoreConcealed": true,        // skip what password managers mark as secret
     "excludedApps": ["com.1password.1password", "com.bitwarden.desktop"],
-    "pasteAfterSelecting": true
+    "pasteAfterSelecting": true,
+    "screenshots": true             // add screenshots saved as files
   }
   }
   """#
@@ -199,6 +200,8 @@ private let decodeCases: [(String, String)] = [
     #"{"clipboard": {"shortcut": null}, "automation": {"stopShortcut": null}}"#
   ),
   ("clipboard partial", #"{"clipboard": {"maxItems": 5}, "automation": {}}"#),
+  ("clipboard screenshots off", #"{"clipboard": {"screenshots": false}}"#),
+  ("clipboard screenshots not a bool", #"{"clipboard": {"screenshots": "yes"}}"#),
   ("clipboard null", #"{"clipboard": null, "automation": null}"#),
   ("clipboard invalid shortcut", #"{"clipboard": {"shortcut": "bogus+v"}}"#),
   ("automation invalid stop shortcut", #"{"automation": {"stopShortcut": ""}}"#),

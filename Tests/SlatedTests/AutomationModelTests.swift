@@ -175,6 +175,50 @@ let clipboardHistoryTests = Suite(
         expectEqual(roundTrip, withImage)
       }
     ),
+    (
+      "files: named by their last component, found by name, deduped by paths, never merged with text",
+      {
+        var h = ClipboardHistory()
+        let t = Date(timeIntervalSince1970: 0)
+        let files = ["/Users/me/Desktop/Report.pdf", "/Users/me/Pictures/Trip/"]
+        expect(h.add(files: files, from: "com.apple.finder", at: t, limit: 5))
+        expectEqual(h.items[0].text, "Report.pdf\nTrip")
+        expect(h.items[0].isFiles && !h.items[0].isText && !h.items[0].isImage)
+        expect(!h.add(files: [], at: t, limit: 5))
+        expect(!h.add(files: ["relative.txt", ""], at: t, limit: 5))
+        h.add("Report.pdf\nTrip", at: t, limit: 5)
+        h.togglePin(id: try require(h.items.last).id)
+        h.add(files: files, at: t.addingTimeInterval(1), limit: 5)
+        // The same files again move to the top, keeping the pin; text never merges with them.
+        expectEqual(h.items.count, 2)
+        expect(h.items[0].pinned && h.items[0].files == files)
+        expectEqual(h.search("report").count, 2)
+        expectEqual(h.search("pictures").count, 0)  // folders aren't searched
+        expectEqual(ClipboardItem.fileName(ofPath: "/"), "/")
+        expectEqual(ClipboardItem.fileName(ofPath: "/a//b/"), "b")
+
+        let saved = try JSONEncoder().encode(h)
+        expectEqual(try JSONDecoder().decode(ClipboardHistory.self, from: saved), h)
+        let object = try JSONSerialization.jsonObject(with: saved) as? [String: [[String: Any]]]
+        expectEqual(object?["items"]?.last.map { Set($0.keys) }, ["id", "text", "copiedAt", "pinned"])
+      }
+    ),
+    (
+      "a screenshot's name round-trips; an image without one saves as before",
+      {
+        var h = ClipboardHistory()
+        let shot = ClipboardImage(file: "aa.png", width: 4, height: 3, bytes: 9, name: "Screenshot 1.png")
+        h.add(image: shot, at: Date(timeIntervalSinceReferenceDate: 1), limit: 5)
+        h.add(image: ClipboardImage(file: "bb.png", width: 1, height: 1, bytes: 1), at: .distantPast, limit: 5)
+        let saved = try JSONEncoder().encode(h)
+        expectEqual(try JSONDecoder().decode(ClipboardHistory.self, from: saved).items.last?.image?.name, "Screenshot 1.png")
+        let object = try JSONSerialization.jsonObject(with: saved) as? [String: [[String: Any]]]
+        expectEqual((object?["items"]?.first?["image"] as? [String: Any]).map { Set($0.keys) }, ["file", "width", "height", "bytes"])
+        expectEqual(ClipboardSettings().screenshots, true)
+        let off = try JSONDecoder().decode(ClipboardSettings.self, from: Data(#"{"screenshots": false}"#.utf8))
+        expect(!off.screenshots)
+      }
+    ),
   ])
 
 let repeatScheduleTests = Suite(

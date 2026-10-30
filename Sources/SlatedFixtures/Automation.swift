@@ -77,12 +77,14 @@ private func at(_ seconds: Double) -> Date { Date(timeIntervalSinceReferenceDate
 private let day: Double = 86_400
 private let t0: Double = 800_000_000
 
-/// One step of a clipboard session. Items are named by text (images by file); ids Swift generates are
-/// random.
+/// One step of a clipboard session. Items are named by text (images by file, files by their names
+/// joined with "\n"); ids Swift generates are random.
 private enum ClipStep {
   case add(String, app: String? = nil, at: Double, limit: Int = 200)
   case addImage(
-    String, width: Int = 64, height: Int = 32, bytes: Int = 900, app: String? = nil, at: Double, limit: Int = 200)
+    String, width: Int = 64, height: Int = 32, bytes: Int = 900, name: String? = nil, app: String? = nil, at: Double,
+    limit: Int = 200)
+  case addFiles([String], app: String? = nil, at: Double, limit: Int = 200)
   case enforce(Int)
   case prune(days: Int, now: Double)
   /// Removes or pins the item with this text, or the image with this file (by its current id).
@@ -201,6 +203,62 @@ private let clipSessions: [ClipSession] = [
       .add("five", at: t0 + day + 1, limit: 2), .prune(days: 1, now: t0 + 2 * day + 0.5), .remove("five"),
       .clear(keepPinned: true), .addImage("6.png", at: t0 + 3 * day), .clear(keepPinned: false),
     ]),
+  ClipSession(
+    name: "files: their names are the text; the same files again move to the top, keeping the pin",
+    steps: [
+      .addFiles(["/Users/me/Desktop/Report Q3.pdf", "/Users/me/Pictures/Team Photo.jpg"], app: "com.apple.finder", at: t0),
+      .addFiles(["/Users/me/notes.txt"], at: t0 + 1), .togglePin("Report Q3.pdf\nTeam Photo.jpg"),
+      .addFiles(["/Users/me/Desktop/Report Q3.pdf", "/Users/me/Pictures/Team Photo.jpg"], at: t0 + 2),
+      // Another order, or some of them, is another copy.
+      .addFiles(["/Users/me/Pictures/Team Photo.jpg", "/Users/me/Desktop/Report Q3.pdf"], at: t0 + 3),
+      .addFiles(["/Users/me/Desktop/Report Q3.pdf"], app: "com.apple.finder", at: t0 + 4),
+      .search("report"), .search("team PHOTO"), .search("pdf jpg"), .search(".txt"),
+      // Folders aren't part of the name.
+      .search("desktop"), .search("/"), .search("Users"),
+    ]),
+  ClipSession(
+    name: "files: only absolute paths are kept; a name is the last component",
+    steps: [
+      .addFiles([], at: t0), .addFiles([""], at: t0),
+      .addFiles(["relative/file.txt", "~/x.txt", "file:///a.txt"], at: t0),
+      .addFiles(["/Users/me/Folder/", "relative.txt", "/Users/me/a//b.txt", "/", "/Volumes/USB/", "//x"], at: t0 + 1),
+      .addFiles(["/tmp/ünïcödé 日本 👍🏽.txt", "/tmp/name with\nnewline", "/tmp/.hidden", "/tmp/no extension"], at: t0 + 2),
+      .search("ünïcödé"), .search("unicode"), .search("newline"), .search("hidden"),
+    ]),
+  ClipSession(
+    name: "files compare as Swift strings (canonical equivalence)",
+    steps: [
+      .addFiles(["/tmp/caf\u{E9}.txt"], at: t0), .addFiles(["/tmp/x"], at: t0 + 1),
+      .addFiles(["/tmp/cafe\u{301}.txt"], at: t0 + 2), .addFiles(["/tmp/CAF\u{C9}.txt"], at: t0 + 3),
+    ]),
+  ClipSession(
+    name: "files and text never merge; files count toward the limit and retention, and go with remove and clear",
+    steps: [
+      .add("notes.txt", at: t0, limit: 3), .addFiles(["/Users/me/notes.txt"], at: t0 + 1, limit: 3),
+      .add("notes.txt", at: t0 + 2, limit: 3), .addFiles(["/a/one.txt"], at: t0 + 3, limit: 3),
+      .addFiles(["/a/two.txt"], at: t0 + 4, limit: 3), .togglePin("two.txt"),
+      .addFiles(["/a/three.txt"], at: t0 + day, limit: 3), .prune(days: 1, now: t0 + day + 3.5),
+      .remove("three.txt"), .addFiles(["/a/four.txt"], at: t0 + 2 * day), .clear(keepPinned: true),
+      .clear(keepPinned: false),
+    ]),
+  ClipSession(
+    name: "a screenshot is an image with a name: deduped by file as images are, never matched by a search",
+    steps: [
+      .addImage(
+        "s.png", width: 2880, height: 1800, bytes: 1_200_000, name: "Screenshot 2026-10-30 at 09.41.12.png", at: t0),
+      .add("Screenshot", at: t0 + 1), .search("screenshot"), .search("png"),
+      .addImage("s.png", width: 2880, height: 1800, bytes: 1_200_000, name: "Renamed.png", at: t0 + 2),
+      .addImage("s.png", width: 2880, height: 1800, bytes: 1_200_000, at: t0 + 3),
+      .addImage("t.png", name: "", at: t0 + 4),
+    ]),
+]
+
+/// Paths and the names the history shows for them (`ClipboardItem.fileName(ofPath:)`).
+private let fileNamePaths: [String] = [
+  "/Users/me/Desktop/Report Q3.pdf", "/Users/me/Folder/", "/Users/me/Folder//", "/", "//", "", "/a", "a", "a/b",
+  "/a//b", "/Volumes/USB Drive", "/tmp/.hidden", "/tmp/archive.tar.gz", "/tmp/日本語.txt", "/tmp/👍🏽.png",
+  "/tmp/caf\u{E9}", "/tmp/cafe\u{301}", "/tmp/name with\nnewline", "/tmp/ trailing space ", "/tmp/back\\slash",
+  "/tmp/a:b", "/tmp/\u{301}x", "/tmp/x/\u{301}",
 ]
 
 /// A fixed history for `search`, with texts that test case and diacritic folding.
@@ -262,6 +320,7 @@ private func historyItemsJ(_ history: ClipboardHistory) -> J {
         "copiedAt": .number(item.copiedAt.timeIntervalSinceReferenceDate), "pinned": .bool(item.pinned),
       ]
       if let image = item.image { entry["image"] = toJ(image) }
+      if let files = item.files { entry["files"] = .array(files.map(J.string)) }
       return .object(entry)
     })
 }
@@ -294,6 +353,19 @@ private let codingInputs: [String] = [
   #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":"a.png"}]}"#,
   #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":[]}]}"#,
   #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","copiedAt":1,"pinned":false,"image":{"file":"a.png","width":1,"height":1,"bytes":1}}]}"#,
+  // A screenshot's name. Files written before screenshots were kept have no `name` (above).
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"file":"ab.png","width":2880,"height":1800,"bytes":9,"name":"Screenshot 2026-10-30 at 09.41.12.png"}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"file":"ab.png","width":1,"height":1,"bytes":1,"name":null}}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"image":{"file":"ab.png","width":1,"height":1,"bytes":1,"name":5}}]}"#,
+  // Files. The text is read as saved, never recomputed from the paths.
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"a.txt\nb","copiedAt":1,"sourceApp":"com.apple.finder","pinned":true,"files":["/x/a.txt","/y/b/"]}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"stale name","copiedAt":1,"pinned":false,"files":["/x/a.txt"]}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"t","copiedAt":1,"pinned":false,"files":null,"image":null}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"","copiedAt":1,"pinned":false,"files":[]}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"a","copiedAt":1,"pinned":false,"files":"/x/a"}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"a","copiedAt":1,"pinned":false,"files":[1]}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"a","copiedAt":1,"pinned":false,"files":[null]}]}"#,
+  #"{"items":[{"id":"00000000-0000-4000-8000-000000000001","text":"a","copiedAt":1,"pinned":false,"files":{"0":"/x/a"}}]}"#,
 ]
 
 func clipboardFixtures() -> FixtureFile {
@@ -305,12 +377,17 @@ func clipboardFixtures() -> FixtureFile {
       case .add(let text, let app, let seconds, let limit):
         result["add"] = ["text": .string(text), "app": .optional(app), "at": .number(seconds), "limit": .int(limit)]
         result["added"] = .bool(history.add(text, from: app, at: at(seconds), limit: limit))
-      case .addImage(let file, let width, let height, let bytes, let app, let seconds, let limit):
-        let image = ClipboardImage(file: file, width: width, height: height, bytes: bytes)
+      case .addImage(let file, let width, let height, let bytes, let name, let app, let seconds, let limit):
+        let image = ClipboardImage(file: file, width: width, height: height, bytes: bytes, name: name)
         result["addImage"] = [
           "image": toJ(image), "app": .optional(app), "at": .number(seconds), "limit": .int(limit),
         ]
         result["added"] = .bool(history.add(image: image, from: app, at: at(seconds), limit: limit))
+      case .addFiles(let files, let app, let seconds, let limit):
+        result["addFiles"] = [
+          "files": .array(files.map(J.string)), "app": .optional(app), "at": .number(seconds), "limit": .int(limit),
+        ]
+        result["added"] = .bool(history.add(files: files, from: app, at: at(seconds), limit: limit))
       case .enforce(let limit):
         result["enforce"] = .int(limit)
         history.enforce(limit: limit)
@@ -358,15 +435,21 @@ func clipboardFixtures() -> FixtureFile {
     return .object(entry)
   }
 
+  let fileNames: [J] = fileNamePaths.map { path in
+    ["path": .string(path), "name": .string(ClipboardItem.fileName(ofPath: path))]
+  }
+
   return FixtureFile(
     name: "clipboard.json",
     description:
-      "ClipboardHistory: sessions of add (dedupe, limit), enforce, prune (retention), remove, togglePin, clear and "
-      + "search with fixed dates (seconds since 2001-01-01, as Swift's Date encodes them); search over a fixed history "
-      + "(case- and diacritic-insensitive, pinned first); and the Codable form the Mac app writes to clipboard.json "
+      "ClipboardHistory: sessions of add (text), addImage (an image, with a screenshot's `name`), addFiles (absolute "
+      + "paths; the item's `text` is their names joined with \"\\n\", listed with `files`), enforce, prune (retention), "
+      + "remove, togglePin, clear and search with fixed dates (seconds since 2001-01-01, as Swift's Date encodes them); "
+      + "search over a fixed history (case- and diacritic-insensitive, pinned first); fileNames (the name a path "
+      + "shows: its last \"/\"-separated component); and the Codable form the Mac app writes to clipboard.json "
       + "(`history`, or `error` for files it can't read). Items are listed without their ids, which Swift generates "
       + "at random.",
-    sections: ["sessions": sessions, "search": search, "coding": coding],
+    sections: ["sessions": sessions, "search": search, "coding": coding, "fileNames": fileNames],
     extra: ["searchItems": historyItemsJ(searchHistory)],
     depth: ["sessions": 3, "searchItems": 1])
 }

@@ -84,6 +84,9 @@ public struct ClipboardSettings: Hashable, Sendable {
   public var excludedApps: [String]
   /// After picking an item, paste it into the app you were in (otherwise just put it on the clipboard).
   public var pasteAfterSelecting: Bool
+  /// Add screenshots saved as files to the history (macOS: the screenshot folder is watched; GNOME
+  /// copies screenshots to the clipboard itself).
+  public var screenshots: Bool
 
   public static let defaultExcludedApps = [
     "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop",
@@ -93,7 +96,8 @@ public struct ClipboardSettings: Hashable, Sendable {
   public init(
     enabled: Bool = true, shortcut: KeyCombo? = KeyCombo(string: "cmd+shift+v"), maxItems: Int = 200,
     persist: Bool = true, retentionDays: Int = 30, ignoreConcealed: Bool = true,
-    excludedApps: [String] = ClipboardSettings.defaultExcludedApps, pasteAfterSelecting: Bool = true
+    excludedApps: [String] = ClipboardSettings.defaultExcludedApps, pasteAfterSelecting: Bool = true,
+    screenshots: Bool = true
   ) {
     self.enabled = enabled
     self.shortcut = shortcut
@@ -103,12 +107,14 @@ public struct ClipboardSettings: Hashable, Sendable {
     self.ignoreConcealed = ignoreConcealed
     self.excludedApps = excludedApps
     self.pasteAfterSelecting = pasteAfterSelecting
+    self.screenshots = screenshots
   }
 }
 
 extension ClipboardSettings: Codable {
   private enum Key: String, CodingKey {
     case enabled, shortcut, maxItems, persist, retentionDays, ignoreConcealed, excludedApps, pasteAfterSelecting
+    case screenshots
   }
 
   public init(from decoder: Decoder) throws {
@@ -124,7 +130,8 @@ extension ClipboardSettings: Codable {
       retentionDays: try c.decodeIfPresent(Int.self, forKey: .retentionDays) ?? d.retentionDays,
       ignoreConcealed: try c.decodeIfPresent(Bool.self, forKey: .ignoreConcealed) ?? d.ignoreConcealed,
       excludedApps: try c.decodeIfPresent([String].self, forKey: .excludedApps) ?? d.excludedApps,
-      pasteAfterSelecting: try c.decodeIfPresent(Bool.self, forKey: .pasteAfterSelecting) ?? d.pasteAfterSelecting)
+      pasteAfterSelecting: try c.decodeIfPresent(Bool.self, forKey: .pasteAfterSelecting) ?? d.pasteAfterSelecting,
+      screenshots: try c.decodeIfPresent(Bool.self, forKey: .screenshots) ?? d.screenshots)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -137,6 +144,7 @@ extension ClipboardSettings: Codable {
     try c.encode(ignoreConcealed, forKey: .ignoreConcealed)
     try c.encode(excludedApps, forKey: .excludedApps)
     try c.encode(pasteAfterSelecting, forKey: .pasteAfterSelecting)
+    try c.encode(screenshots, forKey: .screenshots)
   }
 }
 

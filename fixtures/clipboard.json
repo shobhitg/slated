@@ -28,9 +28,45 @@
     {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":7,\"width\":1,\"height\":1,\"bytes\":1}}]}"},
     {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":\"a.png\"}]}"},
     {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":[]}]}"},
-    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"a.png\",\"width\":1,\"height\":1,\"bytes\":1}}]}"}
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"a.png\",\"width\":1,\"height\":1,\"bytes\":1}}]}"},
+    {"history":{"items":[{"copiedAt":1,"id":"00000000-0000-4000-8000-000000000001","image":{"bytes":9,"file":"ab.png","height":1800,"name":"Screenshot 2026-10-30 at 09.41.12.png","width":2880},"pinned":false,"text":""}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"ab.png\",\"width\":2880,\"height\":1800,\"bytes\":9,\"name\":\"Screenshot 2026-10-30 at 09.41.12.png\"}}]}"},
+    {"history":{"items":[{"copiedAt":1,"id":"00000000-0000-4000-8000-000000000001","image":{"bytes":1,"file":"ab.png","height":1,"width":1},"pinned":false,"text":""}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"ab.png\",\"width\":1,\"height\":1,\"bytes\":1,\"name\":null}}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"image\":{\"file\":\"ab.png\",\"width\":1,\"height\":1,\"bytes\":1,\"name\":5}}]}"},
+    {"history":{"items":[{"copiedAt":1,"files":["/x/a.txt","/y/b/"],"id":"00000000-0000-4000-8000-000000000001","pinned":true,"sourceApp":"com.apple.finder","text":"a.txt\nb"}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"a.txt\\nb\",\"copiedAt\":1,\"sourceApp\":\"com.apple.finder\",\"pinned\":true,\"files\":[\"/x/a.txt\",\"/y/b/\"]}]}"},
+    {"history":{"items":[{"copiedAt":1,"files":["/x/a.txt"],"id":"00000000-0000-4000-8000-000000000001","pinned":false,"text":"stale name"}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"stale name\",\"copiedAt\":1,\"pinned\":false,\"files\":[\"/x/a.txt\"]}]}"},
+    {"history":{"items":[{"copiedAt":1,"id":"00000000-0000-4000-8000-000000000001","pinned":false,"text":"t"}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"t\",\"copiedAt\":1,\"pinned\":false,\"files\":null,\"image\":null}]}"},
+    {"history":{"items":[{"copiedAt":1,"files":[],"id":"00000000-0000-4000-8000-000000000001","pinned":false,"text":""}]},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"\",\"copiedAt\":1,\"pinned\":false,\"files\":[]}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"a\",\"copiedAt\":1,\"pinned\":false,\"files\":\"/x/a\"}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"a\",\"copiedAt\":1,\"pinned\":false,\"files\":[1]}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"a\",\"copiedAt\":1,\"pinned\":false,\"files\":[null]}]}"},
+    {"error":{"exact":false,"kind":"decoding"},"json":"{\"items\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"text\":\"a\",\"copiedAt\":1,\"pinned\":false,\"files\":{\"0\":\"/x/a\"}}]}"}
   ],
-  "description": "ClipboardHistory: sessions of add (dedupe, limit), enforce, prune (retention), remove, togglePin, clear and search with fixed dates (seconds since 2001-01-01, as Swift's Date encodes them); search over a fixed history (case- and diacritic-insensitive, pinned first); and the Codable form the Mac app writes to clipboard.json (`history`, or `error` for files it can't read). Items are listed without their ids, which Swift generates at random.",
+  "description": "ClipboardHistory: sessions of add (text), addImage (an image, with a screenshot's `name`), addFiles (absolute paths; the item's `text` is their names joined with \"\\n\", listed with `files`), enforce, prune (retention), remove, togglePin, clear and search with fixed dates (seconds since 2001-01-01, as Swift's Date encodes them); search over a fixed history (case- and diacritic-insensitive, pinned first); fileNames (the name a path shows: its last \"/\"-separated component); and the Codable form the Mac app writes to clipboard.json (`history`, or `error` for files it can't read). Items are listed without their ids, which Swift generates at random.",
+  "fileNames": [
+    {"name":"Report Q3.pdf","path":"/Users/me/Desktop/Report Q3.pdf"},
+    {"name":"Folder","path":"/Users/me/Folder/"},
+    {"name":"Folder","path":"/Users/me/Folder//"},
+    {"name":"/","path":"/"},
+    {"name":"/","path":"//"},
+    {"name":"","path":""},
+    {"name":"a","path":"/a"},
+    {"name":"a","path":"a"},
+    {"name":"b","path":"a/b"},
+    {"name":"b","path":"/a//b"},
+    {"name":"USB Drive","path":"/Volumes/USB Drive"},
+    {"name":".hidden","path":"/tmp/.hidden"},
+    {"name":"archive.tar.gz","path":"/tmp/archive.tar.gz"},
+    {"name":"日本語.txt","path":"/tmp/日本語.txt"},
+    {"name":"👍🏽.png","path":"/tmp/👍🏽.png"},
+    {"name":"café","path":"/tmp/café"},
+    {"name":"café","path":"/tmp/café"},
+    {"name":"name with\nnewline","path":"/tmp/name with\nnewline"},
+    {"name":" trailing space ","path":"/tmp/ trailing space "},
+    {"name":"back\\slash","path":"/tmp/back\\slash"},
+    {"name":"a:b","path":"/tmp/a:b"},
+    {"name":"́x","path":"/tmp/́x"},
+    {"name":"́","path":"/tmp/x/́"}
+  ],
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
   "search": [
     {"query":"hello","results":["Hello World","héllo wörld"]},
@@ -530,6 +566,81 @@
         {"clear":true,"items":[{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""}]},
         {"addImage":{"app":null,"at":800259200,"image":{"bytes":900,"file":"6.png","height":32,"width":64},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800259200,"image":{"bytes":900,"file":"6.png","height":32,"width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000002,"image":{"bytes":900,"file":"3.png","height":32,"width":64},"pinned":true,"text":""}]},
         {"clear":false,"items":[]}
+      ]
+    },
+    {
+      "name": "files: their names are the text; the same files again move to the top, keeping the pin",
+      "start": [],
+      "steps": [
+        {"addFiles":{"app":"com.apple.finder","at":800000000,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"limit":200},"added":true,"items":[{"app":"com.apple.finder","copiedAt":800000000,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":false,"text":"Report Q3.pdf\nTeam Photo.jpg"}]},
+        {"addFiles":{"app":null,"at":800000001,"files":["/Users/me/notes.txt"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"},{"app":"com.apple.finder","copiedAt":800000000,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":false,"text":"Report Q3.pdf\nTeam Photo.jpg"}]},
+        {"items":[{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"},{"app":"com.apple.finder","copiedAt":800000000,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"}],"togglePin":"Report Q3.pdf\nTeam Photo.jpg"},
+        {"addFiles":{"app":null,"at":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}]},
+        {"addFiles":{"app":null,"at":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}]},
+        {"addFiles":{"app":"com.apple.finder","at":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"limit":200},"added":true,"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}]},
+        {"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}],"results":["Report Q3.pdf\nTeam Photo.jpg","Report Q3.pdf","Team Photo.jpg\nReport Q3.pdf"],"search":"report"},
+        {"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}],"results":["Report Q3.pdf\nTeam Photo.jpg","Team Photo.jpg\nReport Q3.pdf"],"search":"team PHOTO"},
+        {"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}],"results":["Report Q3.pdf\nTeam Photo.jpg","Team Photo.jpg\nReport Q3.pdf"],"search":"pdf jpg"},
+        {"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}],"results":["notes.txt"],"search":".txt"},
+        {"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}],"results":[],"search":"desktop"},
+        {"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}],"results":[],"search":"/"},
+        {"items":[{"app":"com.apple.finder","copiedAt":800000004,"files":["/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Report Q3.pdf"},{"app":null,"copiedAt":800000003,"files":["/Users/me/Pictures/Team Photo.jpg","/Users/me/Desktop/Report Q3.pdf"],"pinned":false,"text":"Team Photo.jpg\nReport Q3.pdf"},{"app":null,"copiedAt":800000002,"files":["/Users/me/Desktop/Report Q3.pdf","/Users/me/Pictures/Team Photo.jpg"],"pinned":true,"text":"Report Q3.pdf\nTeam Photo.jpg"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}],"results":[],"search":"Users"}
+      ]
+    },
+    {
+      "name": "files: only absolute paths are kept; a name is the last component",
+      "start": [],
+      "steps": [
+        {"addFiles":{"app":null,"at":800000000,"files":[],"limit":200},"added":false,"items":[]},
+        {"addFiles":{"app":null,"at":800000000,"files":[""],"limit":200},"added":false,"items":[]},
+        {"addFiles":{"app":null,"at":800000000,"files":["relative/file.txt","~/x.txt","file:///a.txt"],"limit":200},"added":false,"items":[]},
+        {"addFiles":{"app":null,"at":800000001,"files":["/Users/me/Folder/","relative.txt","/Users/me/a//b.txt","/","/Volumes/USB/","//x"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000001,"files":["/Users/me/Folder/","/Users/me/a//b.txt","/","/Volumes/USB/","//x"],"pinned":false,"text":"Folder\nb.txt\n/\nUSB\nx"}]},
+        {"addFiles":{"app":null,"at":800000002,"files":["/tmp/ünïcödé 日本 👍🏽.txt","/tmp/name with\nnewline","/tmp/.hidden","/tmp/no extension"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000002,"files":["/tmp/ünïcödé 日本 👍🏽.txt","/tmp/name with\nnewline","/tmp/.hidden","/tmp/no extension"],"pinned":false,"text":"ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"},{"app":null,"copiedAt":800000001,"files":["/Users/me/Folder/","/Users/me/a//b.txt","/","/Volumes/USB/","//x"],"pinned":false,"text":"Folder\nb.txt\n/\nUSB\nx"}]},
+        {"items":[{"app":null,"copiedAt":800000002,"files":["/tmp/ünïcödé 日本 👍🏽.txt","/tmp/name with\nnewline","/tmp/.hidden","/tmp/no extension"],"pinned":false,"text":"ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"},{"app":null,"copiedAt":800000001,"files":["/Users/me/Folder/","/Users/me/a//b.txt","/","/Volumes/USB/","//x"],"pinned":false,"text":"Folder\nb.txt\n/\nUSB\nx"}],"results":["ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"],"search":"ünïcödé"},
+        {"items":[{"app":null,"copiedAt":800000002,"files":["/tmp/ünïcödé 日本 👍🏽.txt","/tmp/name with\nnewline","/tmp/.hidden","/tmp/no extension"],"pinned":false,"text":"ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"},{"app":null,"copiedAt":800000001,"files":["/Users/me/Folder/","/Users/me/a//b.txt","/","/Volumes/USB/","//x"],"pinned":false,"text":"Folder\nb.txt\n/\nUSB\nx"}],"results":["ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"],"search":"unicode"},
+        {"items":[{"app":null,"copiedAt":800000002,"files":["/tmp/ünïcödé 日本 👍🏽.txt","/tmp/name with\nnewline","/tmp/.hidden","/tmp/no extension"],"pinned":false,"text":"ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"},{"app":null,"copiedAt":800000001,"files":["/Users/me/Folder/","/Users/me/a//b.txt","/","/Volumes/USB/","//x"],"pinned":false,"text":"Folder\nb.txt\n/\nUSB\nx"}],"results":["ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"],"search":"newline"},
+        {"items":[{"app":null,"copiedAt":800000002,"files":["/tmp/ünïcödé 日本 👍🏽.txt","/tmp/name with\nnewline","/tmp/.hidden","/tmp/no extension"],"pinned":false,"text":"ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"},{"app":null,"copiedAt":800000001,"files":["/Users/me/Folder/","/Users/me/a//b.txt","/","/Volumes/USB/","//x"],"pinned":false,"text":"Folder\nb.txt\n/\nUSB\nx"}],"results":["ünïcödé 日本 👍🏽.txt\nname with\nnewline\n.hidden\nno extension"],"search":"hidden"}
+      ]
+    },
+    {
+      "name": "files compare as Swift strings (canonical equivalence)",
+      "start": [],
+      "steps": [
+        {"addFiles":{"app":null,"at":800000000,"files":["/tmp/café.txt"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000000,"files":["/tmp/café.txt"],"pinned":false,"text":"café.txt"}]},
+        {"addFiles":{"app":null,"at":800000001,"files":["/tmp/x"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000001,"files":["/tmp/x"],"pinned":false,"text":"x"},{"app":null,"copiedAt":800000000,"files":["/tmp/café.txt"],"pinned":false,"text":"café.txt"}]},
+        {"addFiles":{"app":null,"at":800000002,"files":["/tmp/café.txt"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000002,"files":["/tmp/café.txt"],"pinned":false,"text":"café.txt"},{"app":null,"copiedAt":800000001,"files":["/tmp/x"],"pinned":false,"text":"x"}]},
+        {"addFiles":{"app":null,"at":800000003,"files":["/tmp/CAFÉ.txt"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000003,"files":["/tmp/CAFÉ.txt"],"pinned":false,"text":"CAFÉ.txt"},{"app":null,"copiedAt":800000002,"files":["/tmp/café.txt"],"pinned":false,"text":"café.txt"},{"app":null,"copiedAt":800000001,"files":["/tmp/x"],"pinned":false,"text":"x"}]}
+      ]
+    },
+    {
+      "name": "files and text never merge; files count toward the limit and retention, and go with remove and clear",
+      "start": [],
+      "steps": [
+        {"add":{"app":null,"at":800000000,"limit":3,"text":"notes.txt"},"added":true,"items":[{"app":null,"copiedAt":800000000,"pinned":false,"text":"notes.txt"}]},
+        {"addFiles":{"app":null,"at":800000001,"files":["/Users/me/notes.txt"],"limit":3},"added":true,"items":[{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"},{"app":null,"copiedAt":800000000,"pinned":false,"text":"notes.txt"}]},
+        {"add":{"app":null,"at":800000002,"limit":3,"text":"notes.txt"},"added":true,"items":[{"app":null,"copiedAt":800000002,"pinned":false,"text":"notes.txt"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}]},
+        {"addFiles":{"app":null,"at":800000003,"files":["/a/one.txt"],"limit":3},"added":true,"items":[{"app":null,"copiedAt":800000003,"files":["/a/one.txt"],"pinned":false,"text":"one.txt"},{"app":null,"copiedAt":800000002,"pinned":false,"text":"notes.txt"},{"app":null,"copiedAt":800000001,"files":["/Users/me/notes.txt"],"pinned":false,"text":"notes.txt"}]},
+        {"addFiles":{"app":null,"at":800000004,"files":["/a/two.txt"],"limit":3},"added":true,"items":[{"app":null,"copiedAt":800000004,"files":["/a/two.txt"],"pinned":false,"text":"two.txt"},{"app":null,"copiedAt":800000003,"files":["/a/one.txt"],"pinned":false,"text":"one.txt"},{"app":null,"copiedAt":800000002,"pinned":false,"text":"notes.txt"}]},
+        {"items":[{"app":null,"copiedAt":800000004,"files":["/a/two.txt"],"pinned":true,"text":"two.txt"},{"app":null,"copiedAt":800000003,"files":["/a/one.txt"],"pinned":false,"text":"one.txt"},{"app":null,"copiedAt":800000002,"pinned":false,"text":"notes.txt"}],"togglePin":"two.txt"},
+        {"addFiles":{"app":null,"at":800086400,"files":["/a/three.txt"],"limit":3},"added":true,"items":[{"app":null,"copiedAt":800086400,"files":["/a/three.txt"],"pinned":false,"text":"three.txt"},{"app":null,"copiedAt":800000004,"files":["/a/two.txt"],"pinned":true,"text":"two.txt"},{"app":null,"copiedAt":800000003,"files":["/a/one.txt"],"pinned":false,"text":"one.txt"},{"app":null,"copiedAt":800000002,"pinned":false,"text":"notes.txt"}]},
+        {"items":[{"app":null,"copiedAt":800086400,"files":["/a/three.txt"],"pinned":false,"text":"three.txt"},{"app":null,"copiedAt":800000004,"files":["/a/two.txt"],"pinned":true,"text":"two.txt"}],"prune":{"days":1,"now":800086403.5}},
+        {"items":[{"app":null,"copiedAt":800000004,"files":["/a/two.txt"],"pinned":true,"text":"two.txt"}],"remove":"three.txt"},
+        {"addFiles":{"app":null,"at":800172800,"files":["/a/four.txt"],"limit":200},"added":true,"items":[{"app":null,"copiedAt":800172800,"files":["/a/four.txt"],"pinned":false,"text":"four.txt"},{"app":null,"copiedAt":800000004,"files":["/a/two.txt"],"pinned":true,"text":"two.txt"}]},
+        {"clear":true,"items":[{"app":null,"copiedAt":800000004,"files":["/a/two.txt"],"pinned":true,"text":"two.txt"}]},
+        {"clear":false,"items":[]}
+      ]
+    },
+    {
+      "name": "a screenshot is an image with a name: deduped by file as images are, never matched by a search",
+      "start": [],
+      "steps": [
+        {"addImage":{"app":null,"at":800000000,"image":{"bytes":1200000,"file":"s.png","height":1800,"name":"Screenshot 2026-10-30 at 09.41.12.png","width":2880},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000000,"image":{"bytes":1200000,"file":"s.png","height":1800,"name":"Screenshot 2026-10-30 at 09.41.12.png","width":2880},"pinned":false,"text":""}]},
+        {"add":{"app":null,"at":800000001,"limit":200,"text":"Screenshot"},"added":true,"items":[{"app":null,"copiedAt":800000001,"pinned":false,"text":"Screenshot"},{"app":null,"copiedAt":800000000,"image":{"bytes":1200000,"file":"s.png","height":1800,"name":"Screenshot 2026-10-30 at 09.41.12.png","width":2880},"pinned":false,"text":""}]},
+        {"items":[{"app":null,"copiedAt":800000001,"pinned":false,"text":"Screenshot"},{"app":null,"copiedAt":800000000,"image":{"bytes":1200000,"file":"s.png","height":1800,"name":"Screenshot 2026-10-30 at 09.41.12.png","width":2880},"pinned":false,"text":""}],"results":["Screenshot"],"search":"screenshot"},
+        {"items":[{"app":null,"copiedAt":800000001,"pinned":false,"text":"Screenshot"},{"app":null,"copiedAt":800000000,"image":{"bytes":1200000,"file":"s.png","height":1800,"name":"Screenshot 2026-10-30 at 09.41.12.png","width":2880},"pinned":false,"text":""}],"results":[],"search":"png"},
+        {"addImage":{"app":null,"at":800000002,"image":{"bytes":1200000,"file":"s.png","height":1800,"name":"Renamed.png","width":2880},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000002,"image":{"bytes":1200000,"file":"s.png","height":1800,"name":"Renamed.png","width":2880},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"Screenshot"}]},
+        {"addImage":{"app":null,"at":800000003,"image":{"bytes":1200000,"file":"s.png","height":1800,"width":2880},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000003,"image":{"bytes":1200000,"file":"s.png","height":1800,"width":2880},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"Screenshot"}]},
+        {"addImage":{"app":null,"at":800000004,"image":{"bytes":900,"file":"t.png","height":32,"name":"","width":64},"limit":200},"added":true,"items":[{"app":null,"copiedAt":800000004,"image":{"bytes":900,"file":"t.png","height":32,"name":"","width":64},"pinned":false,"text":""},{"app":null,"copiedAt":800000003,"image":{"bytes":1200000,"file":"s.png","height":1800,"width":2880},"pinned":false,"text":""},{"app":null,"copiedAt":800000001,"pinned":false,"text":"Screenshot"}]}
       ]
     }
   ]

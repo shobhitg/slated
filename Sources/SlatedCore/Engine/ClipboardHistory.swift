@@ -10,19 +10,24 @@ public struct ClipboardImage: Hashable, Sendable, Codable {
   public var height: Int
   /// Size of the file.
   public var bytes: Int
+  /// The name of the file the image came from, with its extension: a screenshot saved as a file.
+  /// Nil for an image copied from an app.
+  public var name: String?
 
-  public init(file: String, width: Int, height: Int, bytes: Int) {
+  public init(file: String, width: Int, height: Int, bytes: Int, name: String? = nil) {
     self.file = file
     self.width = width
     self.height = height
     self.bytes = bytes
+    self.name = name
   }
 }
 
-/// One remembered clipboard entry: text, or an image (then `text` is empty).
+/// One remembered clipboard entry: text, an image (then `text` is empty), or files copied in the
+/// Finder (then `text` is their names, one per line, so a search finds them by name).
 public struct ClipboardItem: Hashable, Sendable, Codable, Identifiable {
   public var id: UUID
-  /// The copied text; empty for an image.
+  /// The copied text; empty for an image; the files' names for files.
   public var text: String
   public var copiedAt: Date
   /// Bundle identifier of the app it was copied from, when known.
@@ -31,10 +36,13 @@ public struct ClipboardItem: Hashable, Sendable, Codable, Identifiable {
   public var pinned: Bool
   /// Set for a copied image. Optional, so histories saved before images were kept still read (as text).
   public var image: ClipboardImage?
+  /// Set for copied files: their absolute paths, in the order they were copied. Optional, so
+  /// histories saved before files were kept still read.
+  public var files: [String]?
 
   public init(
     id: UUID = UUID(), text: String, copiedAt: Date, sourceApp: String? = nil, pinned: Bool = false,
-    image: ClipboardImage? = nil
+    image: ClipboardImage? = nil, files: [String]? = nil
   ) {
     self.id = id
     self.text = text
@@ -42,9 +50,27 @@ public struct ClipboardItem: Hashable, Sendable, Codable, Identifiable {
     self.sourceApp = sourceApp
     self.pinned = pinned
     self.image = image
+    self.files = files
   }
 
   public var isImage: Bool { image != nil }
+  /// Files copied in the Finder (an image item is an image, whatever else it has).
+  public var isFiles: Bool { files != nil && image == nil }
+  /// Plain text: neither an image nor files.
+  public var isText: Bool { image == nil && files == nil }
+
+  /// The name a path shows in the history: its last component ("Report.pdf", or a folder's name),
+  /// "/" for the root. Split on "/" only, as the GNOME port does.
+  public static func fileName(ofPath path: String) -> String {
+    let parts = path.unicodeScalars.split(separator: "/")
+    guard let last = parts.last else { return path.isEmpty ? "" : "/" }
+    return String(String.UnicodeScalarView(last))
+  }
+
+  /// A files item's text: the names, one per line.
+  public static func text(forFiles paths: [String]) -> String {
+    paths.map(fileName(ofPath:)).joined(separator: "\n")
+  }
 }
 
 /// The clipboard history itself: newest first, de-duplicated, bounded. Pure value type; the app adds
@@ -60,7 +86,7 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
   public mutating func add(_ text: String, from app: String? = nil, at date: Date, limit: Int) -> Bool {
     guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
     var pinned = false
-    if let existing = items.firstIndex(where: { !$0.isImage && $0.text == text }) {
+    if let existing = items.firstIndex(where: { $0.isText && $0.text == text }) {
       pinned = items[existing].pinned
       items.remove(at: existing)
     }
@@ -80,6 +106,25 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
       items.remove(at: existing)
     }
     items.insert(ClipboardItem(text: "", copiedAt: date, sourceApp: app, pinned: pinned, image: image), at: 0)
+    enforce(limit: limit)
+    return true
+  }
+
+  /// Records files copied in the Finder: their absolute paths, in order (anything else is dropped).
+  /// Returns false when no path is left. Copying the same files again (the same paths in the same
+  /// order) moves that item to the top, keeping its pin, as text does.
+  @discardableResult
+  public mutating func add(files paths: [String], from app: String? = nil, at date: Date, limit: Int) -> Bool {
+    let files = paths.filter { $0.hasPrefix("/") }
+    guard !files.isEmpty else { return false }
+    var pinned = false
+    if let existing = items.firstIndex(where: { $0.isFiles && $0.files == files }) {
+      pinned = items[existing].pinned
+      items.remove(at: existing)
+    }
+    let item = ClipboardItem(
+      text: ClipboardItem.text(forFiles: files), copiedAt: date, sourceApp: app, pinned: pinned, files: files)
+    items.insert(item, at: 0)
     enforce(limit: limit)
     return true
   }
@@ -119,8 +164,8 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
   }
 
   /// Items matching every word of `query` (case- and diacritic-insensitive), newest first, pinned
-  /// items first. An empty query returns everything. Only text is searched, so a query never
-  /// matches an image.
+  /// items first. An empty query returns everything. Only `text` is searched: files match by name,
+  /// and a query never matches an image (not even a screenshot's name).
   public func search(_ query: String) -> [ClipboardItem] {
     let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
     let matches =
