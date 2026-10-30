@@ -358,7 +358,10 @@ export class ClipboardService {
     const image = described.image ?? null;
     // Slated's own paste of an image coming back as a copy.
     if (image && this._takeOwnWrite((w) => w.image === image.file)) return;
-    if (screenshot && !this.settings.screenshots) {
+    // GNOME Shell also takes over an app's copy when the app quits (Mutter's clipboard manager): an
+    // image already in the history is that, not a new screenshot.
+    const isScreenshot = screenshot && !(image && this.history.imageFiles.has(image.file));
+    if (isScreenshot && !this.settings.screenshots) {
       this._log?.record('clipboard.skipped', {reason: 'screenshots are off'}, 'debug');
       return;
     }
@@ -370,7 +373,7 @@ export class ClipboardService {
       if (!this.history.imageFiles.has(image.file)) this.images.remove([image.file]);
       return;
     }
-    const source = screenshot ? {source: 'screenshot'} : {};
+    const source = isScreenshot ? {source: 'screenshot'} : {};
     this._log?.record('clipboard.captured', {kind: 'image', ...source, bytes: image.bytes, width: image.width, height: image.height, items: this.count});
     this._changed();
   }
