@@ -302,3 +302,42 @@ On the Mac side (the GNOME port follows the same spec):
 - **Fixtures:** `fixtures/config.json` now pins both files (`config`, `settings`, `legacy`,
   `errorFile`, and a `files` section). Until the GNOME port reads that shape, `make linux-test`
   fails on it.
+
+## Screenshots and copied files in clipboard history (2026-10-30): decisions
+
+Your request: screenshots saved as files should show up, and maybe other files, as a small
+thumbnail and the name with a bigger preview on hover. On the Mac side (GNOME follows the same spec):
+
+- **A file's name is the last part of its path** ("Report.pdf", a folder's name), not the Finder's
+  display name: extensions show even where the Finder hides them, so searching "pdf" finds PDFs, and
+  GNOME names files the same way. Folders in the path aren't searched.
+- **File rows are text rows** (26 pt) with a 16×20 pt QuickLook thumbnail, so names line up with
+  text. Image rows, screenshots included, are as before; a screenshot reads as its file name instead
+  of "Image · W×H".
+- **Only screenshots taken while the setting is on are added**: files created since Slated started
+  watching (launch, or turning the setting on). One renamed later, or an older one moved into the
+  folder, isn't new. A screenshot counts once its name is final (screencapture's hidden temporary
+  file is skipped) and its size held for 0.3 s.
+- **Where screenshots go is re-read every 5 seconds**, and a folder Slated couldn't see (or that
+  wasn't there) is tried again then, so allowing access in System Settings works without a restart.
+  The folder is listed off the main thread: macOS's access prompt blocks the call that triggers it.
+- **JPEG, HEIC or GIF screenshots are kept as PNG** (the type every app pastes); PDF screenshots
+  aren't kept (logged as unreadable). PNG and TIFF keep their bytes.
+- **Some files gone:** the rest are pasted, and the log says how many were missing
+  (`clipboard.files_missing`). **All gone:** the picker stays open and beeps (closing it would look
+  like a paste happened), and Settings' Copy button is off for that row.
+- **"Moved or deleted"** means the path no longer exists. A file Slated isn't allowed to look at
+  counts as there: the app you paste into reads it, not Slated.
+- **Screenshots aren't searched by name** (the spec searches text only, and images have none).
+  *Question:* should typing "screenshot" find them? It's a small model change on both platforms.
+- **The same image bytes copied again replace the item's name** (images dedupe by content as before),
+  so a screenshot copied back in from elsewhere loses its name. Slated's own paste keeps it.
+- **QuickLook thumbnails read the file**, so a file copied from Documents or Downloads may make
+  macOS ask whether Slated may see that folder, the first time its thumbnail is shown. Saying no only
+  costs the thumbnail (the file's icon shows instead); pasting still works. *Question:* would you
+  rather have plain kind icons for files outside the Desktop, and never that prompt?
+- **Tests and smoke runs never see your screenshot folder**: with `SLATED_HOME` set, Slated watches
+  that home's Desktop and ignores the Screenshot app's preference.
+- **Fixtures:** `fixtures/clipboard.json` gains `addFiles` steps, `files` on items, `name` on images,
+  a `fileNames` section and coding vectors for both fields; `fixtures/config.json` and `starter.json`
+  gain `clipboard.screenshots`. Until the GNOME core matches, `make linux-test` fails on those.

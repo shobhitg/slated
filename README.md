@@ -17,9 +17,10 @@ usually install other tools for:
   extension needed.
 - **Hotstrings** (from Keyboard Maestro): type `;shrug` and get `¯\_(ツ)_/¯`. Placeholders like
   `{date}` and `{clipboard}`, per-app filters, and a choice of typing or pasting.
-- **Clipboard history** (like Keyboard Maestro's), text and images: ⇧⌘V opens a small picker right
-  at the text caret; type to filter, ↩ or ⌘1–9 pastes into the app you were in. Pin, delete and
-  browse in Settings. Passwords that apps mark as secret are skipped.
+- **Clipboard history** (like Keyboard Maestro's): text, images, copied files and screenshots saved
+  as files. ⇧⌘V opens a small picker right at the text caret; type to filter, ↩ or ⌘1–9 pastes into
+  the app you were in. Pin, delete and browse in Settings. Passwords that apps mark as secret are
+  skipped.
 - **Game automation** (like AutoHotkey, without a scripting language): auto-click, hold a mouse
   button or key, repeat while held or a set number of times, short macros with waits. A stop
   shortcut and automatic stops (switching apps, sleep, a time limit) make sure nothing stays held.
@@ -124,7 +125,8 @@ Hotstrings and the Hyper key work by watching keystrokes system-wide.
 - Like every such tool, it can't see keystrokes while macOS Secure Input is on (password fields).
 - Clipboard history stays on your Mac in a file only you can read
   (`~/Library/Application Support/Slated/clipboard.json`). It skips what password managers and
-  browsers mark as secret, and the log notes only how long a copy was, never its text.
+  browsers mark as secret, and the log notes only what kind of copy it was and how big, never its
+  text, image or file names.
 
 ## Development
 

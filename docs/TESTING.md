@@ -4,7 +4,7 @@
 
 | Layer | Where | Run | What it covers |
 |---|---|---|---|
-| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, repeat timing), the settings app's view models (validation, editors, layouts, clipboard picker and its placement, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction). |
+| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, repeat timing), the settings app's view models (validation, editors, layouts, clipboard picker and its placement, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction, the screenshot folder watcher on temporary folders, copied files on private pasteboards). |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
@@ -68,7 +68,7 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `operations.json` | Every operation form and error (automation and clipboard history included); canonical Action JSON; `format`; Action decoding. |
    | `keys.json` | Key combos (parse, canonical string, display), key names (modifier keys, mouse buttons 3–5), Slate keystrokes. |
    | `automation.json` | `press`/`hold` inputs, `RepeatSchedule` timing with fixed random values, `Action.isAutomation`. |
-   | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear, images), Foundation's case- and diacritic-insensitive search, and the clipboard.json the Mac app writes (image items too). |
+   | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear, images, screenshot names, files), Foundation's case- and diacritic-insensitive search, the name a file path shows (`fileNames`), and the clipboard.json the Mac app writes (image and files items too). |
    | `placement.json` | `PopupPlacement`: the clipboard picker below the caret or pointer (above near the bottom), its image preview beside it, clamping, the screen showing an anchor, and which caret rects apps report are usable (CoreGraphics' edge and empty-rect rules). |
    | `screens.json` | Screen setups, screen references and their resolution, ordering. |
    | `frames.json` | `targetFrame` for every geometry operation × setup × window × settings, and `targetOrigin`. |
@@ -259,6 +259,30 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] `~/Library/Application Support/Slated/clipboard-images` is `drwx------` and its files
       `-rw-------`. Deleting an image in Settings (or Clear History) removes its file. The log's
       `clipboard.captured` for an image has only `bytes`, `width` and `height`.
+- [ ] Screenshots saved as files (⇧⌘3, ⇧⌘4): the first one after installing makes macOS ask
+      whether Slated may see your Desktop folder. Allow it: within a second or two of the file
+      appearing (after the floating thumbnail goes, if it's on) the screenshot is in the picker under
+      its file name, with its thumbnail and preview. The file on the Desktop is untouched. The log has
+      `clipboard.captured` with `"source":"screenshot"`, and no file name.
+- [ ] Renaming that screenshot on the Desktop, or dragging an older screenshot there, adds nothing.
+      Turn "Add screenshots" off in Settings → Clipboard and take another: nothing is added.
+- [ ] Denied access: `tccutil reset SystemPolicyDesktopFolder io.github.shobhit-aida.slated`, relaunch,
+      take a screenshot and answer Don't Allow. Settings → Clipboard shows the notice under "Add
+      screenshots", and "Open Privacy & Security" opens Files and Folders. The log has
+      `clipboard.screenshots_unavailable` once. Turning Desktop Folder on there makes screenshots
+      show up again within about 5 seconds, without relaunching.
+- [ ] Screenshot folder moved (⇧⌘5 → Options → Save to → Documents): within about 5 seconds new
+      screenshots are picked up from there (macOS may ask about that folder too).
+- [ ] Copied files: ⌘C on two files in the Finder makes one row, a small thumbnail and
+      "first-name + 1 more", the same height as a text row. Selecting it shows a QuickLook preview
+      with name, "2 files" and size; a single picture shows the picture. Searching a file's name
+      finds it. Pasting it in a Finder window copies the files; in Mail or Slack, they're attached.
+      The log has `clipboard.captured` `{kind: "files", count: 2}`, never a name or path.
+- [ ] Move one of those files to the Trash and pick the item: only the other one is pasted. Empty
+      the Trash of both: the row is dimmed and says "Moved or deleted", picking it beeps and leaves
+      the picker open, your clipboard is unchanged, and the log has `clipboard.paste_skipped` with
+      `"reason":"files missing"`. In Settings the Copy button is off for it.
+- [ ] Copying a link in Safari is still text (a web URL isn't a file).
 - [ ] After a restart the history is still there (with "Keep across restarts" on).
       `~/Library/Application Support/Slated/clipboard.json` is readable only by you (`-rw-------`).
 

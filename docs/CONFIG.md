@@ -317,7 +317,8 @@ and with GNOME's own `caps:hyper` option holding Super alone shows the sheet too
   "retentionDays": 30,            // pinned items are kept regardless
   "ignoreConcealed": true,        // skip what password managers mark as secret
   "excludedApps": ["com.1password.1password", "com.bitwarden.desktop"],
-  "pasteAfterSelecting": true
+  "pasteAfterSelecting": true,
+  "screenshots": true             // add screenshots saved as files
 }
 ```
 
@@ -332,9 +333,31 @@ failing that at the mouse pointer; opened from Slated's own window, at the point
 Copied images (PNG or TIFF without text: screenshots, Copy Image in a browser, Preview) are kept
 too, up to 20 MB each, as files readable only by you in
 `~/Library/Application Support/Slated/clipboard-images/`. A row shows a thumbnail; selecting it
-shows the image larger beside the picker. Searching matches text only. Deleting, clearing or
-expiring an image deletes its file, and with `persist` off they're deleted at quit. In clipboard.json
-an image is an item with empty `text` and an `image` object (`file`, `width`, `height`, `bytes`).
+shows the image larger beside the picker. Searching matches text and file names, never an image.
+Deleting, clearing or expiring an image deletes its file, and with `persist` off they're deleted at
+quit. In clipboard.json an image is an item with empty `text` and an `image` object (`file`,
+`width`, `height`, `bytes`, and `name` for a screenshot saved as a file).
+
+**Screenshots saved as files** (`screenshots`, on by default). macOS saves screenshots to a folder
+(the Desktop unless you picked another under Options in the Screenshot app, ⇧⌘5), so they never
+reach the clipboard. Slated watches that folder and adds each new screenshot as an image, named
+after its file; the file itself is left alone. Only screenshots taken while the setting is on are
+added, the same size limit applies, and JPEG or HEIC screenshots are kept as PNG.
+- The first time, macOS asks whether Slated may see your Desktop folder. If you said no, Settings →
+  Clipboard says so; turn on Desktop Folder under Slated in System Settings → Privacy & Security →
+  Files and Folders and screenshots are added again within a few seconds.
+- With the setting (or clipboard history) off, Slated doesn't look at the folder at all.
+
+**Copied files.** Files copied in the Finder (or any app that copies files) are one item: a small
+thumbnail and the first file's name, with "+ 2 more" for the rest. Selecting it shows a larger
+QuickLook preview with the name, kind and size. Picking it puts the files back as files: the Finder
+pastes them, Mail and Slack attach them, and a text field gets whatever its app makes of files.
+Files moved or deleted since are left out; when none is left the row says "Moved or deleted",
+picking it does nothing, and your clipboard stays as it was. In clipboard.json files are an item
+whose `text` is their names, one per line, and whose `files` lists their paths.
+
+The log says what kind of thing was copied and how big (characters, an image's size, how many
+files), never the text, an image, a file's name or a path.
 
 **On the Mac** the old switcher's ⌘C, ⌘P and ⌘⌫ are gone: copy, pin and delete in Settings.
 
@@ -352,7 +375,9 @@ Ctrl+Shift+V in terminals. Copied PNG images are kept the same way, in
   passwords on Linux, so from those it also skips anything that looks like a password: one word with
   upper- and lowercase letters plus a digit or symbol. On the Mac, Chrome and Firefox mark them.
 - `excludedApps` takes GNOME app ids, such as `org.keepassxc.KeePassXC` or `com.bitwarden.desktop`.
-- Only text is kept, not images or files.
+- GNOME's screenshot tool copies each screenshot to the clipboard itself, so screenshots arrive as
+  images; `screenshots` is kept in settings.json for the Mac. Files copied in Files (Nautilus) are
+  kept as files, as on the Mac ([LINUX.md](LINUX.md)).
 - Slated's Settings → Clipboard edits all of these and shows how many items are saved; on GNOME
   the items themselves are in the switcher.
 
