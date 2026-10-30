@@ -21,7 +21,7 @@ const ADDITIONS = [
   'validateExpression', 'shellArguments', 'describeDiagnostic', 'screenContaining', 'orderedLeftToRight',
   'decodeAction', 'isWindowGeometry', 'readSettings', 'displayKeyCombo', 'isAutomation', 'isModifierKey',
   'isMouseButton', 'keysymName', 'keyDisplayName', 'parseSyntheticInput', 'formatSyntheticInput', 'RepeatSchedule',
-  'ClipboardHistory', 'referenceSeconds', 'referenceToMilliseconds', 'foldedContains',
+  'ClipboardHistory', 'referenceSeconds', 'referenceToMilliseconds', 'foldedContains', 'fileDisplayName',
   'decodeConfigurationFiles', 'encodeConfigurationFiles', 'isLegacyLayout', 'legacySlateOptions', 'parseConfigText',
 ];
 
@@ -157,6 +157,36 @@ export function registerUnitTests({root, readText}) {
     const bad = expectThrows(() => core.ClipboardHistory.fromJSON({items: [{id: 'x', text: 't', copiedAt: 0, pinned: false}]}));
     expect(bad instanceof SlatedError && bad.kind === 'invalidConfiguration', `bad id: ${bad}`);
     expectEqual(bad?.codingPath, ['items', 0, 'id']);
+  });
+
+  test('clipboard: copied files and image names', () => {
+    let n = 0;
+    const history = new core.ClipboardHistory([], {newId: () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`});
+    expect(!history.addFiles([], {at: 0, limit: 10}), 'no files, no item');
+    expect(history.addFiles(['/home/me/a.pdf', '/home/me/Photos/'], {app: 'org.gnome.Nautilus', at: 1, limit: 10}), 'added');
+    expectEqual(history.items[0].text, 'a.pdf\nPhotos', 'names, one per line');
+    history.add('a.pdf\nPhotos', {at: 2, limit: 10});
+    expectEqual(history.items.length, 2, 'text never merges with files');
+    history.togglePin(history.items[1].id);
+    history.addFiles(['/home/me/a.pdf', '/home/me/Photos/'], {at: 3, limit: 10});
+    expectEqual([history.items.length, history.items[0].pinned, history.items[0].copiedAt], [2, true, 3], 'again: to the top, pinned');
+    history.addFiles(['/home/me/Photos/', '/home/me/a.pdf'], {at: 4, limit: 10});
+    expectEqual(history.items.length, 3, 'another order is another copy');
+    expectEqual(history.search('photos').length, 3, 'found by name (and the text)');
+    expectEqual(history.search('home').length, 0, 'not by folder');
+    history.addImage({file: 'x.png', width: 2, height: 1, bytes: 9, name: 'Screenshot.png'}, {at: 5, limit: 10});
+    const json = JSON.parse(JSON.stringify(history.toJSON()));
+    expectEqual(json.items[0].image, {file: 'x.png', width: 2, height: 1, bytes: 9, name: 'Screenshot.png'});
+    expectEqual(json.items[1].files, ['/home/me/Photos/', '/home/me/a.pdf']);
+    expect(!('files' in json.items[0]) && !('image' in json.items[1]) && !('files' in json.items[3]), 'only where there are some');
+    expectEqual(core.ClipboardHistory.fromJSON(json).toJSON(), json, 'round trip');
+    const decode = (fields) => core.ClipboardHistory.fromJSON({items: [{id: '00000000-0000-4000-8000-000000000001', text: '', copiedAt: 0, pinned: false, ...fields}]});
+    expectEqual(decode({files: null, image: {file: 'a.png', width: 1, height: 1, bytes: 1, name: null}}).toJSON().items[0].image, {file: 'a.png', width: 1, height: 1, bytes: 1});
+    expectEqual(expectThrows(() => decode({files: ['/a', 5]}))?.codingPath, ['items', 0, 'files', 1]);
+    expectEqual(expectThrows(() => decode({files: '/a'}))?.codingPath, ['items', 0, 'files']);
+    expectEqual(expectThrows(() => decode({image: {file: 'a.png', width: 1, height: 1, bytes: 1, name: 3}}))?.codingPath, ['items', 0, 'image', 'name']);
+    const names = {'/a/b.txt': 'b.txt', '/a/dir/': 'dir', '/': '/', '//': '/', 'rel': 'rel', '': '', '/a/.hidden': '.hidden'};
+    for (const [path, name] of Object.entries(names)) expectEqual(core.fileDisplayName(path), name, path);
   });
 
   test('config: onlyInApps is written only when it limits the binding', () => {

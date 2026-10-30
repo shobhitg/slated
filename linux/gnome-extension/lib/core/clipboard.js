@@ -1,11 +1,13 @@
 // Clipboard history (port of ClipboardHistory.swift): newest first, de-duplicated, bounded, with
 // pinning, retention and search. Pure; the GNOME extension adds watching the clipboard and saving.
 //
-// Items are {id, text, copiedAt, sourceApp, pinned, image?}, exactly the Mac app's clipboard.json
-// entries: `copiedAt` is in Swift's Date encoding (seconds since 2001-01-01 UTC, see
+// Items are {id, text, copiedAt, sourceApp, pinned, image?, files?}, exactly the Mac app's
+// clipboard.json entries: `copiedAt` is in Swift's Date encoding (seconds since 2001-01-01 UTC, see
 // `referenceSeconds`), `id` an uppercase UUID, `sourceApp` the app it was copied from or null.
-// `image` ({file, width, height, bytes}) marks a copied image, whose `text` is empty; the apps keep
-// its bytes in a file of that name beside the history.
+// `image` ({file, width, height, bytes, name?}) marks a copied image, whose `text` is empty; the apps
+// keep its bytes in a file of that name beside the history, and `name` is the file it came from (a
+// screenshot's). `files` (absolute paths, in order) marks copied files, whose `text` is their names,
+// one per line, so search finds them by name.
 
 import {SlatedError} from './errors.js';
 import {randomUUID} from './config.js';
@@ -42,6 +44,7 @@ export class ClipboardHistory {
       sourceApp: item.sourceApp ?? null,
       pinned: !!item.pinned,
       ...(item.image ? {image: copyImage(item.image)} : {}),
+      ...(item.files ? {files: [...item.files]} : {}),
     }));
     this._newId = newId;
   }
@@ -60,7 +63,7 @@ export class ClipboardHistory {
   add(text, {app = null, at, limit}) {
     if (trimWhitespaceAndNewlines(text) === '') return false;
     let pinned = false;
-    const existing = this._items.findIndex((item) => !item.image && stringEquals(item.text, text));
+    const existing = this._items.findIndex((item) => isText(item) && stringEquals(item.text, text));
     if (existing >= 0) {
       pinned = this._items[existing].pinned;
       this._items.splice(existing, 1);
@@ -85,6 +88,27 @@ export class ClipboardHistory {
       this._items.splice(existing, 1);
     }
     this._items.unshift({id: this._newId(), text: '', copiedAt: at, sourceApp: app ?? null, pinned, image: copyImage(image)});
+    this.enforce(limit);
+    return true;
+  }
+
+  /**
+   * Records copied files (absolute paths, in order). Returns false for none. The same files copied
+   * again move to the top with a new id, keeping their pin. The item's text is the files' names,
+   * one per line.
+   * @param {string[]} files
+   * @param {{app?: string|null, at: number, limit: number}} options  `at` in Swift's Date encoding.
+   */
+  addFiles(files, {app = null, at, limit}) {
+    if (!Array.isArray(files) || files.length === 0) return false;
+    let pinned = false;
+    const existing = this._items.findIndex((item) => item.files && sameFiles(item.files, files));
+    if (existing >= 0) {
+      pinned = this._items[existing].pinned;
+      this._items.splice(existing, 1);
+    }
+    const text = files.map(fileDisplayName).join('\n');
+    this._items.unshift({id: this._newId(), text, copiedAt: at, sourceApp: app ?? null, pinned, files: [...files]});
     this.enforce(limit);
     return true;
   }
@@ -145,7 +169,7 @@ export class ClipboardHistory {
     return [...matches.filter((item) => item.pinned), ...matches.filter((item) => !item.pinned)];
   }
 
-  /** The Codable form the Mac app writes to clipboard.json: {"items": [{id, text, copiedAt, sourceApp?, pinned, image?}]}. */
+  /** The Codable form the Mac app writes to clipboard.json: {"items": [{id, text, copiedAt, sourceApp?, pinned, image?, files?}]}. */
   toJSON() {
     return {
       items: this._items.map((item) => {
@@ -153,6 +177,7 @@ export class ClipboardHistory {
         if (item.sourceApp !== null && item.sourceApp !== undefined) out.sourceApp = item.sourceApp;
         out.pinned = item.pinned;
         if (item.image) out.image = copyImage(item.image);
+        if (item.files) out.files = [...item.files];
         return out;
       }),
     };
@@ -172,7 +197,27 @@ export class ClipboardHistory {
   }
 }
 
-const copyImage = (image) => ({file: image.file, width: image.width, height: image.height, bytes: image.bytes});
+const copyImage = (image) => ({
+  file: image.file, width: image.width, height: image.height, bytes: image.bytes,
+  ...(image.name !== undefined && image.name !== null ? {name: image.name} : {}),
+});
+
+/** Whether an item is copied text (not an image or files): only text merges with text. */
+const isText = (item) => !item.image && !item.files;
+
+/** The same paths in the same order, compared as Swift compares strings. */
+const sameFiles = (a, b) => a.length === b.length && a.every((path, i) => stringEquals(path, b[i]));
+
+/**
+ * A path's last component, as Foundation's `lastPathComponent` gives it: trailing slashes don't
+ * count, and "/" stays "/".
+ */
+export function fileDisplayName(path) {
+  const s = String(path);
+  const trimmed = s.replace(/\/+$/, '');
+  if (trimmed === '') return s === '' ? '' : '/';
+  return trimmed.slice(trimmed.lastIndexOf('/') + 1);
+}
 
 // --- Decoding (Swift's synthesized Decodable for ClipboardItem) ------------------------------------
 
@@ -217,9 +262,19 @@ function decodeItem(value, path) {
     if (typeof v !== 'boolean') throw mismatch(p, 'Bool', v);
     return v;
   });
-  // Optional: histories written before images were kept have no `image`, and null reads as none.
-  if (object.image === undefined || object.image === null) return {id, text, copiedAt, sourceApp, pinned};
-  return {id, text, copiedAt, sourceApp, pinned, image: decodeImage(object.image, [...path, 'image'])};
+  // Optional: histories written before images (or files) were kept have neither, and null reads as none.
+  const item = {id, text, copiedAt, sourceApp, pinned};
+  if (object.image !== undefined && object.image !== null) item.image = decodeImage(object.image, [...path, 'image']);
+  if (object.files !== undefined && object.files !== null) item.files = decodeFiles(object.files, [...path, 'files']);
+  return item;
+}
+
+function decodeFiles(value, path) {
+  if (!Array.isArray(value)) throw mismatch(path, 'Array<Any>', value);
+  return value.map((v, i) => {
+    if (typeof v !== 'string') throw mismatch([...path, i], 'String', v);
+    return v;
+  });
 }
 
 function decodeImage(value, path) {
@@ -234,7 +289,12 @@ function decodeImage(value, path) {
       if (n === null) throw mismatch(p, 'Int', v);
       return n;
     });
-  return {file, width: int('width'), height: int('height'), bytes: int('bytes')};
+  const image = {file, width: int('width'), height: int('height'), bytes: int('bytes')};
+  if (object.name !== undefined && object.name !== null) {
+    if (typeof object.name !== 'string') throw mismatch([...path, 'name'], 'String', object.name);
+    image.name = object.name;
+  }
+  return image;
 }
 
 // --- Search (Foundation's case- and diacritic-insensitive `range(of:)`) ----------------------------
