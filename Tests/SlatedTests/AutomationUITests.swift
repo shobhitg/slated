@@ -562,6 +562,91 @@ let uiClipboardPickerTests = Suite(
         }
       }
     ),
+    (
+      "files are one-line rows with a preview; a screenshot's row reads its name",
+      {
+        try onMain {
+          let picker = ClipboardPickerModel(services: PreviewServices())
+          picker.resetForShowing()
+          let files = try require(picker.results.first { ($0.files?.count ?? 0) > 1 })
+          expectEqual(ClipboardPickerModel.rowHeight(files), 26)
+          expectEqual(ClipboardContent.filesTitle(files.files ?? []).name, "Quarterly Report.pdf")
+          expectEqual(ClipboardContent.filesTitle(files.files ?? []).more, "+ 1 more")
+          picker.selectedID = files.id
+          expectEqual(picker.previewItem?.id, files.id)
+          expectEqual(SlatedUI.clipboardImagePreviewSize(model: picker), CGSize(width: 196, height: 234))
+          expect(!picker.isUnavailable(files))
+          expect(ClipboardContent.filesDetails(files.files ?? [], missing: []).hasPrefix("2 files · "))
+
+          let shot = try require(picker.results.first { $0.image?.name != nil })
+          expectEqual(
+            ClipboardContent.imageTitle(try require(shot.image), app: "Safari"), "Screenshot 2026-10-29 at 09.41.12.png"
+          )
+          expectEqual(ClipboardContent.imageTitle(PreviewImages.photo, app: "Preview"), "Image · 800×1000 · Preview")
+          picker.query = "quarterly"
+          expectEqual(picker.results.map(\.id), [files.id])
+          picker.query = "screenshot"
+          expect(picker.results.isEmpty, "images aren't searched, not even by name")
+        }
+      }
+    ),
+    (
+      "files that were all moved or deleted are dimmed, and picking them leaves the picker open",
+      {
+        try onMain {
+          let services = PreviewServices()
+          let picker = ClipboardPickerModel(services: services)
+          var closed = 0
+          var beeps = 0
+          picker.onClose = { closed += 1 }
+          picker.beep = { beeps += 1 }
+          picker.resetForShowing()
+          let gone = try require(picker.results.first { $0.files == [PreviewFiles.missing] })
+          expect(picker.isUnavailable(gone))
+          expectEqual(
+            ClipboardContent.filesDetails([PreviewFiles.missing], missing: [PreviewFiles.missing]), "Moved or deleted")
+          picker.paste(gone.id)
+          expectEqual(closed, 0)
+          expectEqual(beeps, 1)
+          expectEqual(services.pastedClipboardItems, [gone.id])  // the app logs it and leaves the clipboard alone
+          expectEqual(services.clipboardItems().first { $0.id == gone.id }?.copiedAt, gone.copiedAt)
+
+          // Some of them gone: what's left is pasted.
+          services.simulateCopy(files: [PreviewFiles.notes, PreviewFiles.missing])
+          picker.resetForShowing()
+          let partly = try require(picker.results.first { $0.files == [PreviewFiles.notes, PreviewFiles.missing] })
+          expect(!picker.isUnavailable(partly))
+          expectEqual(picker.missingFiles[partly.id], [PreviewFiles.missing])
+          expect(
+            ClipboardContent.filesDetails(partly.files ?? [], missing: [PreviewFiles.missing]).hasSuffix(
+              "1 moved or deleted"))
+          picker.paste(partly.id)
+          expectEqual(closed, 1)
+        }
+      }
+    ),
+    (
+      "Settings: copying files that are gone says so; the screenshot switch saves and its notice opens Privacy",
+      {
+        try onMain {
+          let services = PreviewServices()
+          let model = AppModel(services: services)
+          let gone = try require(model.clipboardItems.first { $0.files == [PreviewFiles.missing] })
+          expectEqual(model.missingClipboardFiles(gone), [PreviewFiles.missing])
+          model.copyClipboardItem(gone.id)
+          expectEqual(model.toast?.message, "Those files were moved or deleted")
+
+          expect(model.configuration.clipboard.screenshots)
+          model.configuration.clipboard.screenshots = false
+          model.saveNow()
+          expect(try !services.loadConfiguration().clipboard.screenshots)
+          services.setScreenshotStatus(.denied(folder: "Desktop"))
+          expectEqual(model.runtimeStatus.screenshots, .denied(folder: "Desktop"))
+          model.openFilesAndFoldersSettings()
+          expectEqual(services.openedFilesAndFoldersSettings, 1)
+        }
+      }
+    ),
   ])
 
 let uiAutomationTests = Suite(

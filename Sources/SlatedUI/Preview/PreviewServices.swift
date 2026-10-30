@@ -51,7 +51,8 @@ public final class PreviewServices: AppServices {
       configuration = config
       status = RuntimeStatus(
         accessibilityGranted: true, hyperKeyActive: true, hotstringsActive: true,
-        lastAction: "Left Half · Safari", lastError: "Couldn't resize “Calculator”: its window has a fixed size.")
+        lastAction: "Left Half · Safari", lastError: "Couldn't resize “Calculator”: its window has a fixed size.",
+        screenshots: .watching(folder: "Desktop"))
       clipboard = ClipboardHistory(items: PreviewData.clipboard())
     case .firstRun:
       // As a first run leaves it: the Slate config, imported.
@@ -94,7 +95,9 @@ public final class PreviewServices: AppServices {
     guard slateConfig != nil else {
       throw NSError(
         domain: "Slated", code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "There's no Slate config to import: Slated looked for ~/.slate.js and ~/.slate."])
+        userInfo: [
+          NSLocalizedDescriptionKey: "There's no Slate config to import: Slated looked for ~/.slate.js and ~/.slate."
+        ])
     }
     var config = configuration
     let report = config.merge(PreviewData.slateImport)
@@ -187,8 +190,11 @@ public final class PreviewServices: AppServices {
   public func copyClipboardItem(id: UUID) {
     guard let item = clipboard.items.first(where: { $0.id == id }) else { return }
     pastedClipboardItems.append(id)
-    // Like the app: the item moves to the top, keeping its pin.
-    if let image = item.image {
+    // Like the app: the item moves to the top, keeping its pin. Files that are all gone stay put.
+    if let files = item.files, item.isFiles {
+      guard files.contains(where: { !clipboardFileMissing($0) }) else { return }
+      clipboard.add(files: files, from: item.sourceApp, at: Date(), limit: configuration.clipboard.maxItems)
+    } else if let image = item.image {
       clipboard.add(image: image, from: item.sourceApp, at: Date(), limit: configuration.clipboard.maxItems)
     } else {
       clipboard.add(item.text, from: item.sourceApp, at: Date(), limit: configuration.clipboard.maxItems)
@@ -209,6 +215,23 @@ public final class PreviewServices: AppServices {
   }
   public func showClipboardHistory() {}
   public func clipboardImageURL(_ image: ClipboardImage) -> URL? { PreviewImages.url(for: image) }
+  public func clipboardFileMissing(_ path: String) -> Bool { !FileManager.default.fileExists(atPath: path) }
+  public func openFilesAndFoldersSettings() { openedFilesAndFoldersSettings += 1 }
+
+  /// How often the UI opened Privacy & Security → Files and Folders, for tests.
+  public private(set) var openedFilesAndFoldersSettings = 0
+
+  /// The screenshot folder's state as the app would report it: watching, not allowed or missing.
+  public func setScreenshotStatus(_ screenshots: ScreenshotFolderStatus) {
+    status.screenshots = screenshots
+    notifyChange()
+  }
+
+  /// Records copied files and notifies the UI, as the pasteboard watcher would.
+  public func simulateCopy(files: [String], from app: String? = "com.apple.finder", at date: Date = Date()) {
+    clipboard.add(files: files, from: app, at: date, limit: configuration.clipboard.maxItems)
+    notifyChange()
+  }
   public func activeAutomations() -> [ActiveAutomation] { automations }
   public func stopAutomations() {
     automations = []

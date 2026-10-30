@@ -22,6 +22,9 @@ struct ClipPreviewLine: View {
         Text(item.image.map { ClipboardContent.imageTitle($0, app: nil) } ?? "")
           .font(.system(size: fontSize))
           .foregroundStyle(primary)
+          .truncationMode(item.image?.name == nil ? .tail : .middle)
+      case _ where item.isFiles:
+        ClipFilesLine(files: item.files ?? [], fontSize: fontSize, inverted: inverted)
       case .color:
         ColorSwatch(hex: item.text.trimmingCharacters(in: .whitespacesAndNewlines), size: fontSize + 1)
         Text(item.text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
@@ -48,6 +51,31 @@ struct ClipPreviewLine: View {
   }
 }
 
+/// Copied files on one line: the first one's name (shortened in the middle, so its extension shows)
+/// and "+ 2 more".
+struct ClipFilesLine: View {
+  let files: [String]
+  var fontSize: CGFloat = 13
+  var inverted = false
+
+  var body: some View {
+    let title = ClipboardContent.filesTitle(files)
+    HStack(spacing: 5) {
+      Text(title.name)
+        .font(.system(size: fontSize))
+        .foregroundStyle(inverted ? Color.white : Color.primary)
+        .truncationMode(.middle)
+      if let more = title.more {
+        Text(more)
+          .font(.system(size: fontSize - 1))
+          .foregroundStyle(inverted ? AnyShapeStyle(.white.opacity(0.75)) : AnyShapeStyle(.secondary))
+          .fixedSize()
+      }
+    }
+    .lineLimit(1)
+  }
+}
+
 /// A round swatch for `#RRGGBB` text.
 struct ColorSwatch: View {
   let hex: String
@@ -70,8 +98,14 @@ struct ClipSourceIcon: View {
   var size: CGFloat = 26
 
   var body: some View {
-    if item.isImage && item.sourceApp == nil {
-      Image(systemName: "photo")
+    if item.isFiles && item.sourceApp == nil {
+      Image(systemName: "doc")
+        .font(.system(size: size * 0.42, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .frame(width: size, height: size)
+        .background(Theme.well, in: RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
+    } else if item.isImage && item.sourceApp == nil {
+      Image(systemName: item.image?.name == nil ? "photo" : "camera.viewfinder")
         .font(.system(size: size * 0.42, weight: .semibold))
         .foregroundStyle(.secondary)
         .frame(width: size, height: size)

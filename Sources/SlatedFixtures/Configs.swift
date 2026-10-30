@@ -84,7 +84,6 @@ private let settingsMarkdownExample = #"""
   }
   """#
 
-
 /// docs/CONFIG.md's "Game automation" example, wrapped in an object.
 private let configMarkdownAutomation = #"""
   {

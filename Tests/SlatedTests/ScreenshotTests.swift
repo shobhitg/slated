@@ -92,7 +92,8 @@ let screenshotTests = Suite(
         let folder = temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let old = writeScreenshot(folder.appendingPathComponent("Screenshot old.png"))
-        try FileManager.default.setAttributes([.creationDate: Date().addingTimeInterval(-3_600)], ofItemAtPath: old.path)
+        try FileManager.default.setAttributes(
+          [.creationDate: Date().addingTimeInterval(-3_600)], ofItemAtPath: old.path)
         writeScreenshot(folder.appendingPathComponent(".Screenshot temp.png"))
         var scanner = ScreenshotScanner(folder: folder, since: Date().addingTimeInterval(-60))
         expectEqual(try settle(&scanner), [])
@@ -229,7 +230,8 @@ let screenshotTests = Suite(
         }
         expect(bytes > 4_000)
         expectEqual(width, 900)
-        let junk = writeScreenshot(folder.appendingPathComponent("Screenshot junk.png"), data: Data("not an image".utf8))
+        let junk = writeScreenshot(
+          folder.appendingPathComponent("Screenshot junk.png"), data: Data("not an image".utf8))
         expectEqual(store.saveScreenshot(at: junk), .failed(bytes: 12))
       }
     ),

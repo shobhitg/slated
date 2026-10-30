@@ -206,7 +206,8 @@ private let clipSessions: [ClipSession] = [
   ClipSession(
     name: "files: their names are the text; the same files again move to the top, keeping the pin",
     steps: [
-      .addFiles(["/Users/me/Desktop/Report Q3.pdf", "/Users/me/Pictures/Team Photo.jpg"], app: "com.apple.finder", at: t0),
+      .addFiles(
+        ["/Users/me/Desktop/Report Q3.pdf", "/Users/me/Pictures/Team Photo.jpg"], app: "com.apple.finder", at: t0),
       .addFiles(["/Users/me/notes.txt"], at: t0 + 1), .togglePin("Report Q3.pdf\nTeam Photo.jpg"),
       .addFiles(["/Users/me/Desktop/Report Q3.pdf", "/Users/me/Pictures/Team Photo.jpg"], at: t0 + 2),
       // Another order, or some of them, is another copy.

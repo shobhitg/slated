@@ -231,7 +231,8 @@ final class Engine {
           [weak self] in
           self?.runner.run(
             binding.action, label: binding.name, chainKey: binding.id.uuidString,
-            trigger: "hotkey \((binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string)", source: "Slated")
+            trigger: "hotkey \((binding.modal.map { $0.keys.string + " " } ?? "") + binding.keys.string)",
+            source: "Slated")
         }
       }
       entries += builtInEntries(config)
@@ -355,7 +356,9 @@ final class Engine {
     if config.island.enabled && config.island.cheatSheet { options.aloneTimeout = min(1, island.cheatSheetDelay) }
     options.hotstringsEnabled = wantsHotstrings
     let hyperCodes = Set(
-      hotkeys.boundCombos.filter { $0.modifiers == config.keyboard.hyperModifiers }.compactMap { KeyCodes.code(for: $0.key) })
+      hotkeys.boundCombos.filter { $0.modifiers == config.keyboard.hyperModifiers }.compactMap {
+        KeyCodes.code(for: $0.key)
+      })
     let mouseHotkeys = Set(
       mouseCombos.compactMap { combo -> KeyboardTap.MouseHotkey? in
         guard let n = Int(combo.key.dropFirst("mouse".count)) else { return nil }
@@ -386,7 +389,8 @@ final class Engine {
   private func expand(_ match: HotstringMatch) {
     let hotstring = match.hotstring
     let text = HotstringTemplate.expand(hotstring.replacement, clipboard: NSPasteboard.general.string(forType: .string))
-    TextInjector.shared.replace(deleting: match.deleteCount, with: text, method: hotstring.method, suffix: match.delimiter)
+    TextInjector.shared.replace(
+      deleting: match.deleteCount, with: text, method: hotstring.method, suffix: match.delimiter)
     Log.record(
       "hotstring.expanded",
       [
@@ -568,6 +572,7 @@ final class Engine {
 
   private func notify() {
     status.hotkeys = hotkeys.statuses
+    status.screenshots = clipboard.screenshotStatus
     for handler in changeHandlers { handler() }
   }
 

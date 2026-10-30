@@ -7,8 +7,10 @@ import UniformTypeIdentifiers
 /// Sample clipboard images for previews, snapshots and tests: drawn (not shipped as files) into a
 /// temporary folder the first time they're asked for, at half their listed pixel size.
 enum PreviewImages {
-  /// A screenshot of a window on a colorful desktop.
-  static let screenshot = ClipboardImage(file: "preview-screenshot.png", width: 1440, height: 900, bytes: 412_000)
+  /// A screenshot of a window on a colorful desktop, saved as a file (so it has a name).
+  static let screenshot = ClipboardImage(
+    file: "preview-screenshot.png", width: 1440, height: 900, bytes: 412_000,
+    name: "Screenshot 2026-10-29 at 09.41.12.png")
   /// A portrait photo: a sunset over hills.
   static let photo = ClipboardImage(file: "preview-photo.png", width: 800, height: 1000, bytes: 268_000)
 
@@ -18,7 +20,7 @@ enum PreviewImages {
   static func url(for image: ClipboardImage) -> URL? {
     let url = directory.appendingPathComponent(image.file)
     if FileManager.default.fileExists(atPath: url.path) { return url }
-    guard image == screenshot || image == photo else { return nil }
+    guard image.file == screenshot.file || image.file == photo.file else { return nil }
     try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     return write(image, to: url) ? url : nil
   }
@@ -32,7 +34,11 @@ enum PreviewImages {
         space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
     else { return false }
     let size = CGSize(width: width, height: height)
-    if image == screenshot { drawScreenshot(in: context, size: size) } else { drawPhoto(in: context, size: size) }
+    if image.file == screenshot.file {
+      drawScreenshot(in: context, size: size)
+    } else {
+      drawPhoto(in: context, size: size)
+    }
     // Written to a temporary name and moved, so a parallel run never reads half a file.
     let partial = url.appendingPathExtension("partial-\(UUID().uuidString)")
     guard let cgImage = context.makeImage(),

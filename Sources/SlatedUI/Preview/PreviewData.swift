@@ -230,17 +230,27 @@ enum PreviewData {
     var items = samples.map { text, app, ago, pinned in
       ClipboardItem(text: text, copiedAt: now.addingTimeInterval(-ago), sourceApp: app, pinned: pinned)
     }
-    // Two images: a screenshot copied from Safari and a photo from Preview.
+    // Two images: a screenshot saved as a file and a photo copied in Preview.
     items.insert(
-      ClipboardItem(
-        text: "", copiedAt: now.addingTimeInterval(-8 * minute), sourceApp: "com.apple.Safari",
-        image: PreviewImages.screenshot),
+      ClipboardItem(text: "", copiedAt: now.addingTimeInterval(-8 * minute), image: PreviewImages.screenshot),
       at: 2)
     items.insert(
       ClipboardItem(
         text: "", copiedAt: now.addingTimeInterval(-28 * hour), sourceApp: "com.apple.Preview",
         image: PreviewImages.photo),
       at: 9)
+    // Files copied in the Finder: two together, one since moved or deleted, and a picture.
+    let finder = "com.apple.finder"
+    let files: [(Double, [String])] = [
+      (20 * minute, [PreviewFiles.report, PreviewFiles.notes]), (50 * minute, [PreviewFiles.missing]),
+      (2 * day, [PreviewFiles.photo]),
+    ]
+    for (ago, paths) in files {
+      let item = ClipboardItem(
+        text: ClipboardItem.text(forFiles: paths), copiedAt: now.addingTimeInterval(-ago), sourceApp: finder,
+        files: paths)
+      items.insert(item, at: items.firstIndex { $0.copiedAt < item.copiedAt } ?? items.endIndex)
+    }
     return items
   }
 

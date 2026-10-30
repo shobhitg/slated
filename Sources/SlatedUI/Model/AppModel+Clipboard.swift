@@ -45,9 +45,15 @@ extension AppModel {
   var pinnedClipboardCount: Int { clipboardItems.filter(\.pinned).count }
 
   func copyClipboardItem(_ id: UUID) {
+    let item = clipboardItems.first { $0.id == id }
+    let gone = item.map { $0.isFiles && missingClipboardFiles($0).count == ($0.files ?? []).count } ?? false
     services.copyClipboardItem(id: id)
     refresh()
-    showToast("Copied to the clipboard", symbol: "doc.on.doc.fill")
+    if gone {
+      showToast("Those files were moved or deleted", symbol: "exclamationmark.triangle.fill")
+    } else {
+      showToast("Copied to the clipboard", symbol: "doc.on.doc.fill")
+    }
   }
 
   func pasteClipboardItem(_ id: UUID) {
@@ -82,6 +88,15 @@ extension AppModel {
 
   /// A copied image's file, for thumbnails.
   func clipboardImageURL(_ image: ClipboardImage) -> URL? { services.clipboardImageURL(image) }
+
+  /// The item's files that were moved or deleted since they were copied (none for text and images).
+  func missingClipboardFiles(_ item: ClipboardItem) -> Set<String> {
+    guard item.isFiles else { return [] }
+    return Set((item.files ?? []).filter(services.clipboardFileMissing))
+  }
+
+  /// System Settings → Privacy & Security → Files and Folders, to let Slated see the screenshot folder.
+  func openFilesAndFoldersSettings() { services.openFilesAndFoldersSettings() }
 
   /// Puts ⇧⌘V back after the shortcut was cleared.
   func restoreDefaultClipboardShortcut() { configuration.clipboard.shortcut = ClipboardSettings().shortcut }

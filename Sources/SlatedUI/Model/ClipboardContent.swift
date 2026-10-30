@@ -1,5 +1,6 @@
 import Foundation
 import SlatedCore
+import UniformTypeIdentifiers
 
 /// What a clipboard item looks like, so the switcher and settings can show it well: links get
 /// their host, code a monospaced preview, colors a swatch.
@@ -170,9 +171,46 @@ enum ClipboardContent {
       lines: max(1, text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).count))
   }
 
-  /// An image as a row reads: "Image · 1280×720 · Safari".
+  /// An image as a row reads: a screenshot's file name, else "Image · 1280×720 · Safari".
   static func imageTitle(_ image: ClipboardImage, app: String?) -> String {
-    (["Image", "\(image.width)×\(image.height)"] + (app.map { [$0] } ?? [])).joined(separator: " · ")
+    if let name = image.name, !name.isEmpty { return name }
+    return (["Image", "\(image.width)×\(image.height)"] + (app.map { [$0] } ?? [])).joined(separator: " · ")
+  }
+
+  /// Copied files as a row reads them: the first one's name, and "+ 2 more" for the rest.
+  static func filesTitle(_ files: [String]) -> (name: String, more: String?) {
+    let name = files.first.map { ClipboardItem.fileName(ofPath: $0) } ?? "No files"
+    return (name, files.count > 1 ? "+ \(files.count - 1) more" : nil)
+  }
+
+  /// Said of copied files that are no longer where they were copied from.
+  static let movedOrDeleted = "Moved or deleted"
+
+  /// Under a file's preview: "PDF document · 2.4 MB", "Folder", or for several "3 files · 4.1 MB".
+  /// Sizes and kinds of files that are gone are left out.
+  static func filesDetails(_ files: [String], missing: Set<String>) -> String {
+    let present = files.filter { !missing.contains($0) }
+    if present.isEmpty { return movedOrDeleted }
+    let infos = present.map(fileInfo)
+    let bytes = infos.compactMap(\.bytes).reduce(0, +)
+    let size = bytes > 0 ? Int64(bytes).formatted(.byteCount(style: .file)) : nil
+    var parts: [String]
+    if files.count == 1 {
+      parts = [infos[0].kind] + (size.map { [$0] } ?? [])
+    } else {
+      parts = ["\(files.count) files"] + (size.map { [$0] } ?? [])
+      if present.count < files.count { parts.append("\(files.count - present.count) moved or deleted") }
+    }
+    return parts.joined(separator: " · ")
+  }
+
+  /// A file's kind ("PDF document", "Folder") and size (none for a folder), from its metadata.
+  static func fileInfo(_ path: String) -> (kind: String, bytes: Int?) {
+    let url = URL(fileURLWithPath: path)
+    let values = try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey, .fileSizeKey, .isDirectoryKey])
+    let fallback = UTType(filenameExtension: url.pathExtension)?.localizedDescription ?? "Document"
+    if values?.isDirectory == true { return (values?.localizedTypeDescription ?? "Folder", nil) }
+    return (values?.localizedTypeDescription ?? fallback, values?.fileSize)
   }
 
   /// Under a preview: "1280×720 · 245 KB".

@@ -112,7 +112,7 @@ private struct ClipboardHero: View {
     let settings = model.configuration.clipboard
     guard settings.enabled else {
       return
-        "Turn it on and Slated remembers the last \(settings.maxItems) things you copy, text and images, ready to paste again. Passwords are never recorded."
+        "Turn it on and Slated remembers the last \(settings.maxItems) things you copy (text, images and files) ready to paste again. Passwords are never recorded."
     }
     let paste =
       settings.pasteAfterSelecting
@@ -217,6 +217,8 @@ private struct HistoryCard: View {
         title: "Keep history across restarts",
         subtitle: "Saved only on this Mac, in a file only you can read. Off: history starts fresh each launch.",
         symbol: "internaldrive.fill", tint: Color(hex: 0x14A89A), isOn: $model.configuration.clipboard.persist)
+      CardDivider(inset: 54)
+      ScreenshotsRow()
     }
   }
 
@@ -230,6 +232,64 @@ private struct HistoryCard: View {
     let days = ClipboardOptions.retentionDays.filter { $0 > 0 }
     let withCurrent = current > 0 && !days.contains(current) ? (days + [current]).sorted() : days
     return withCurrent + [0]
+  }
+}
+
+/// `clipboard.screenshots`, with what macOS asks for, and what to do when it said no.
+private struct ScreenshotsRow: View {
+  @Environment(AppModel.self) private var model
+
+  var body: some View {
+    @Bindable var model = model
+    let on = model.configuration.clipboard.screenshots
+    VStack(alignment: .leading, spacing: 0) {
+      ToggleRow(
+        title: "Add screenshots",
+        subtitle:
+          "Screenshots saved as files join your history too. The first time, macOS asks to let Slated see your \(folder) folder, where they're saved.",
+        symbol: "camera.viewfinder", tint: Color(hex: 0xE0457B), isOn: $model.configuration.clipboard.screenshots)
+      if on, let problem {
+        VStack(alignment: .leading, spacing: 6) {
+          Label(problem.text, systemImage: "exclamationmark.triangle.fill")
+            .font(.system(size: 11.5))
+            .foregroundStyle(Theme.caution)
+            .fixedSize(horizontal: false, vertical: true)
+          if problem.offerSettings {
+            Button("Open Privacy & Security") { model.openFilesAndFoldersSettings() }
+              .buttonStyle(.link)
+              .font(.system(size: 12))
+              .padding(.leading, 20)
+          }
+        }
+        .padding(.leading, 54)
+        .padding(.trailing, 16)
+        .padding(.bottom, 10)
+      }
+    }
+  }
+
+  /// The folder screenshots go to, as macOS names it; the Desktop until Slated has looked.
+  private var folder: String {
+    switch model.runtimeStatus.screenshots {
+    case .watching(let folder), .denied(let folder), .missing(let folder): return folder
+    case .off: return "Desktop"
+    }
+  }
+
+  private var problem: (text: String, offerSettings: Bool)? {
+    switch model.runtimeStatus.screenshots {
+    case .denied(let folder):
+      return (
+        "Slated can't see your \(folder) folder, so screenshots aren't added. In System Settings → Privacy & Security → Files and Folders, turn on \(folder) Folder under Slated.",
+        true
+      )
+    case .missing(let folder):
+      return (
+        "The folder screenshots are saved to (“\(folder)”) isn't there, so they aren't added. Plug in its disk, or pick another folder in the Screenshot app (⇧⌘5) under Options.",
+        false
+      )
+    case .off, .watching: return nil
+    }
   }
 }
 
@@ -335,7 +395,7 @@ private struct RecentItems: View {
             CardDivider(inset: 0)
           }
           if shown.isEmpty {
-            Text("No text matches “\(search)”. Images aren't searched.")
+            Text("Nothing matches “\(search)”. Text and file names are searched, images aren't.")
               .font(.system(size: 12))
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity)
@@ -375,32 +435,39 @@ private struct RecentItems: View {
     let settings = model.configuration.clipboard
     guard settings.enabled else { return "Clipboard history is off, so nothing is being recorded." }
     let open = settings.shortcut.map { " Press \($0.display()) to bring it back." } ?? ""
-    return "Copy some text or an image in any app and it shows up here.\(open)"
+    return "Copy some text, an image or files in any app and it shows up here.\(open)"
   }
 }
 
-/// One item: source app (an image's thumbnail), preview, age, and pin, copy and delete.
+/// One item: source app (an image's or a file's thumbnail), preview, age, and pin, copy and delete.
 private struct RecentClipRow: View {
   let item: ClipboardItem
   @Environment(AppModel.self) private var model
   @State private var hovering = false
 
   var body: some View {
+    let missing = model.missingClipboardFiles(item)
+    let gone = item.isFiles && missing.count == (item.files ?? []).count
     HStack(spacing: 12) {
       if let image = item.image {
         ClipThumbnail(image: image, url: model.clipboardImageURL(image))
           .frame(width: 26, height: 26)
+      } else if let files = item.files, item.isFiles {
+        ClipFileThumbnail(path: files.first { !missing.contains($0) } ?? files.first ?? "", missing: gone)
+          .frame(width: 26, height: 26)
+          .opacity(gone ? 0.5 : 1)
       } else {
         ClipSourceIcon(item: item, size: 26)
       }
       VStack(alignment: .leading, spacing: 2) {
         ClipPreviewLine(item: item, fontSize: 12.5)
+          .opacity(gone ? 0.55 : 1)
         HStack(spacing: 5) {
           if item.pinned {
             Image(systemName: "pin.fill").font(.system(size: 8.5, weight: .bold))
               .foregroundStyle(SettingsPane.clipboard.tint)
           }
-          Text(meta).font(.system(size: 11)).foregroundStyle(.secondary)
+          Text(meta(missing: missing)).font(.system(size: 11)).foregroundStyle(.secondary)
         }
       }
       Spacer(minLength: 8)
@@ -411,7 +478,10 @@ private struct RecentClipRow: View {
         ) {
           model.togglePinClipboardItem(item.id)
         }
-        iconButton("doc.on.doc", help: "Copy to the clipboard") { model.copyClipboardItem(item.id) }
+        iconButton("doc.on.doc", help: gone ? "Moved or deleted: nothing to copy" : "Copy to the clipboard") {
+          model.copyClipboardItem(item.id)
+        }
+        .disabled(gone)
         iconButton("trash", help: "Delete from history") { model.deleteClipboardItem(item.id) }
       }
       .opacity(hovering ? 1 : 0.7)
@@ -422,19 +492,30 @@ private struct RecentClipRow: View {
     .contentShape(Rectangle())
     .onHover { hovering = $0 }
     .contextMenu {
-      Button("Copy") { model.copyClipboardItem(item.id) }
+      Button("Copy") { model.copyClipboardItem(item.id) }.disabled(gone)
       Button(item.pinned ? "Unpin" : "Pin") { model.togglePinClipboardItem(item.id) }
       Divider()
       Button("Delete", role: .destructive) { model.deleteClipboardItem(item.id) }
     }
   }
 
-  private var meta: String {
+  private func meta(missing: Set<String>) -> String {
     var parts: [String] = []
     if let app = item.sourceApp { parts.append(model.appName(bundleID: app)) }
     parts.append(item.copiedAt.formatted(.relative(presentation: .named)))
     if let image = item.image {
+      if image.name != nil { parts.append("Screenshot") }
       parts.append(Int64(image.bytes).formatted(.byteCount(style: .file)))
+      return parts.joined(separator: " · ")
+    }
+    if let files = item.files, item.isFiles {
+      let gone = files.filter(missing.contains).count
+      if gone == files.count {
+        parts.append(ClipboardContent.movedOrDeleted)
+      } else {
+        parts.append(files.count == 1 ? "File" : "\(files.count) files")
+        if gone > 0 { parts.append("\(gone) moved or deleted") }
+      }
       return parts.joined(separator: " · ")
     }
     let kind = ClipboardContent.kind(of: item.text)

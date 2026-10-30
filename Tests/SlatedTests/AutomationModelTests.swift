@@ -211,9 +211,12 @@ let clipboardHistoryTests = Suite(
         h.add(image: shot, at: Date(timeIntervalSinceReferenceDate: 1), limit: 5)
         h.add(image: ClipboardImage(file: "bb.png", width: 1, height: 1, bytes: 1), at: .distantPast, limit: 5)
         let saved = try JSONEncoder().encode(h)
-        expectEqual(try JSONDecoder().decode(ClipboardHistory.self, from: saved).items.last?.image?.name, "Screenshot 1.png")
+        expectEqual(
+          try JSONDecoder().decode(ClipboardHistory.self, from: saved).items.last?.image?.name, "Screenshot 1.png")
         let object = try JSONSerialization.jsonObject(with: saved) as? [String: [[String: Any]]]
-        expectEqual((object?["items"]?.first?["image"] as? [String: Any]).map { Set($0.keys) }, ["file", "width", "height", "bytes"])
+        expectEqual(
+          (object?["items"]?.first?["image"] as? [String: Any]).map { Set($0.keys) },
+          ["file", "width", "height", "bytes"])
         expectEqual(ClipboardSettings().screenshots, true)
         let off = try JSONDecoder().decode(ClipboardSettings.self, from: Data(#"{"screenshots": false}"#.utf8))
         expect(!off.screenshots)

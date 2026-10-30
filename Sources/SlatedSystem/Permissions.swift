@@ -22,4 +22,13 @@ public enum Permissions {
       NSWorkspace.shared.open(url)
     }
   }
+
+  /// Opens System Settings → Privacy & Security → Files and Folders, where Slated's access to the
+  /// Desktop (the screenshot folder) is turned on.
+  @MainActor
+  public static func openFilesAndFoldersSettings() {
+    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") {
+      NSWorkspace.shared.open(url)
+    }
+  }
 }

@@ -65,6 +65,11 @@ class LiveServices: AppServices {
     Permissions.openAccessibilitySettings()
   }
 
+  func openFilesAndFoldersSettings() {
+    Log.record("ui.open_files_and_folders_settings")
+    Permissions.openFilesAndFoldersSettings()
+  }
+
   func reload() {
     Log.record("ui.reload")
     engine.reload()
@@ -132,6 +137,8 @@ class LiveServices: AppServices {
   }
 
   func clipboardImageURL(_ image: ClipboardImage) -> URL? { engine.clipboard.imageURL(image) }
+
+  func clipboardFileMissing(_ path: String) -> Bool { engine.clipboard.fileMissing(path) }
 
   // MARK: Automation
 

@@ -101,6 +101,10 @@ var shots: [Shot] = [
       config.clipboard.shortcut = nil
       try? services.saveConfiguration(config)
     }),
+  // macOS said no to the Desktop folder: the notice under "Add screenshots" (scrolled into view).
+  settings(
+    "settings-clipboard-screenshots-denied", pane: .clipboard,
+    services: { services in services.setScreenshotStatus(.denied(folder: "Desktop")) }),
   settings("settings-automation", pane: .automation),
   settings("settings-automation-running", pane: .automation, services: running),
   settings("settings-windows-autoclick", pane: .windows, configure: selectBinding(named: "Auto-Click Left")),
@@ -178,6 +182,13 @@ shots += [
   picker("clipboard-picker"),
   picker("clipboard-picker-image") { model in model.selectedID = model.items.first(where: \.isImage)?.id },
   picker("clipboard-picker-photo") { model in model.selectedID = model.items.last(where: \.isImage)?.id },
+  picker("clipboard-picker-files") { model in
+    model.selectedID = model.items.first { ($0.files?.count ?? 0) > 1 }?.id
+  },
+  picker("clipboard-picker-file-image") { model in model.selectedID = model.items.last(where: \.isFiles)?.id },
+  picker("clipboard-picker-files-missing") { model in
+    model.selectedID = model.items.first { $0.isFiles && model.isUnavailable($0) }?.id
+  },
   picker("clipboard-picker-filter") { model in model.query = "git" },
   picker("clipboard-picker-nomatch") { model in model.query = "invoice" },
   picker("clipboard-picker-empty", scenario: .empty),

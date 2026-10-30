@@ -45,6 +45,10 @@ public final class ClipboardPickerModel {
   @ObservationIgnored private var restingPointer: CGPoint?
   /// Display names by bundle id (a Launch Services lookup each), for image rows.
   @ObservationIgnored private var appNames: [String: String] = [:]
+  /// Copied files no longer where they were copied from, by item: checked when the picker opens.
+  private(set) var missingFiles: [UUID: Set<String>] = [:]
+  /// Picking files that are all gone: the alert sound (tests stay quiet).
+  @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
   private let services: any AppServices
 
   public init(services: any AppServices) {
@@ -56,7 +60,19 @@ public final class ClipboardPickerModel {
   public func reload() {
     items = services.clipboardItems()
     pasteAfterSelecting = (try? services.loadConfiguration())?.clipboard.pasteAfterSelecting ?? true
+    var missing: [UUID: Set<String>] = [:]
+    for item in items where item.isFiles {
+      let gone = Set((item.files ?? []).filter(services.clipboardFileMissing))
+      if !gone.isEmpty { missing[item.id] = gone }
+    }
+    missingFiles = missing
     refilter(selectFirst: false)
+  }
+
+  /// Every one of the item's files is gone: there's nothing to paste.
+  public func isUnavailable(_ item: ClipboardItem) -> Bool {
+    guard item.isFiles, let files = item.files, let gone = missingFiles[item.id] else { return false }
+    return files.allSatisfy(gone.contains)
   }
 
   /// Call each time the picker opens, with the pointer's location.
@@ -74,7 +90,10 @@ public final class ClipboardPickerModel {
     CGSize(width: Self.width, height: Self.filterHeight + 0.5 + listHeight + 2 * Self.listPadding)
   }
 
+  /// Images are taller; text and files (a small thumbnail beside the name) are one line.
   static func rowHeight(_ item: ClipboardItem) -> CGFloat { item.isImage ? imageRowHeight : textRowHeight }
+  /// As wide as a text row's app icon, so names line up with text; a page gets a little more height.
+  static let fileThumbnailSize = CGSize(width: 16, height: 20)
 
   /// Room for the first nine rows (one row's worth when there are none), and half of the next when
   /// there are more, so the list shows it scrolls.
@@ -86,8 +105,8 @@ public final class ClipboardPickerModel {
 
   var selectedItem: ClipboardItem? { results.first { $0.id == selectedID } }
 
-  /// The image shown larger beside the picker: the selected row's, when it's an image.
-  public var previewItem: ClipboardItem? { selectedItem.flatMap { $0.isImage ? $0 : nil } }
+  /// The item shown larger beside the picker: the selected row's, when it's an image or files.
+  public var previewItem: ClipboardItem? { selectedItem.flatMap { $0.isImage || $0.isFiles ? $0 : nil } }
 
   /// Where the preview's row is in the picker (top-left origin), once laid out.
   public var previewRowFrame: CGRect? { previewItem.flatMap { rowFrames[$0.id] } }
@@ -136,9 +155,15 @@ public final class ClipboardPickerModel {
   }
 
   /// Pastes the item (the selected one by default) into the app you were in, or only copies it with
-  /// `pasteAfterSelecting` off.
+  /// `pasteAfterSelecting` off. Files that were all moved or deleted can't be: the picker stays open
+  /// (the app logs the attempt and leaves the clipboard alone).
   func paste(_ id: UUID? = nil) {
     guard let id = id ?? selectedID else { return }
+    if let item = items.first(where: { $0.id == id }), isUnavailable(item) {
+      services.pasteClipboardItem(id: id)
+      beep()
+      return
+    }
     onClose()
     services.pasteClipboardItem(id: id)
   }
@@ -202,7 +227,8 @@ struct ClipboardPickerView: View {
           ForEach(Array(model.results.enumerated()), id: \.element.id) { index, item in
             PickerRow(
               item: item, number: model.number(at: index), selected: item.id == model.selectedID,
-              imageURL: item.image.flatMap(model.imageURL), appName: model.appName
+              imageURL: item.image.flatMap(model.imageURL), unavailable: model.isUnavailable(item),
+              appName: model.appName
             )
             .id(item.id)
             .contentShape(Rectangle())
@@ -249,13 +275,15 @@ struct ClipboardPickerView: View {
   }
 }
 
-/// One item on one line: its app's icon and text, or an image's thumbnail and size; a pin and the
-/// ⌘-number at the end.
+/// One item on one line: its app's icon and text, an image's thumbnail and name or size, or a file's
+/// thumbnail and name; a pin and the ⌘-number at the end.
 private struct PickerRow: View {
   let item: ClipboardItem
   let number: Int?
   let selected: Bool
   let imageURL: URL?
+  /// Files that were all moved or deleted: dimmed, and said so.
+  let unavailable: Bool
   let appName: (String) -> String
 
   var body: some View {
@@ -271,6 +299,22 @@ private struct PickerRow: View {
         .font(.system(size: 13))
         .foregroundStyle(selected ? Color.white : Color.primary)
         .lineLimit(1)
+        .truncationMode(image.name == nil ? .tail : .middle)
+      } else if let files = item.files, item.isFiles {
+        ClipFileThumbnail(path: files.first ?? "", missing: unavailable)
+          .frame(
+            width: ClipboardPickerModel.fileThumbnailSize.width, height: ClipboardPickerModel.fileThumbnailSize.height
+          )
+          .opacity(unavailable ? 0.5 : 1)
+        ClipFilesLine(files: files, fontSize: 13, inverted: selected)
+          .opacity(unavailable ? 0.55 : 1)
+        if unavailable {
+          Text(ClipboardContent.movedOrDeleted)
+            .font(.system(size: 11))
+            .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.75)) : AnyShapeStyle(.secondary))
+            .lineLimit(1)
+            .fixedSize()
+        }
       } else {
         ClipSourceIcon(item: item, size: 16)
         ClipPreviewLine(item: item, fontSize: 13, inverted: selected)
@@ -298,32 +342,66 @@ private struct PickerRow: View {
   }
 }
 
-/// The selected image, larger, for a small panel beside the picker: about 240 pt on its long side.
+/// The selected image or file, larger, for a small panel beside the picker: an image about 240 pt on
+/// its long side, a file's QuickLook thumbnail in a square with its name, kind and size.
 struct ClipboardImagePreview: View {
   let model: ClipboardPickerModel
 
   static let maxSide: CGFloat = 240
   static let padding: CGFloat = 8
   static let captionHeight: CGFloat = 19
+  /// A file's thumbnail box, and the two caption lines under it.
+  static let fileSide: CGFloat = 180
+  static let fileCaptionHeight: CGFloat = 38
 
   var body: some View {
-    if let item = model.previewItem, let image = item.image {
-      let fitted = Self.fittedSize(image)
-      VStack(spacing: 0) {
-        ClipThumbnail(
-          image: image, url: model.imageURL(image), maxPixels: ClipboardThumbnails.previewPixels, cornerRadius: 6
-        )
-        .frame(width: fitted.width, height: fitted.height)
-        Text(ClipboardContent.imageDetails(image))
-          .font(.system(size: 10.5).monospacedDigit())
-          .foregroundStyle(.secondary)
-          .frame(height: Self.captionHeight, alignment: .bottom)
+    if let item = model.previewItem {
+      Group {
+        if let image = item.image {
+          let fitted = Self.fittedSize(image)
+          VStack(spacing: 0) {
+            ClipThumbnail(
+              image: image, url: model.imageURL(image), maxPixels: ClipboardThumbnails.previewPixels, cornerRadius: 6
+            )
+            .frame(width: fitted.width, height: fitted.height)
+            Text(ClipboardContent.imageDetails(image))
+              .font(.system(size: 10.5).monospacedDigit())
+              .foregroundStyle(.secondary)
+              .frame(height: Self.captionHeight, alignment: .bottom)
+          }
+        } else if let files = item.files {
+          filePreview(files, missing: model.missingFiles[item.id] ?? [])
+        }
       }
       .padding(Self.padding)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(.regularMaterial)
       .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
       .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.cardStroke, lineWidth: 1))
+    }
+  }
+
+  private func filePreview(_ files: [String], missing: Set<String>) -> some View {
+    // The first file still there; if none is, the first one's kind.
+    let shown = files.first { !missing.contains($0) } ?? files.first ?? ""
+    let gone = files.allSatisfy(missing.contains)
+    let title = ClipboardContent.filesTitle(files)
+    return VStack(spacing: 0) {
+      ClipFileThumbnail(path: shown, maxPixels: ClipboardThumbnails.previewPixels, missing: gone)
+        .frame(width: Self.fileSide - 20, height: Self.fileSide - 20)
+        .frame(width: Self.fileSide, height: Self.fileSide)
+        .opacity(gone ? 0.5 : 1)
+      VStack(spacing: 2) {
+        (Text(title.name).fontWeight(.medium) + Text(title.more.map { "  \($0)" } ?? "").foregroundColor(.secondary))
+          .font(.system(size: 11.5))
+          .lineLimit(1)
+          .truncationMode(.middle)
+        Text(ClipboardContent.filesDetails(files, missing: missing))
+          .font(.system(size: 10.5).monospacedDigit())
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
+      .frame(width: Self.fileSide, height: Self.fileCaptionHeight, alignment: .bottom)
     }
   }
 
@@ -339,5 +417,12 @@ struct ClipboardImagePreview: View {
   static func size(for image: ClipboardImage) -> CGSize {
     let fitted = fittedSize(image)
     return CGSize(width: max(fitted.width, 120) + 2 * padding, height: fitted.height + captionHeight + 2 * padding)
+  }
+
+  /// The panel's size for an item: an image's, or the square for files; nil for text.
+  static func size(for item: ClipboardItem) -> CGSize? {
+    if let image = item.image { return size(for: image) }
+    guard item.isFiles else { return nil }
+    return CGSize(width: fileSide + 2 * padding, height: fileSide + fileCaptionHeight + 2 * padding)
   }
 }

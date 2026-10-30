@@ -46,11 +46,13 @@ public struct RuntimeStatus: Hashable, Sendable {
   /// Last thing Slated did, e.g. "Left half · Safari".
   public var lastAction: String?
   public var lastError: String?
+  /// Whether screenshots saved as files reach the clipboard history (`clipboard.screenshots`).
+  public var screenshots: ScreenshotFolderStatus
 
   public init(
     accessibilityGranted: Bool = false, hyperKeyActive: Bool = false, hotstringsEnabled: Bool = true,
     hotstringsActive: Bool = false, paused: Bool = false, hotkeys: [String: HotkeyStatus] = [:],
-    lastAction: String? = nil, lastError: String? = nil
+    lastAction: String? = nil, lastError: String? = nil, screenshots: ScreenshotFolderStatus = .off
   ) {
     self.accessibilityGranted = accessibilityGranted
     self.hyperKeyActive = hyperKeyActive
@@ -60,7 +62,19 @@ public struct RuntimeStatus: Hashable, Sendable {
     self.hotkeys = hotkeys
     self.lastAction = lastAction
     self.lastError = lastError
+    self.screenshots = screenshots
   }
+}
+
+/// The screenshot folder clipboard history watches. `folder` is its name ("Desktop").
+public enum ScreenshotFolderStatus: Hashable, Sendable {
+  /// Not watched: the setting or clipboard history is off (or it's just starting).
+  case off
+  case watching(folder: String)
+  /// macOS doesn't let Slated see the folder: allowed in Privacy & Security → Files and Folders.
+  case denied(folder: String)
+  /// The folder isn't there (an external disk that isn't connected, say).
+  case missing(folder: String)
 }
 
 /// Everything the UI can ask of the app. Implemented by the app target (live) and by
@@ -95,6 +109,8 @@ public protocol AppServices: AnyObject {
   /// Shows the system Accessibility prompt and adds Slated to the list in System Settings.
   func requestAccessibilityPermission()
   func openAccessibilitySettings()
+  /// Opens System Settings → Privacy & Security → Files and Folders (the screenshot folder's access).
+  func openFilesAndFoldersSettings()
   /// Reloads config.json and settings.json from disk.
   func reload()
   func revealConfigurationFile()
@@ -135,6 +151,8 @@ public protocol AppServices: AnyObject {
   func showClipboardHistory()
   /// A copied image's file, for thumbnails and previews; nil when it has none (any more).
   func clipboardImageURL(_ image: ClipboardImage) -> URL?
+  /// A copied file is gone from where it was copied: moved or deleted.
+  func clipboardFileMissing(_ path: String) -> Bool
 
   // MARK: Automation
 
@@ -166,4 +184,7 @@ public struct ActiveAutomation: Identifiable, Hashable, Sendable {
 extension AppServices {
   /// No images by default (test doubles).
   public func clipboardImageURL(_ image: ClipboardImage) -> URL? { nil }
+  /// Every copied file is still there by default (test doubles).
+  public func clipboardFileMissing(_ path: String) -> Bool { false }
+  public func openFilesAndFoldersSettings() {}
 }

@@ -121,7 +121,8 @@ extension ClipboardSettings: Codable {
     let c = try decoder.container(keyedBy: Key.self)
     let d = ClipboardSettings()
     // `"shortcut": null` turns the shortcut off; a missing key keeps the default.
-    let shortcut: KeyCombo? = c.contains(.shortcut) ? try c.decodeIfPresent(KeyCombo.self, forKey: .shortcut) : d.shortcut
+    let shortcut: KeyCombo? =
+      c.contains(.shortcut) ? try c.decodeIfPresent(KeyCombo.self, forKey: .shortcut) : d.shortcut
     self.init(
       enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled,
       shortcut: shortcut,
@@ -187,7 +188,11 @@ extension AutomationSettings: Codable {
 
   public func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: Key.self)
-    if let stopShortcut { try c.encode(stopShortcut, forKey: .stopShortcut) } else { try c.encodeNil(forKey: .stopShortcut) }
+    if let stopShortcut {
+      try c.encode(stopShortcut, forKey: .stopShortcut)
+    } else {
+      try c.encodeNil(forKey: .stopShortcut)
+    }
     try c.encode(stopOnAppSwitch, forKey: .stopOnAppSwitch)
     try c.encode(maxRunMinutes, forKey: .maxRunMinutes)
     try c.encode(showIndicator, forKey: .showIndicator)
