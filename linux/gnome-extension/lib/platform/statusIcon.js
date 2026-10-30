@@ -66,6 +66,7 @@ export class StatusIcon {
     this._iconDir = iconDir;
     this._commands = commands;
     this._iconShown = null;
+    this._shown = null;
     this._updating = false;
 
     this._button = new PanelMenu.Button(0.5, 'Slated', false);
@@ -82,10 +83,10 @@ export class StatusIcon {
     menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
     this._addItem(MENU_ITEMS.open, () => commands.open('menu'));
     this._hyper = new PopupMenu.PopupSwitchMenuItem(MENU_ITEMS.hyper, false);
-    this._hyper.connect('toggled', (_item, on) => this._updating || commands.toggleHyper(on));
+    this._hyper.connect('toggled', (_item, on) => this._toggled(() => commands.toggleHyper(on)));
     menu.addMenuItem(this._hyper);
     this._pause = new PopupMenu.PopupSwitchMenuItem(MENU_ITEMS.pause, false);
-    this._pause.connect('toggled', (_item, on) => this._updating || commands.togglePause(on));
+    this._pause.connect('toggled', (_item, on) => this._toggled(() => commands.togglePause(on)));
     menu.addMenuItem(this._pause);
     menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
     this._addItem(MENU_ITEMS.reload, () => commands.reload());
@@ -96,6 +97,13 @@ export class StatusIcon {
 
     Main.panel.addToStatusArea(role, this._button);
     this.update({});
+  }
+
+  /** A click on a switch: what the menu shows is stale until the next update, which puts it right. */
+  _toggled(run) {
+    if (this._updating) return;
+    this._shown = null;
+    run();
   }
 
   _addItem(text, run) {
@@ -117,6 +125,10 @@ export class StatusIcon {
 
   /** @param {{paused?: boolean, hyperOn?: boolean, warnings?: string[]}} state */
   update({paused = false, hyperOn = false, warnings = []}) {
+    // Called whenever status.json is written: change the menu only when something in it changed.
+    const signature = JSON.stringify([paused, hyperOn, warnings]);
+    if (signature === this._shown) return;
+    this._shown = signature;
     const name = iconName({paused, warnings});
     if (name !== this._iconShown) {
       this._icon.gicon = new Gio.FileIcon({file: Gio.File.new_for_path(`${this._iconDir}/${name}.svg`)});

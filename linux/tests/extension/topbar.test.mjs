@@ -207,6 +207,18 @@ test('Caps Lock → Hyper Key turns the Hyper key off and on in config.json, and
   assert.equal(item(MENU_ITEMS.hyper).state, true);
 });
 
+test('Caps Lock → Hyper Key with a config.json that can’t be read: nothing written, and the switch goes back', () => {
+  finishSetup();
+  writeConfigFiles(home, config);
+  start();
+  writeFileSync(configPathIn(home), '{"keyboard": {"capsLock": "hyper"'); // a half-saved hand edit
+  item(MENU_ITEMS.hyper).activate();
+  gnome.loop.run();
+  assert.equal(readFileSync(configPathIn(home), 'utf8'), '{"keyboard": {"capsLock": "hyper"', 'left as it is');
+  assert.equal(events('config.save_failed').length, 1);
+  assert.equal(item(MENU_ITEMS.hyper).state, true, 'the switch shows what Slated does');
+});
+
 test('Pause Slated lets go of shortcuts, the Hyper key and hotstrings until resumed, and shows on the icon', () => {
   finishSetup();
   mkdirSync(join(home, '.config/espanso'), {recursive: true});
