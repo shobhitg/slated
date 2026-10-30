@@ -57,7 +57,7 @@ export default suite('Config files and migration', [
     expectEqual(Object.keys(config).sort(), ['bindings', 'defaults', 'hotstrings', 'keyboard', 'layouts', 'version']);
     expectEqual(Object.keys(settings).sort(), ['automation', 'clipboard', 'general', 'island', 'version', 'windows']);
     expectEqual([config.version, settings.version], [2, 2]);
-    expectEqual(settings.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: true}, 'no Slate loading keys');
+    expectEqual(settings.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: true, showStatusIcon: true}, 'no Slate loading keys');
     expectEqual([settings.windows.secondsBeforeRepeat, settings.clipboard.maxItems, settings.island.cheatSheetDelay, settings.automation.maxRunMinutes],
       [0.2, 50, 0.8, 5], '`settings` became `windows`; the other sections moved as they were');
     expectEqual(config.keyboard.capsLockAlone, 'escape', 'the Hyper key stays in config.json');

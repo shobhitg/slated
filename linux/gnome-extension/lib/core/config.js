@@ -434,7 +434,7 @@ export function isAutomation(action) {
 // --- Configuration -------------------------------------------------------------------------------
 
 function defaultGeneral() {
-  return {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true};
+  return {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true};
 }
 
 function defaultKeyboard() {
@@ -520,6 +520,7 @@ function general(v, path) {
     launchAtLogin: c.optional('launchAtLogin', bool) ?? d.launchAtLogin,
     showActionHUD: c.optional('showActionHUD', bool) ?? d.showActionHUD,
     hotstringsEnabled: c.optional('hotstringsEnabled', bool) ?? d.hotstringsEnabled,
+    showStatusIcon: c.optional('showStatusIcon', bool) ?? d.showStatusIcon,
   };
 }
 
