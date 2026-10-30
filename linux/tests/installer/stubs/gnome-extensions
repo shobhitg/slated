@@ -1,10 +1,38 @@
 #!/bin/bash
 # Stand-in for GNOME's gnome-extensions tool, for linux/tests/installer/run.sh: packs with zip,
 # installs into $HOME/.local/share/gnome-shell/extensions, and records every call in $STUB_LOG.
+#
+# The pretend GNOME Shell: it knows installed extensions only with STUB_SHELL_KNOWS=1 (as after a
+# login; a fresh install isn't known until then). `enable` adds the extension to enabled-extensions in
+# the gsettings stand-in's store, and `info` reports Enabled from there (No while GNOME's Extensions
+# switch, disable-user-extensions, is off) and State: STUB_SHELL_STATE, else ACTIVE when enabled and
+# INITIALIZED when not.
 set -euo pipefail
 echo "gnome-extensions $*" >>"$STUB_LOG"
 EXTENSIONS="$HOME/.local/share/gnome-shell/extensions"
 uuid_of() { python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["uuid"])' "$1"; }
+known() { [ "${STUB_SHELL_KNOWS:-0}" = 1 ] && [ -d "$EXTENSIONS/$1" ]; }
+# enabled-extensions in the gsettings stand-in's store: "has" or "add".
+enabled_list() {
+  python3 -I - "$HOME/gsettings.json" "$@" <<'PY'
+import ast, json, sys
+path, action, uuid = sys.argv[1:4]
+try:
+    store = json.load(open(path))
+except (OSError, ValueError):
+    store = {}
+key = "org.gnome.shell enabled-extensions"
+raw = store.get(key, "@as []").strip()
+items = ast.literal_eval(raw[3:].strip() if raw.startswith("@as") else raw or "[]")
+if action == "has":
+    switch_off = store.get("org.gnome.shell disable-user-extensions", "false") == "true"
+    sys.exit(0 if uuid in items and not switch_off else 1)
+if uuid not in items:
+    items.append(uuid)
+store[key] = "[" + ", ".join(repr(x) for x in items) + "]"
+json.dump(store, open(path, "w"))
+PY
+}
 case "$1" in
   pack)
     out="."
@@ -32,6 +60,16 @@ case "$1" in
   enable)
     # GNOME Shell on Wayland doesn't know a freshly installed extension until the next login.
     [ "${STUB_ENABLE_FAILS:-0}" = 1 ] && { echo "Extension “$2” does not exist" >&2; exit 2; }
+    enabled_list add "$2"
+    ;;
+  info)
+    known "$2" || { echo "Extension “$2” doesn't exist" >&2; exit 2; }
+    enabled=No
+    enabled_list has "$2" && enabled=Yes
+    state="${STUB_SHELL_STATE:-}"
+    [ -n "$state" ] || { [ "$enabled" = Yes ] && state=ACTIVE || state=INITIALIZED; }
+    printf '%s\n  Name: Slated\n  Description: Keyboard-first window management.\n\n  Input: automation actions click\n  Path: %s\n  Enabled: %s\n  State: %s\n' \
+      "$2" "$EXTENSIONS/$2" "$enabled" "$state"
     ;;
   disable) ;;
   uninstall) rm -rf "${EXTENSIONS:?}/$2" ;;

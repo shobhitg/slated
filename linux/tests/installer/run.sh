@@ -48,6 +48,7 @@ for tool in setcap getcap; do ln -s "$STUBS/caps" "$BIN/$tool"; done
 ln -s "$STUBS/record" "$BIN/gnome-session-quit"
 ln -s "$STUBS/gnome-shell" "$GE_BIN/gnome-shell"
 ln -s "$STUBS/gnome-extensions" "$GE_BIN/gnome-extensions"
+ln -s "$STUBS/gdbus" "$GE_BIN/gdbus"
 ln -s "$STUBS/record" "$KEYD_BIN/keyd"
 ln -s "$STUBS/record" "$BUILD_BIN/gcc"
 ln -s "$STUBS/make" "$BUILD_BIN/make"
@@ -58,13 +59,14 @@ ln -s "$STUBS/pkg" "$PACMAN_BIN/pacman"
 # A fake extension with the files the real one has (and an extra folder to pack).
 EXT="$WORK/ext"
 UUID="slated-test@example.com"
-mkdir -p "$EXT/lib/core" "$EXT/lib/prefs" "$EXT/data"
+mkdir -p "$EXT/lib/core" "$EXT/lib/prefs" "$EXT/data" "$EXT/icons"
 echo "{\"uuid\": \"$UUID\", \"name\": \"Slated\", \"version-name\": \"9.9.9\", \"shell-version\": [\"46\", \"47\", \"48\", \"49\"]}" >"$EXT/metadata.json"
 echo 'export default class Extension {}' >"$EXT/extension.js"
 echo 'export default class Preferences {}' >"$EXT/prefs.js"
 echo 'export const core = 1;' >"$EXT/lib/core/index.js"
 echo 'export const prefs = 1;' >"$EXT/lib/prefs/model.js"
 echo 'data' >"$EXT/data/hint.txt"
+echo '<svg xmlns="http://www.w3.org/2000/svg"/>' >"$EXT/icons/io.github.shobhitg.Slated.svg"
 
 # Distributions (their /etc/os-release) and espanso's release files, as the curl stand-in serves them.
 OS="$WORK/os"
@@ -138,6 +140,16 @@ check "marks it enabled for the next login" contains "$(enabled)" "'$UUID'"
 check "explains that GNOME Shell starts it at the next login" contains "$out" "Last step: log out and back in"
 check "...in a summary of each step" bash -c 'grep -q "▸ Summary" <<<"$1" && grep -q "Slated 9.9.9 .* installed" <<<"$1" && grep -q "keyd skipped (--no-keyd)" <<<"$1" && grep -q "espanso skipped (--no-espanso)" <<<"$1"' _ "$out"
 check "...without asking to log out when there's no terminal" lacks "$(calls)" "gnome-session-quit"
+check "...and says how to open Slated" contains "$out" "Find Slated in your apps or click its icon in the top bar."
+check "...and that GNOME Shell starts it at the next login" contains "$out" "GNOME Shell doesn't know Slated yet: it starts it when you next log in."
+# Slated in the app grid and Activities search: a desktop entry and its icon.
+DESKTOP="$HOME/.local/share/applications/io.github.shobhitg.Slated.desktop"
+ICON="$HOME/.local/share/icons/hicolor/scalable/apps/io.github.shobhitg.Slated.svg"
+check "Slated is in your apps: a desktop entry" test -f "$DESKTOP"
+check "...named Slated, with Slated's icon" bash -c 'grep -qx "Name=Slated" "$1" && grep -qx "Icon=io.github.shobhitg.Slated" "$1" && grep -qx "Type=Application" "$1"' _ "$DESKTOP"
+check "...that opens Slated's settings window" grep -qx "Exec=gnome-extensions prefs $UUID" "$DESKTOP"
+check "...and the icon, in hicolor" cmp -s "$EXT/icons/io.github.shobhitg.Slated.svg" "$ICON"
+check "...said in the summary" contains "$out" "Slated in your apps: ~/.local/share/applications/io.github.shobhitg.Slated.desktop opens its settings"
 
 # 2. Again: safe to repeat. (In an Xorg session, GNOME 46-48, GNOME Shell can restart in place.)
 : >"$STUB_LOG"
@@ -147,6 +159,10 @@ check "reinstalling succeeds" test "$status" -eq 0
 check "on Xorg, suggests restarting GNOME Shell with Alt+F2 r" contains "$out" "press Alt+F2, type r"
 check "the same build isn't installed again" bash -c 'grep -q "Slated 9.9.9 .* is already installed" <<<"$1" && ! grep -q "gnome-extensions install" "$2"' _ "$out" "$STUB_LOG"
 check "enabled once, not twice" test "$(grep -o "'$UUID'" <<<"$(enabled)" | wc -l | tr -d ' ')" = 1
+check "the app entry is already there: left alone" contains "$out" "Slated in your apps: already there"
+echo "Name=Old" >"$DESKTOP"
+out="$(STUB_ENABLE_FAILS=1 install_sh "$GE_BIN" "${EXT_ONLY[@]}")"
+check "...and put back when it's changed" bash -c 'grep -qx "Name=Slated" "$1" && grep -q "Slated in your apps: ~/" <<<"$2"' _ "$DESKTOP" "$out"
 
 # 3. Which build runs?
 out="$(install_sh "$GE_BIN" --verify)"
@@ -164,12 +180,80 @@ check "--nested succeeds" test "$status" -eq 0
 check "the nested shell runs the new build" contains "$out" "Running in the nested shell: build $EXPECTED"
 check "started through dbus-run-session" contains "$(cat "$STUB_LOG")" "dbus-run-session -- gnome-shell --nested --wayland"
 out="$(install_sh "$GE_BIN" --verify)"
+check "--verify from the session, which hasn't loaded Slated: says GNOME Shell starts it at login" bash -c '! grep -q "Running: build" <<<"$1" && grep -q "GNOME Shell doesn.t know Slated yet" <<<"$1"' _ "$out"
+# From here on, GNOME Shell knows Slated, as after a login.
+export STUB_SHELL_KNOWS=1
+out="$(install_sh "$GE_BIN" --verify)"
 status=$?
 check "--verify confirms the running build" test "$status" -eq 0
+check "...after GNOME Shell says it runs Slated" contains "$out" "GNOME Shell runs Slated (Enabled: Yes, State: ACTIVE)"
 check "...from the log's app.start" contains "$out" "Running: build $EXPECTED"
 out="$(install_sh "$GE_BIN" "${EXT_ONLY[@]}")"
 check "a reinstall of the running build says so" contains "$out" "Running: build $EXPECTED"
 check "...with nothing left to do" bash -c 'grep -q "Slated is running" <<<"$1" && ! grep -q "Last step" <<<"$1"' _ "$out"
+check "...but how to open Slated" contains "$out" "Slated is running. Find Slated in your apps or click its icon in the top bar."
+
+# 4b. GNOME's view of Slated, as on the author's Pop!_OS: the Extensions switch off, Slated not
+# enabled. --verify checks the switch, then enabled, then the state, then the build, and changes nothing.
+verify() { install_sh "$GE_BIN" --verify; }
+gset() { python3 -I - "$HOME/gsettings.json" "$1" "$2" <<'PY'
+import json, sys
+path, key, value = sys.argv[1:4]
+try:
+    store = json.load(open(path))
+except (OSError, ValueError):
+    store = {}
+store[f"org.gnome.shell {key}"] = value
+json.dump(store, open(path, "w"))
+PY
+}
+gset disable-user-extensions true
+gset enabled-extensions "@as []"
+: >"$STUB_LOG"
+out="$(verify)"
+status=$?
+check "--verify: the Extensions switch off comes first" bash -c 'test "$1" -eq 1 && grep -q "GNOME.s Extensions switch is off, so no extension runs, Slated included. Fix: run linux/install.sh" <<<"$2"' _ "$status" "$out"
+check "...and stops there" bash -c '! grep -qE "Enabled:|Running: build" <<<"$1"' _ "$out"
+check "...changing nothing" bash -c '! grep -qE "gsettings set|gnome-extensions enable" "$1"' _ "$STUB_LOG"
+gset disable-user-extensions false
+out="$(verify)"
+check "--verify: then Slated turned off" bash -c 'test "$1" -eq 1 && grep -q "Slated is turned off in GNOME (Enabled: No, State: INITIALIZED). Fix: run linux/install.sh, which turns it on" <<<"$2"' _ "$?" "$out"
+gset enabled-extensions "['$UUID']"
+out="$(STUB_SHELL_STATE=ERROR STUB_SHELL_ERROR="TypeError: can't read x" verify)"
+check "--verify: an error, with GNOME's error text" bash -c 'test "$1" -eq 1 && grep -q "Slated stopped with an error: TypeError: can.t read x. Fix: journalctl" <<<"$2"' _ "$?" "$out"
+out="$(STUB_SHELL_STATE="OUT OF DATE" verify)"
+check "--verify: out of date says to update Slated" bash -c 'test "$1" -eq 1 && grep -q "isn.t among the versions this Slated supports (State: OUT OF DATE). Fix: update Slated (git pull)" <<<"$2"' _ "$?" "$out"
+out="$(STUB_SHELL_STATE=INITIALIZED XDG_SESSION_TYPE=x11 verify)"
+check "--verify: enabled but not started says to log in again (or Alt+F2 r on Xorg)" bash -c 'test "$1" -eq 1 && grep -q "GNOME Shell hasn.t started it yet (State: INITIALIZED). Fix: log out and back in, or press Alt+F2, type r and press Enter." <<<"$2"' _ "$?" "$out"
+check "...never looking at the build first" lacks "$out" "Running: build"
+
+# The installer turns the switch on (asking first, yes by default) and enables Slated, also when the
+# installed copy is up to date and the install step is skipped.
+gset disable-user-extensions true
+gset enabled-extensions "@as []"
+: >"$STUB_LOG"
+out="$(SLATED_INTERACTIVE=1 install_sh "$GE_BIN" "${EXT_ONLY[@]}" <<<"")"
+status=$?
+check "the switch off: said plainly" contains "$out" "GNOME's Extensions switch is off, so no extension can run, Slated included."
+check "...with what turning it on does" contains "$out" "Turning it on also starts the other extensions you had turned on"
+check "...asked, yes by default" contains "$out" "Turn on GNOME extensions? [Y/n]"
+check "...Enter turns it on" test "$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["org.gnome.shell disable-user-extensions"])' "$HOME/gsettings.json")" = false
+check "the installed copy is current, and still Slated is enabled" bash -c 'grep -q "is already installed" <<<"$1" && grep -qx "gnome-extensions enable $3" "$2"' _ "$out" "$STUB_LOG" "$UUID"
+check "...so GNOME Shell runs it at once" contains "$out" "GNOME Shell runs Slated (Enabled: Yes, State: ACTIVE)"
+check "...and the install succeeds" test "$status" -eq 0
+gset disable-user-extensions true
+out="$(SLATED_INTERACTIVE=1 install_sh "$GE_BIN" "${EXT_ONLY[@]}" <<<"n")"
+status=$?
+check "answering no leaves the switch off" test "$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["org.gnome.shell disable-user-extensions"])' "$HOME/gsettings.json")" = true
+check "...fails, saying Slated can't run and how to fix it" bash -c 'test "$1" -eq 1 && grep -q "Slated can.t run. Turn it on in the Extensions app, or run linux/install.sh again and answer yes" <<<"$2"' _ "$status" "$out"
+out="$(install_sh "$GE_BIN" "${EXT_ONLY[@]}")"
+check "no terminal: says to use --yes" bash -c 'test "$1" -eq 1 && grep -q "Run linux/install.sh --yes to turn it on" <<<"$2"' _ "$?" "$out"
+out="$(install_sh "$GE_BIN" "${EXT_ONLY[@]}" --yes)"
+check "--yes turns it on" bash -c 'test "$1" -eq 0 && grep -q "GNOME.s Extensions switch: turned on" <<<"$2"' _ "$?" "$out"
+gset enabled-extensions "@as []"
+out="$(STUB_SHELL_STATE=ERROR STUB_SHELL_ERROR="SyntaxError: oops" install_sh "$GE_BIN" "${EXT_ONLY[@]}")"
+check "at the end, the real state when GNOME Shell doesn't run Slated" bash -c 'test "$1" -eq 1 && grep -q "Slated stopped with an error: SyntaxError: oops" <<<"$2" && grep -q "Fix what.s above, then run linux/install.sh --verify" <<<"$2"' _ "$?" "$out"
+unset STUB_SHELL_KNOWS
 
 # 5. keyd: Caps Lock as Ctrl+Alt+Shift+Super.
 out="$(install_sh "$GE_BIN" --hyper-keyd --yes)"
@@ -283,6 +367,8 @@ status=$?
 check "uninstall succeeds" test "$status" -eq 0
 check "the extension is gone" test ! -e "$INSTALLED"
 check "it's no longer marked enabled" test -z "$(grep -o "'$UUID'" <<<"$(enabled)")"
+check "Slated leaves your apps: the desktop entry and its icon are gone" test ! -e "$DESKTOP" -a ! -e "$ICON"
+check "...and the uninstall says so" contains "$out" "Removed Slated from your apps"
 check "uninstall keeps the config" test -f "$HOME/.config/slated/config.json"
 # Uninstalling while GNOME Shell isn't running Slated (from a text console): Slated's record of the
 # keyboard options it changed is still there, so the installer puts them back itself.
@@ -390,7 +476,7 @@ check "...downloads espanso's pinned Wayland package" contains "$c" "curl https:
 check "...installs it with apt" bash -c 'grep -qE "^sudo apt-get install -y /.*/espanso-debian-wayland-amd64.deb$" <<<"$1"' _ "$c"
 check "...lets it read the keyboard, as espanso's Wayland instructions say" contains "$c" "sudo setcap cap_dac_override+p $STUB_SYSROOT/bin/espanso"
 check "...registers and starts it" bash -c 'grep -qx "espanso service register" <<<"$1" && grep -qx "espanso start" <<<"$1"' _ "$c"
-check "...sums up every step" bash -c 'grep -q "▸ Summary" <<<"$1" && test "$(sed -n "/Summary/,\$p" <<<"$1" | grep -c "✔")" = 3' _ "$out"
+check "...sums up every step: the extension, Slated in your apps, keyd, espanso" bash -c 'grep -q "▸ Summary" <<<"$1" && test "$(sed -n "/Summary/,\$p" <<<"$1" | grep -c "✔")" = 4' _ "$out"
 check "...and ends with the one thing left" contains "$out" "Last step: log out and back in."
 
 # 9. Again: nothing to do, so no sudo, no package manager, no download.
