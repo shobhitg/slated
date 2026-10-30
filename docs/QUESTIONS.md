@@ -341,3 +341,43 @@ thumbnail and the name with a bigger preview on hover. On the Mac side (GNOME fo
 - **Fixtures:** `fixtures/clipboard.json` gains `addFiles` steps, `files` on items, `name` on images,
   a `fileNames` section and coding vectors for both fields; `fixtures/config.json` and `starter.json`
   gain `clipboard.screenshots`. Until the GNOME core matches, `make linux-test` fails on those.
+
+## Linux installer: one command (2026-10-31): decisions
+
+Your request: `linux/install.sh` should do everything, keyd included, with Linux as prominent as the
+Mac in the README, on any distribution that has GNOME 46 or later.
+
+- **One command, no y/N questions on the way.** sudo's own password prompt is the consent; before the
+  first one the installer says in one line what it's for. The only question is the last one, "Log
+  out now to start Slated?". `--yes` asks nothing and never logs you out. `--hyper-keyd` no longer
+  asks before writing keyd's config (removing it with `--remove` still asks).
+- **Run as yourself, never with sudo:** the installer refuses to run as root, since the extension and
+  config live in your home.
+- **GNOME 46–51 only (your call, 2026-10-31)**, read from `metadata.json`'s `shell-version`. On
+  another desktop, an older or newer GNOME, or a session that isn't GNOME's while GNOME is installed
+  (Pop!_OS 24.04's COSMIC), the installer stops before changing anything and names what it found
+  (the version, or `XDG_CURRENT_DESKTOP`). It must run in the GNOME session because keyd and espanso
+  are set up for the session you're in (espanso has X11 and Wayland builds). Over ssh, espanso's
+  build follows the graphical session logind reports.
+- **keyd:** the distribution's package when the package manager knows one (Ubuntu 26.04, Debian 13,
+  Arch, openSUSE), else v2.6.0 built from source at its pinned commit (Ubuntu 24.04 and so Pop!_OS
+  24.04, Fedora, any other GNOME distribution with a C compiler). The build runs as you in `build/linux/keyd-src`
+  (log in `build/linux/keyd-build.log`); only `make install` runs as root. Without systemd it asks
+  you to start keyd with your init system.
+- **espanso:** v2.4.1. With apt, the Debian package for the session (X11 or Wayland); elsewhere on
+  Xorg, the AppImage in `~/opt` (espanso's own layout) plus FUSE 2; Wayland outside Debian and Ubuntu
+  (Fedora; on Arch it's in the AUR) and ARM have no package, so it says so and carries on. espanso
+  publishes no checksum files, so the pins are GitHub's SHA-256 digests of the release files.
+- **Pins live at the top of `linux/install.sh`.** Updating means a new tag and commit for keyd and
+  new digests for espanso (the `gh api` commands are in the comments).
+- **Session type:** `XDG_SESSION_TYPE`; with none (over ssh), Wayland, the default on every supported
+  GNOME.
+- **No restarting GNOME Shell for you.** On Xorg (GNOME 48 and earlier) Alt+F2 `r` restarts it in
+  place, but no program can: GNOME closed `org.gnome.Shell.Eval` in GNOME 41, and the systemd unit
+  refuses a manual restart. So on Xorg the last step names Alt+F2 `r` and still offers to log out.
+  Logging out uses `gnome-session-quit --logout --no-prompt`: you already said yes, and GNOME still
+  asks about apps with unsaved work.
+- **Re-runs change nothing that's current:** the extension is reinstalled only when its files differ,
+  keyd's config is written only when it changed, and nothing runs as root when nothing needs to.
+- **Uninstall leaves keyd and espanso installed** (other things may use them) and says so.
+- **The Mac's `./install.sh`** was already one command; it's unchanged.

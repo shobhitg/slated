@@ -23,22 +23,39 @@ under [Limitations](#limitations): it works only on GNOME, and updates load when
 
 ## Install
 
-You need GNOME 46–51, `git`, `python3` and `gnome-extensions` (it comes with GNOME Shell).
+You need `git` and `python3`; the installer brings everything else.
 
 ```sh
 git clone https://github.com/shobhitg/slated && cd slated
 linux/install.sh
-linux/install.sh --hyper-keyd     # once: the recommended Hyper key (needs keyd; asks for your password)
 ```
 
-You can run `linux/install.sh` as often as you like. Each run:
+That's the whole setup. Run it again whenever you like (after a `git pull`, say): it redoes only what's
+out of date, and when nothing is, it changes nothing and asks for no password. Each run:
 
-1. Packs the extension and stamps it with `build-info.json` (version, git commit, build date).
-2. Installs it into `~/.local/share/gnome-shell/extensions/`, replacing the previous copy, and enables it.
-3. Checks Slated's log to see which build GNOME Shell is running.
+1. **Looks first, changing nothing:** GNOME Shell's version, X11 or Wayland, the distribution and
+   the package manager (apt, dnf, pacman or zypper). Slated needs GNOME 46–51 and the installer must
+   run in that GNOME session (or over ssh): elsewhere it stops here, naming the GNOME version or the
+   desktop (`XDG_CURRENT_DESKTOP`) it found.
+2. **Installs Slated's extension:** packs it with `build-info.json` (version, git commit, build
+   date), installs it into `~/.local/share/gnome-shell/extensions/` and enables it.
+3. **Sets up the Hyper key** when Slated's config wants Caps Lock as Hyper (the default): installs keyd
+   from your distribution's packages, or builds a pinned keyd release from source where there's no
+   package (Ubuntu 24.04, Fedora; it installs gcc and make first). Then it writes
+   `/etc/keyd/slated.conf` from your settings and starts keyd ([The Hyper key](#the-hyper-key)).
+4. **Sets up hotstrings**, unless they're off in Settings: installs espanso for your session and
+   starts it ([Hotstrings](#hotstrings)).
+5. **Sums up** each step (✔ done, • skipped and why, ✘ failed and what to do) and names the one step
+   left. GNOME Shell loads extensions when it starts, so that's logging out and back in, which the
+   installer offers to do. In an Xorg session (GNOME 48 and earlier) you can press Alt+F2, type `r`
+   and press Enter instead: GNOME Shell restarts in place and your windows stay open. Only you can
+   do that; the D-Bus call other programs used for it is closed since GNOME 41.
 
-**Then log out and back in.** On Wayland, GNOME Shell loads a new or updated extension only at
-login. Once you're back:
+Steps 3 and 4 need root, for packages and `/etc/keyd`. Before the first `sudo`, the installer says in
+one line what it's for; then sudo asks for your password as usual. Nothing else runs as root, and you
+run the installer as yourself, not with sudo.
+
+Once you're back:
 
 ```sh
 linux/install.sh --verify     # prints "Running: build abc1234" once the new build is live
@@ -47,23 +64,32 @@ gnome-extensions prefs slated@shobhitg.github.io    # opens Slated's settings (a
 
 | | |
 |---|---|
+| `linux/install.sh --yes` | Ask nothing, for scripts. It never logs you out |
+| `linux/install.sh --no-keyd` | Leave keyd out: Slated uses GNOME's own Caps Lock option ([The Hyper key](#the-hyper-key)) |
+| `linux/install.sh --no-espanso` | Leave espanso out: hotstrings don't expand |
+| `linux/install.sh --hyper-keyd` | Only the keyd step, after changing the Hyper key's settings. `--remove` removes Slated's keyd config |
 | `linux/install.sh --nested` | Also start a nested GNOME Shell with the new build, so you don't have to log out (see [Development](#development)) |
 | `linux/install.sh --verify` | Only report which build GNOME Shell is running |
 | `linux/install.sh --check` | Run the Linux tests first (needs Node), and install only if they pass |
-| `linux/install.sh --uninstall` | Remove the extension but keep config and logs. Add `--purge` to also remove those, Slated's espanso match file and its keyd config |
-| `linux/install.sh --hyper-keyd` | Make Caps Lock the Hyper key through keyd (asks before using sudo) |
+| `linux/install.sh --uninstall` | Remove the extension but keep config and logs. Add `--purge` to also remove those, Slated's espanso match file and its keyd config. keyd and espanso stay installed: remove them with your package manager |
 | `make linux-install`, `make linux-pack` | Same as `linux/install.sh` and `linux/install.sh --pack-only` |
+
+The installer downloads only pinned releases, listed at the top of `linux/install.sh`:
+
+| | Version | From | Checked by |
+|---|---|---|---|
+| keyd, where your distribution has none | v2.6.0 | `git clone` of [rvaiya/keyd](https://github.com/rvaiya/keyd) | the commit the tag must point at |
+| espanso | v2.4.1 | [its GitHub release](https://github.com/espanso/espanso/releases): `espanso-debian-x11-amd64.deb` or `espanso-debian-wayland-amd64.deb` with apt, `Espanso-X11.AppImage` elsewhere on Xorg | SHA-256: GitHub's digest of each file, since espanso publishes no checksum files |
 
 Below, "Settings" means Slated's settings window, and "GNOME Settings" means GNOME's.
 
 ### The Hyper key
 
-Turn on **Use Caps Lock as Hyper** in **Settings → Keyboard**. **keyd is the recommended way:**
-Caps Lock then works exactly like the Mac's Hyper key. Install keyd from your distribution (or
-[github.com/rvaiya/keyd](https://github.com/rvaiya/keyd)) and run `linux/install.sh --hyper-keyd`
-once. Until keyd is set up, Slated uses GNOME's own keyboard option (`caps:hyper`), which it sets
-itself and removes again when you turn the Hyper key off. The Keyboard page shows which method is
-active, and `linux/install.sh` reminds you while keyd isn't set up.
+Turn on **Use Caps Lock as Hyper** in **Settings → Keyboard** (a new config starts with it on).
+**keyd is the recommended way:** Caps Lock then works exactly like the Mac's Hyper key, and
+`linux/install.sh` installs and sets it up. Without keyd (`--no-keyd`, or until the installer has
+run), Slated uses GNOME's own keyboard option (`caps:hyper`), which it sets itself and removes again
+when you turn the Hyper key off. The Keyboard page shows which method is active.
 
 Slated uses keyd only while keyd runs (systemd says `keyd` is active; without systemd, keyd's socket
 is there) and one of its configs maps Caps Lock: Slated's own `/etc/keyd/slated.conf`, or a
@@ -73,7 +99,7 @@ and its configs changing, without logging out.
 
 | | GNOME's keyboard option (xkb) | keyd |
 |---|---|---|
-| Setup | Nothing to install | `linux/install.sh --hyper-keyd` (installs `/etc/keyd/slated.conf`; asks for sudo) |
+| Setup | Nothing to install | `linux/install.sh` (installs keyd and `/etc/keyd/slated.conf`; asks for sudo) |
 | What Caps Lock does | Acts as the Hyper modifier | Sends Ctrl+Alt+Shift+Super, like the Mac's Hyper key |
 | Tap alone for Escape | Not possible | Yes, if the tap is turned on |
 | Meh (Ctrl+Alt+Shift, no Super) | Not possible | Yes |
@@ -103,12 +129,13 @@ Hyper modifiers back until its timeout, and a keyd before 2.4.3 would drop the w
 
 On GNOME, an extension can't type into other apps, so Slated hands your hotstrings to
 [espanso](https://espanso.org). It writes them to `~/.config/espanso/match/slated.yml` and keeps
-that file in sync with `config.json`. Install espanso's Wayland build
-([instructions](https://espanso.org/install/linux/)), then run:
-
-```sh
-espanso service register && espanso start
-```
+that file in sync with `config.json`. `linux/install.sh` installs espanso's release for your
+session and starts it: the Debian package for X11 or Wayland with apt (Debian, Ubuntu, Pop!_OS,
+Mint), the X11 AppImage on other distributions. On Wayland it also gives espanso the
+`cap_dac_override` capability, as espanso's own instructions do. espanso has no package for Wayland
+outside Debian and Ubuntu (Fedora, openSUSE; on Arch it's `espanso-wayland` in the AUR), nor for ARM:
+there the installer says so, and once you've installed espanso
+([instructions](https://espanso.org/docs/install/linux/)), running `linux/install.sh` again starts it.
 
 **Settings → Hotstrings** shows whether espanso is installed and in sync. espanso can't tell which
 app you're typing in on GNOME, so app filters only work on the Mac. A hotstring limited to some apps
@@ -326,15 +353,15 @@ throwaway home.
 ## Limitations
 
 - **GNOME only, within Wayland's rules.** Other desktops would need their own extension or a
-  different approach.
+  different approach. The installer stops on them before changing anything.
 - **GNOME 46–51.** The extension declares those versions; newer ones mark it as unsupported until
   it's tested and added. GNOME 50 and 51 are declared but not yet tested.
 - **Updates load at your next login.** GNOME Shell can't reload an extension's code while it's
   running. In an Xorg session (GNOME 48 and earlier), Alt+F2 `r` restarts GNOME Shell instead. Use
   the nested shell while developing (see below). The settings window runs as a separate process, so
   closing and reopening it picks up a new build right away.
-- **Hotstrings need espanso**, which has its own setup on Wayland. App filters and action hotstrings
-  only work on the Mac.
+- **Hotstrings need espanso**, which the installer sets up except where espanso has no package
+  (Wayland outside Debian and Ubuntu). App filters and action hotstrings only work on the Mac.
 - **The full Hyper key needs keyd**, a system service installed with sudo. GNOME's own option can't
   do the tap-for-Escape or Meh, and in many layouts it shares a modifier with Super.
 - **Shortcuts GNOME already uses** (Super+A, Super+Tab…) stay GNOME's, and Slated reports them as
@@ -414,7 +441,7 @@ Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
 | `make linux-test-prefs-gjs` | The settings logic tests under GJS |
 | `make linux-test-gtk` | The settings window on real GTK 4 and libadwaita (needs `gjs gir1.2-adw-1 xvfb dbus`) |
 | `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: both config files, first runs and the migration, shortcuts, per-app grabs, automation timing and safety stops, the island and its cheat sheet, clipboard history, status and log (Node 22.15+) |
-| `make linux-test-installer` | `linux/install.sh` against stand-ins for GNOME's tools, plus `scripts/logs.py`'s log locations |
+| `make linux-test-installer` | `linux/install.sh` on a pretend system: stand-ins for GNOME's tools, sudo, apt, dnf, pacman, systemctl, git, make, curl, setcap and espanso, with only basic tools on `PATH` (Ubuntu, Pop!_OS on Xorg, Fedora, Arch, COSMIC, GNOME 42, re-runs, failures). Plus `scripts/logs.py`'s log locations |
 | `linux/tests/gnome/run.sh` | The extension in a real GNOME Shell |
 | `node linux/tests/prefs/coverage.mjs` | Which settings code no test runs |
 
@@ -440,6 +467,10 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 
 | Problem | What to do |
 |---|---|
+| The installer stops: Slated needs GNOME 46 or newer | It names the GNOME version or the desktop (`XDG_CURRENT_DESKTOP`) it found, and changed nothing. If GNOME 46 or later is installed next to another desktop (Pop!_OS 24.04 starts COSMIC by default), log in to the GNOME session and run `linux/install.sh` there. GNOME comes with your distribution's release: Ubuntu 24.04, Fedora 40 and Debian 13 or later have a new enough one. |
+| keyd didn't install | The message says which part failed: the package, the build tools, the download from github.com, or the build (its log is `build/linux/keyd-build.log`). Fix that and run `linux/install.sh` again. Without systemd, have your init system start keyd as root. |
+| espanso didn't install or start | The message says why: no package for your system (install it yourself, then run `linux/install.sh` again to start it), a failed download (check your connection), or a checksum that doesn't match (run it again; report it if it repeats). `espanso log` says why it won't start. |
+| sudo didn't take the password | The steps that need it fail and say so; the rest still installs. Run `linux/install.sh` again. |
 | Settings says "Log out and back in to start Slated" | GNOME Shell hasn't loaded the extension yet (a new install or an update on Wayland). Log out and back in, then run `linux/install.sh --verify`. |
 | The Extensions app shows Slated with an error | The error is in `journalctl -o cat /usr/bin/gnome-shell`. **Settings → Overview** also shows GNOME Shell's message. |
 | Settings says "A newer build is installed" | GNOME Shell is still running the previous build. Log out and back in. |

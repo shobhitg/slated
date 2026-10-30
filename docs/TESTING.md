@@ -356,6 +356,48 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Plugging in or removing a display applies a matching `default` layout.
 - [ ] Changing the keyboard layout (e.g. to AZERTY) keeps letter shortcuts on the labeled keys.
 
+## Manual checklist: Linux installer
+
+Run after changes to `linux/install.sh` on fresh installs (a VM is fine), from a clone, as a normal
+user. `make linux-test-installer` covers the logic against stand-ins; these check the real
+distributions, package managers and services.
+
+**Fresh Ubuntu 24.04 (GNOME 46, Wayland)**
+- [ ] `linux/install.sh` with nothing else installed: one line says what sudo is for, sudo asks for
+      the password once, and the run ends with a summary of three ✔ and "Last step: log out and back
+      in". apt installs gcc, make and libc6-dev; keyd v2.6.0 builds from source (`keyd --version`
+      says 2.6.0); `systemctl status keyd` is active; espanso's Wayland package is installed
+      (`getcap $(which espanso)` shows `cap_dac_override`) and `espanso status` says it's running.
+- [ ] Answering y to "Log out now to start Slated?" logs out (GNOME asks about unsaved work first).
+      After logging in, `linux/install.sh --verify` reports the build, Caps Lock+A records ✦A in
+      Settings → Keyboard, which says keyd, and a hotstring expands in gedit.
+- [ ] The same on an Xorg session: espanso's X11 package, no setcap, and the last step offers Alt+F2
+      `r`, which starts Slated without logging out.
+
+**Fresh Fedora (GNOME, Wayland)**
+- [ ] dnf installs gcc, make and kernel-headers and keyd builds from source; SELinux lets
+      systemd start `/usr/local/bin/keyd`. espanso is skipped with a plain message (no Wayland
+      package) and the run still ends in ✔ for the extension and keyd.
+
+**A re-run, and a distribution with a keyd package**
+- [ ] Running `linux/install.sh` again right away: no password prompt, every step says it's
+      already done, no package manager or download runs.
+- [ ] After changing the Escape tap in Settings, a re-run rewrites only `/etc/keyd/slated.conf`
+      (one sudo prompt) and reloads keyd.
+- [ ] Ubuntu 26.04 or Debian 13: keyd comes from apt (`apt-get install keyd`), not built.
+- [ ] Arch on Xorg: keyd from pacman; espanso's AppImage lands in `~/opt` with an `espanso` command.
+
+**The author's setup: Pop!_OS 24.04, GNOME 46 session on Xorg**
+- [ ] From the GNOME session: keyd builds from source, espanso's X11 package installs and starts,
+      and the last step names Alt+F2 `r`, which starts Slated without logging out.
+- [ ] From the COSMIC session: the installer stops at once, says this session is COSMIC and to run
+      it from GNOME, and changes nothing.
+
+**Unsupported systems**
+- [ ] Pop!_OS 22.04 (GNOME 42): stops at once, naming GNOME 42 and Pop!_OS 22.04, and changes
+      nothing (no sudo prompt).
+- [ ] `sudo linux/install.sh` refuses and says to run it as yourself.
+
 ## Manual checklist: GNOME island
 
 Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `lib/platform/island*.js`,
