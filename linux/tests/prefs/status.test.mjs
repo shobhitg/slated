@@ -3,6 +3,9 @@ import {
   parseStatus, emptyStatus, hotkeyState, hotkeyCounts, extensionState, runningSummary, bindingState, statePresentation,
   stateExplanation,
 } from '../../gnome-extension/lib/prefs/status.js';
+import {overviewRows, KEYD_START} from '../../gnome-extension/lib/prefs/statusRows.js';
+import {setupBlocker} from '../../gnome-extension/lib/prefs/getstarted.js';
+import {fillDefaults} from '../../gnome-extension/lib/prefs/config.js';
 import {
   SAMPLE_SCREENS, sampleFrame, previews, place, screenMap, screenAt, describeFrame, layoutPlacements, orderedLeftToRight,
 } from '../../gnome-extension/lib/prefs/placement.js';
@@ -30,7 +33,8 @@ export default suite('Status and placement', [
     expect(s.present && s.running && !s.error);
     expectEqual(s.session, 'abcd1234');
     expectEqual(s.updatedAt.toISOString(), '2026-10-22T18:00:00.000Z');
-    expectEqual(s.hyper, {wanted: true, mode: 'xkb', active: true});
+    expectEqual(s.hyper, {wanted: true, mode: 'xkb', active: true, keyd: null}, "an older extension doesn't say whether keyd runs");
+    expectEqual(s.paused, false);
     expectEqual(s.hotstrings.count, 3);
     expectEqual(s.hotkeys['hyper+q'], {state: 'failed', reason: 'already used by GNOME'});
     expectEqual(s.sources, undefined, "an older extension's Slate sources aren't read: Slate files are only imported");
@@ -73,7 +77,9 @@ export default suite('Status and placement', [
   }],
   ['interprets GNOME Shell extension states', () => {
     expectEqual(extensionState(null).reachable, false);
-    expectEqual(extensionState({}), {known: false, reachable: true, state: 'unknown', error: null, enabled: null});
+    expectEqual(extensionState({}), {known: false, reachable: true, state: 'unknown', error: null, enabled: null, userExtensionsEnabled: null});
+    expectEqual(extensionState({state: 6, enabled: false}, false).userExtensionsEnabled, false);
+    expectEqual(extensionState({state: 1}, 'yes').userExtensionsEnabled, null);
     expectEqual(extensionState({state: 3, error: 'SyntaxError'}).state, 'error');
     expectEqual(extensionState({state: 2}).state, 'inactive');
     expectEqual(extensionState({state: 6}).state, 'initialized');
@@ -94,6 +100,76 @@ export default suite('Status and placement', [
     expectEqual([review.level, review.detail], ['warning', '1 duplicate shortcut and 1 that GNOME refused']);
     const clean = parseStatus(JSON.stringify({running: true, hotkeys: {'hyper+a': 'active'}}));
     expectEqual(runningSummary({status: clean, shell: shellActive}).level, 'ok');
+    // GNOME's Extensions switch is off (the author's Pop!_OS): nothing runs, whatever else is true.
+    const switchOff = runningSummary({status: none, shell: extensionState({state: 6, enabled: false}, false)});
+    expectEqual([switchOff.title, switchOff.action, switchOff.level], ["GNOME's Extensions switch is off", 'enableExtensions', 'error']);
+    expect(switchOff.detail.includes('also the other extensions you had turned on'), 'says what turning it on does');
+    // Slated not enabled: turned off, even while GNOME still reports it INITIALIZED.
+    expectEqual(runningSummary({status: none, shell: extensionState({state: 6, enabled: false}, true)}).title, 'Slated is turned off');
+    expectEqual(runningSummary({status: none, shell: extensionState({state: 6, enabled: true}, true)}).action, 'relogin');
+    const paused = runningSummary({status: parseStatus(JSON.stringify({running: true, paused: true})), shell: shellActive});
+    expectEqual([paused.title, paused.running, paused.action], ['Slated is paused', true, null]);
+  }],
+  ['Overview rows say what is missing and offer the fix, never a bare "Waiting"', () => {
+    const config = fillDefaults({keyboard: {capsLock: 'hyper'}, bindings: [{keys: 'hyper+a', action: {op: 'undo'}}],
+      hotstrings: [{trigger: ';a', replacement: 'b'}]}, () => 'id');
+    const rows = (status, shell = shellActive, extra = {}) => {
+      const parsed = parseStatus(JSON.stringify(status));
+      return overviewRows({summary: runningSummary({status: parsed, shell}), status: parsed, shell, config, ...extra});
+    };
+    const texts = r => Object.values(r).flatMap(row => [row.value, row.state.label]);
+    const none = {};
+    for (const [shell, pill, action] of [
+      [extensionState({state: 6, enabled: false}, false), 'Extensions off', 'enableExtensions'],
+      [extensionState({state: 2, enabled: false}, true), 'Off', 'enable'],
+      [extensionState({}, true), 'Not loaded', 'relogin'],
+      [extensionState({state: 3, error: 'TypeError: boom'}, true), 'Error', 'log'],
+    ]) {
+      const r = rows(none, shell);
+      expectEqual([r.extension.state.label, r.extension.action], [pill, action]);
+      for (const row of [r.hyper, r.hotstrings, r.shortcuts]) {
+        expectEqual([row.state.label, row.action], ['Not running', action], `${pill}: every row offers the fix`);
+        expect(row.value.endsWith(`${r.extension.value}.`), `${pill}: says why: ${row.value}`);
+      }
+      expect(!texts(r).some(t => /waiting/i.test(t)), `no "Waiting": ${texts(r).join(' | ')}`);
+    }
+    expect(rows(none, extensionState({state: 3, error: 'TypeError: boom'}, true)).extension.value === 'Slated stopped with an error');
+
+    const live = {running: true, session: 's1', version: '0.1.0', hotkeys: {'hyper+a': 'active'}};
+    // keyd is set up but stopped: GNOME's option stands in, and the row says how to start keyd.
+    const keyd = rows({...live, hyper: {wanted: true, mode: 'xkb', active: true, keyd: 'stopped'}}).hyper;
+    expectEqual([keyd.state.label, keyd.action], ['keyd stopped', {copy: KEYD_START}]);
+    expect(keyd.value.startsWith("keyd isn't running") && keyd.value.includes('linux/install.sh'), keyd.value);
+    // An older extension: Slated's keyd config is there, and GNOME's option is in use.
+    expectEqual(rows({...live, hyper: {wanted: true, mode: 'xkb', active: true}}, shellActive, {keydConfigured: true}).hyper.state.label, 'keyd stopped');
+    expectEqual(rows({...live, hyper: {wanted: true, mode: 'keyd', active: true, keyd: 'running'}}).hyper.value, 'Caps Lock acts as Ctrl Alt Shift Super · keyd');
+    expectEqual(rows({...live, hyper: {wanted: true, mode: 'off', active: false, keyd: 'checking'}}).hyper.state.label, 'Checking');
+    expectEqual(rows({...live, hyper: {wanted: true, mode: 'off', active: false, keyd: 'none'}}).hyper.action, 'log');
+
+    // espanso: installed and in sync, but not running.
+    const espanso = {...live, hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/m.yml', count: 1}};
+    const stopped = rows(espanso, shellActive, {espansoRunning: false}).hotstrings;
+    expectEqual([stopped.state.label, stopped.action], ['espanso stopped', {copy: 'espanso start'}]);
+    expect(stopped.value.includes("espanso itself isn't running"), stopped.value);
+    expectEqual(rows(espanso, shellActive, {espansoRunning: true}).hotstrings.state.label, 'Active');
+    expectEqual(rows(espanso).hotstrings.state.label, 'Active', 'unknown: as before');
+    const missing = rows({...live, hotstrings: {engine: 'none', espansoInstalled: false}}).hotstrings;
+    expect(missing.state.label === 'Needs espanso' && missing.value.includes('Run linux/install.sh again'), missing.value);
+
+    // Paused from the top bar.
+    const paused = rows({...live, paused: true, hyper: {wanted: true, mode: 'off', active: false}});
+    expectEqual(Object.values(paused).map(r => r.state.label), ['Paused', 'Paused', 'Paused', 'Paused']);
+    // Running and well.
+    const well = rows({...live, hyper: {wanted: true, mode: 'xkb', active: true, keyd: 'none'}});
+    expectEqual([well.extension.value, well.hyper.state.label, well.shortcuts.state.label], ['Running · session s1 · 0.1.0', 'On', '1 active']);
+  }],
+  ['Get Started leads with what keeps Slated from running', () => {
+    const none = emptyStatus();
+    const blocker = setupBlocker(runningSummary({status: none, shell: extensionState({state: 6, enabled: false}, false)}));
+    expectEqual([blocker.title, blocker.action, blocker.level], ["GNOME's Extensions switch is off", 'enableExtensions', 'error']);
+    expectEqual(setupBlocker(runningSummary({status: none, shell: extensionState({state: 2, enabled: false}, true)})).action, 'enable');
+    expectEqual(setupBlocker(runningSummary({status: none, shell: shellActive})), null, 'only starting: nothing to click');
+    expectEqual(setupBlocker(runningSummary({status: parseStatus(EXAMPLE), shell: shellActive})), null, 'running');
   }],
   ['binding states and their presentation', () => {
     const status = parseStatus(EXAMPLE);

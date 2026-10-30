@@ -71,6 +71,16 @@ export function createGeneralPane(ctx) {
     },
   });
   extension.add(enabled.row);
+  // The Mac's menu bar icon: a click opens this window, a right click shows Slated's menu.
+  const topBar = switchRow({
+    title: 'Show Slated in the top bar',
+    subtitle: 'Click the icon to open Slated; right-click it to pause Slated, turn the Hyper key on or off, or open the log. Slated is in your apps too.',
+    active: model.configuration.general.showStatusIcon !== false,
+    onChange: on => model.update(config => {
+      config.general.showStatusIcon = on;
+    }),
+  });
+  extension.add(topBar.row);
   prefs.add(extension);
 
   // Feedback
@@ -216,10 +226,13 @@ export function createGeneralPane(ctx) {
     enabled.row.set_sensitive(shell.reachable && shell.known);
     enabled.row.set_subtitle(!shell.reachable
       ? "Couldn't reach GNOME Shell. Use the Extensions app to turn Slated on or off."
-      : !shell.known
+      : shell.userExtensionsEnabled === false
+        ? "GNOME's Extensions switch is off, so no extension runs, Slated included. Overview has the button that turns it on."
+        : !shell.known
         ? 'GNOME Shell loads Slated after you log out and back in.'
         : turningOffText(model.status.hyper.mode, fileExists(paths.keydConfig)));
     hud.set(model.configuration.general.showActionHUD);
+    topBar.set(model.configuration.general.showStatusIcon !== false);
     const isl = island();
     islandOn.set(isl.enabled);
     cheatSheet.set(isl.cheatSheet);

@@ -44,6 +44,9 @@ export default suite('Event log, hotstrings and helpers', [
     expectEqual(espansoGuidance({engine: 'none', espansoInstalled: true}, true).level, 'warning');
     expectEqual(espansoGuidance({engine: 'espanso', espansoInstalled: true, count: 1, matchFile: '/m.yml'}, true).detail,
       'Slated keeps 1 hotstring in sync with espanso (/m.yml).');
+    const stopped = espansoGuidance({engine: 'espanso', espansoInstalled: true, count: 1}, true, false);
+    expectEqual([stopped.level, stopped.title, stopped.command], ['warning', "espanso isn't running", 'espanso start']);
+    expectEqual(espansoGuidance({engine: 'espanso', espansoInstalled: true, count: 1}, true, null).level, 'ok', 'unknown: no claim');
   }],
   ['app filters are Mac-only: espanso can\'t tell apps apart on GNOME', () => {
     expectEqual(gnomeScopeNote({trigger: ';a', onlyInApps: [], exceptInApps: []}), null);

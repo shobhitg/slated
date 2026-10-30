@@ -84,6 +84,8 @@ export class PrefsModel extends Emitter {
 
     this.status = emptyStatus();
     this.shell = extensionState(null);
+    /** Whether `espanso status` says espanso runs: true, false, or null when unknown. */
+    this.espansoRunning = null;
     this.build = null;
     this.runningCommit = null;
     /** The settings window's own state (settings-window.json): {setupFinished, …}. */
@@ -417,11 +419,21 @@ export class PrefsModel extends Emitter {
     this.emit('status');
   }
 
-  /** GetExtensionInfo's result (a plain object, {} when unknown, null when the shell can't be reached). */
-  setShellInfo(info) {
-    const shell = extensionState(info);
+  /**
+   * GetExtensionInfo's result (a plain object, {} when unknown, null when the shell can't be reached),
+   * and GNOME's Extensions switch (UserExtensionsEnabled: true, false, or null when unknown).
+   */
+  setShellInfo(info, userExtensionsEnabled = null) {
+    const shell = extensionState(info, userExtensionsEnabled);
     if (deepEqual(shell, this.shell)) return;
     this.shell = shell;
+    this.emit('status');
+  }
+
+  setEspansoRunning(running) {
+    const value = typeof running === 'boolean' ? running : null;
+    if (value === this.espansoRunning) return;
+    this.espansoRunning = value;
     this.emit('status');
   }
 

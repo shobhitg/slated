@@ -34,6 +34,59 @@ export async function getExtensionInfo(uuid) {
   }
 }
 
+const EXTENSIONS_IFACE = 'org.gnome.Shell.Extensions';
+const properties = (method, parameters) => call('org.gnome.Shell', '/org/gnome/Shell', 'org.freedesktop.DBus.Properties', method, parameters);
+
+/**
+ * GNOME's Extensions switch (the Extensions app's main switch, org.gnome.shell disable-user-extensions
+ * inverted): true or false, or null when GNOME Shell can't be reached. While it's off, no user
+ * extension runs.
+ */
+export async function getUserExtensionsEnabled() {
+  try {
+    const [value] = await properties('Get', new GLib.Variant('(ss)', [EXTENSIONS_IFACE, 'UserExtensionsEnabled']));
+    return typeof value === 'boolean' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Turns GNOME's Extensions switch on or off, as the Extensions app does. */
+export async function setUserExtensionsEnabled(enabled) {
+  await properties('Set', new GLib.Variant('(ssv)', [EXTENSIONS_IFACE, 'UserExtensionsEnabled', new GLib.Variant('b', enabled)]));
+}
+
+/** Where espanso may be when it isn't on the settings window's PATH (as the extension looks). */
+const ESPANSO_DIRS = ['/usr/local/bin', '/usr/bin', '/snap/bin', '/var/lib/flatpak/exports/bin'];
+
+/**
+ * Whether espanso runs, from `espanso status` (it exits 0 only while espanso runs, as linux/install.sh
+ * relies on). Resolves to true or false, or null when espanso can't be found or asked.
+ */
+export function espansoRunning(home) {
+  return new Promise(resolve => {
+    try {
+      const binary = GLib.find_program_in_path('espanso')
+        ?? [`${home}/.local/bin`, ...ESPANSO_DIRS].map(dir => `${dir}/espanso`).find(path => GLib.file_test(path, GLib.FileTest.IS_EXECUTABLE));
+      if (!binary) {
+        resolve(null);
+        return;
+      }
+      const proc = Gio.Subprocess.new([binary, 'status'], Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
+      proc.wait_async(null, (p, result) => {
+        try {
+          p.wait_finish(result);
+          resolve(p.get_successful());
+        } catch {
+          resolve(null);
+        }
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 /** Enables or disables the extension. Resolves to true when GNOME Shell accepted the change. */
 export async function setExtensionEnabled(uuid, enabled) {
   const [ok] = await shell(enabled ? 'EnableExtension' : 'DisableExtension', new GLib.Variant('(s)', [uuid]));

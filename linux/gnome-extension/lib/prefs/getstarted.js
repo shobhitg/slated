@@ -15,6 +15,18 @@ import {importedText} from './migration.js';
 import {espansoGuidance} from './hotstrings.js';
 import {plural, isObject} from './util.js';
 
+/**
+ * What keeps Slated from running that the window can fix or explain, shown first on Get Started's
+ * first step (where the Mac asks for Accessibility access): GNOME's Extensions switch, Slated turned
+ * off, a login still needed, an error. Null while Slated runs, or is only starting.
+ * @param {object} summary status.runningSummary()
+ * @returns {{level: string, title: string, detail: string, action: string}|null}
+ */
+export function setupBlocker(summary) {
+  if (summary.running || !summary.action || summary.action === 'review') return null;
+  return {level: summary.level === 'error' ? 'error' : 'warning', title: summary.title, detail: summary.detail, action: summary.action};
+}
+
 /** The steps, in order. */
 export const STEPS = Object.freeze(['welcome', 'hyperKey', 'hotstrings', 'slateConfig', 'done']);
 
@@ -114,13 +126,13 @@ export function keydAdvice({running, hyper, keydConfigured}) {
  * The hotstrings step: espanso's state (espansoGuidance), what the footer says, and a summary of the
  * hotstrings. Hotstrings limited to some apps are Mac only (espanso can't tell apps apart on GNOME).
  */
-export function hotstringsStep({config, status, running}) {
+export function hotstringsStep({config, status, running, espansoRunning = null}) {
   const enabled = config.general.hotstringsEnabled !== false;
   const all = config.hotstrings.filter(h => h.enabled !== false);
   const macOnly = all.filter(h => h.onlyInApps?.length).length;
   const expanding = all.length - macOnly;
   const guidance = enabled
-    ? espansoGuidance(status.hotstrings, running)
+    ? espansoGuidance(status.hotstrings, running, espansoRunning)
     : {level: 'info', title: 'Text expansion is turned off', detail: 'Turn it on under Hotstrings when you want it.'};
   const summary = all.length
     ? `${plural(expanding, 'hotstring')} to expand${macOnly ? ` · ${macOnly} Mac only` : ''}`
@@ -179,10 +191,10 @@ export function starterAdded(bindings) {
  * GNOME lists whether GNOME Shell runs Slated (with the button that fixes it) and espanso.
  * @returns {Array<{title: string, done: boolean, detail: string, action: string|null}>}
  */
-export function doneChecklist({summary, config, status, running, totalShortcuts}) {
+export function doneChecklist({summary, config, status, running, totalShortcuts, espansoRunning = null}) {
   const hyperOn = config.keyboard.capsLock === 'hyper';
   const mode = running && status.hyper.mode !== 'off' ? ` · ${status.hyper.mode}` : '';
-  const {guidance} = hotstringsStep({config, status, running});
+  const {guidance} = hotstringsStep({config, status, running, espansoRunning});
   const hotstringsOff = config.general.hotstringsEnabled === false;
   let hotstrings;
   if (hotstringsOff) hotstrings = 'Off';
