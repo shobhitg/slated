@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Slated in GNOME's top bar: the app icon's tiles (one tall, two stacked), one color. GNOME recolors
+     *-symbolic.svg icons to match the top bar. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <rect x="1" y="2" width="7" height="12" rx="1.5" fill="#2e3436"/>
+  <rect x="9.5" y="2" width="5.5" height="5.25" rx="1.25" fill="#2e3436" fill-opacity="0.8"/>
+  <rect x="9.5" y="8.75" width="5.5" height="5.25" rx="1.25" fill="#2e3436" fill-opacity="0.6"/>
+</svg>

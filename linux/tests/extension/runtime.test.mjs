@@ -44,6 +44,8 @@ beforeEach(() => {
     grabs: new Map(),
     allowed: {},
     locked: false,
+    statusArea: {},
+    launched: [],
   });
 });
 
@@ -110,7 +112,8 @@ test('start registers config shortcuts in xkb Hyper mode and publishes status an
   assert.equal(s.running, true);
   assert.equal(s.version, '0.1.0');
   assert.match(s.session, /^[0-9a-f]{8}$/);
-  assert.deepEqual(s.hyper, {wanted: true, mode: 'xkb', active: true});
+  assert.deepEqual(s.hyper, {wanted: true, mode: 'xkb', active: true, keyd: 'none'});
+  assert.equal(s.paused, false);
   assert.deepEqual(s.hotkeys, {
     'cmd+a': 'failed: GNOME refused <Super>a: another app or extension may already use it',
     'hyper+a': 'duplicate',
@@ -174,7 +177,7 @@ test('editing config.json re-registers shortcuts and turns Hyper off', () => {
   assert.deepEqual(gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'], ['compose:ralt', 'caps:escape']);
   assert.equal(events('config.changed_on_disk').length, 1);
   assert.deepEqual(status().hotkeys, {'ctrl+alt+x': 'active'});
-  assert.deepEqual(status().hyper, {wanted: false, mode: 'off', active: false});
+  assert.deepEqual(status().hyper, {wanted: false, mode: 'off', active: false, keyd: 'none'});
   runtime.stop();
 });
 
@@ -223,7 +226,7 @@ test('stop() undoes everything: shortcuts, keyboard options, signals and timers'
   assert.equal(gnome.signals.layout.size, 0, 'no layout manager handlers left');
   assert.equal([...gnome.state.monitors.values()].reduce((n, set) => n + set.size, 0), 0, 'no file monitors left');
   assert.equal(status().running, false);
-  assert.deepEqual(status().hyper, {wanted: true, mode: 'off', active: false}, 'caps:hyper is gone, and status.json says so');
+  assert.deepEqual(status().hyper, {wanted: true, mode: 'off', active: false, keyd: 'none'}, 'caps:hyper is gone, and status.json says so');
   const [quit] = events('app.quit');
   assert.equal(quit.data.reason, 'disabled');
   assert.equal(quit.data.hyperRestored, true);
@@ -238,7 +241,7 @@ test('keyd is the Hyper key only while it runs and a keyd config maps Caps Lock,
   const runtime = startRuntime();
   const xkb = () => gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'];
   assert.deepEqual(gnome.state.subprocesses, [], 'no keyd config maps Caps Lock: systemd isn’t even asked');
-  assert.deepEqual([gnome.accelerators(), xkb(), status().hyper], [['<Hyper>a'], ['compose:ralt', 'caps:hyper'], {wanted: true, mode: 'xkb', active: true}]);
+  assert.deepEqual([gnome.accelerators(), xkb(), status().hyper], [['<Hyper>a'], ['compose:ralt', 'caps:hyper'], {wanted: true, mode: 'xkb', active: true, keyd: 'none'}]);
 
   writeFileSync(join(etc, 'mouse.conf'), '[ids]\n*\n\n[main]\ncapslock = layer(hyper)\n'); // you map Caps Lock in keyd
   gnome.fileChanged(etc);
@@ -246,12 +249,12 @@ test('keyd is the Hyper key only while it runs and a keyd config maps Caps Lock,
   gnome.loop.run();
   assert.deepEqual(gnome.accelerators(), ['<Control><Alt><Shift><Super>a']);
   assert.deepEqual(xkb(), ['compose:ralt', 'caps:escape'], 'caps:hyper taken out, caps:escape back');
-  assert.deepEqual(status().hyper, {wanted: true, mode: 'keyd', active: true});
+  assert.deepEqual(status().hyper, {wanted: true, mode: 'keyd', active: true, keyd: 'running'});
 
   gnome.systemSignal('org.freedesktop.DBus.Properties.PropertiesChanged', ['org.freedesktop.systemd1.Unit', {ActiveState: 'inactive'}, []]); // keyd stops
   gnome.state.subprocesses[1].exit(false);
   gnome.loop.run();
-  assert.deepEqual([gnome.accelerators(), xkb(), status().hyper], [['<Hyper>a'], ['compose:ralt', 'caps:hyper'], {wanted: true, mode: 'xkb', active: true}]);
+  assert.deepEqual([gnome.accelerators(), xkb(), status().hyper], [['<Hyper>a'], ['compose:ralt', 'caps:hyper'], {wanted: true, mode: 'xkb', active: true, keyd: 'stopped'}], 'keyd stopped: the settings window can say so');
   runtime.stop();
 });
 
@@ -261,7 +264,7 @@ test('a caps:hyper you set yourself stays after disable, and the last status.jso
   const runtime = startRuntime();
   runtime.stop();
   assert.deepEqual(gnome.state.settings['org.gnome.desktop.input-sources:xkb-options'], ['compose:ralt', 'caps:hyper'], 'not Slated’s to take out');
-  assert.deepEqual(status().hyper, {wanted: true, mode: 'xkb', active: true});
+  assert.deepEqual(status().hyper, {wanted: true, mode: 'xkb', active: true, keyd: 'none'});
   assert.equal(events('app.quit')[0].data.hyperRestored, false);
 });
 

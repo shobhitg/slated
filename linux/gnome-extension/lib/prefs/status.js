@@ -16,8 +16,12 @@ export function emptyStatus() {
     session: null,
     version: null,
     running: false,
+    /** "Pause Slated" from the top bar: shortcuts, the Hyper key and hotstrings are off until resumed. */
+    paused: false,
     updatedAt: null,
-    hyper: {wanted: false, mode: 'off', active: false},
+    // keyd: "running", "stopped" (set up for Caps Lock but not running), "none", "checking", or null
+    // from an extension that doesn't say.
+    hyper: {wanted: false, mode: 'off', active: false, keyd: null},
     hotstrings: {engine: 'none', espansoInstalled: false, matchFile: null, count: 0},
     hotkeys: {},
     screens: null,
@@ -82,6 +86,7 @@ export function parseStatus(text) {
   status.session = str(raw.session);
   status.version = str(raw.version);
   status.running = bool(raw.running);
+  status.paused = bool(raw.paused);
   const updated = str(raw.updatedAt) ? new Date(raw.updatedAt) : null;
   status.updatedAt = updated && !Number.isNaN(updated.getTime()) ? updated : null;
   if (isObject(raw.hyper)) {
@@ -89,6 +94,7 @@ export function parseStatus(text) {
       wanted: bool(raw.hyper.wanted),
       mode: ['xkb', 'keyd', 'off'].includes(raw.hyper.mode) ? raw.hyper.mode : 'off',
       active: bool(raw.hyper.active),
+      keyd: ['running', 'stopped', 'none', 'checking'].includes(raw.hyper.keyd) ? raw.hyper.keyd : null,
     };
   }
   if (isObject(raw.hotstrings)) {
@@ -149,18 +155,27 @@ const SHELL_STATES = {
 /**
  * Interprets GetExtensionInfo's a{sv} result (already unpacked to a plain object). An empty object
  * means the shell doesn't know the extension: on Wayland that's a fresh install before relogging.
+ * `userExtensionsEnabled` is GNOME's Extensions switch (the UserExtensionsEnabled property, the
+ * inverse of org.gnome.shell disable-user-extensions): while it's off, no user extension runs.
  */
-export function extensionState(info) {
-  if (info === null || info === undefined) return {known: false, reachable: false, state: 'unknown', error: null, enabled: null};
-  if (!isObject(info) || !Object.keys(info).length) return {known: false, reachable: true, state: 'unknown', error: null, enabled: null};
+export function extensionState(info, userExtensionsEnabled = null) {
+  const extensions = typeof userExtensionsEnabled === 'boolean' ? userExtensionsEnabled : null;
+  if (info === null || info === undefined) {
+    return {known: false, reachable: false, state: 'unknown', error: null, enabled: null, userExtensionsEnabled: extensions};
+  }
+  if (!isObject(info) || !Object.keys(info).length) {
+    return {known: false, reachable: true, state: 'unknown', error: null, enabled: null, userExtensionsEnabled: extensions};
+  }
   const state = SHELL_STATES[Math.round(num(info.state, -1))] ?? 'unknown';
   const error = str(info.error) || null;
-  return {known: true, reachable: true, state, error, enabled: typeof info.enabled === 'boolean' ? info.enabled : null};
+  return {known: true, reachable: true, state, error, enabled: typeof info.enabled === 'boolean' ? info.enabled : null,
+    userExtensionsEnabled: extensions};
 }
 
 /**
  * One headline for the Overview, from everything the preferences know. `level` is "ok", "warning"
- * or "error"; `action` names the button to offer ("enable", "relogin", "log", "review" or null).
+ * or "error"; `action` names the button to offer ("enableExtensions", "enable", "relogin", "log",
+ * "review" or null).
  *
  * @param {object} args
  * @param {object} args.status parsed status.json
@@ -170,6 +185,12 @@ export function extensionState(info) {
  */
 export function runningSummary({status, shell, build = null, runningCommit = null}) {
   const relogin = 'On Wayland, GNOME loads a new or updated extension only when you log in. Log out and back in, then come back here.';
+  if (shell.userExtensionsEnabled === false) {
+    return {
+      level: 'error', running: false, title: "GNOME's Extensions switch is off", action: 'enableExtensions',
+      detail: "While it's off, GNOME runs no extensions, Slated included. Turning it on starts Slated, and also the other extensions you had turned on.",
+    };
+  }
   if (shell.reachable && !shell.known) {
     return {
       level: 'warning', running: false, title: 'Log out and back in to start Slated', action: 'relogin',
@@ -185,7 +206,7 @@ export function runningSummary({status, shell, build = null, runningCommit = nul
         : 'See the GNOME Shell log for details: journalctl -f -o cat /usr/bin/gnome-shell',
     };
   }
-  if (shell.state === 'inactive' || shell.state === 'deactivating') {
+  if (shell.state === 'inactive' || shell.state === 'deactivating' || (shell.enabled === false && shell.state !== 'active')) {
     return {
       level: 'warning', running: false, title: 'Slated is turned off', action: 'enable',
       detail: 'Turn it on to use your shortcuts, the Hyper key and hotstrings. Your settings are kept.',
@@ -210,6 +231,12 @@ export function runningSummary({status, shell, build = null, runningCommit = nul
     return {
       level: 'warning', running: false, title: "Slated isn't running", action: shell.reachable ? 'enable' : 'relogin',
       detail: 'Its status file says it stopped. Turn it on again, or log out and back in after an update.',
+    };
+  }
+  if (status.paused) {
+    return {
+      level: 'warning', running: true, title: 'Slated is paused', action: null,
+      detail: "Shortcuts, the Hyper key and hotstrings are off until you resume them: right-click Slated's icon in the top bar and turn off Pause Slated.",
     };
   }
   if (build?.commit && runningCommit && build.commit !== runningCommit) {

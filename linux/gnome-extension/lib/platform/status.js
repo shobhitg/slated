@@ -3,8 +3,8 @@
 //
 // Schema (exact; prefs depends on it):
 //
-//   {"session":"abcd1234","version":"0.1.0","running":true,"updatedAt":"<ISO>",
-//    "hyper":{"wanted":true,"mode":"xkb|keyd|off","active":true},
+//   {"session":"abcd1234","version":"0.1.0","running":true,"paused":false,"updatedAt":"<ISO>",
+//    "hyper":{"wanted":true,"mode":"xkb|keyd|off","active":true,"keyd":"running|stopped|none|checking"},
 //    "hotstrings":{"engine":"espanso|none","espansoInstalled":true,"matchFile":"<path>","count":3},
 //    "hotkeys":{"hyper+a":"active","hyper+q":"failed: <reason>","hyper+w":"duplicate","hyper+z":"disabled"},
 //    "automation":{"running":["Repeat click left every 100 ms"],"shortcuts":["f6"],"stopShortcut":"hyper+esc",
@@ -21,6 +21,9 @@
 // automation.shortcuts holds the hotkey keys (as in "hotkeys") of the shortcuts that started them.
 // automation.whileHeld is "key-repeat" when while-held repeats stop as the key is let go (noticed
 // through GNOME's key repeat), or "toggle" when keyboard repeat is off and they need a second press.
+// paused is "Pause Slated" from the top bar: no shortcuts, Hyper key or hotstrings until resumed.
+// hyper.keyd says whether keyd has Caps Lock ("running"), is set up for it but doesn't run ("stopped"),
+// isn't set up for it ("none"), or is still being asked ("checking").
 // recentApps are the apps focused lately (newest first): the ids "Only in…" app lists offer, including
 // games without a desktop file, which are known by their window's WM_CLASS.
 
@@ -44,11 +47,13 @@ export function buildStatus(state) {
     session: state.session ?? '',
     version: state.version ?? '0.0.0',
     running: !!state.running,
+    paused: !!state.paused,
     updatedAt: now.toISOString(),
     hyper: {
       wanted: !!state.hyper?.wanted,
       mode: ['xkb', 'keyd'].includes(state.hyper?.mode) ? state.hyper.mode : 'off',
       active: !!state.hyper?.active,
+      keyd: ['running', 'stopped', 'checking'].includes(state.hyper?.keyd) ? state.hyper.keyd : 'none',
     },
     hotstrings: {
       engine: state.hotstrings?.engine ?? 'none',

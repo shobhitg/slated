@@ -5,10 +5,11 @@
 // Reading, creating and migrating the files is lib/prefs/migration.js, shared with the settings
 // window (pure JavaScript, no GTK): whichever process sees a version 1 config.json first migrates it,
 // and the other then finds version 2. A first run imports a Slate config (~/.slate.js, else
-// ~/.slate) or starts from the starter bindings. The extension doesn't save edits; the settings
-// window does, and the extension picks them up through the file monitors.
+// ~/.slate) or starts from the starter bindings. Edits are the settings window's, which the extension
+// picks up through the file monitors; the extension itself changes only what its top-bar menu offers
+// (Caps Lock → Hyper Key), through `update()`, the same way the settings window saves.
 
-import {loadConfigFiles} from '../prefs/migration.js';
+import {changedFiles, loadConfigFiles, writeConfigFiles} from '../prefs/migration.js';
 
 import {exists, readText, watchFile, writeTextAtomic, writeTextIfMissing} from './files.js';
 import {Debouncer} from './timers.js';
@@ -20,7 +21,7 @@ import {Debouncer} from './timers.js';
 export function emptyConfiguration() {
   return {
     version: 2,
-    general: {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true},
+    general: {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true},
     windows: {},
     keyboard: {capsLock: 'off', capsLockAlone: 'nothing', hyperModifiers: ['ctrl', 'alt', 'shift', 'cmd']},
     bindings: [],
@@ -102,6 +103,23 @@ export class ConfigStore {
     this._lastTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
     this.loadError = result.writeError ? `Couldn't write the configuration: ${describe(result.writeError)}` : null;
     this._log?.record('config.loaded', this.summary());
+  }
+
+  /**
+   * Changes the configuration on disk: reads both files afresh, applies `change` to a copy, and writes
+   * only the files whose content changed, as the settings window saves. Throws when the files can't
+   * be read or written. Returns whether anything was written; `load()` picks it up.
+   */
+  update(change) {
+    const io = this._io();
+    const log = (event, data = {}, level = 'info') => this._log?.record(event, data, level);
+    const current = loadConfigFiles(io, {by: 'gnome-extension', log});
+    if (current.error) throw current.error;
+    const next = change(JSON.parse(JSON.stringify(current.configuration)));
+    const which = changedFiles(current.configuration, next, current.extras);
+    if (!which.config && !which.settings) return false;
+    writeConfigFiles(io, next, current.extras, which);
+    return true;
   }
 
   /** Calls `onExternalChange` after either file changes on disk (hand edits, the settings window). */

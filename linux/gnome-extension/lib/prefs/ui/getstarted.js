@@ -1,6 +1,9 @@
 // Settings → Get Started: first-run setup as a page of the settings window (port of
 // GetStarted/GetStartedPane.swift and GetStartedSteps.swift). Welcome, the Hyper key (keyd
-// recommended), hotstrings (espanso), the Slate config, done; finishing lands on Overview. It leads
+// recommended), hotstrings (espanso), the Slate config, done; finishing lands on Overview. While
+// something keeps Slated from running (GNOME's Extensions switch, Slated turned off, a login still
+// needed), the welcome step leads with it and the button that fixes it, where the Mac asks for
+// Accessibility access. It leads
 // the sidebar while setup isn't finished, and Overview links back to it. The step lives on the model
 // (model.getStartedStep), so the sidebar badge follows it. Texts and decisions: ../getstarted.js.
 
@@ -9,7 +12,7 @@ import Gtk from 'gi://Gtk';
 
 import {
   STEPS, primaryTitle, hyperSubtitle, tapSubtitle, keydAdvice, hotstringsStep, slateStep, starterAdded, doneChecklist,
-  tryItTip,
+  tryItTip, setupBlocker,
 } from '../getstarted.js';
 import {starterBindings} from '../presets.js';
 import {fileExists} from '../io.js';
@@ -80,8 +83,19 @@ export function createGetStartedPane(ctx) {
   const page = new Adw.NavigationPage({title: 'Get Started', tag: 'getStarted'});
   const actions = summaryActions(ctx, page);
 
-  // --- Welcome
+  // --- Welcome, led by what keeps Slated from running, if anything
   const welcome = stepPage();
+  const blockerGroup = group();
+  const blockerRow = new Adw.ActionRow({use_markup: false, title: '', subtitle: ''});
+  blockerRow.set_title_lines(0);
+  blockerRow.set_subtitle_lines(0);
+  const blockerIcon = icon('dialog-warning-symbolic', {size: 24, classes: ['slated-warning-text']});
+  blockerRow.add_prefix(blockerIcon);
+  let blockerRun = null;
+  const blockerButton = button('', () => blockerRun?.(), {classes: ['suggested-action']});
+  blockerRow.add_suffix(blockerButton);
+  blockerGroup.add(blockerRow);
+  welcome.column.append(blockerGroup);
   welcome.column.append(slatedMark(92));
   welcome.column.append(stepTitle('Welcome to Slated',
     "Keyboard-first window management, a Hyper key and text expansion. A few quick steps and you're set.").widget);
@@ -184,7 +198,7 @@ export function createGetStartedPane(ctx) {
   doneBadge.append(check);
   done.column.append(doneBadge);
   done.column.append(stepTitle("You're all set",
-    "Close this window and Slated keeps working in GNOME Shell. Open Slated's settings from the Extensions app any time to come back here.").widget);
+    "Close this window and Slated keeps working in GNOME Shell. Find Slated in your apps or click its icon in the top bar to come back here.").widget);
   const checklist = group();
   let checklistRows = [];
   done.column.append(checklist);
@@ -224,6 +238,21 @@ export function createGetStartedPane(ctx) {
     const running = model.running;
     const step = model.getStartedStep;
 
+    // What keeps Slated from running, first
+    const blocker = setupBlocker(model.summary());
+    blockerGroup.set_visible(Boolean(blocker));
+    const fix = blocker && actions[blocker.action];
+    if (blocker) {
+      blockerRow.set_title(blocker.title);
+      blockerRow.set_subtitle(blocker.detail ?? '');
+      blockerIcon.set_from_icon_name(blocker.level === 'error' ? 'dialog-error-symbolic' : 'dialog-warning-symbolic');
+    }
+    blockerButton.set_visible(Boolean(fix));
+    if (fix) {
+      blockerButton.set_label(fix.label);
+      blockerRun = fix.run;
+    }
+
     // Hyper key
     const hyperOn = config.keyboard.capsLock === 'hyper';
     useHyper.set(hyperOn);
@@ -237,7 +266,7 @@ export function createGetStartedPane(ctx) {
     keydSetup.set_visible(keyd.offerSetup);
 
     // Hotstrings
-    const hs = hotstringsStep({config, status, running});
+    const hs = hotstringsStep({config, status, running, espansoRunning: model.espansoRunning});
     espansoNotice.update(hs.guidance);
     installLink = hs.installLink;
     install.set_visible(Boolean(hs.installLink));
@@ -262,7 +291,7 @@ export function createGetStartedPane(ctx) {
     // Done
     const totalShortcuts = config.bindings.filter(b => b.enabled !== false).length;
     for (const r of checklistRows) checklist.remove(r);
-    checklistRows = doneChecklist({summary: model.summary(), config, status, running, totalShortcuts}).map(item => {
+    checklistRows = doneChecklist({summary: model.summary(), config, status, running, totalShortcuts, espansoRunning: model.espansoRunning}).map(item => {
       const r = row(item.title, '', {
         prefix: icon(item.done ? 'object-select-symbolic' : 'media-record-symbolic', {classes: [item.done ? 'success' : 'slated-warning-text']}),
         suffix: label(item.detail, {classes: ['dim-label'], ellipsize: true}),

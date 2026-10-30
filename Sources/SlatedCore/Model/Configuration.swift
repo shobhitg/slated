@@ -70,17 +70,24 @@ public struct GeneralSettings: Hashable, Sendable {
   public var showActionHUD: Bool
   /// Master switch for text expansion; each hotstring's own `enabled` flag is kept as is.
   public var hotstringsEnabled: Bool
+  /// Slated's icon in GNOME's top bar. The Mac's menu bar icon doesn't follow it (yet): it stays, as
+  /// the Mac's way to the menu; the Dock icon opens Slated too.
+  public var showStatusIcon: Bool
 
-  public init(launchAtLogin: Bool = false, showActionHUD: Bool = false, hotstringsEnabled: Bool = true) {
+  public init(
+    launchAtLogin: Bool = false, showActionHUD: Bool = false, hotstringsEnabled: Bool = true,
+    showStatusIcon: Bool = true
+  ) {
     self.launchAtLogin = launchAtLogin
     self.showActionHUD = showActionHUD
     self.hotstringsEnabled = hotstringsEnabled
+    self.showStatusIcon = showStatusIcon
   }
 }
 
 extension GeneralSettings: Codable {
   private enum Key: String, CodingKey {
-    case launchAtLogin, showActionHUD, hotstringsEnabled
+    case launchAtLogin, showActionHUD, hotstringsEnabled, showStatusIcon
   }
 
   public init(from decoder: Decoder) throws {
@@ -89,7 +96,8 @@ extension GeneralSettings: Codable {
     self.init(
       launchAtLogin: try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin,
       showActionHUD: try c.decodeIfPresent(Bool.self, forKey: .showActionHUD) ?? d.showActionHUD,
-      hotstringsEnabled: try c.decodeIfPresent(Bool.self, forKey: .hotstringsEnabled) ?? d.hotstringsEnabled)
+      hotstringsEnabled: try c.decodeIfPresent(Bool.self, forKey: .hotstringsEnabled) ?? d.hotstringsEnabled,
+      showStatusIcon: try c.decodeIfPresent(Bool.self, forKey: .showStatusIcon) ?? d.showStatusIcon)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -97,6 +105,7 @@ extension GeneralSettings: Codable {
     try c.encode(launchAtLogin, forKey: .launchAtLogin)
     try c.encode(showActionHUD, forKey: .showActionHUD)
     try c.encode(hotstringsEnabled, forKey: .hotstringsEnabled)
+    try c.encode(showStatusIcon, forKey: .showStatusIcon)
   }
 }
 

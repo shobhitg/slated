@@ -25,6 +25,7 @@ let dbus;
 
 beforeEach(() => {
   runtime?.stop();
+  gnome.state.statusArea = {};
   home = mkdtempSync(join(tmpdir(), 'slated-overlays-'));
   homes.push(home);
   Object.assign(gnome.state, {
@@ -50,6 +51,7 @@ beforeEach(() => {
 
 after(() => {
   runtime?.stop();
+  gnome.state.statusArea = {};
   for (const dir of homes) rmSync(dir, {recursive: true, force: true});
 });
 

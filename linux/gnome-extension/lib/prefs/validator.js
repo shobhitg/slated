@@ -503,7 +503,7 @@ export function configChanges(oldConfig, newConfig) {
   if (!deepEqual(oldConfig.general, newConfig.general)) {
     const g = newConfig.general ?? {};
     changes.push(`general: launchAtLogin ${g.launchAtLogin}, showActionHUD ${g.showActionHUD}, `
-      + `hotstringsEnabled ${g.hotstringsEnabled}`);
+      + `hotstringsEnabled ${g.hotstringsEnabled}, showStatusIcon ${g.showStatusIcon}`);
   }
   const oldSettings = oldConfig.windows ?? {};
   const newSettings = newConfig.windows ?? {};

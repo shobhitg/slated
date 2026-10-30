@@ -351,7 +351,7 @@ export function createHotstringsPane(ctx) {
   page.set_child(toolbar);
 
   function rebuild() {
-    const g = espansoGuidance(model.status.hotstrings, model.running);
+    const g = espansoGuidance(model.status.hotstrings, model.running, model.espansoRunning);
     guidance.update({level: g.level, title: g.title, detail: g.detail});
     installButton.set_visible(Boolean(g.link));
     quietMaster = true;

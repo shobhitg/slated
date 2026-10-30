@@ -411,6 +411,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     idle_add: (_priority, callback) => loop.add(0, callback),
     source_remove: (id) => loop.remove(id),
     uri_parse_scheme: (uri) => /^([a-z][a-z0-9+.-]*):/i.exec(uri)?.[1] ?? null,
+    filename_to_uri: (path) => `file://${encodeURI(path)}`,
     ChecksumType: {MD5: 0, SHA1: 1, SHA256: 2, SHA512: 3, SHA384: 4},
     compute_checksum_for_data(type, data) {
       if (type !== 2) throw new Error('only SHA-256 in the fake');
@@ -539,6 +540,13 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
 
   const Gio = {
     File: {new_for_path: (path) => new FakeFile(path)},
+    // Opening files and folders with their default apps: recorded in `state.launched`.
+    AppInfo: {
+      launch_default_for_uri(uri) {
+        state.launched.push(uri);
+        return true;
+      },
+    },
     FileType: {UNKNOWN: 0, REGULAR: 1, DIRECTORY: 2},
     ThemedIcon: {new: (name) => ({themed: name})},
     content_type_get_icon: (type) => ({themed: type.replace('/', '-')}),
@@ -781,6 +789,10 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   };
   const Clutter = {
     BinLayout: class {},
+    EventType: {BUTTON_PRESS: 6, BUTTON_RELEASE: 7, TOUCH_BEGIN: 9},
+    BUTTON_PRIMARY: 1,
+    BUTTON_MIDDLE: 2,
+    BUTTON_SECONDARY: 3,
     ActorAlign: {FILL: 0, START: 1, END: 2, CENTER: 3},
     ContentGravity: {RESIZE_FILL: 10, RESIZE_ASPECT: 11},
     EVENT_STOP: true,
@@ -814,6 +826,103 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       }),
     }),
   };
+  // GNOME Shell's top bar (ui/panelMenu.js and ui/popupMenu.js). A PanelMenu.Button opens its menu on
+  // a press from its own event handler, which runs after 'event' handlers and only if none stopped
+  // the event, as in Clutter. `state.statusArea` is Main.panel.statusArea.
+  class FakePopupMenu {
+    constructor() {
+      this.items = [];
+      this.isOpen = false;
+      this.signals = new Signals();
+    }
+    addMenuItem(item) {
+      this.items.push(item);
+      item.menu = this;
+    }
+    connect(signal, callback) {
+      return this.signals.connect(signal, (_signals, ...args) => callback(this, ...args));
+    }
+    open() {
+      this.isOpen = true;
+      this.signals.emit('open-state-changed', true);
+    }
+    close() {
+      if (!this.isOpen) return;
+      this.isOpen = false;
+      this.signals.emit('open-state-changed', false);
+    }
+    toggle() {
+      if (this.isOpen) this.close();
+      else this.open();
+    }
+    /** Every item, sections' items in place of the sections. */
+    allItems() {
+      return this.items.flatMap((item) => (item instanceof FakePopupMenu ? item.allItems() : [item]));
+    }
+  }
+  class FakePopupMenuSection extends FakePopupMenu {
+    removeAll() {
+      this.items = [];
+    }
+  }
+  class FakeMenuItem {
+    constructor(text = '', params = {}) {
+      this.label = {text};
+      this.params = params;
+      this.signals = new Signals();
+    }
+    connect(signal, callback) {
+      return this.signals.connect(signal, (_signals, ...args) => callback(this, ...args));
+    }
+    /** A click on the item: it activates, and the menu closes. */
+    activate() {
+      if (this.params.reactive === false) throw new Error(`"${this.label.text}" isn't clickable`);
+      this.signals.emit('activate');
+      this.menu?.close();
+    }
+  }
+  class FakeSwitchMenuItem extends FakeMenuItem {
+    constructor(text, state = false) {
+      super(text);
+      this.state = !!state;
+    }
+    setToggleState(state) {
+      this.state = !!state;
+    }
+    activate() {
+      this.state = !this.state;
+      this.signals.emit('toggled', this.state);
+      this.menu?.close();
+    }
+  }
+  class FakePanelButton extends FakeActor {
+    constructor(_alignment, name, dontCreateMenu = false) {
+      super({accessible_name: name});
+      this.menu = dontCreateMenu ? null : new FakePopupMenu();
+    }
+    /** A click: press and release, each first to 'event' handlers, then to the button's own handler. */
+    click({button = 1, state: modifiers = 0} = {}) {
+      for (const type of [6, 7]) {
+        const event = {type: () => type, get_button: () => button, get_state: () => modifiers};
+        if (this.emit('event', event)) continue;
+        if (type === 6) this.menu?.toggle();
+      }
+    }
+    destroy() {
+      if (this.role && state.statusArea[this.role] === this) delete state.statusArea[this.role];
+      super.destroy();
+    }
+  }
+  const panel = {
+    addToStatusArea(role, indicator) {
+      if (state.statusArea[role]) throw new Error(`Extension point conflict: there is already a status indicator for role ${role}`);
+      indicator.role = role;
+      state.statusArea[role] = indicator;
+      return indicator;
+    },
+  };
+  state.statusArea = {};
+  state.launched = [];
   state.chrome = new Set();
   state.chromeParams = new Map();
   state.trackedChrome = new Map();
@@ -888,6 +997,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       untrackChrome: (actor) => state.trackedChrome.delete(actor),
     },
     uiGroup,
+    panel,
     inputMethod,
     overview: {
       get visible() {
@@ -948,6 +1058,13 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'gi://St': St,
       'gi://Clutter': Clutter,
       'resource:///org/gnome/shell/ui/main.js': Main,
+      'resource:///org/gnome/shell/ui/panelMenu.js': {Button: FakePanelButton},
+      'resource:///org/gnome/shell/ui/popupMenu.js': {
+        PopupMenuItem: FakeMenuItem,
+        PopupSwitchMenuItem: FakeSwitchMenuItem,
+        PopupSeparatorMenuItem: class extends FakeMenuItem {},
+        PopupMenuSection: FakePopupMenuSection,
+      },
       'resource:///org/gnome/shell/misc/config.js': {PACKAGE_VERSION: '47.1'},
       'resource:///org/gnome/shell/ui/status/keyboard.js': {getInputSourceManager: () => ({currentSource: state.inputSource})},
       'resource:///org/gnome/shell/misc/ibusManager.js': {getIBusManager: () => ibusManager},

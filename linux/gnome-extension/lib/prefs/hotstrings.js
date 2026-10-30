@@ -70,8 +70,14 @@ export function gnomeScopeNote(hotstring) {
   return null;
 }
 
-/** What the Hotstrings page says about espanso, from status.json's "hotstrings" entry. */
-export function espansoGuidance(hotstringsStatus, running) {
+/** espanso is installed and Slated writes its match file, but espanso itself doesn't run. */
+export const ESPANSO_START = 'espanso start';
+
+/**
+ * What the Hotstrings page says about espanso, from status.json's "hotstrings" entry and whether
+ * `espanso status` says it runs (`espansoRunning`: true, false, or null when unknown).
+ */
+export function espansoGuidance(hotstringsStatus, running, espansoRunning = null) {
   const s = hotstringsStatus ?? {};
   if (!running) {
     return {
@@ -91,6 +97,14 @@ export function espansoGuidance(hotstringsStatus, running) {
     return {
       level: 'warning', title: "espanso is installed but Slated isn't using it",
       detail: 'Check that espanso is running (“espanso status”) and look at the Slated log for details.',
+    };
+  }
+  if (espansoRunning === false) {
+    return {
+      level: 'warning', title: "espanso isn't running",
+      detail: `Slated keeps your hotstrings in espanso's match file, but espanso itself isn't running, so nothing expands. `
+        + `Start it with “${ESPANSO_START}”. Running linux/install.sh again also registers it to start when you log in.`,
+      command: ESPANSO_START,
     };
   }
   return {

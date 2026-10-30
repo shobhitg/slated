@@ -18,7 +18,7 @@ import {slatedPaths} from '../paths.js';
 import {lastStart} from '../eventlog.js';
 import {sessionId} from '../util.js';
 import {readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter} from '../io.js';
-import {getExtensionInfo, setExtensionEnabled, requestLogout} from '../shell.js';
+import {getExtensionInfo, getUserExtensionsEnabled, setUserExtensionsEnabled, setExtensionEnabled, requestLogout, espansoRunning} from '../shell.js';
 import {installStyles} from './style.js';
 import {box, label, icon, badge as badgeLabel, emptyState} from './widgets.js';
 import {stopAllRecording} from './recorder.js';
@@ -134,9 +134,17 @@ export class SlatedSettings {
   }
 
   _refreshShell() {
-    getExtensionInfo(this.ext.uuid).then(info => {
-      if (!this.closed) this.model.setShellInfo(info);
+    Promise.all([getExtensionInfo(this.ext.uuid), getUserExtensionsEnabled()]).then(([info, extensionsOn]) => {
+      if (!this.closed) this.model.setShellInfo(info, extensionsOn);
     });
+    // Only espanso says whether it runs; ask while Slated hands it hotstrings.
+    if (this.model.status.hotstrings.engine === 'espanso') {
+      espansoRunning(this.paths.home).then(running => {
+        if (!this.closed) this.model.setEspansoRunning(running);
+      });
+    } else {
+      this.model.setEspansoRunning(null);
+    }
   }
 
   // --- Actions panes can ask for ---------------------------------------------------------------------
@@ -151,6 +159,15 @@ export class SlatedSettings {
       if (!ok) this.toast(on ? "GNOME Shell didn't turn Slated on. Log out and back in, then try again." : "GNOME Shell didn't turn Slated off.");
       this._refreshShell();
     }).catch(error => this.toast(`Couldn't reach GNOME Shell: ${error.message}`));
+  }
+
+  /** GNOME's Extensions switch, on: Slated starts, and so do the other extensions you had turned on. */
+  enableUserExtensions() {
+    this.model.log('ui.user_extensions_enabled');
+    setUserExtensionsEnabled(true).then(() => {
+      this.toast('GNOME extensions are on');
+      this._refreshShell();
+    }).catch(error => this.toast(`Couldn't turn on GNOME extensions: ${error.message}. Use the Extensions app's switch instead.`));
   }
 
   logout() {
@@ -277,6 +294,7 @@ export class SlatedSettings {
       navigate: (target, options) => this.navigate(target, options),
       isCurrent: () => this.current === id,
       setEnabled: on => this.setEnabled(on),
+      enableUserExtensions: () => this.enableUserExtensions(),
       logout: () => this.logout(),
       reload: () => this.reload(),
       showGetStarted: () => this.showGetStarted(),

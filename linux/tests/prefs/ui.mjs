@@ -133,7 +133,8 @@ function makeHome() {
 async function run(mode) {
   console.log(`\nPreferences UI on ${mode === 'min' ? 'GNOME 46 API only' : 'GNOME 49 API behind checks'}`);
   const files = makeHome();
-  const shell = {state: 1, calls: []};
+  // GNOME Shell over D-Bus: the extension's state, and GNOME's Extensions switch (UserExtensionsEnabled).
+  const shell = {state: 1, calls: [], userExtensions: true};
   const world = createWorld({
     api, home: files.home, mode,
     // Where linux/install.sh --hyper-keyd puts Slated's keyd configuration (/etc/keyd/slated.conf).
@@ -144,8 +145,10 @@ async function run(mode) {
         65515: {name: 'Super_L'}, 65517: {name: 'Hyper_L'}, 65475: {name: 'F6'}, 118: {name: 'v', char: 'v'}, 32: {name: 'space', char: ' '}}},
     dbus: method => {
       shell.calls.push(method);
-      if (method === 'GetExtensionInfo') return [{state: shell.state, error: ''}];
+      if (method === 'GetExtensionInfo') return [{state: shell.state, error: '', ...(shell.enabled === undefined ? {} : {enabled: shell.enabled})}];
       if (method === 'EnableExtension' || method === 'DisableExtension') return [true];
+      if (method === 'Get') return [shell.userExtensions];
+      if (method === 'Set') shell.userExtensions = true;
       return [];
     },
   });
@@ -787,6 +790,13 @@ async function run(mode) {
     settings.showPane('general');
     titled(visible('general'), 'Adw.SwitchRow', 'Show what just happened')[0].set_active(true);
     check(model.configuration.general.showActionHUD === true, 'HUD on');
+    const topBar = titled(visible('general'), 'Adw.SwitchRow', 'Show Slated in the top bar')[0];
+    check(prop(world, topBar, 'active') === true, 'the top-bar icon is on by default');
+    topBar.set_active(false);
+    check(model.configuration.general.showStatusIcon === false, 'the top-bar icon off');
+    await settle();
+    check(JSON.parse(fs.readFileSync(files.settingsFile, 'utf8')).general.showStatusIcon === false, 'saved in settings.json');
+    topBar.set_active(true);
     titled(visible('general'), 'Adw.SwitchRow', 'Slated is on')[0].set_active(false);
     await settle();
     check(shell.calls.includes('DisableExtension'), 'turns the extension off over D-Bus');
@@ -879,6 +889,42 @@ async function run(mode) {
     check(prop(world, caption(), 'label').startsWith('540 × 1920'), `the window now starts on the tall display: ${prop(world, caption(), 'label')}`);
     check(world.report.drawn > drawnBefore, 'the preview redrew');
     pop('windows');
+  });
+
+  await step("GNOME's Extensions switch off: Overview and Get Started say so first, and turn it on", async () => {
+    shell.userExtensions = false;
+    shell.state = 6; // INITIALIZED, Enabled: No, as on the author's Pop!_OS
+    shell.enabled = false;
+    settings._refreshShell();
+    await settle();
+    try {
+    check(model.summary().action === 'enableExtensions', `headline: ${model.summary().title}`);
+    settings.showPane('overview');
+    const root = visible('overview');
+    const labels = findAll(world, root, 'Gtk.Label').map(l => prop(world, l, 'label'));
+    check(!labels.some(l => /^Waiting/.test(l ?? '')), `no bare Waiting: ${labels.filter(l => /wait/i.test(l ?? '')).join(' | ')}`);
+    check(labels.includes('Extensions off'), 'the Slated row says why');
+    check(buttons(root, 'Turn On Extensions').length >= 3, 'the headline, the Slated row and the rows that need Slated offer the fix');
+    const shortcutsRow = rowsIn(root, (w, sv) => sv.props.get('title') === 'Shortcuts')[0];
+    check(/work once Slated runs\. GNOME's Extensions switch is off\.$/.test(prop(world, shortcutsRow, 'subtitle')), `Shortcuts: ${prop(world, shortcutsRow, 'subtitle')}`);
+    // Get Started's first step leads with it, and its button turns the switch on.
+    settings.showGetStarted();
+    const gs = visible('getStarted');
+    check(model.getStartedStep === 'welcome', 'the first step');
+    const blocker = rowsIn(gs, (w, sv) => sv.props.get('title') === "GNOME's Extensions switch is off")[0];
+    check(blocker && prop(world, blocker, 'subtitle').includes('also the other extensions you had turned on'), 'says what turning it on does');
+    click(buttons(gs, 'Turn On Extensions')[0]);
+    await settle();
+    check(shell.calls.includes('Set') && shell.userExtensions === true, 'sets UserExtensionsEnabled over D-Bus');
+    check(model.summary().title === 'Slated is turned off', `then: ${model.summary().title}`);
+    check(prop(world, blocker, 'title') === 'Slated is turned off', 'Get Started now leads with Slated itself');
+    check(buttons(gs, 'Turn On Slated').length >= 1, 'with the button that turns it on');
+    } finally {
+      Object.assign(shell, {state: 1, enabled: undefined, userExtensions: true});
+      settings._refreshShell();
+      await settle();
+    }
+    settings.showPane('overview');
   });
 
   await step('Overview buttons go where they say', async () => {

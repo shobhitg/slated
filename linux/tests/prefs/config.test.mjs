@@ -76,7 +76,7 @@ export default suite('Config and canonical actions', [
   ['fills Swift defaults', () => {
     const config = fillDefaults({bindings: [{keys: 'hyper+a', action: {op: 'undo'}}]}, () => 'ID');
     expectEqual(config.version, 2);
-    expectEqual(config.general, {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true});
+    expectEqual(config.general, {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true});
     expectEqual(config.windows, {});
     // Version 1's names read as version 2's.
     const v1 = fillDefaults({settings: {undoMaxStackSize: 3}, general: {loadSlateConfigs: false, slateConfigPaths: []}});
@@ -101,7 +101,7 @@ export default suite('Config and canonical actions', [
       "clipboard": {"shortcut": null, "maxItems": 20}, "automation": {"showIndicator": false},
       "island": {"cheatSheet": false}, }`);
     expectEqual(config.keyboard.capsLock, 'hyper');
-    expectEqual(config.general, {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true});
+    expectEqual(config.general, {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true});
     expectEqual([config.hotstrings[0].trigger, config.hotstrings[0].id], [';s', id], 'ids come back uppercase, as Swift writes them');
     expectEqual([config.clipboard.shortcut, config.clipboard.maxItems, config.clipboard.enabled], [null, 20, true]);
     expectEqual(config.automation.showIndicator, false);

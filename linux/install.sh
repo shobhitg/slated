@@ -6,13 +6,15 @@
 #   1. Looks first, changing nothing: GNOME Shell 46-51 (anything else stops here, saying what it
 #      found), X11 or Wayland, and the package manager (apt, dnf, pacman or zypper).
 #   2. Slated's GNOME Shell extension: packs it with build-info.json (version, commit, date), installs
-#      and enables it.
+#      and enables it, turning on GNOME's Extensions switch first if it's off (it asks). Puts Slated in
+#      your apps: a desktop entry and its icon, which open Slated's settings window.
 #   3. The Hyper key, when Slated's config wants Caps Lock as Hyper (the default): installs keyd (the
 #      distribution's package, or a pinned release built from source), writes /etc/keyd/slated.conf
 #      from Slated's config and starts keyd.
 #   4. Hotstrings, unless they're off in Settings: installs espanso (its pinned, checksummed release
 #      for X11 or Wayland) and starts it.
-#   5. Sums up, and offers to log out: GNOME Shell starts a new or updated extension at login.
+#   5. Checks what GNOME Shell says about Slated (enabled, running), sums up, and offers to log out:
+#      GNOME Shell starts a new or updated extension at login.
 #
 # Steps 3 and 4 use sudo, which asks for your password, only when there's something to install or
 # change; nothing else runs as root.
@@ -24,11 +26,11 @@
 #   linux/install.sh --no-espanso       ...without espanso (hotstrings don't expand)
 #   linux/install.sh --nested           ...then start a nested GNOME Shell with it and check it starts
 #   linux/install.sh --check            run the Linux tests first; install only if they pass
-#   linux/install.sh --verify           only report which build GNOME Shell is running
+#   linux/install.sh --verify           only check that GNOME Shell runs Slated, and which build (changes nothing)
 #   linux/install.sh --pack-only        build the zip into build/linux without installing
 #   linux/install.sh --hyper-keyd [--tap-escape]   only step 3 (again after changing the Hyper key)
 #   linux/install.sh --hyper-keyd --remove         remove Slated's keyd config
-#   linux/install.sh --uninstall        remove the extension (keeps your config, logs, keyd and espanso)
+#   linux/install.sh --uninstall        remove the extension and its app entry (keeps your config, logs, keyd and espanso)
 #   linux/install.sh --uninstall --purge   also remove config, logs, status and Slated's keyd config
 #
 # For tests: SLATED_EXTENSION_SRC (another extension source folder), SLATED_BUILD_DIR (instead of
@@ -57,6 +59,10 @@ BUILD="${SLATED_BUILD_DIR:-$ROOT/build/linux}"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/slated"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/slated"
 EXTENSIONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions"
+# Slated in the app grid and Activities search: a desktop entry and its icon.
+APP_ID="io.github.shobhitg.Slated"
+DESKTOP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/$APP_ID.desktop"
+APP_ICON="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/$APP_ID.svg"
 LOG_FILE="$STATE_DIR/slated.log"
 STATUS_FILE="$STATE_DIR/status.json"
 KEYD_CONF="${SLATED_KEYD_CONF:-/etc/keyd/slated.conf}"
@@ -120,6 +126,14 @@ ask() {  # question → 0 for yes
   printf '  %s [y/N] ' "$1"
   read -r answer || answer=""
   [[ "$answer" =~ ^[Yy] ]]
+}
+# Asks, yes by default (Enter answers yes). Without a terminal it can't ask: no.
+ask_yes() {  # question → 0 for yes
+  interactive || return 1
+  local answer=""
+  printf '  %s [Y/n] ' "$1"
+  read -r answer || answer=""
+  [[ ! "$answer" =~ ^[Nn] ]]
 }
 # Asks before removing something; --yes answers yes, no terminal answers no.
 confirm() {
@@ -346,6 +360,108 @@ print("[" + ", ".join(repr(x) for x in items) + "]")
 PY
 )" || return 1
     gsettings set org.gnome.shell "$key" "$list" || return 1
+  done
+}
+
+# --- What GNOME Shell says about Slated -----------------------------------------------------------------
+
+# GNOME's Extensions switch (the Extensions app's main switch): while it's off, no user extension runs.
+extensions_switch_off() { have gsettings && [ "$(gsettings get org.gnome.shell disable-user-extensions 2>/dev/null)" = "true" ]; }
+
+# `gnome-extensions info` → "Yes|ACTIVE" (Enabled|State); nothing when GNOME Shell doesn't know Slated
+# (a fresh install before the next login); "unreachable" when GNOME Shell can't be asked (over ssh).
+shell_info() {
+  local out
+  if ! out="$(gnome-extensions info "$UUID" 2>&1)"; then
+    [[ "$out" == *exist* ]] || echo unreachable
+    return 0
+  fi
+  python3 -I - "$out" <<'PY'
+import sys
+fields = {}
+for line in sys.argv[1].splitlines():
+    key, sep, value = line.strip().partition(":")
+    if sep:
+        fields[key.strip()] = value.strip()
+if fields.get("State"):
+    print(f"{fields.get('Enabled', '')}|{fields['State']}")
+PY
+}
+
+# The error GNOME Shell recorded for Slated (GetExtensionInfo's "error"; gnome-extensions info
+# doesn't show it), or nothing.
+shell_error() {
+  local out
+  have gdbus || return 0
+  out="$(gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+    --method org.gnome.Shell.Extensions.GetExtensionInfo "$UUID" 2>/dev/null)" || return 0
+  python3 -I - "$out" <<'PY'
+import re, sys
+match = re.search(r"'error': <'((?:[^'\\]|\\.)*)'>", sys.argv[1])
+print(match.group(1).replace("\\'", "'") if match else "")
+PY
+}
+
+relogin_fix() {
+  if [ "${XDG_SESSION_TYPE:-}" = "x11" ]; then echo "log out and back in, or press Alt+F2, type r and press Enter"; else echo "log out and back in"; fi
+}
+
+# What GNOME Shell says about Slated, in order: GNOME's Extensions switch, whether Slated is enabled,
+# its state. One line per problem, with the fix. Returns 0 when GNOME Shell runs Slated (enabled and
+# ACTIVE), 2 when it will at the next login, 1 when something needs fixing. Changes nothing.
+check_shell() {
+  local info enabled state error
+  if extensions_switch_off; then
+    bad "GNOME's Extensions switch is off, so no extension runs, Slated included. Fix: run linux/install.sh (it asks to turn the switch on), or turn it on in the Extensions app."
+    return 1
+  fi
+  info="$(shell_info)"
+  if [ "$info" = unreachable ]; then
+    note "Couldn't ask GNOME Shell about Slated from here (over ssh, say). Fix: run linux/install.sh --verify in your GNOME session."
+    return 2
+  fi
+  if [ -z "$info" ]; then
+    note "GNOME Shell doesn't know Slated yet: it starts it when you next log in. Fix: $(relogin_fix)."
+    return 2
+  fi
+  enabled="${info%%|*}"
+  state="${info#*|}"
+  if [ "$enabled" != "Yes" ]; then
+    bad "Slated is turned off in GNOME (Enabled: ${enabled:-?}, State: $state). Fix: run linux/install.sh, which turns it on, or turn it on in the Extensions app."
+    return 1
+  fi
+  case "$state" in
+    ACTIVE | ENABLED)
+      ok "GNOME Shell runs Slated (Enabled: Yes, State: $state)"
+      return 0
+      ;;
+    ERROR)
+      error="$(shell_error)"
+      bad "Slated stopped with an error${error:+: $error}. Fix: journalctl -b -o cat /usr/bin/gnome-shell | grep -i slated shows what happened; after a git pull, run linux/install.sh and $(relogin_fix)."
+      return 1
+      ;;
+    "OUT OF DATE")
+      bad "GNOME $(shell_major) isn't among the versions this Slated supports (State: OUT OF DATE). Fix: update Slated (git pull), then run linux/install.sh."
+      return 1
+      ;;
+    INITIALIZED | INACTIVE | ACTIVATING)
+      note "Slated is enabled, but GNOME Shell hasn't started it yet (State: $state). Fix: $(relogin_fix)."
+      return 2
+      ;;
+    *)
+      bad "GNOME Shell reports Slated as $state (Enabled: $enabled). Fix: run linux/install.sh, then $(relogin_fix)."
+      return 1
+      ;;
+  esac
+}
+
+# After enabling: GNOME Shell starts an extension it knows within a moment.
+wait_for_shell() {
+  local info
+  for _ in $(seq 1 30); do
+    info="$(shell_info || true)"
+    case "$info" in "" | unreachable | *"|ACTIVE" | *"|ENABLED" | *"|ERROR" | *"|OUT OF DATE") return 0 ;; esac
+    sleep 0.1
   done
 }
 
@@ -649,10 +765,30 @@ sys.exit(0 if same else 1)
 PY
 }
 
-enable_extension() {
-  if [ "$(gsettings get org.gnome.shell disable-user-extensions 2>/dev/null || echo false)" = "true" ]; then
-    note "User extensions are turned off in GNOME. Turn them on in the Extensions app (or: gsettings set org.gnome.shell disable-user-extensions false)."
+# GNOME's Extensions switch: while it's off, GNOME runs no extension at all. Turning it on starts the
+# other extensions you had turned on too, so it asks first (yes by default; --yes says yes).
+extensions_switch_step() {
+  extensions_switch_off || return 0
+  note "GNOME's Extensions switch is off, so no extension can run, Slated included."
+  note "Turning it on also starts the other extensions you had turned on (the Extensions app lists them)."
+  if [ "$YES" = 1 ] || ask_yes "Turn on GNOME extensions?"; then
+    gsettings set org.gnome.shell disable-user-extensions false >/dev/null 2>&1 || true
+    if extensions_switch_off; then
+      result fail "GNOME's Extensions switch: couldn't turn it on from here. Turn it on in the Extensions app"
+    else
+      result ok "GNOME's Extensions switch: turned on"
+    fi
+  elif interactive; then
+    result fail "GNOME's Extensions switch is off, so Slated can't run. Turn it on in the Extensions app, or run linux/install.sh again and answer yes"
+  else
+    result fail "GNOME's Extensions switch is off, so Slated can't run. Run linux/install.sh --yes to turn it on, or use the Extensions app"
   fi
+}
+
+# Enables Slated every run, also when the installed copy is already up to date: you may have turned
+# it off. Over D-Bus, GNOME Shell starts an extension it knows at once; one it doesn't know yet (a
+# fresh install) is marked for the next login.
+enable_extension() {
   if gnome-extensions enable "$UUID" >/dev/null 2>&1; then
     return 0
   elif set_enabled_in_gsettings add; then
@@ -679,6 +815,47 @@ extension_step() {
   EXTENSION_STATE=installed
   enable_extension
   result ok "Slated $VERSION ($COMMIT) installed and enabled"
+}
+
+# The desktop entry: Slated in the app grid and Activities search, opening its settings window.
+desktop_entry() {
+  cat <<EOF
+[Desktop Entry]
+Type=Application
+Name=Slated
+Comment=Keyboard-first window management, a Hyper key and hotstrings: Slated's settings
+Icon=$APP_ID
+Exec=gnome-extensions prefs $UUID
+Terminal=false
+Categories=Utility;Settings;
+Keywords=window;tiling;shortcut;hotkey;hyper;caps lock;hotstring;slate;clipboard;
+OnlyShowIn=GNOME;
+StartupNotify=false
+EOF
+}
+
+app_entry_step() {
+  local icon="$SRC/icons/$APP_ID.svg" changed=0
+  if [ ! -f "$icon" ]; then
+    result fail "Slated in your apps: $icon is missing"
+    return 0
+  fi
+  mkdir -p "$(dirname "$DESKTOP_FILE")" "$(dirname "$APP_ICON")"
+  if ! cmp -s "$icon" "$APP_ICON"; then
+    cp "$icon" "$APP_ICON"
+    changed=1
+  fi
+  if [ "$(desktop_entry)" != "$(cat "$DESKTOP_FILE" 2>/dev/null)" ]; then
+    desktop_entry >"$DESKTOP_FILE"
+    changed=1
+  fi
+  if [ "$changed" = 0 ]; then
+    result skip "Slated in your apps: already there"
+    return 0
+  fi
+  if have update-desktop-database; then update-desktop-database -q "$(dirname "$DESKTOP_FILE")" >/dev/null 2>&1 || true; fi
+  local tilde="~"
+  result ok "Slated in your apps: ${DESKTOP_FILE/#$HOME/$tilde} opens its settings"
 }
 
 # --- 3. The Hyper key: keyd --------------------------------------------------------------------------------
@@ -974,10 +1151,14 @@ summary() {
 next_step() {
   echo
   if [ "$RUNNING" = 1 ]; then
-    echo "  Slated is running. Settings: gnome-extensions prefs $UUID"
+    echo "  Slated is running. $OPEN_SLATED"
     return 0
   fi
   [ "$EXTENSION_STATE" = failed ] && return 0
+  if [ "$SHELL_STATE" = 1 ]; then
+    echo "  Fix what's above, then run linux/install.sh --verify. $OPEN_SLATED"
+    return 0
+  fi
   if [ "$SESSION" = x11 ] && [ -n "$GNOME_MAJOR" ] && [ "$GNOME_MAJOR" -le 48 ]; then
     echo "  Last step: restart GNOME Shell, which keeps your windows open: press Alt+F2, type r, press Enter."
     echo "  Or log out and back in. Then linux/install.sh --verify confirms Slated is running."
@@ -985,6 +1166,7 @@ next_step() {
     echo "  Last step: log out and back in. GNOME Shell starts Slated when you log in;"
     echo "  then linux/install.sh --verify confirms it's running."
   fi
+  echo "  $OPEN_SLATED"
   if { [ "$SESSION" = x11 ] || [ "$SESSION" = wayland ]; } && have gnome-session-quit \
     && ask "Log out now to start Slated?"; then
     # GNOME still asks about apps with unsaved work.
@@ -992,6 +1174,8 @@ next_step() {
   fi
 }
 RUNNING=0
+SHELL_STATE=""
+OPEN_SLATED="Find Slated in your apps or click its icon in the top bar."
 
 # --- Uninstall ------------------------------------------------------------------------------------------
 
@@ -1075,6 +1259,10 @@ uninstall() {
     ok "Removed $EXTENSIONS_DIR/$UUID"
   fi
   [ -n "$UUID" ] && set_enabled_in_gsettings remove >/dev/null 2>&1 || true
+  if [ -f "$DESKTOP_FILE" ] || [ -f "$APP_ICON" ]; then
+    rm -f "$DESKTOP_FILE" "$APP_ICON"
+    ok "Removed Slated from your apps"
+  fi
   restore_keyboard_options
   note "GNOME Shell keeps running the old code until you log out and back in."
   if [ "$PURGE" = 1 ]; then
@@ -1149,6 +1337,14 @@ case "$MODE" in
     [ -n "$UUID" ] || die "$SRC/metadata.json is missing."
     COMMIT="$(json_field "$EXTENSIONS_DIR/$UUID/build-info.json" commit)"
     [ -n "$COMMIT" ] || die "Slated isn't installed (no $EXTENSIONS_DIR/$UUID/build-info.json). Run linux/install.sh"
+    bold "Checking GNOME Shell"
+    shell_status=0
+    check_shell || shell_status=$?
+    [ "$shell_status" = 1 ] && exit 1
+    if [ "$shell_status" = 2 ]; then
+      relogin_advice
+      exit 1
+    fi
     bold "Checking the running build"
     if report_running; then exit 0; fi
     relogin_advice
@@ -1174,18 +1370,27 @@ if [ "$CHECK" = 1 ]; then
 fi
 
 sudo_plan
+extensions_switch_step
 extension_step
+[ "$EXTENSION_STATE" = failed ] || app_entry_step
 keyd_step
 espanso_step
 
-# Which build GNOME Shell runs, once Slated has ever started (a first install has nothing to report).
-if { [ "$EXTENSION_STATE" = installed ] || [ "$EXTENSION_STATE" = current ]; } \
-  && { [ -f "$LOG_FILE" ] || [ "$NESTED" = 1 ]; }; then
-  bold "Checking the running build"
-  if report_running; then
-    RUNNING=1
-  elif [ "$NESTED" = 1 ]; then
-    run_nested
+# Whether GNOME Shell runs Slated (the Extensions switch, enabled, its state), then which build, once
+# Slated has ever started (a first install has nothing to report).
+if [ "$EXTENSION_STATE" = installed ] || [ "$EXTENSION_STATE" = current ]; then
+  bold "Checking GNOME Shell"
+  wait_for_shell
+  SHELL_STATE=0
+  check_shell || SHELL_STATE=$?
+  [ "$SHELL_STATE" = 1 ] && FAILED=1
+  if [ "$SHELL_STATE" != 1 ] && { [ -f "$LOG_FILE" ] || [ "$NESTED" = 1 ]; }; then
+    bold "Checking the running build"
+    if [ "$SHELL_STATE" = 0 ] && report_running; then
+      RUNNING=1
+    elif [ "$NESTED" = 1 ]; then
+      run_nested
+    fi
   fi
 fi
 

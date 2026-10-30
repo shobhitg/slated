@@ -50,6 +50,8 @@ beforeEach(() => {
     grabs: new Map(),
     allowed: {},
     locked: false,
+    statusArea: {},
+    launched: [],
     buttons: [],
     typed: [],
     disposed: [],

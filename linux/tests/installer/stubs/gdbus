@@ -1,0 +1,10 @@
+#!/bin/bash
+# Stand-in for gdbus, for linux/tests/installer/run.sh: GNOME Shell's GetExtensionInfo, with the error
+# GNOME recorded for an extension in ERROR (STUB_SHELL_ERROR), in GVariant's text format.
+set -euo pipefail
+echo "gdbus $*" >>"$STUB_LOG"
+python3 -I -c '
+import sys
+quote = lambda text: text.replace("\\", "\\\\").replace("\x27", "\\\x27")
+print("({\x27uuid\x27: <\x27%s\x27>, \x27state\x27: <3.0>, \x27error\x27: <\x27%s\x27>, \x27enabled\x27: <true>},)" % (quote(sys.argv[1]), quote(sys.argv[2])))
+' "${*: -1}" "${STUB_SHELL_ERROR:-}"

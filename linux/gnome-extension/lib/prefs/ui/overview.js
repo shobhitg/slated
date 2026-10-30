@@ -8,7 +8,8 @@ import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
 import {hotkeyCounts} from '../status.js';
-import {espansoGuidance} from '../hotstrings.js';
+import {overviewRows} from '../statusRows.js';
+import {fileExists} from '../io.js';
 import {matchingPreset} from '../presets.js';
 import {bindingTitle, actionTitle, containsAutomation} from '../actions.js';
 import {plural, formatList, truncate, singleLine, tildify} from '../util.js';
@@ -33,9 +34,13 @@ function greeting() {
   return 'Good evening';
 }
 
-/** A status row: icon, title, value as subtitle, a pill and an optional button. */
-function statusRow(title, iconName) {
+/**
+ * A status row: icon, title, value as subtitle, a pill and an optional button. The button's action is
+ * {label, run}, or {copy: command} for a "Copy Command" button.
+ */
+function statusRow(title, iconName, toast) {
   const row = new Adw.ActionRow({use_markup: false, title, subtitle: ''});
+  row.set_subtitle_lines(0);
   row.add_prefix(icon(iconName, {size: 20}));
   const pillHolder = box('horizontal', 0);
   row.add_suffix(pillHolder);
@@ -50,8 +55,18 @@ function statusRow(title, iconName) {
       pillHolder.get_first_child() && pillHolder.remove(pillHolder.get_first_child());
       pillHolder.append(pill(state));
       actionButton.set_visible(Boolean(action));
-      if (action) {
+      if (action?.copy) {
+        const command = action.copy;
+        actionButton.set_label('Copy Command');
+        actionButton.set_tooltip_text(command);
+        handler = () => {
+          // GJS exposes gdk_clipboard_set_value() as set(); set_text() isn't introspectable.
+          actionButton.get_clipboard().set(command);
+          toast?.(`Copied “${command}”: paste it in a terminal`);
+        };
+      } else if (action) {
         actionButton.set_label(action.label);
+        actionButton.set_tooltip_text(null);
         handler = action.run;
       }
     },
@@ -61,6 +76,7 @@ function statusRow(title, iconName) {
 /** The buttons for runningSummary()'s `action`, what gets Slated running. Also on Get Started. */
 export function summaryActions(ctx, parent) {
   return {
+    enableExtensions: {label: 'Turn On Extensions', run: () => ctx.enableUserExtensions()},
     enable: {label: 'Turn On Slated', run: () => ctx.setEnabled(true)},
     relogin: {label: 'Log Out…', run: () => ctx.logout()},
     log: {label: 'Open the Log', run: () => launchFile(ctx.paths.logFile, parent, {onError: e => ctx.toast(e.message)})},
@@ -108,10 +124,10 @@ export function createOverviewPane(ctx) {
 
   // Status
   const statusGroup = group({title: 'Status'});
-  const extensionRow = statusRow('Slated', 'system-run-symbolic');
-  const hyperRow = statusRow('Hyper Key', 'input-keyboard-symbolic');
-  const hotstringsRow = statusRow('Hotstrings', 'insert-text-symbolic');
-  const shortcutsRow = statusRow('Shortcuts', 'focus-windows-symbolic');
+  const extensionRow = statusRow('Slated', 'system-run-symbolic', ctx.toast);
+  const hyperRow = statusRow('Hyper Key', 'input-keyboard-symbolic', ctx.toast);
+  const hotstringsRow = statusRow('Hotstrings', 'insert-text-symbolic', ctx.toast);
+  const shortcutsRow = statusRow('Shortcuts', 'focus-windows-symbolic', ctx.toast);
   for (const r of [extensionRow, hyperRow, hotstringsRow, shortcutsRow]) statusGroup.add(r.row);
   prefs.add(statusGroup);
 
@@ -136,7 +152,13 @@ export function createOverviewPane(ctx) {
   prefs.add(nextGroup);
   let nextRows = [];
 
-  const actions = summaryActions(ctx, prefs);
+  const actions = {
+    ...summaryActions(ctx, prefs),
+    keyboard: {label: 'Set Up', run: () => ctx.navigate('keyboard')},
+    hotstrings: {label: 'Edit', run: () => ctx.navigate('hotstrings')},
+    windows: {label: 'Edit', run: () => ctx.navigate('windows')},
+  };
+  const rowAction = action => (action && typeof action === 'object' ? action : actions[action] ?? null);
 
   function rebuildList(groupWidget, rows, items) {
     for (const r of rows) groupWidget.remove(r);
@@ -194,14 +216,14 @@ export function createOverviewPane(ctx) {
       }
     }
 
-    // Status rows
-    const shellState = model.shell;
-    extensionRow.update({
-      value: running ? `Running${status.session ? ` · session ${status.session}` : ''}${status.version ? ` · ${status.version}` : ''}` : summary.title,
-      state: running ? {label: 'Running', style: 'success'} : summary.level === 'error' ? {label: 'Error', style: 'error'}
-        : {label: shellState.state === 'inactive' ? 'Off' : 'Not running', style: 'warning'},
-      action: running ? null : actions[summary.action] ?? null,
+    // Status rows: each says what's missing and offers what fixes it (statusRows.js).
+    const statusRows = overviewRows({
+      summary, status, shell: model.shell, config, keydConfigured: fileExists(ctx.paths.keydConfig), espansoRunning: model.espansoRunning,
     });
+    for (const [row, data] of [[extensionRow, statusRows.extension], [hyperRow, statusRows.hyper], [hotstringsRow, statusRows.hotstrings],
+      [shortcutsRow, statusRows.shortcuts]]) {
+      row.update({value: data.value, state: data.state, action: rowAction(data.action)});
+    }
     const notice = model.migrationNotice(tildify(ctx.paths.configFile, ctx.paths.home));
     noticeGroup.set_visible(Boolean(notice));
     if (notice) {
@@ -209,38 +231,6 @@ export function createOverviewPane(ctx) {
       noticeRow.set_subtitle(notice.unconvertible ?? '');
     }
     const hyperOn = config.keyboard.capsLock === 'hyper';
-    // GNOME's keyboard option always sends the Hyper modifier, whatever hyperModifiers says (see Keyboard).
-    const mods = running && status.hyper.mode === 'xkb' ? 'the Hyper modifier'
-      : config.keyboard.hyperModifiers.includes('cmd') ? 'Ctrl Alt Shift Super' : 'Ctrl Alt Shift';
-    hyperRow.update({
-      value: hyperOn ? `Caps Lock acts as ${mods}${status.hyper.mode !== 'off' && running ? ` · ${status.hyper.mode}` : ''}` : 'Caps Lock is normal',
-      state: !hyperOn ? {label: 'Off', style: 'dim'} : running && status.hyper.active ? {label: 'On', style: 'success'}
-        : {label: running ? 'Not active' : 'Waiting', style: 'warning'},
-      action: hyperOn ? null : {label: 'Set Up', run: () => ctx.navigate('keyboard')},
-    });
-    // The extension leaves hotstrings limited to some apps out of espanso's file (gnomeScopeNote).
-    const enabledHotstrings = config.hotstrings.filter(h => h.enabled !== false);
-    const macOnly = enabledHotstrings.filter(h => h.onlyInApps?.length).length;
-    const expanding = enabledHotstrings.length - macOnly;
-    const espanso = espansoGuidance(status.hotstrings, running);
-    hotstringsRow.update({
-      value: config.general.hotstringsEnabled === false ? 'Text expansion is turned off'
-        : `${plural(expanding, 'hotstring')}${macOnly ? ` · ${macOnly} Mac only` : ''} · ${espanso.title.toLowerCase()}`,
-      state: config.general.hotstringsEnabled === false ? {label: 'Off', style: 'dim'}
-        : !expanding && macOnly ? {label: 'Mac only', style: 'dim'}
-          : espanso.level === 'ok' ? {label: 'Active', style: 'success'}
-            : espanso.level === 'warning' ? {label: 'Needs espanso', style: 'warning'} : {label: 'Waiting', style: 'dim'},
-      action: {label: 'Edit', run: () => ctx.navigate('hotstrings')},
-    });
-    const problems = [];
-    if (counts.duplicate) problems.push(plural(counts.duplicate, 'duplicate'));
-    if (counts.failed) problems.push(`${counts.failed} failed`);
-    shortcutsRow.update({
-      value: problems.length && running ? problems.join(' · ')
-        : `${plural(config.bindings.length, 'shortcut')}${running ? ` · ${counts.active} active` : ''}`,
-      state: !running ? {label: 'Waiting', style: 'dim'} : problems.length ? {label: 'Attention', style: 'warning'} : {label: `${counts.active} active`, style: 'success'},
-      action: {label: problems.length && running ? 'Review' : 'Edit', run: () => ctx.navigate('windows')},
-    });
 
     // Activity
     lastAction.set_title(status.lastAction ?? 'Nothing yet');
