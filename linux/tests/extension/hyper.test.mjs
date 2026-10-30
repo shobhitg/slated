@@ -92,13 +92,13 @@ test('without systemd, keyd is the Hyper key when its socket exists and a keyd c
   writeFileSync(join(world.etc, 'mouse.conf'), SIDE_BUTTONS);
   manager.detect();
   assert.equal(manager.keyd, false, 'keyd leaves Caps Lock alone');
-  assert.deepEqual(manager.apply({wanted: true}), {wanted: true, mode: 'xkb', active: true, hyperIsSuper: true, pending: false});
+  assert.deepEqual(manager.apply({wanted: true}), {wanted: true, mode: 'xkb', active: true, hyperIsSuper: true, pending: false, keyd: 'none'});
   assert.deepEqual(xkbOptions(), ['compose:ralt', 'caps:hyper']);
 
   writeFileSync(join(world.etc, 'mouse.conf'), `${SIDE_BUTTONS}capslock = layer(hyper)\n`); // you map it there
   gnome.fileChanged(world.etc);
   assert.equal(world.detected, 1, 'the runtime is told to apply again');
-  assert.deepEqual(manager.apply({wanted: true}), {wanted: true, mode: 'keyd', active: true, hyperIsSuper: false, pending: false});
+  assert.deepEqual(manager.apply({wanted: true}), {wanted: true, mode: 'keyd', active: true, hyperIsSuper: false, pending: false, keyd: 'running'});
   assert.deepEqual(xkbOptions(), ['compose:ralt'], 'caps:hyper is taken back');
   gnome.fileChanged(world.socket);
   assert.equal(world.detected, 1, 'only changes count');

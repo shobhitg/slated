@@ -7,8 +7,9 @@ const state = {
   session: 'abcd1234',
   version: '0.1.0',
   running: true,
+  paused: true,
   now: new Date('2026-10-22T10:00:00.000Z'),
-  hyper: {wanted: true, mode: 'xkb', active: true},
+  hyper: {wanted: true, mode: 'xkb', active: true, keyd: 'stopped'},
   hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
   hotkeys: {'hyper+z': 'disabled', 'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate'},
   automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
@@ -24,6 +25,7 @@ test('status.json has exactly the schema the preferences app reads', () => {
     'session',
     'version',
     'running',
+    'paused',
     'updatedAt',
     'hyper',
     'hotstrings',
@@ -38,8 +40,9 @@ test('status.json has exactly the schema the preferences app reads', () => {
     session: 'abcd1234',
     version: '0.1.0',
     running: true,
+    paused: true,
     updatedAt: '2026-10-22T10:00:00.000Z',
-    hyper: {wanted: true, mode: 'xkb', active: true},
+    hyper: {wanted: true, mode: 'xkb', active: true, keyd: 'stopped'},
     hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
     hotkeys: {'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate', 'hyper+z': 'disabled'},
     automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
@@ -52,7 +55,8 @@ test('status.json has exactly the schema the preferences app reads', () => {
 
 test('missing parts get safe defaults', () => {
   const status = buildStatus({session: 's', version: '0.1.0', running: false});
-  assert.deepEqual(status.hyper, {wanted: false, mode: 'off', active: false});
+  assert.equal(status.paused, false);
+  assert.deepEqual(status.hyper, {wanted: false, mode: 'off', active: false, keyd: 'none'});
   assert.deepEqual(status.hotstrings, {engine: 'none', espansoInstalled: false, matchFile: null, count: 0});
   assert.deepEqual(status.hotkeys, {});
   assert.deepEqual(status.automation, {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'});
@@ -66,6 +70,7 @@ test('missing parts get safe defaults', () => {
 test('hyper.mode only ever takes the schema’s values', () => {
   assert.equal(buildStatus({hyper: {wanted: true, mode: 'pending'}}).hyper.mode, 'off');
   assert.equal(buildStatus({hyper: {wanted: true, mode: 'keyd', active: true}}).hyper.mode, 'keyd');
+  assert.equal(buildStatus({hyper: {keyd: 'maybe'}}).hyper.keyd, 'none');
 });
 
 test('automation.whileHeld is "key-repeat" or "toggle"; clipboard items are a count', () => {

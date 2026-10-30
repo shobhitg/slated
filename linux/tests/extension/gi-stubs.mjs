@@ -20,6 +20,10 @@ const NAMED_EXPORTS = {
   'resource:///org/gnome/shell/ui/status/keyboard.js': 'export const getInputSourceManager = fake?.getInputSourceManager ?? stub;',
   'resource:///org/gnome/shell/misc/loginManager.js': 'export const getLoginManager = fake?.getLoginManager ?? stub;',
   'resource:///org/gnome/shell/misc/ibusManager.js': 'export const getIBusManager = fake?.getIBusManager ?? stub;',
+  'resource:///org/gnome/shell/ui/panelMenu.js': 'export const Button = fake?.Button ?? stub;',
+  'resource:///org/gnome/shell/ui/popupMenu.js': ['PopupMenuItem', 'PopupSwitchMenuItem', 'PopupSeparatorMenuItem', 'PopupMenuSection']
+    .map((name) => `export const ${name} = fake?.${name} ?? stub;`)
+    .join('\n'),
   'resource:///org/gnome/shell/ui/main.js': [
     'wm',
     'layoutManager',

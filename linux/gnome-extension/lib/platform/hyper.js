@@ -94,6 +94,8 @@ export class HyperManager {
     this._checks = 0;
     this._settings = null;
     this._keyd = null;
+    /** Whether a keyd config maps Caps Lock (as of the last check). */
+    this._keydConfigured = false;
     this._cancellable = new Gio.Cancellable();
     this._logged = '';
     this._warnedEscape = false;
@@ -125,7 +127,8 @@ export class HyperManager {
       this._keyd = keyd;
       if (keyd !== before && (later || !initial)) this._onDetected?.();
     };
-    if (!this._keydMapsCapsLock()) {
+    this._keydConfigured = this._keydMapsCapsLock();
+    if (!this._keydConfigured) {
       settle(false, false);
       return;
     }
@@ -208,6 +211,17 @@ export class HyperManager {
   }
 
   /**
+   * keyd as status.json reports it, so the settings window can say what's missing: "running" (it has
+   * Caps Lock), "stopped" (a config maps Caps Lock but keyd doesn't run), "none" (no config maps it)
+   * or "checking".
+   */
+  get keydState() {
+    if (!this._keydConfigured) return 'none';
+    if (this._keyd === null) return 'checking';
+    return this._keyd ? 'running' : 'stopped';
+  }
+
+  /**
    * Makes the keyboard match the configuration. Returns `{wanted, mode, active, hyperIsSuper, pending}`,
    * where `mode` is "xkb", "keyd" or "off" (status.json's values); `pending` is true (with mode "off")
    * for the moment it takes to ask systemd whether keyd runs.
@@ -243,7 +257,7 @@ export class HyperManager {
         reason = 'Hyper is off';
       }
     }
-    const result = {wanted: !!wanted, mode, active, hyperIsSuper: mode === 'xkb', pending};
+    const result = {wanted: !!wanted, mode, active, hyperIsSuper: mode === 'xkb', pending, keyd: this.keydState};
     const signature = JSON.stringify(result);
     if (signature !== this._logged) {
       this._logged = signature;

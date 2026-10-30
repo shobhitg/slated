@@ -45,6 +45,8 @@ beforeEach(() => {
     grabs: new Map(),
     allowed: {},
     locked: false,
+    statusArea: {},
+    launched: [],
     typed: [],
     buttons: [],
     disposed: [],

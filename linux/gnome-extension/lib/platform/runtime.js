@@ -5,6 +5,10 @@
 //
 // `start()` never throws: each part starts on its own, and a part that fails is logged
 // (`runtime.error`) while the rest keeps working. `stop()` undoes everything `start()` did.
+//
+// As on the Mac, Slated's icon sits in the top bar (statusIcon.js): a click opens the settings window,
+// and its menu can pause Slated. Until Get Started is finished, the settings window opens on it a few
+// seconds after login, once per GNOME Shell session.
 
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
@@ -19,7 +23,7 @@ import {bindingKey, comboOf, modalOf} from './combos.js';
 import {ConfigStore, emptyConfiguration} from './configStore.js';
 import {DebugService} from './debug.js';
 import {EspansoSync} from './espanso.js';
-import {readText} from './files.js';
+import {exists, readText} from './files.js';
 import {FocusTracker} from './focus.js';
 import {GnomePlatform} from './gnomePlatform.js';
 import {ActionHUD} from './hud.js';
@@ -33,16 +37,22 @@ import {EventLog, LogFile, journalMirror} from './log.js';
 import {OverlayController} from './overlays.js';
 import * as Paths from './paths.js';
 import {MonitorWatcher, currentScreens} from './screens.js';
+import {findSettingsWindow, setupFinished, shouldOfferGetStarted} from './settingsWindow.js';
 import {SleepWatcher} from './sleep.js';
 import {SnapshotStore} from './snapshots.js';
 import {StatusFile, buildStatus} from './status.js';
+import {StatusIcon, statusWarnings} from './statusIcon.js';
 import {InputSynthesizer} from './synth.js';
+import {openURL} from './system.js';
 import {Debouncer, Timers} from './timers.js';
 import {appMatchesAny, conditionMatches, defaultEntry, resolutionOf, shortcutLabel, truthyText} from './util.js';
 import * as Windows from './windows.js';
 
 /** How many recently focused apps status.json lists (for the settings window's app picker). */
 const RECENT_APPS = 12;
+
+/** How long after login the settings window opens on Get Started (until setup is finished). */
+export const GET_STARTED_DELAY_MS = 3000;
 
 /** "0.1.0", "0.1.0+3f2a9c1" or "0.1.0 (3f2a9c1-dirty)" → {version, commit}. */
 export function parseVersionName(versionName) {
@@ -113,12 +123,19 @@ export class SlatedRuntime {
    * @param {object} extension.metadata  metadata.json.
    * @param {string} extension.uuid
    * @param {object} [extension.core]  The engine API; tests pass a fake.
+   * @param {object} [extension.session]  What outlives a disable, kept by extension.js for the GNOME
+   *   Shell session (GNOME disables extensions while the screen is locked): {paused, getStartedOpened}.
+   * @param {() => void} [extension.openPreferences]  Asks GNOME Shell to open the settings window.
    */
-  constructor({path, metadata, uuid, core = Core}) {
+  constructor({path, metadata, uuid, core = Core, session = null, openPreferences = null}) {
     this._extensionPath = path;
     this._metadata = metadata ?? {};
     this._uuid = uuid;
     this.core = core;
+    this._session = session ?? {paused: false, getStartedOpened: false};
+    this._openPreferences = openPreferences;
+    this._statusIcon = null;
+    this._startupSignal = 0;
     this._lastAction = null;
     this._lastError = null;
     this._hyper = {wanted: false, mode: 'off', active: false, hyperIsSuper: false};
@@ -156,6 +173,7 @@ export class SlatedRuntime {
         mode: 'gnome-extension',
         uuid: this._uuid,
         debug: this._debugMode,
+        paused: this.paused,
       },
       'notice',
     );
@@ -308,6 +326,7 @@ export class SlatedRuntime {
     this._started = true;
     this.apply();
     if (settingBool(this._settings ?? {}, 'checkDefaultsOnLoad', false)) this._applyDisplayDefaults('config loaded');
+    this._step('get started', () => this._scheduleGetStarted());
   }
 
   stop() {
@@ -328,6 +347,12 @@ export class SlatedRuntime {
       this._island?.destroy();
     });
     this._step('sleep', () => this._sleepWatcher?.destroy());
+    this._step('top bar', () => {
+      this._statusIcon?.destroy();
+      if (this._startupSignal) Main.layoutManager.disconnect(this._startupSignal);
+    });
+    this._statusIcon = null;
+    this._startupSignal = 0;
     this._step('debug interface', () => this._debugService?.destroy());
     this._step('displays', () => {
       this._monitors?.destroy();
@@ -397,7 +422,8 @@ export class SlatedRuntime {
     this._step('hyper key', () => {
       if (this._hyperManager) {
         this._hyper = this._hyperManager.apply({
-          wanted: config.keyboard?.capsLock === 'hyper',
+          // Paused: Caps Lock is a plain Caps Lock again (keyd, a system service, keeps its mapping).
+          wanted: config.keyboard?.capsLock === 'hyper' && !this.paused,
           capsLockAlone: config.keyboard?.capsLockAlone,
         });
       }
@@ -407,7 +433,7 @@ export class SlatedRuntime {
       if (!this._keybindings) return;
       const options = acceleratorOptions(this._hyper.mode);
       const disabled = [];
-      for (const binding of config.bindings ?? []) {
+      for (const binding of this.paused ? [] : (config.bindings ?? [])) {
         if (binding.enabled !== false) continue;
         try {
           disabled.push(bindingKey(comboOf(binding.keys, this.core), modalOf(binding.modal, this.core), this.core));
@@ -426,7 +452,8 @@ export class SlatedRuntime {
       const repeat = readKeyboardRepeat();
       this._whileHeldMode = repeat.enabled ? 'key-repeat' : 'toggle';
       // The built-in clipboard and stop shortcuts come last, so a binding on the same keys wins (as on macOS).
-      const entries = [...this._configEntries(config, settings), ...this._builtInEntries(config)];
+      // Paused: nothing is grabbed, so the keys reach the apps.
+      const entries = this.paused ? [] : [...this._configEntries(config, settings), ...this._builtInEntries(config)];
       this._shortcutEntries = entries;
       this._logWhileHeld(entries);
       this._keybindings.apply(entries, {
@@ -438,7 +465,9 @@ export class SlatedRuntime {
     });
 
     this._step('hotstrings', () => {
-      if (this._espanso) this._hotstrings = this._espanso.apply(config);
+      // Paused: espanso's match file goes, so nothing expands.
+      const live = this.paused ? {...config, general: {...config.general, hotstringsEnabled: false}} : config;
+      if (this._espanso) this._hotstrings = this._espanso.apply(live);
     });
 
     this._step('island', () => this._watchHyper(config, island));
@@ -446,7 +475,138 @@ export class SlatedRuntime {
     this._automationChanged();
 
     this._lastError = this._store?.loadError ?? null;
+    this._step('top bar', () => this._syncStatusIcon(config));
     this._publishStatus();
+  }
+
+  // --- Pause, the top bar and the settings window --------------------------------------------------
+
+  /** "Pause Slated": no shortcuts, Hyper key or hotstrings until resumed (Engine.setPaused on the Mac). */
+  get paused() {
+    return this._session.paused === true;
+  }
+
+  /** Pauses or resumes. Kept across screen locks (the session object), not across logins, as on the Mac. */
+  setPaused(value) {
+    const paused = value === true;
+    if (paused === this.paused) return;
+    this._session.paused = paused;
+    if (paused) this._automation?.stopAll('paused');
+    this._log?.record(paused ? 'app.paused' : 'app.resumed', {}, 'notice');
+    this.apply();
+  }
+
+  /** Shows or hides the top-bar icon (`general.showStatusIcon`, on by default). */
+  _syncStatusIcon(config) {
+    if (config.general?.showStatusIcon === false) {
+      this._statusIcon?.destroy();
+      this._statusIcon = null;
+      return;
+    }
+    if (!this._statusIcon) {
+      this._statusIcon = new StatusIcon({iconDir: `${this._extensionPath}/icons`, role: this._uuid ?? 'slated', commands: this._menuCommands()});
+    }
+    this._refreshStatusIcon();
+  }
+
+  _refreshStatusIcon() {
+    if (!this._statusIcon) return;
+    const warnings = statusWarnings({loadError: this._store?.loadError ?? null, hotkeys: this._keybindings?.statuses ?? {}});
+    this._statusIcon.update({paused: this.paused, hyperOn: this._configuration().keyboard?.capsLock === 'hyper', warnings});
+  }
+
+  /** What the top bar's menu does, logged under the Mac's event names. */
+  _menuCommands() {
+    return {
+      open: (reason) => this.openSettings(reason),
+      toggleHyper: (on) => this._setHyperKey(on),
+      togglePause: (on) => {
+        this._log?.record('menu.toggle_pause', {pause: on});
+        this.setPaused(on);
+      },
+      reload: () => {
+        this._log?.record('menu.reload');
+        this.reload('menu');
+      },
+      openConfig: () => this._openPath('menu.open_config', Paths.configPath()),
+      // settings.json; when it isn't there (every setting at its default), the folder it would be in.
+      openSettings: () => {
+        const path = Paths.settingsPath();
+        this._openPath('menu.open_settings', exists(path) ? path : path.slice(0, path.lastIndexOf('/')));
+      },
+      showLog: () => this._openPath('menu.show_log', Paths.stateDir()),
+      menuOpened: () => this._log?.record('menu.opened'),
+    };
+  }
+
+  /** Caps Lock → Hyper Key: config.json's keyboard.capsLock, saved as the settings window saves it. */
+  _setHyperKey(on) {
+    this._log?.record('menu.toggle_hyper', {enable: on});
+    try {
+      this._store?.update((config) => ({...config, keyboard: {...config.keyboard, capsLock: on ? 'hyper' : 'off'}}));
+    } catch (e) {
+      this._log?.error('config.save_failed', errorMessage(e));
+      this._refreshStatusIcon(); // the switch goes back
+      return;
+    }
+    this.reload('menu');
+  }
+
+  _openPath(event, path) {
+    this._log?.record(event);
+    const result = openURL(GLib.filename_to_uri(path, null));
+    if (!result.ok) this._log?.error('menu.open_failed', result.error, {event});
+  }
+
+  /**
+   * Opens Slated's settings window, or brings it forward when it's open. `reason`: "status_icon",
+   * "menu" or "first_login". Returns "focused", "opened" or "unavailable".
+   */
+  openSettings(reason) {
+    const event = {status_icon: 'menu.status_item_clicked', menu: 'menu.settings', first_login: 'ui.get_started_opened'}[reason] ?? 'ui.settings_requested';
+    let result = 'unavailable';
+    try {
+      const window = findSettingsWindow(this._metadata.name ?? 'Slated', Windows.allWindows());
+      if (window) {
+        Windows.activate(window);
+        result = 'focused';
+      } else if (this._openPreferences) {
+        this._openPreferences();
+        result = 'opened';
+      }
+    } catch (e) {
+      this._error('settings window', e);
+    }
+    this._log?.record(event, {result});
+    return result;
+  }
+
+  /** Until Get Started is finished: the settings window opens on it shortly after login, once per session. */
+  _scheduleGetStarted() {
+    if (this._session.getStartedOpened || !this._openPreferences) return;
+    if (setupFinished(readText(Paths.settingsWindowStatePath()))) return;
+    const wait = () => this._timers?.timeout(GET_STARTED_DELAY_MS, () => this._offerGetStarted());
+    // At login, extensions start before GNOME Shell has finished starting up.
+    if (Main.layoutManager?._startingUp) {
+      this._startupSignal = Main.layoutManager.connect('startup-complete', () => {
+        Main.layoutManager.disconnect(this._startupSignal);
+        this._startupSignal = 0;
+        wait();
+      });
+    } else {
+      wait();
+    }
+  }
+
+  _offerGetStarted() {
+    const offer = shouldOfferGetStarted({
+      stateText: readText(Paths.settingsWindowStatePath()),
+      alreadyOpened: this._session.getStartedOpened,
+      locked: !!Main.sessionMode?.isLocked,
+    });
+    if (!offer) return;
+    this._session.getStartedOpened = true;
+    this.openSettings('first_login');
   }
 
   _configEntries(config, settings) {
@@ -709,6 +869,7 @@ export class SlatedRuntime {
       session: this._log?.session,
       version: this._build?.version,
       running,
+      paused: running && this.paused,
       hyper: this._hyper,
       hotstrings: this._hotstrings,
       hotkeys: this._keybindings?.statuses ?? {},
@@ -729,6 +890,7 @@ export class SlatedRuntime {
     if (!this._timers || this._statusIdle) return;
     this._statusIdle = this._timers.idle(() => {
       this._statusIdle = 0;
+      this._step('top bar', () => this._refreshStatusIcon());
       this._writeStatus(true);
     });
   }

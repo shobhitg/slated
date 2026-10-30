@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Slated's app icon for GNOME (hicolor/scalable/apps): the Mac icon's design (scripts/make-icon.swift)
+     drawn as SVG. A tiled layout on an indigo-to-pink square. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="body" x1="100" y1="100" x2="924" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="0.55" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="512" y1="100" x2="512" y2="504" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#body)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#shine)"/>
+  <rect x="262" y="300" width="253.8" height="424" rx="38" fill="#FFFFFF"/>
+  <rect x="545.8" y="300" width="216.2" height="197" rx="38" fill="#FFFFFF" fill-opacity="0.78"/>
+  <rect x="545.8" y="527" width="216.2" height="197" rx="38" fill="#FFFFFF" fill-opacity="0.58"/>
+  <circle cx="308" cy="346" r="12" fill="#4F46E5" fill-opacity="0.9"/>
+  <circle cx="348" cy="346" r="12" fill="#8B5CF6" fill-opacity="0.9"/>
+  <circle cx="388" cy="346" r="12" fill="#EC4899" fill-opacity="0.9"/>
+</svg>

@@ -9,6 +9,7 @@
 //   ~/.local/state/slated/hyper.json      what Slated changed in the keyboard options, to undo it
 //   ~/.local/state/slated/clipboard.json  clipboard history (mode 0600), when clipboard.persist is on
 //   ~/.local/state/slated/config-migration.json  what the move to two files imported, for the settings window
+//   ~/.local/state/slated/settings-window.json   the settings window's own state (Get Started finished)
 //
 // `SLATED_HOME` stands in for the home directory and `SLATED_CONFIG` for config.json (settings.json
 // and config.v1.json go beside it), like on macOS, so tests can point a running shell at a throwaway
@@ -52,6 +53,11 @@ export function backupPath() {
 /** What the move to two files imported (the settings window tells you once from it). */
 export function migrationRecordPath() {
   return `${stateDir()}/config-migration.json`;
+}
+
+/** The settings window's state: `{"setupFinished": true}` once Get Started is done. */
+export function settingsWindowStatePath() {
+  return `${stateDir()}/settings-window.json`;
 }
 
 export function stateDir() {

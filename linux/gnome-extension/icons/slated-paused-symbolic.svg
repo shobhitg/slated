@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Slated is paused (Pause Slated): a rounded frame with pause bars, as the Mac's menu bar icon shows. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" fill="none" stroke="#2e3436" stroke-width="1.5"/>
+  <rect x="5.5" y="5.5" width="1.75" height="5" rx="0.5" fill="#2e3436"/>
+  <rect x="8.75" y="5.5" width="1.75" height="5" rx="0.5" fill="#2e3436"/>
+</svg>
