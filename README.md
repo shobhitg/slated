@@ -52,12 +52,12 @@ usually install other tools for:
 
 ## Install
 
-Clone the repository, then run one command. Both are safe to run again whenever you like, after a
-`git pull` or a change.
+Clone the repository, then run one command. It's safe to run again any time, after a `git pull` or
+a change.
 
-<table>
-<tr><th width="50%">macOS 14+</th><th width="50%">Linux: GNOME 46–51</th></tr>
-<tr><td>
+### macOS 14+
+
+Needs the Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
 git clone https://github.com/shobhitg/slated
@@ -65,46 +65,15 @@ cd slated
 ./install.sh
 ```
 
-</td><td>
+It builds Slated, installs `~/Applications/Slated.app`, launches it, and checks its log to confirm
+the new build is running. Each run quits the running copy cleanly first, so Caps Lock is restored.
 
-```sh
-git clone https://github.com/shobhitg/slated
-cd slated
-linux/install.sh
-```
+Slated opens on **Get Started**. When macOS asks, switch Slated on in **System Settings → Privacy &
+Security → Accessibility**, and its window comes back to the front, ready for the next step.
 
-</td></tr>
-<tr><td valign="top">
-
-Needs the Xcode Command Line Tools (`xcode-select --install`).
-
-1. Builds Slated and installs `~/Applications/Slated.app`.
-2. Launches it and checks its log to confirm the new build is running.
-3. Slated opens on **Get Started**, and macOS asks you to let it control your Mac.
-
-The first run asks for your login password once, to create a local signing certificate.
-
-</td><td valign="top">
-
-Ubuntu 24.04+, Fedora 40+, Debian 13, Arch, openSUSE, on Wayland or Xorg.
-
-1. Installs and enables Slated's GNOME Shell extension.
-2. Installs keyd, for the Hyper key, and espanso, for hotstrings.
-3. Offers to log out: GNOME starts Slated when you log back in.
-
-sudo asks for your password once, to install keyd and espanso.
-
-</td></tr>
-</table>
-
-### On macOS
-
-Each run quits the running copy cleanly first, so Caps Lock is restored, then installs and
-relaunches it. When macOS asks, switch Slated on in **System Settings → Privacy & Security →
-Accessibility**, and its window comes back to the front, ready for the next step.
-
-Every build is signed with the same local certificate, so you grant that permission once, not after
-every reinstall. The certificate lives only in your keychain; no Apple developer account is needed.
+The first run asks for your login password once, to create a local signing certificate. Every build
+is signed with it, so you grant Accessibility once, not after every reinstall. The certificate lives
+only in your keychain; no Apple developer account is needed.
 
 | | |
 |---|---|
@@ -120,19 +89,31 @@ every reinstall. The certificate lives only in your keychain; no Apple developer
 - If Karabiner-Elements turns Caps Lock into Hyper, either keep using it (Slated's bindings work
   with any Hyper key) or turn that rule off and enable Slated's own Hyper key.
 
-### On Linux
+### Linux (GNOME 46–51)
+
+Ubuntu 24.04+, Fedora 40+, Debian 13, Arch or openSUSE, on Wayland or Xorg.
+
+```sh
+git clone https://github.com/shobhitg/slated
+cd slated
+linux/install.sh
+```
 
 Slated runs on GNOME as a GNOME Shell extension, with the same `config.json` and `settings.json` as
 on the Mac. The installer:
 - **Checks first** for GNOME 46–51, and finds your session (X11 or Wayland) and package manager
   (apt, dnf, pacman or zypper). On another desktop or GNOME version it stops before changing
   anything and says what it found.
+- **Installs and enables** Slated's GNOME Shell extension.
 - **Installs keyd** from your distribution's packages, or builds a pinned release from source where
   there's no package (Ubuntu 24.04, Fedora). It makes Caps Lock the Hyper key, as on the Mac.
-- **Installs espanso**, a pinned release checked against its checksum, for your session (X11 or
-  Wayland). Where espanso has no package (Fedora on Wayland), it says so and carries on.
-- **Ends with a summary** and the one step left: logging out, or on Xorg, restarting GNOME Shell
-  with Alt+F2 `r`.
+- **Installs espanso** for hotstrings: a pinned release checked against its checksum, for your
+  session (X11 or Wayland). Where espanso has no package (Fedora on Wayland), it says so and carries
+  on.
+- **Ends with a summary** and the one step left: logging out (it offers to do it), or on Xorg,
+  restarting GNOME Shell with Alt+F2 `r`.
+
+sudo asks for your password once, to install keyd and espanso.
 
 | | |
 |---|---|
@@ -145,8 +126,8 @@ the Mac, and troubleshooting.
 
 ## Logs
 
-Slated records every interaction and its outcome in `~/Library/Logs/Slated/slated.log`, one JSON
-event per line: hotkeys, Hyper combos, hotstring expansions, menu and settings changes, errors,
+Slated records every interaction and its outcome in `~/Library/Logs/Slated/slated.log` (on Linux,
+`~/.local/state/slated/slated.log`), one JSON event per line: hotkeys, Hyper combos, hotstring expansions, menu and settings changes, errors,
 permission changes and crashes.
 
 ```sh
@@ -156,7 +137,8 @@ scripts/logs.py --errors --since 1h    # problems in the last hour
 make log-summary                       # counts, app starts, recent errors
 ```
 
-The same events also appear in Console.app under the subsystem `io.github.shobhitg.slated`.
+`scripts/logs.py` reads either. On the Mac the same events also appear in Console.app under the
+subsystem `io.github.shobhitg.slated`.
 
 ## Configuration
 
