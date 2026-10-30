@@ -153,13 +153,14 @@ let hidRemapperTests = Suite(
     (
       "contract: hidutil reports the current mapping in a form we can read",
       {
-        // Read-only. Prints "(null)" when nothing is mapped (CI); on a Mac running Slated with the Hyper
-        // key on, the Caps Lock → F18 entry must come back.
+        // Read-only. Prints "(null)" when nothing was ever mapped (CI), an empty list "(\n)" once a mapping
+        // was cleared, and on a Mac running Slated with the Hyper key on, the Caps Lock → F18 entry.
         let output = try require(HIDRemapper.run(["property", "--get", "UserKeyMapping"]), "hidutil failed")
-        let mappings = HIDRemapper.parseMappings(output)
+        let isList = (try? PropertyListSerialization.propertyList(from: Data(output.utf8), format: nil)) is [Any]
         expect(
-          output.trimmingCharacters(in: .whitespacesAndNewlines) == "(null)" || !mappings.isEmpty,
+          output.trimmingCharacters(in: .whitespacesAndNewlines) == "(null)" || isList,
           "unreadable hidutil output: \(output)")
+        expect(HIDRemapper.parseMappings("(\n)\n").isEmpty, "an empty list is no mappings")
       }
     ),
   ])
