@@ -17,7 +17,7 @@
 //
 // Pure ES module: file access comes in through `io`.
 
-import {decodeConfigurationFiles, encodeConfigurationFiles, legacySlateOptions, starterConfiguration} from '../core/index.js';
+import {decodeConfigurationFiles, encodeConfigurationFiles, starterConfiguration} from '../core/index.js';
 import {importSlateScript, importClassic, planImport} from './importer.js';
 import {describeError} from './engine.js';
 import {newId} from './ids.js';
@@ -115,9 +115,9 @@ const withNewline = text => (text.endsWith('\n') ? text : `${text}\n`);
  * Which files' content differs between two configurations (a save writes only those).
  * @returns {{config: boolean, settings: boolean, texts: {config: string, settings: string}}}
  */
-export function changedFiles(before, after, settingsExtras = {}) {
-  const old = before ? encodeConfigurationFiles(before, settingsExtras) : {config: null, settings: null};
-  const texts = encodeConfigurationFiles(after, settingsExtras);
+export function changedFiles(before, after, extras = {}) {
+  const old = before ? encodeConfigurationFiles(before, extras) : {config: null, settings: null};
+  const texts = encodeConfigurationFiles(after, extras);
   return {config: texts.config !== old.config, settings: texts.settings !== old.settings, texts};
 }
 
@@ -126,8 +126,8 @@ export function changedFiles(before, after, settingsExtras = {}) {
  * says so. Throws what the writes throw.
  * @returns {{configText: string|null, settingsText: string|null}} what was written
  */
-export function writeConfigFiles(io, configuration, settingsExtras, which = {config: true, settings: true}) {
-  const texts = encodeConfigurationFiles(configuration, settingsExtras);
+export function writeConfigFiles(io, configuration, extras, which = {config: true, settings: true}) {
+  const texts = encodeConfigurationFiles(configuration, extras);
   const out = {configText: null, settingsText: null};
   if (which.settings) {
     out.settingsText = withNewline(texts.settings);
@@ -187,7 +187,7 @@ function saveRecord(io, record, log) {
  * @param {() => string} [options.makeId] ids for imported bindings
  * @param {(event: string, data?: object, level?: string) => void} [options.log]
  * @param {() => Date} [options.now]
- * @returns {{configuration?, settingsExtras?, configText: string|null, settingsText: string|null,
+ * @returns {{configuration?, extras?, configText: string|null, settingsText: string|null,
  *   created?: boolean, migrated?: boolean, record?: object, error?: Error, writeError?: Error}}
  *   `error` (with `file`): nothing usable was read, and nothing was written. `writeError`: the
  *   configuration is usable but creating or migrating the files failed.
@@ -213,7 +213,7 @@ export function loadConfigFiles(io, {by = 'settings', makeId = newId, log = () =
   } catch (error) {
     return {error, configText, settingsText: settingsText ?? null};
   }
-  const result = {configuration: decoded.configuration, settingsExtras: decoded.settingsExtras, configText, settingsText: settingsText ?? null};
+  const result = {configuration: decoded.configuration, extras: decoded.extras, configText, settingsText: settingsText ?? null};
   return decoded.legacy ? migrate(context, decoded, result) : result;
 }
 
@@ -242,9 +242,9 @@ function create({io, by, makeId, log, now}, settingsText) {
     const starter = starterConfiguration();
     configuration = {...configuration, keyboard: starter.keyboard, bindings: starter.bindings};
   }
-  const result = {configuration, settingsExtras: base.settingsExtras, configText: null, settingsText, created: true};
+  const result = {configuration, extras: base.extras, configText: null, settingsText, created: true};
   try {
-    const written = writeConfigFiles(io, configuration, base.settingsExtras, {config: true, settings: settingsText === null});
+    const written = writeConfigFiles(io, configuration, base.extras, {config: true, settings: settingsText === null});
     result.configText = written.configText;
     if (written.settingsText !== null) result.settingsText = written.settingsText;
   } catch (error) {
@@ -271,23 +271,23 @@ function migrate({io, by, makeId, log, now}, decoded, result) {
     log('config.migration_failed', {by, message: `Couldn't copy config.json to config.v1.json: ${describeError(error)}`}, 'error');
     return result;
   }
-  const options = legacySlateOptions(decoded.configObject);
+  const legacy = decoded.legacy;
   let configuration = decoded.configuration;
   let slate = null;
-  if (options.load) {
-    const files = findSlateFiles(io, options.paths);
+  if (legacy.loadSlateConfigs) {
+    const files = findSlateFiles(io, legacy.slateConfigPaths);
     if (files.length) {
-      const plan = importSlateFiles(configuration, files, {home: io.home, readFile: p => io.readFile(p), makeId, alreadyImported: options.imported});
+      const plan = importSlateFiles(configuration, files, {home: io.home, readFile: p => io.readFile(p), makeId,
+        alreadyImported: legacy.importedSlateShortcuts});
       configuration = plan.config;
       slate = importSummary(plan);
     }
   }
-  const settingsMoved = result.settingsText === null && ['general', 'settings', 'windows', 'clipboard', 'automation', 'island']
-    .some(key => Object.prototype.hasOwnProperty.call(decoded.configObject, key));
+  const settingsMoved = legacy.settingsMoved;
   // settings.json is written when it's new, or when the import added window settings to it.
-  const settingsChanged = result.settingsText === null || changedFiles(decoded.configuration, configuration, decoded.settingsExtras).settings;
+  const settingsChanged = result.settingsText === null || changedFiles(decoded.configuration, configuration, decoded.extras).settings;
   try {
-    const written = writeConfigFiles(io, configuration, decoded.settingsExtras, {config: true, settings: settingsChanged});
+    const written = writeConfigFiles(io, configuration, decoded.extras, {config: true, settings: settingsChanged});
     result.configText = written.configText;
     if (written.settingsText !== null) result.settingsText = written.settingsText;
   } catch (error) {

@@ -65,8 +65,8 @@ export class PrefsModel extends Emitter {
 
     this.draft = decodeConfiguration('{}');
     this.saved = clone(this.draft);
-    /** settings.json's keys Slated doesn't know, written back as they were. */
-    this.settingsExtras = {};
+    /** Keys the files have that Slated doesn't know, written back as they were (decodeConfigurationFiles). */
+    this.extras = {config: {}, settings: {}};
     this.issues = [];
     this.saveState = {kind: 'saved'};
     this.loadError = null;
@@ -114,7 +114,7 @@ export class PrefsModel extends Emitter {
     }
     this.draft = separateDuplicateIds(result.configuration, this.makeId);
     this.saved = clone(this.draft);
-    this.settingsExtras = result.settingsExtras ?? {};
+    this.extras = result.extras ?? {config: {}, settings: {}};
     this._diskTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
     this._badTexts = null;
     this.loadError = null;
@@ -214,7 +214,7 @@ export class PrefsModel extends Emitter {
     const output = savable(this.draft, this.saved, this.issues);
     let changed;
     try {
-      changed = changedFiles(this.saved, output, this.settingsExtras);
+      changed = changedFiles(this.saved, output, this.extras);
     } catch (error) {
       this._saveFailed(error);
       return;
@@ -222,7 +222,7 @@ export class PrefsModel extends Emitter {
     const which = {config: changed.config || this.firstRun, settings: changed.settings || this.firstRun};
     if (which.config || which.settings) {
       try {
-        writeConfigFiles(this.io, output, this.settingsExtras, which);
+        writeConfigFiles(this.io, output, this.extras, which);
       } catch (error) {
         this._saveFailed(error);
         return;
@@ -322,7 +322,7 @@ export class PrefsModel extends Emitter {
     const disk = decoded.configuration;
     this._diskTexts = texts;
     this._badTexts = null;
-    this.settingsExtras = decoded.settingsExtras;
+    this.extras = decoded.extras;
     keepGeneratedIds(separateDuplicateIds(disk, this.makeId), this.saved, texts.config);
     const wasBlocked = this.loadError !== null;
     this.loadError = null;

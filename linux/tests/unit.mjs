@@ -230,7 +230,7 @@ export function registerUnitTests({root, readText}) {
       keyboard: {capsLock: 'hyper'}, bindings: [{keys: 'hyper+a', action: 'undo'}], island: {enabled: false},
       windows: {undoMaxStackSize: 5}, newerSection: {a: 1},
     });
-    const files = core.encodeConfigurationFiles(config, {fromSettings: true});
+    const files = core.encodeConfigurationFiles(config, {settings: {fromSettings: true}});
     const configFile = JSON.parse(files.config);
     const settingsFile = JSON.parse(files.settings);
     expectEqual(Object.keys(configFile).sort(), ['bindings', 'defaults', 'hotstrings', 'keyboard', 'layouts', 'newerSection', 'version']);
@@ -241,9 +241,9 @@ export function registerUnitTests({root, readText}) {
     // Reading the two files back gives the same configuration, and unknown keys stay in their file.
     const back = core.decodeConfigurationFiles(files.config, files.settings);
     expectEqual(back.configuration, config);
-    expectEqual(back.settingsExtras, {fromSettings: true});
-    expectEqual(back.legacy, false);
-    expectEqual(core.encodeConfigurationFiles(back.configuration, back.settingsExtras), files);
+    expectEqual(back.extras, {config: {}, settings: {fromSettings: true}});
+    expectEqual(back.legacy, null);
+    expectEqual(core.encodeConfigurationFiles(back.configuration, back.extras), files);
   });
 
   test('config files: version 1 reads as before, and settings.json wins over its sections', () => {
@@ -278,6 +278,9 @@ export function registerUnitTests({root, readText}) {
     expectEqual(fileOf('{"version": 2}', '[]'), 'settings.json');
     const error = expectThrows(() => core.decodeConfigurationFiles('{"version": 2}', '{"clipboard": {"maxItems": "x"}}'));
     expectEqual([error.kind, error.codingPath], ['invalidConfiguration', ['clipboard', 'maxItems']]);
+    // Version 1's `settings` is read as `windows`, but an error in it says where it is in the file.
+    const legacy = expectThrows(() => core.decodeConfigurationFiles('{"settings": {"x": [1]}}', null));
+    expectEqual([legacy.file, legacy.codingPath], ['config.json', ['settings', 'x']]);
   });
 
   test('config: readSettings applies Slate defaults', () => {

@@ -1,16 +1,19 @@
-// The two files Slated keeps its configuration in, shared with the Mac app (docs/CONFIG.md):
+// The two files Slated keeps its configuration in, shared with the Mac app (port of
+// Sources/SlatedCore/Model/ConfigFiles.swift; docs/CONFIG.md):
 //
 //   config.json    what your keys do: keyboard (the Hyper key), bindings, hotstrings, layouts, defaults
 //   settings.json  how Slated behaves: general, windows (Slate's window settings), clipboard,
 //                  automation, island
 //
-// In memory they're one configuration (config.js); this module splits it for writing and combines
-// the files for reading. Version 1 kept everything in config.json, with `windows` called `settings`
-// and the Slate files' loading options in `general`. Such a file still reads (its settings sections
-// count until settings.json exists); `isLegacyLayout` tells the stores to migrate it.
+// In memory they're one configuration (config.js); this module splits it for writing and reads the
+// two files into one. Version 1 kept everything in config.json, with `windows` called `settings`
+// and the Slate files' loading options in `general`. Such a file is `legacy`: its settings sections
+// count until settings.json exists (then settings.json wins and they're dropped), and the stores
+// migrate it (lib/prefs/migration.js).
 //
-// Pure: texts in, texts out. The stores (lib/platform/configStore.js, lib/prefs/model.js, through
-// lib/prefs/migration.js) read, write and watch the files.
+// Keys a file has that this version doesn't know stay in that file: config.json's on the
+// configuration itself (as config.js keeps them), except one named like a settings section
+// (`windows`), and settings.json's, in `extras`. Pure: texts in, texts out.
 
 import {CURRENT_VERSION, decodeConfiguration} from './config.js';
 import {SlatedError} from './errors.js';
@@ -21,12 +24,12 @@ export const SETTINGS_FILE = 'settings.json';
 /** Where a migration keeps version 1's config.json, beside it. Never overwritten. */
 export const BACKUP_FILE = 'config.v1.json';
 
-/** config.json's sections: what your keys do. */
+/** config.json's sections (besides `version`): what your keys do. */
 export const CONFIG_SECTIONS = Object.freeze(['keyboard', 'bindings', 'hotstrings', 'layouts', 'defaults']);
-/** settings.json's sections: how Slated behaves. */
+/** settings.json's sections (besides `version`): how Slated behaves. */
 export const SETTINGS_SECTIONS = Object.freeze(['general', 'windows', 'clipboard', 'automation', 'island']);
-/** Settings sections in a config.json mark version 1's layout (`settings` is version 1's `windows`). */
-const LEGACY_SECTIONS = Object.freeze(['general', 'settings', 'windows', 'clipboard', 'automation', 'island']);
+/** The sections a version 1 config.json had that are settings.json's now (`settings` is `windows`). */
+export const LEGACY_SETTINGS_SECTIONS = Object.freeze(['general', 'settings', 'clipboard', 'automation', 'island']);
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof JSONNumber);
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -51,119 +54,156 @@ export function parseConfigText(text, file) {
     throw inFile(e, file);
   }
   if (!isObject(value)) {
-    throw inFile(new SlatedError('invalidConfiguration', `${file} must contain a JSON object`, {codingPath: []}), file);
+    const found = Array.isArray(value) ? 'an array' : value === null ? 'null value' : typeof value === 'string' ? 'a string' : 'a value';
+    throw inFile(new SlatedError('invalidConfiguration', `Expected to decode Dictionary<String, Any> but found ${found} instead.`, {codingPath: []}), file);
   }
   return value;
 }
 
-/**
- * Whether a parsed config.json is version 1's layout: no version or version 1, or a settings
- * section in it.
- */
-export function isLegacyLayout(object) {
+/** config.json's `version` as written (an Int), or null when there's none or it isn't one. */
+function versionOf(object) {
   const raw = isObject(object) ? object.version : undefined;
-  const version = isNumberValue(raw) ? asInt(raw) : null;
-  if (version === null || version < CURRENT_VERSION) return true;
-  return LEGACY_SECTIONS.some((key) => has(object, key));
+  return isNumberValue(raw) ? asInt(raw) : null;
 }
 
 /**
- * Version 1's Slate options, from a legacy config.json's `general`: whether Slate files loaded
- * (`loadSlateConfigs`, on unless false), which (`slateConfigPaths`, null when not written) and the
- * shortcuts already imported from them while they kept loading (`importedSlateShortcuts`).
+ * Whether a parsed config.json is version 1's layout: no version or version 1, or one of version 1's
+ * settings sections in it (general, settings, clipboard, automation, island).
  */
-export function legacySlateOptions(object) {
+export function isLegacyLayout(object) {
+  const version = versionOf(object);
+  return version === null || version < CURRENT_VERSION || LEGACY_SETTINGS_SECTIONS.some((key) => has(object, key));
+}
+
+/** `[String]` as Swift decodes it: every element a string, else nothing. */
+const stringArray = (v) => (Array.isArray(v) && v.every((x) => typeof x === 'string') ? [...v] : null);
+
+/**
+ * What a version 1 config.json said that version 2 moved or dropped (Swift's LegacyConfig), read only
+ * to migrate it: whether Slate files loaded (`loadSlateConfigs`, on unless false), which
+ * (`slateConfigPaths`, null when not written), the shortcuts imported from them earlier
+ * (`importedSlateShortcuts`), whether it had settings sections, and whether they became
+ * settings.json's (`settingsMoved`: there was no settings.json). A field of the wrong type is ignored.
+ */
+export function legacyConfig(object, {settingsFileExists = false} = {}) {
   const general = isObject(object?.general) ? object.general : {};
-  const strings = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : null);
+  const hadSettings = LEGACY_SETTINGS_SECTIONS.some((key) => has(object ?? {}, key));
   return {
-    load: general.loadSlateConfigs !== false,
-    paths: strings(general.slateConfigPaths),
-    imported: strings(general.importedSlateShortcuts) ?? [],
+    loadSlateConfigs: typeof general.loadSlateConfigs === 'boolean' ? general.loadSlateConfigs : true,
+    slateConfigPaths: has(general, 'slateConfigPaths') ? stringArray(general.slateConfigPaths) : null,
+    importedSlateShortcuts: stringArray(general.importedSlateShortcuts) ?? [],
+    settingsMoved: hadSettings && !settingsFileExists,
+    hadSettings,
   };
 }
 
-/** The file a decoding error's coding path points into. */
-function fileOf(error, settingsFromSettingsFile) {
-  const first = Array.isArray(error?.codingPath) ? error.codingPath[0] : undefined;
-  const settingsSection = LEGACY_SECTIONS.includes(first);
-  return settingsSection && settingsFromSettingsFile ? SETTINGS_FILE : CONFIG_FILE;
+/** Version 1's Slate options in the migration's terms: {load, paths, imported}. */
+export function legacySlateOptions(object) {
+  const legacy = legacyConfig(object);
+  return {load: legacy.loadSlateConfigs, paths: legacy.slateConfigPaths, imported: legacy.importedSlateShortcuts};
+}
+
+/** Decodes `object` with config.js, naming `file` in errors (and `renames` coding path heads). */
+function decodeIn(object, file, renames = {}) {
+  try {
+    return decodeConfiguration(object);
+  } catch (e) {
+    const error = inFile(e, file);
+    if (Array.isArray(error.codingPath) && renames[error.codingPath[0]]) error.codingPath = [renames[error.codingPath[0]], ...error.codingPath.slice(1)];
+    throw error;
+  }
+}
+
+/** Keys kept as written (Swift's JSONValue: whole numbers stay exact), through config.js's decoder. */
+function jsonValues(object, keys, file) {
+  const out = {};
+  if (!keys.length) return out;
+  const decoded = decodeIn(Object.fromEntries(keys.map((key) => [`x${key}`, object[key]])), file);
+  for (const key of keys) put(out, key, decoded[`x${key}`]);
+  return out;
 }
 
 /**
  * Reads the two files into one configuration. `configText` null: config.json doesn't exist (all
- * defaults); `settingsText` null: settings.json doesn't exist (a version 1 config.json's settings
- * sections count then, else the defaults). settings.json wins over a version 1 config.json's.
- *
- * Unknown top-level keys are kept for the file they came from: config.json's on the configuration
- * (as before), settings.json's in `settingsExtras`, for encodeConfigurationFiles.
+ * defaults); `settingsText` null: settings.json doesn't exist (a legacy config.json's settings
+ * sections count then, else every setting is at its default). The result is version 2, or later
+ * when a newer Slated wrote either file.
  *
  * Throws SlatedError("invalidConfiguration") with `file` ("config.json" or "settings.json") and
  * `codingPath`.
- * @returns {{configuration: object, settingsExtras: object, legacy: boolean, configObject: object|null,
- *   settingsObject: object|null}}
+ * @returns {{configuration: object, extras: {config: object, settings: object}, legacy: object|null,
+ *   configObject: object|null, settingsObject: object|null}} `legacy` (legacyConfig) when config.json
+ *   needs migrating; `extras` are the unknown keys encodeConfigurationFiles writes back to each file
+ *   (config.json's other unknown keys ride on the configuration)
  */
 export function decodeConfigurationFiles(configText, settingsText = null) {
   const configObject = configText === null || configText === undefined ? null : parseConfigText(configText, CONFIG_FILE);
   const settingsObject = settingsText === null || settingsText === undefined ? null : parseConfigText(settingsText, SETTINGS_FILE);
-  const combined = {};
-  const settingsExtras = {};
-  if (configObject) {
-    for (const key of Object.keys(configObject)) {
-      // config.json's own sections and keys Slated doesn't know; version 1's settings sections below.
-      if (!LEGACY_SECTIONS.includes(key)) put(combined, key, configObject[key]);
-    }
+  const source = configObject ?? {};
+
+  // config.json: its sections and keys this version doesn't know; version 1's settings sections are
+  // read below. An unknown key named like a settings section (`windows`) waits in `extras`.
+  const configPart = {};
+  const configExtraKeys = [];
+  for (const key of Object.keys(source)) {
+    if (LEGACY_SETTINGS_SECTIONS.includes(key)) continue;
+    if (SETTINGS_SECTIONS.includes(key)) configExtraKeys.push(key);
+    else put(configPart, key, source[key]);
   }
-  const settingsSource = settingsObject ?? configObject ?? {};
-  for (const key of LEGACY_SECTIONS) {
-    if (has(settingsSource, key)) put(combined, key, settingsSource[key]);
-  }
+  const fromConfig = decodeIn(configPart, CONFIG_FILE);
+  const extras = {config: jsonValues(source, configExtraKeys, CONFIG_FILE), settings: {}};
+  const legacy = configObject !== null && isLegacyLayout(configObject)
+    ? legacyConfig(configObject, {settingsFileExists: settingsObject !== null})
+    : null;
+
+  // settings.json, or else a legacy config.json's settings sections (`settings` as `windows`).
+  let fromSettings = null;
   if (settingsObject) {
-    // Anything else in settings.json (a newer Slated's sections, a config.json section put there by
-    // hand) stays there as written, read as Swift's JSONValue reads it, through the configuration's
-    // own decoder.
-    const extras = Object.keys(settingsObject).filter((key) => key !== 'version' && !LEGACY_SECTIONS.includes(key));
-    if (extras.length) {
-      let decoded;
-      try {
-        decoded = decodeConfiguration(Object.fromEntries(extras.map((key) => [`x${key}`, settingsObject[key]])));
-      } catch (e) {
-        throw inFile(e, SETTINGS_FILE);
-      }
-      for (const key of extras) put(settingsExtras, key, decoded[`x${key}`]);
+    const settingsPart = {};
+    const settingsExtraKeys = [];
+    for (const key of Object.keys(settingsObject)) {
+      if (SETTINGS_SECTIONS.includes(key) || key === 'version') put(settingsPart, key, settingsObject[key]);
+      else settingsExtraKeys.push(key);
     }
+    fromSettings = decodeIn(settingsPart, SETTINGS_FILE);
+    extras.settings = jsonValues(settingsObject, settingsExtraKeys, SETTINGS_FILE);
+  } else if (legacy?.hadSettings) {
+    const settingsPart = {};
+    for (const key of ['general', 'clipboard', 'automation', 'island']) if (has(source, key)) put(settingsPart, key, source[key]);
+    if (has(source, 'settings')) put(settingsPart, 'windows', source.settings);
+    fromSettings = decodeIn(settingsPart, CONFIG_FILE, {windows: 'settings'});
   }
-  let configuration;
-  try {
-    configuration = decodeConfiguration(combined);
-  } catch (e) {
-    throw inFile(e, fileOf(e, Boolean(settingsObject)));
+
+  const configuration = fromConfig;
+  if (fromSettings) {
+    for (const key of SETTINGS_SECTIONS) configuration[key] = fromSettings[key];
+    // A newer version in settings.json is kept (decoding already made both at least the current one).
+    if (settingsObject && fromSettings.version > configuration.version) configuration.version = fromSettings.version;
   }
-  return {
-    configuration,
-    settingsExtras,
-    legacy: configObject !== null && isLegacyLayout(configObject),
-    configObject,
-    settingsObject,
-  };
+  return {configuration, extras, legacy, configObject, settingsObject};
 }
 
 /**
  * The configuration as the two files' texts, each pretty-printed with sorted keys as Swift writes
- * them, with `version` in both. Unknown top-level keys on the configuration go to config.json,
- * `settingsExtras` to settings.json. Throws SlatedError("invalidConfiguration") for values JSON
- * can't hold.
+ * them, with `version` in both. config.json gets the configuration's unknown keys and
+ * `extras.config`, settings.json `extras.settings`; neither gets a key the other file owns. Throws
+ * SlatedError("invalidConfiguration") for values JSON can't hold.
  * @returns {{config: string, settings: string}}
  */
-export function encodeConfigurationFiles(configuration, settingsExtras = {}) {
+export function encodeConfigurationFiles(configuration, extras = {}) {
   const c = decodeConfiguration(configuration);
   const config = {};
   const settings = {};
   for (const key of Object.keys(c)) {
-    if (key === 'settings') continue;
-    put(SETTINGS_SECTIONS.includes(key) ? settings : config, key, c[key]);
+    if (SETTINGS_SECTIONS.includes(key)) put(settings, key, c[key]);
+    else if (!LEGACY_SETTINGS_SECTIONS.includes(key)) put(config, key, c[key]);
   }
-  for (const key of Object.keys(settingsExtras ?? {})) {
-    if (!has(settings, key) && key !== 'version') put(settings, key, settingsExtras[key]);
+  for (const [key, value] of Object.entries(extras?.config ?? {})) {
+    // Never a settings section of version 1's: the file would read as version 1 again.
+    if (!has(config, key) && !LEGACY_SETTINGS_SECTIONS.includes(key)) put(config, key, value);
+  }
+  for (const [key, value] of Object.entries(extras?.settings ?? {})) {
+    if (!has(settings, key) && key !== 'version') put(settings, key, value);
   }
   settings.version = c.version;
   return {config: formatJSON(config), settings: formatJSON(settings)};

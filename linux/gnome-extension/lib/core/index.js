@@ -84,11 +84,12 @@ export {
 
 // --- The two files (config.json and settings.json) -------------------------------------------------
 /**
- * decodeConfigurationFiles(configText|null, settingsText|null) → {configuration, settingsExtras, legacy,
+ * decodeConfigurationFiles(configText|null, settingsText|null) → {configuration, extras, legacy,
  *   configObject, settingsObject}: both files as one configuration; settings.json wins over version 1's
  *   settings sections in config.json. Errors name the file (`error.file`).
- * encodeConfigurationFiles(configuration, settingsExtras) → {config, settings}: the two files' texts.
- * isLegacyLayout(parsed config.json) → version 1's single file, to migrate; legacySlateOptions(parsed)
+ * encodeConfigurationFiles(configuration, extras) → {config, settings}: the two files' texts.
+ * isLegacyLayout(parsed config.json) → version 1's single file, to migrate; legacyConfig(parsed) → what it
+ *   said about Slate files (Swift's LegacyConfig, the `legacy` decodeConfigurationFiles returns); legacySlateOptions(parsed)
  *   → {load, paths, imported}, version 1's Slate loading options. parseConfigText(text, file) → object.
  * CONFIG_SECTIONS, SETTINGS_SECTIONS: which sections each file holds; CONFIG_FILE, SETTINGS_FILE, BACKUP_FILE.
  */
@@ -97,6 +98,8 @@ export {
   encodeConfigurationFiles,
   isLegacyLayout,
   legacySlateOptions,
+  legacyConfig,
+  LEGACY_SETTINGS_SECTIONS,
   parseConfigText,
   CONFIG_SECTIONS,
   SETTINGS_SECTIONS,

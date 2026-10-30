@@ -75,6 +75,43 @@ function checkError(label, error, expected) {
   }
 }
 
+/**
+ * One config-files vector: decodeConfigurationFiles on config.json `input` and settings.json
+ * `settingsInput` (missing: none), then both files as encodeConfigurationFiles writes them, compared
+ * with Swift's texts; `legacy` (what a version 1 file said), or the error and the file it names.
+ */
+function checkConfigFiles(c) {
+  countCheck();
+  const label = c.name;
+  const decoded = attempt(() => core.decodeConfigurationFiles(c.input, c.settingsInput ?? null));
+  if (c.error) {
+    if (decoded.error === undefined) return fail(`${label}: expected error ${show(c.error.message)}`);
+    checkError(label, decoded.error, c.error);
+    if (c.errorFile !== undefined && decoded.error.file !== c.errorFile) {
+      fail(`${label}: the error names ${show(decoded.error.file)}, expected ${show(c.errorFile)}`);
+    }
+    return;
+  }
+  if (decoded.error) return fail(`${label}: unexpected error ${decoded.error.message} at ${show(decoded.error.codingPath)} in ${decoded.error.file}`);
+  const {configuration, extras, legacy} = decoded.value;
+  expectEqual(legacy, c.legacy, `${label} (legacy)`);
+  const encoded = attempt(() => core.encodeConfigurationFiles(configuration, extras));
+  if (c.encodeError) {
+    expect(encoded.error instanceof SlatedError, `${label}: expected encoding to fail, got ${show(encoded.value)}`);
+    return;
+  }
+  if (encoded.error) return fail(`${label}: encoding failed: ${encoded.error.message}`);
+  const known = `${c.input}${c.settingsInput ?? ''}`.toUpperCase();
+  const mask = (text) => text.replace(UUID, (u) => (known.includes(u) ? u : 'RANDOM-UUID'));
+  expectEqual(mask(encoded.value.config), c.config, `${label} (config.json)`);
+  expectEqual(mask(encoded.value.settings), c.settings, `${label} (settings.json)`);
+  // Writing what was read back gives the same texts again, and, where Swift's does, the same configuration.
+  const again = attempt(() => core.decodeConfigurationFiles(encoded.value.config, encoded.value.settings));
+  if (again.error) return fail(`${label}: reading the written files failed: ${again.error.message}`);
+  expectEqual(core.encodeConfigurationFiles(again.value.configuration, again.value.extras), encoded.value, `${label} (re-encoded)`);
+  if (c.roundTrips === true) expectEqual(again.value.configuration, configuration, `${label} (round trip)`);
+}
+
 const ulp = (x) => (x === 0 ? Number.MIN_VALUE : 2 ** (Math.floor(Math.log2(Math.abs(x))) - 52));
 
 /** Exact equality, or within 4 ulps when the fixture marks a libm-dependent result. */
@@ -371,35 +408,10 @@ export const checkers = {
 
   'config.json': (data) => ({
     decode() {
-      for (const c of data.decode) {
-        countCheck();
-        const label = c.name;
-        const decoded = attempt(() => core.decodeConfiguration(c.input));
-        if (c.error) {
-          if (decoded.error === undefined) fail(`${label}: expected error ${show(c.error.message)}`);
-          else checkError(label, decoded.error, c.error);
-          continue;
-        }
-        if (decoded.error) {
-          fail(`${label}: unexpected error ${decoded.error.message} at ${show(decoded.error.codingPath)}`);
-          continue;
-        }
-        const encoded = attempt(() => core.encodeConfiguration(decoded.value));
-        if (c.encodeError) {
-          expect(encoded.error instanceof SlatedError, `${label}: expected encoding to fail, got ${show(encoded.value)}`);
-          continue;
-        }
-        if (encoded.error) {
-          fail(`${label}: encoding failed: ${encoded.error.message}`);
-          continue;
-        }
-        const known = c.input.toUpperCase();
-        const masked = encoded.value.replace(UUID, (u) => (known.includes(u) ? u : 'RANDOM-UUID'));
-        expectEqual(masked, c.encoded, `${label} (encoded text)`);
-        // Writing what was read back gives the same text again.
-        const again = attempt(() => core.encodeConfiguration(core.decodeConfiguration(encoded.value)));
-        expectEqual(again.value ?? again.error?.message, encoded.value, `${label} (re-encoded)`);
-      }
+      for (const c of data.decode) checkConfigFiles(c);
+    },
+    files() {
+      for (const c of data.files) checkConfigFiles(c);
     },
   }),
 
@@ -407,8 +419,9 @@ export const checkers = {
     bindings() {
       countCheck();
       const starter = core.starterConfiguration();
-      const encoded = core.encodeConfiguration(starter).replace(UUID, 'RANDOM-UUID');
-      expectEqual(encoded, data.encoded, 'starter configuration (encoded text)');
+      const files = core.encodeConfigurationFiles(starter);
+      expectEqual(files.config.replace(UUID, 'RANDOM-UUID'), data.encoded, 'starter configuration (config.json)');
+      expectEqual(files.settings, data.encodedSettings, 'starter configuration (settings.json)');
       expectEqual(new Set(starter.bindings.map((b) => b.id)).size, 21, 'distinct random ids');
       for (const [i, b] of data.bindings.entries()) {
         countCheck();
