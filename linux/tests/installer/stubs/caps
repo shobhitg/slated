@@ -1,0 +1,11 @@
+#!/bin/bash
+# Stand-in for setcap and getcap, for linux/tests/installer/run.sh: records the call, and getcap
+# reports the capability once setcap gave it.
+echo "$(basename "$0") $*" >>"$STUB_LOG"
+state="$STUB_SYSROOT/state"
+mkdir -p "$state"
+if [ "$(basename "$0")" = setcap ]; then
+  touch "$state/cap"
+elif [ -e "$state/cap" ]; then
+  echo "${*: -1} cap_dac_override=p"
+fi

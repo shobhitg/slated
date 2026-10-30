@@ -1,0 +1,20 @@
+#!/bin/bash
+# Stand-in for curl and wget, for linux/tests/installer/run.sh: records the URL and "downloads" the
+# file of that name from $STUB_DOWNLOADS. STUB_DOWNLOAD_FAILS=1 plays being offline.
+name="$(basename "$0")"
+out=""
+url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o | -O) out="$2"; shift ;;
+    http*) url="$1" ;;
+  esac
+  shift
+done
+echo "$name $url" >>"$STUB_LOG"
+if [ "${STUB_DOWNLOAD_FAILS:-0}" = 1 ]; then
+  echo "$name: (6) Could not resolve host: github.com" >&2
+  exit 6
+fi
+[ -f "$STUB_DOWNLOADS/$(basename "$url")" ] || { echo "$name: (22) The requested URL returned error: 404" >&2; exit 22; }
+cp "$STUB_DOWNLOADS/$(basename "$url")" "$out"

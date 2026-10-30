@@ -1,0 +1,6 @@
+#!/bin/bash
+# Stand-in for uname, for linux/tests/installer/run.sh: Linux, on $STUB_ARCH (x86_64 unless set).
+case "${1:-}" in
+  -m) echo "${STUB_ARCH:-x86_64}" ;;
+  *) echo Linux ;;
+esac

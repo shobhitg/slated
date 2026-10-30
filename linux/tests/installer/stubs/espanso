@@ -1,0 +1,17 @@
+#!/bin/bash
+# Stand-in for espanso, for linux/tests/installer/run.sh: `status` succeeds once `start` ran;
+# STUB_ESPANSO_START_FAILS=1 makes `start` fail.
+echo "espanso $*" >>"$STUB_LOG"
+state="$STUB_SYSROOT/state"
+mkdir -p "$state"
+case "$*" in
+  status)
+    if [ -e "$state/espanso.running" ]; then echo "espanso is running"; else echo "espanso is not running"; exit 1; fi
+    ;;
+  start)
+    [ "${STUB_ESPANSO_START_FAILS:-0}" = 1 ] && exit 1
+    touch "$state/espanso.running"
+    ;;
+  --version) echo "espanso 2.4.1" ;;
+esac
+exit 0

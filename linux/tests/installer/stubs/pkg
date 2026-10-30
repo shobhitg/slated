@@ -1,0 +1,47 @@
+#!/bin/bash
+# Stand-in for apt-get, apt-cache, dnf, pacman and zypper, for linux/tests/installer/run.sh: records
+# the call, and "installs" a package by linking a stand-in for its command into $STUB_SYSROOT/bin.
+# Every package exists except those in $STUB_NO_PKG; STUB_PKG_FAILS=1 makes installs fail.
+name="$(basename "$0")"
+echo "$name $*" >>"$STUB_LOG"
+stubs="$STUB_DIR"
+available() { [[ " ${STUB_NO_PKG:-} " != *" $1 "* ]]; }
+query=""
+install=0
+case "$name" in
+  apt-cache)
+    if [ "$1" = policy ]; then
+      if available "$2"; then echo "  Candidate: 1.0-1"; else echo "  Candidate: (none)"; fi
+    fi
+    exit 0
+    ;;
+  apt-get | dnf | zypper) for a in "$@"; do [ "$a" = install ] && install=1; done ;;
+  pacman) [ "$1" = -Si ] && query="$2" || install=1 ;;
+esac
+case "$name" in
+  dnf) [[ " $* " == *" info "* ]] && query="${*: -1}" ;;
+  zypper) [[ " $* " == *" search "* ]] && query="${*: -1}" ;;
+esac
+if [ -n "$query" ]; then
+  available "$query" || { echo "No matching packages" >&2; exit 104; }
+  exit 0
+fi
+[ "$install" = 1 ] || exit 0
+[ "${STUB_PKG_FAILS:-0}" = 1 ] && { echo "E: Unable to fetch some archives" >&2; exit 100; }
+bin="$STUB_SYSROOT/bin"
+mkdir -p "$bin"
+for a in "$@"; do
+  case "$a" in
+    -* | install) ;;
+    *.deb) ln -sf "$stubs/espanso" "$bin/espanso" ;;
+    *)
+      available "$a" || { echo "E: Unable to locate package $a" >&2; exit 100; }
+      case "$a" in
+        keyd) ln -sf "$stubs/record" "$bin/keyd" ;;
+        gcc) ln -sf "$stubs/record" "$bin/gcc" ;;
+        make) ln -sf "$stubs/make" "$bin/make" ;;
+        curl) ln -sf "$stubs/curl" "$bin/curl" ;;
+      esac
+      ;;
+  esac
+done

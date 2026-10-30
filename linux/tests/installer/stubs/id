@@ -1,0 +1,7 @@
+#!/bin/bash
+# Stand-in for id, for linux/tests/installer/run.sh: `id -u` is $STUB_UID when set (0 plays root).
+if [ "${1:-}" = -u ] && [ -n "${STUB_UID:-}" ]; then
+  echo "$STUB_UID"
+  exit 0
+fi
+exec /usr/bin/id "$@"
