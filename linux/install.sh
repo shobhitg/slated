@@ -3,10 +3,10 @@
 # counterpart of ./install.sh on macOS. Run it again whenever you like (after a git pull, say): each
 # run changes only what's missing or out of date.
 #
-#   1. Looks first, changing nothing: the desktop (Slated's extension needs GNOME Shell 46-51), X11
-#      or Wayland, and the package manager (apt, dnf, pacman or zypper).
+#   1. Looks first, changing nothing: GNOME Shell 46-51 (anything else stops here, saying what it
+#      found), X11 or Wayland, and the package manager (apt, dnf, pacman or zypper).
 #   2. Slated's GNOME Shell extension: packs it with build-info.json (version, commit, date), installs
-#      and enables it. On another desktop it says what needs GNOME and skips this step.
+#      and enables it.
 #   3. The Hyper key, when Slated's config wants Caps Lock as Hyper (the default): installs keyd (the
 #      distribution's package, or a pinned release built from source), writes /etc/keyd/slated.conf
 #      from Slated's config and starts keyd.
@@ -14,8 +14,8 @@
 #      for X11 or Wayland) and starts it.
 #   5. Sums up, and offers to log out: GNOME Shell starts a new or updated extension at login.
 #
-# Steps 3 and 4 work on any desktop. They use sudo, which asks for your password, only when there's
-# something to install or change; nothing else runs as root.
+# Steps 3 and 4 use sudo, which asks for your password, only when there's something to install or
+# change; nothing else runs as root.
 #
 # Usage:
 #   linux/install.sh                    all of the above
@@ -149,10 +149,16 @@ for tool in apt-get dnf pacman zypper; do
 done
 SESSION="${XDG_SESSION_TYPE:-}"
 DESKTOP="${XDG_CURRENT_DESKTOP:-}"
-# espanso has separate X11 and Wayland builds. GNOME 49 and later are Wayland only, and without a
-# session type (over ssh) Wayland is the likelier: every supported distribution defaults to it.
+# espanso has separate X11 and Wayland builds, for the session you log in to. Run from elsewhere (ssh),
+# logind knows your graphical session's type; failing that, Wayland: GNOME's default everywhere, and
+# its only session from GNOME 49 on.
+GRAPHICAL="$SESSION"
+if [ "$GRAPHICAL" != x11 ] && [ "$GRAPHICAL" != wayland ] && have loginctl; then
+  GRAPHICAL="$(loginctl show-session "$(loginctl show-user "$(id -un)" -p Display --value 2>/dev/null)" \
+    -p Type --value 2>/dev/null || true)"
+fi
 ESPANSO_FLAVOR="wayland"
-[ "$SESSION" = x11 ] && ESPANSO_FLAVOR="x11"
+[ "$GRAPHICAL" = x11 ] && ESPANSO_FLAVOR="x11"
 session_label() {
   case "$SESSION" in
     x11) echo "Xorg" ;;
@@ -580,8 +586,6 @@ EOF
 GNOME_MAJOR=""
 MIN_GNOME=""
 MAX_GNOME=""
-EXTENSION_SKIP=""  # why Slated's extension can't run here, or nothing
-EXTENSION_FOUND="" # what was found instead, for the summary
 
 preflight() {
   bold "Looking at this system"
@@ -594,30 +598,31 @@ print(" ".join(str(v) for v in json.load(open(sys.argv[1])).get("shell-version",
   MIN_GNOME="$(tr ' ' '\n' <<<"$versions" | grep -E '^[0-9]+$' | sort -n | head -n 1)"
   MAX_GNOME="$(tr ' ' '\n' <<<"$versions" | grep -E '^[0-9]+$' | sort -n | tail -n 1)"
   GNOME_MAJOR="$(shell_major)"
-  ok "$DISTRO_PRETTY · desktop ${DESKTOP:-unknown (XDG_CURRENT_DESKTOP is empty)} · $(session_label) · packages: ${PM:-no apt, dnf, pacman or zypper}"
+  local needs="Slated needs GNOME $MIN_GNOME or newer (up to $MAX_GNOME): Ubuntu 24.04, Fedora 40, Debian 13 or later, or Arch."
   if [ -z "$GNOME_MAJOR" ]; then
     if [ -n "$DESKTOP" ] && ! in_gnome_session; then
-      EXTENSION_SKIP="This desktop is $DESKTOP (XDG_CURRENT_DESKTOP), not GNOME, and GNOME Shell isn't installed."
-      EXTENSION_FOUND="this is $DESKTOP"
-    else
-      EXTENSION_SKIP="GNOME Shell isn't installed."
-      EXTENSION_FOUND="no GNOME Shell"
+      die "This desktop is $DESKTOP (XDG_CURRENT_DESKTOP), not GNOME, and GNOME Shell isn't installed. $needs Nothing was changed."
     fi
-  elif [[ "$versions" != *" $GNOME_MAJOR "* ]]; then
-    EXTENSION_FOUND="this is GNOME $GNOME_MAJOR"
-    if [ "$GNOME_MAJOR" -lt "$MIN_GNOME" ]; then
-      EXTENSION_SKIP="This is GNOME $GNOME_MAJOR ($DISTRO_PRETTY, desktop ${DESKTOP:-unknown}). Slated's extension needs GNOME $MIN_GNOME or newer, as in Ubuntu 24.04, Fedora 40, Debian 13 and Arch. GNOME comes with the system, so it takes a newer release of $DISTRO."
-    else
-      EXTENSION_SKIP="This is GNOME $GNOME_MAJOR, newer than this Slated supports (${MIN_GNOME}–${MAX_GNOME}). Update Slated (git pull), then run linux/install.sh again."
-    fi
-  elif [ -n "$DESKTOP" ] && ! in_gnome_session; then
-    note "GNOME $GNOME_MAJOR is installed, but this session is $DESKTOP: Slated runs when you log in to GNOME."
+    die "GNOME Shell isn't installed (no gnome-shell command). $needs Nothing was changed."
   fi
+  if [[ "$versions" != *" $GNOME_MAJOR "* ]]; then
+    if [ "$GNOME_MAJOR" -lt "$MIN_GNOME" ]; then
+      die "This is GNOME $GNOME_MAJOR ($DISTRO_PRETTY). $needs GNOME comes with the system, so it takes a newer release of $DISTRO. Nothing was changed."
+    fi
+    die "This is GNOME $GNOME_MAJOR, newer than this Slated supports (${MIN_GNOME}–${MAX_GNOME}). Update Slated (git pull), then run linux/install.sh again. Nothing was changed."
+  fi
+  # keyd and espanso are set up for the session you're in (espanso has X11 and Wayland builds), so
+  # this has to be the GNOME session. Over ssh there's no desktop to go by.
+  if [ -n "$DESKTOP" ] && ! in_gnome_session; then
+    die "This session is $DESKTOP (XDG_CURRENT_DESKTOP), not GNOME. GNOME $GNOME_MAJOR is installed: log in to a GNOME session and run linux/install.sh there. Nothing was changed."
+  fi
+  have gnome-extensions || die "gnome-extensions is missing. It comes with GNOME Shell: reinstall your distribution's gnome-shell package, then run linux/install.sh again. Nothing was changed."
+  ok "GNOME $GNOME_MAJOR ($(session_label)) on $DISTRO_PRETTY · packages: ${PM:-no apt, dnf, pacman or zypper}"
 }
 
 # --- 2. Slated's GNOME Shell extension -------------------------------------------------------------------
 
-EXTENSION_STATE="" # installed, current (already installed), skipped or failed
+EXTENSION_STATE="" # installed, current (already installed) or failed
 
 # Whether the installed extension is exactly the one just packed (build-info.json aside from its date).
 same_as_installed() {
@@ -659,18 +664,6 @@ enable_extension() {
 
 extension_step() {
   bold "Slated's GNOME Shell extension"
-  if [ -n "$EXTENSION_SKIP" ]; then
-    EXTENSION_STATE=skipped
-    note "$EXTENSION_SKIP"
-    note "Window management, the clipboard picker and the island need GNOME ${MIN_GNOME}–${MAX_GNOME} for now, so Slated's extension isn't installed. The Hyper key (keyd) and hotstrings (espanso) work on any desktop: those are next."
-    RESULTS+=("skip|Slated's extension: skipped, it needs GNOME ${MIN_GNOME}–${MAX_GNOME} ($EXTENSION_FOUND)")
-    return 0
-  fi
-  if ! have gnome-extensions; then
-    EXTENSION_STATE=failed
-    result fail "Slated's extension: gnome-extensions is missing. It comes with GNOME Shell: reinstall your distribution's gnome-shell package, then run linux/install.sh again"
-    return 0
-  fi
   pack
   if same_as_installed; then
     EXTENSION_STATE=current
@@ -820,9 +813,7 @@ keyd_wanted() { [ "$NO_KEYD" = 0 ] && config_wants_hyper; }
 keyd_step() {
   bold "The Hyper key"
   if [ "$NO_KEYD" = 1 ]; then
-    local fallback=""
-    [ "$EXTENSION_STATE" = skipped ] || fallback="; Slated uses GNOME's own Caps Lock option"
-    result skip "Hyper key: keyd skipped (--no-keyd)$fallback"
+    result skip "Hyper key: keyd skipped (--no-keyd); Slated uses GNOME's own Caps Lock option"
   elif ! config_wants_hyper; then
     result skip "Hyper key: skipped, Caps Lock as Hyper is off in Slated's settings"
   else
@@ -961,9 +952,6 @@ espanso_step() {
   else
     result skip "espanso: already installed and running"
   fi
-  if [ "$EXTENSION_STATE" = skipped ]; then
-    note "Slated's hotstrings reach espanso through its GNOME extension. Here, add yours to espanso's own match files (~/.config/espanso/match/) for now."
-  fi
 }
 
 # --- 5. Summary and the one thing left ---------------------------------------------------------------------
@@ -989,16 +977,7 @@ next_step() {
     echo "  Slated is running. Settings: gnome-extensions prefs $UUID"
     return 0
   fi
-  if [ "$EXTENSION_STATE" = skipped ]; then
-    echo "  Done; there's nothing to log out for. Window management needs GNOME ${MIN_GNOME}–${MAX_GNOME}: in a GNOME"
-    echo "  session, run linux/install.sh again to add it."
-    return 0
-  fi
   [ "$EXTENSION_STATE" = failed ] && return 0
-  if [ -n "$DESKTOP" ] && ! in_gnome_session; then
-    echo "  Last step: log out, choose GNOME at the login screen and log in. Slated starts with GNOME Shell."
-    return 0
-  fi
   if [ "$SESSION" = x11 ] && [ -n "$GNOME_MAJOR" ] && [ "$GNOME_MAJOR" -le 48 ]; then
     echo "  Last step: restart GNOME Shell, which keeps your windows open: press Alt+F2, type r, press Enter."
     echo "  Or log out and back in. Then linux/install.sh --verify confirms Slated is running."
@@ -1006,7 +985,7 @@ next_step() {
     echo "  Last step: log out and back in. GNOME Shell starts Slated when you log in;"
     echo "  then linux/install.sh --verify confirms it's running."
   fi
-  if { [ "$SESSION" = x11 ] || [ "$SESSION" = wayland ]; } && in_gnome_session && have gnome-session-quit \
+  if { [ "$SESSION" = x11 ] || [ "$SESSION" = wayland ]; } && have gnome-session-quit \
     && ask "Log out now to start Slated?"; then
     # GNOME still asks about apps with unsaved work.
     gnome-session-quit --logout --no-prompt

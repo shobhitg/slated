@@ -360,7 +360,7 @@ SHELL_ONLY="$WORK/shell-only-bin"
 mkdir -p "$SHELL_ONLY"
 ln -s "$STUBS/gnome-shell" "$SHELL_ONLY/gnome-shell"
 out="$(install_sh "$SHELL_ONLY" "${EXT_ONLY[@]}")"
-check "GNOME Shell without gnome-extensions: says it comes with GNOME Shell" contains "$out" "gnome-extensions is missing. It comes with GNOME Shell"
+check "GNOME Shell without gnome-extensions: stops, saying it comes with GNOME Shell" contains "$out" "gnome-extensions is missing. It comes with GNOME Shell"
 
 
 # 8. One command does everything: Ubuntu 24.04 on Wayland, fresh. Ubuntu 24.04 has no keyd package, so
@@ -373,7 +373,7 @@ out="$(ubuntu)"
 status=$?
 c="$(calls)"
 check "Ubuntu 24.04, Wayland: one command succeeds" test "$status" -eq 0
-check "...names what it found" contains "$out" "Ubuntu 24.04.3 LTS · desktop ubuntu:GNOME · Wayland · packages: apt"
+check "...names what it found" contains "$out" "GNOME 47 (Wayland) on Ubuntu 24.04.3 LTS · packages: apt"
 check "...installs the extension" test -f "$INSTALLED/extension.js"
 check "...says once, before the first sudo, what the password is for" contains "$out" "sudo asks for your password to install keyd, set up keyd ($SLATED_KEYD_CONF) and install espanso. Nothing else runs as root."
 check "...and only once" test "$(grep -c "sudo asks for your password" <<<"$out")" = 1
@@ -431,6 +431,10 @@ check "...and no setcap (that's for Wayland)" lacks "$c" "setcap"
 check "...keyd built from source (Ubuntu 24.04, its base, has no package)" contains "$c" "--branch v2.6.0"
 check "...then says GNOME Shell can restart in place" contains "$out" "press Alt+F2, type r, press Enter"
 check "...and offers to log out instead" contains "$out" "Log out now to start Slated? [y/N]"
+check "...after naming what it found" contains "$out" "GNOME 46 (Xorg) on Pop!_OS 24.04 LTS · packages: apt"
+: >"$STUB_LOG"
+out="$(pop_xorg)"
+check "...and a re-run there changes nothing" bash -c '! grep -qE "^(sudo|apt-get|curl|setcap)" "$1" && grep -q "espanso: already installed and running" <<<"$2"' _ "$STUB_LOG" "$out"
 
 # 12. Fedora on Wayland: keyd from source with dnf's build tools; espanso has no package there.
 reset_system
@@ -517,33 +521,38 @@ reset_system
 out="$(STUB_ARCH=aarch64 install_sh "$GE_BIN:$APT_BIN" --no-keyd)"
 check "espanso on ARM: no release, said plainly" contains "$out" "there's no espanso release for aarch64"
 
-# 17. Other desktops: no extension, but keyd and espanso, which work everywhere.
+# 17. Slated is for GNOME 46 and later: anywhere else the installer stops before changing anything,
+# saying what it found.
 "$STUBS/gnome-extensions" uninstall "$UUID" 2>/dev/null
+untouched() {  # nothing installed or run as root, and no extension
+  ! grep -qE "^(sudo|apt-get|curl|git -c|gnome-extensions)" "$STUB_LOG" && test ! -e "$INSTALLED" -a ! -e "$SLATED_KEYD_CONF"
+}
 reset_system
-out="$(SLATED_OS_RELEASE="$OS/pop-24.04" XDG_CURRENT_DESKTOP=COSMIC XDG_SESSION_TYPE=wayland SLATED_ESPANSO_SHA256="$SHA_WAYLAND" install_sh "$APT_BIN")"
+out="$(SLATED_OS_RELEASE="$OS/pop-24.04" XDG_CURRENT_DESKTOP=COSMIC XDG_SESSION_TYPE=wayland install_sh "$APT_BIN")"
 status=$?
-c="$(calls)"
-check "COSMIC: succeeds" test "$status" -eq 0
-check "...and says there's nothing to log out for" contains "$out" "Done; there's nothing to log out for."
-check "...naming the desktop" contains "$out" "This desktop is COSMIC (XDG_CURRENT_DESKTOP), not GNOME, and GNOME Shell isn't installed."
-check "...and what needs GNOME" contains "$out" "Window management, the clipboard picker and the island need GNOME 46–49 for now"
-check "...without installing the extension" bash -c 'test ! -e "$1" && ! grep -q gnome-extensions "$2"' _ "$INSTALLED" "$STUB_LOG"
-check "...but with keyd and espanso" bash -c 'test -f "$1" && grep -qx "espanso start" "$2"' _ "$SLATED_KEYD_CONF" "$STUB_LOG"
-check "...says hotstrings go into espanso's own files there" contains "$out" "add yours to espanso's own"
-check "...and asks no logout" lacks "$out" "Last step"
+check "COSMIC: stops" test "$status" -eq 1
+check "...naming the desktop and what Slated needs" contains "$out" "This desktop is COSMIC (XDG_CURRENT_DESKTOP), not GNOME, and GNOME Shell isn't installed. Slated needs GNOME 46 or newer"
+check "...before changing anything" untouched
 reset_system
-out="$(SLATED_OS_RELEASE="$OS/pop-22.04" STUB_SHELL_VERSION=42.9 XDG_CURRENT_DESKTOP=pop:GNOME XDG_SESSION_TYPE=x11 SLATED_ESPANSO_SHA256="$SHA_X11" install_sh "$GE_BIN:$APT_BIN")"
+out="$(SLATED_OS_RELEASE="$OS/pop-22.04" STUB_SHELL_VERSION=42.9 XDG_CURRENT_DESKTOP=pop:GNOME XDG_SESSION_TYPE=x11 install_sh "$GE_BIN:$APT_BIN")"
 status=$?
-check "GNOME 42 (Pop!_OS 22.04): succeeds without the extension" bash -c 'test "$1" -eq 0 && test ! -e "$2"' _ "$status" "$INSTALLED"
-check "...saying which GNOME and what's needed" contains "$out" "This is GNOME 42 (Pop!_OS 22.04 LTS, desktop pop:GNOME). Slated's extension needs GNOME 46 or newer"
-check "...in the summary too" contains "$out" "Slated's extension: skipped, it needs GNOME 46–49 (this is GNOME 42)"
-check "...still sets up keyd and espanso" bash -c 'test -f "$1" && grep -q "espanso-debian-x11" "$2"' _ "$SLATED_KEYD_CONF" "$STUB_LOG"
+check "GNOME 42 (Pop!_OS 22.04): stops" test "$status" -eq 1
+check "...naming the version and what Slated needs" contains "$out" "This is GNOME 42 (Pop!_OS 22.04 LTS). Slated needs GNOME 46 or newer (up to 49): Ubuntu 24.04, Fedora 40, Debian 13 or later, or Arch."
+check "...before changing anything" untouched
 reset_system
-out="$(STUB_SHELL_VERSION=50.1 install_sh "$GE_BIN:$KEYD_BIN" --no-espanso)"
-check "a GNOME newer than the extension knows: says to update Slated" contains "$out" "This is GNOME 50, newer than this Slated supports (46–49). Update Slated (git pull)"
+out="$(STUB_SHELL_VERSION=50.1 install_sh "$GE_BIN:$KEYD_BIN")"
+status=$?
+check "a GNOME newer than this Slated knows: stops, saying to update Slated" bash -c 'test "$1" -eq 1 && grep -q "This is GNOME 50, newer than this Slated supports (46–49). Update Slated (git pull)" <<<"$2"' _ "$status" "$out"
+check "...before changing anything" untouched
 reset_system
-out="$(XDG_CURRENT_DESKTOP=KDE install_sh "$GE_BIN:$KEYD_BIN" --no-espanso)"
-check "GNOME installed but a KDE session: installs, and says Slated runs in GNOME" bash -c 'test -f "$1" && grep -q "this session is KDE: Slated runs when you log in to GNOME" <<<"$2" && grep -q "choose GNOME at the login screen" <<<"$2"' _ "$INSTALLED/extension.js" "$out"
+out="$(XDG_CURRENT_DESKTOP=KDE install_sh "$GE_BIN:$KEYD_BIN:$APT_BIN")"
+status=$?
+check "GNOME installed but a KDE session: stops, saying to run it from GNOME" bash -c 'test "$1" -eq 1 && grep -q "This session is KDE (XDG_CURRENT_DESKTOP), not GNOME. GNOME 47 is installed: log in to a GNOME session and run linux/install.sh there." <<<"$2"' _ "$status" "$out"
+check "...before changing anything" untouched
+reset_system
+out="$(XDG_CURRENT_DESKTOP= install_sh "$KEYD_BIN:$APT_BIN")"
+check "no GNOME Shell and no desktop (ssh): says GNOME Shell isn't installed" contains "$out" "GNOME Shell isn't installed (no gnome-shell command). Slated needs GNOME 46 or newer"
+
 if [ "$failed" -gt 0 ]; then
   echo
   echo "Calls the stand-ins saw:"
