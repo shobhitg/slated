@@ -104,7 +104,8 @@ on the Mac. The installer:
 - **Checks first** for GNOME 46–51, and finds your session (X11 or Wayland) and package manager
   (apt, dnf, pacman or zypper). On another desktop or GNOME version it stops before changing
   anything and says what it found.
-- **Installs and enables** Slated's GNOME Shell extension.
+- **Installs and enables** Slated's GNOME Shell extension (turning on GNOME's Extensions switch if
+  it's off, after asking), and puts Slated in your apps.
 - **Installs keyd** from your distribution's packages, or builds a pinned release from source where
   there's no package (Ubuntu 24.04, Fedora). It makes Caps Lock the Hyper key, as on the Mac.
 - **Installs espanso** for hotstrings: a pinned release checked against its checksum, for your
@@ -115,11 +116,15 @@ on the Mac. The installer:
 
 sudo asks for your password once, to install keyd and espanso.
 
+After you log back in, Slated opens on Get Started. Later, find Slated in your apps or click its icon
+in the top bar.
+
 | | |
 |---|---|
 | `linux/install.sh --yes` | Ask nothing (for scripts) |
 | `linux/install.sh --no-keyd`, `--no-espanso` | Leave keyd or espanso out |
-| `linux/install.sh --uninstall` | Remove the extension, keeping config and logs (`--purge` removes those too) |
+| `linux/install.sh --verify` | Check that GNOME runs Slated, and say what to fix if it doesn't |
+| `linux/install.sh --uninstall` | Remove the extension and its app entry, keeping config and logs (`--purge` removes those too) |
 
 [docs/LINUX.md](docs/LINUX.md) covers the Hyper key and hotstrings on GNOME, how Slated differs from
 the Mac, and troubleshooting.

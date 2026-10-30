@@ -381,3 +381,33 @@ Mac in the README, on any distribution that has GNOME 46 or later.
   keyd's config is written only when it changed, and nothing runs as root when nothing needs to.
 - **Uninstall leaves keyd and espanso installed** (other things may use them) and says so.
 - **The Mac's `./install.sh`** was already one command; it's unchanged.
+
+## Opening Slated on GNOME (2026-10-30): decisions
+
+The Mac's way in (a Dock app, a menu bar icon, Get Started at launch) on GNOME, where Slated is an
+extension with no app of its own.
+
+- **A top-bar icon** (`lib/platform/statusIcon.js`): Slated's tiles as a symbolic icon. A click opens
+  the settings window, or brings an open one forward (GNOME's preferences service won't do that
+  itself); a right click or Ctrl+click shows the Mac's menu under the Mac's names, minus Grant
+  Accessibility Access, Import Slate Config and Quit. Pause bars while paused, an exclamation mark
+  for warnings (a file that can't be read, shortcuts GNOME refused).
+- **`general.showStatusIcon`** (default on) in the shared settings, Swift included, pinned by the
+  fixtures. *Open:* should the Mac's menu bar icon follow it, with a switch in the Mac's General?
+  *Assumption:* no for now; the Mac keeps its icon.
+- **Pause Slated on GNOME** lets go of shortcuts, Caps Lock's GNOME option and espanso's match file,
+  as on the Mac. It survives a screen lock (GNOME disables extensions while locked), not a login.
+  keyd keeps mapping Caps Lock while paused: it's a system service.
+- **Caps Lock → Hyper Key** in the menu writes `config.json` the way the settings window saves it.
+- **Get Started at login:** 3 s after GNOME Shell starts Slated, until it's finished, once per GNOME
+  Shell session (closing it isn't undone by unlocking the screen; the next login opens it again).
+- **An app entry** (`io.github.shobhitg.Slated.desktop`, `Exec=gnome-extensions prefs <uuid>`) from the
+  installer, not the extension: an extensions.gnome.org install has no app entry, only the top bar.
+  The window it opens belongs to GNOME's preferences process, so the dash may group it under
+  Extensions rather than Slated.
+- **GNOME's Extensions switch:** the installer asks to turn it on (yes by default, `--yes` turns it
+  on), since that starts every extension you had enabled. Settings offers **Turn On Extensions**
+  (the UserExtensionsEnabled property, as the Extensions app sets it).
+- **Settings never shows a bare "Waiting":** each status row names what's missing and offers the fix.
+  Whether espanso runs comes from `espanso status`, asked by the settings window while it's open;
+  whether keyd runs comes from the extension (`status.json`'s `hyper.keyd`).

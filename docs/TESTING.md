@@ -364,13 +364,25 @@ distributions, package managers and services.
 
 **Fresh Ubuntu 24.04 (GNOME 46, Wayland)**
 - [ ] `linux/install.sh` with nothing else installed: one line says what sudo is for, sudo asks for
-      the password once, and the run ends with a summary of three ✔ and "Last step: log out and back
-      in". apt installs gcc, make and libc6-dev; keyd v2.6.0 builds from source (`keyd --version`
+      the password once, and the run ends with a summary of four ✔ (the extension, Slated in your
+      apps, keyd, espanso), "Last step: log out and back in" and "Find Slated in your apps or click
+      its icon in the top bar". apt installs gcc, make and libc6-dev; keyd v2.6.0 builds from source (`keyd --version`
       says 2.6.0); `systemctl status keyd` is active; espanso's Wayland package is installed
       (`getcap $(which espanso)` shows `cap_dac_override`) and `espanso status` says it's running.
 - [ ] Answering y to "Log out now to start Slated?" logs out (GNOME asks about unsaved work first).
-      After logging in, `linux/install.sh --verify` reports the build, Caps Lock+A records ✦A in
-      Settings → Keyboard, which says keyd, and a hotstring expands in gedit.
+      After logging in, the settings window opens on Get Started within a few seconds, Slated's icon
+      is in the top bar, and `linux/install.sh --verify` says "GNOME Shell runs Slated (Enabled: Yes,
+      State: ACTIVE)" and reports the build. Caps Lock+A records ✦A in Settings → Keyboard, which says
+      keyd, and a hotstring expands in gedit.
+- [ ] Slated is in the app grid and in Activities search (type "sla"), with its icon; opening it
+      opens the settings window, and opening it again brings that window forward.
+      `linux/install.sh --uninstall` takes it out of both.
+- [ ] With GNOME's Extensions switch off (Extensions app, main switch): `linux/install.sh --verify`
+      says so first, with the fix, and changes nothing. `linux/install.sh` says the switch is off,
+      asks "Turn on GNOME extensions? [Y/n]", and Enter turns it on: Slated and your other extensions
+      start without logging out, and the run ends with "GNOME Shell runs Slated".
+- [ ] With Slated turned off in the Extensions app: a re-run (nothing else to install) turns it back
+      on and says GNOME Shell runs it.
 - [ ] The same on an Xorg session: espanso's X11 package, no setcap, and the last step offers Alt+F2
       `r`, which starts Slated without logging out.
 
@@ -389,7 +401,8 @@ distributions, package managers and services.
 
 **The author's setup: Pop!_OS 24.04, GNOME 46 session on Xorg**
 - [ ] From the GNOME session: keyd builds from source, espanso's X11 package installs and starts,
-      and the last step names Alt+F2 `r`, which starts Slated without logging out.
+      and the last step names Alt+F2 `r`, which starts Slated without logging out. Then Get Started
+      opens by itself, and Slated's icon is in the top bar.
 - [ ] From the COSMIC session: the installer stops at once, says this session is COSMIC and to run
       it from GNOME, and changes nothing.
 
@@ -425,10 +438,39 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `lib/platform/islan
 - [ ] Turning the extension off while the sheet or automations show removes everything; turning it
       back on works.
 
+## Manual checklist: GNOME top bar and opening Slated
+
+Run on GNOME 46 (Ubuntu 24.04, and the author's Pop!_OS on Xorg) and GNOME 49 after changes to
+`lib/platform/statusIcon.js`, `settingsWindow.js`, the icons or the installer's app entry.
+- [ ] Slated's icon (three tiles) sits in the top bar's status area and reads well in light and dark
+      top bars, next to GNOME's own icons.
+- [ ] A click opens the settings window; another click with it open (behind other windows) brings it
+      forward instead of doing nothing. A right click, or Ctrl+click, opens the menu instead.
+- [ ] The menu: "Slated is running", Open Slated, Caps Lock → Hyper Key (its switch matches Settings →
+      Keyboard and turns the Hyper key off and on within a second), Pause Slated, Reload Configuration,
+      Open Config File, Open Settings File (both in the text editor), Show Log (Files, in
+      `~/.local/state/slated`). `scripts/logs.py --grep menu` shows each.
+- [ ] Pause Slated: the icon shows pause bars, the menu says "Slated is paused", shortcuts, ✦ (with
+      GNOME's option) and hotstrings stop, Settings → Overview says Slated is paused. Locking and
+      unlocking the screen keeps it paused; turning Pause off brings everything back.
+- [ ] A binding on Super+A: the icon shows an exclamation mark, and the menu lists the shortcut that
+      couldn't be registered.
+- [ ] General → Show Slated in the top bar off takes the icon away within a second; on brings it back.
+- [ ] With no `~/.local/state/slated/settings-window.json`, a new login opens the settings window on Get
+      Started about 3 seconds in, without taking focus from an app you already opened. Closing it,
+      then locking and unlocking, doesn't open it again; the next login does, until it's finished.
+
 ## Manual checklist: GNOME settings window
 
 Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extension/prefs.js` or
 `lib/prefs/`, after `linux/install.sh` and a new login.
+- [ ] Overview never shows a bare "Waiting": with GNOME's Extensions switch off, every row says so and
+      offers Turn On Extensions, which starts Slated; with Slated turned off in the Extensions app, Turn
+      On Slated. With keyd stopped (`sudo systemctl stop keyd`), the Hyper Key row says keyd isn't
+      running, and Copy Command copies the command that starts it. With espanso stopped (`espanso
+      stop`), the Hotstrings row says so within a few seconds and copies `espanso start`.
+- [ ] Get Started opened while the Extensions switch or Slated is off leads with that and its button,
+      above the welcome.
 - [ ] With no `~/.local/state/slated/settings-window.json`, `gnome-extensions prefs
       slated@shobhitg.github.io` opens on Get Started, first in the sidebar with a "1 of 5" badge.
       The Hyper key step recommends keyd with its command until `linux/install.sh --hyper-keyd` has

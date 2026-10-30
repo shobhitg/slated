@@ -38,15 +38,23 @@ out of date, and when nothing is, it changes nothing and asks for no password. E
    run in that GNOME session (or over ssh): elsewhere it stops here, naming the GNOME version or the
    desktop (`XDG_CURRENT_DESKTOP`) it found.
 2. **Installs Slated's extension:** packs it with `build-info.json` (version, git commit, build
-   date), installs it into `~/.local/share/gnome-shell/extensions/` and enables it.
+   date), installs it into `~/.local/share/gnome-shell/extensions/` and enables it, on every run (you
+   may have turned it off). If GNOME's Extensions switch is off (the Extensions app's main switch,
+   `org.gnome.shell disable-user-extensions`), no extension runs at all: the installer says so and
+   asks to turn it on ("Turn on GNOME extensions? [Y/n]", yes by default; `--yes` turns it on), since
+   that also starts the other extensions you had turned on. It also **puts Slated in your apps**: a
+   desktop entry, `~/.local/share/applications/io.github.shobhitg.Slated.desktop`, and its icon in
+   `~/.local/share/icons/hicolor`, which open Slated's settings window.
 3. **Sets up the Hyper key** when Slated's config wants Caps Lock as Hyper (the default): installs keyd
    from your distribution's packages, or builds a pinned keyd release from source where there's no
    package (Ubuntu 24.04, Fedora; it installs gcc and make first). Then it writes
    `/etc/keyd/slated.conf` from your settings and starts keyd ([The Hyper key](#the-hyper-key)).
 4. **Sets up hotstrings**, unless they're off in Settings: installs espanso for your session and
    starts it ([Hotstrings](#hotstrings)).
-5. **Sums up** each step (✔ done, • skipped and why, ✘ failed and what to do) and names the one step
-   left. GNOME Shell loads extensions when it starts, so that's logging out and back in, which the
+5. **Checks what GNOME says** about Slated (`gnome-extensions info`): enabled and running, or that it
+   starts at your next login, or what's wrong and how to fix it.
+6. **Sums up** each step (✔ done, • skipped and why, ✘ failed and what to do), says how to open
+   Slated, and names the one step left. GNOME Shell loads extensions when it starts, so that's logging out and back in, which the
    installer offers to do. In an Xorg session (GNOME 48 and earlier) you can press Alt+F2, type `r`
    and press Enter instead: GNOME Shell restarts in place and your windows stay open. Only you can
    do that; the D-Bus call other programs used for it is closed since GNOME 41.
@@ -55,12 +63,17 @@ Steps 3 and 4 need root, for packages and `/etc/keyd`. Before the first `sudo`, 
 one line what it's for; then sudo asks for your password as usual. Nothing else runs as root, and you
 run the installer as yourself, not with sudo.
 
-Once you're back:
+Once you're back, Slated's settings window opens on Get Started after a few seconds. Afterwards,
+find Slated in your apps or click its icon in the top bar ([Opening Slated](#opening-slated)).
 
 ```sh
-linux/install.sh --verify     # prints "Running: build abc1234" once the new build is live
-gnome-extensions prefs slated@shobhitg.github.io    # opens Slated's settings (also in the Extensions app)
+linux/install.sh --verify     # checks GNOME runs Slated, then prints "Running: build abc1234"
 ```
+
+`--verify` changes nothing. It checks, in order, GNOME's Extensions switch, whether Slated is enabled,
+its state (`ACTIVE`; `ERROR` with GNOME's error message; `OUT OF DATE`; `INITIALIZED`, which a login
+fixes), and only then which build runs. Each problem gets one line with the fix, usually "run
+`linux/install.sh`", which turns both switches on.
 
 | | |
 |---|---|
@@ -69,9 +82,9 @@ gnome-extensions prefs slated@shobhitg.github.io    # opens Slated's settings (a
 | `linux/install.sh --no-espanso` | Leave espanso out: hotstrings don't expand |
 | `linux/install.sh --hyper-keyd` | Only the keyd step, after changing the Hyper key's settings. `--remove` removes Slated's keyd config |
 | `linux/install.sh --nested` | Also start a nested GNOME Shell with the new build, so you don't have to log out (see [Development](#development)) |
-| `linux/install.sh --verify` | Only report which build GNOME Shell is running |
+| `linux/install.sh --verify` | Only check that GNOME Shell runs Slated, and which build. Changes nothing |
 | `linux/install.sh --check` | Run the Linux tests first (needs Node), and install only if they pass |
-| `linux/install.sh --uninstall` | Remove the extension but keep config and logs. Add `--purge` to also remove those, Slated's espanso match file and its keyd config. keyd and espanso stay installed: remove them with your package manager |
+| `linux/install.sh --uninstall` | Remove the extension and Slated's app entry but keep config and logs. Add `--purge` to also remove those, Slated's espanso match file and its keyd config. keyd and espanso stay installed: remove them with your package manager |
 | `make linux-install`, `make linux-pack` | Same as `linux/install.sh` and `linux/install.sh --pack-only` |
 
 The installer downloads only pinned releases, listed at the top of `linux/install.sh`:
@@ -82,6 +95,35 @@ The installer downloads only pinned releases, listed at the top of `linux/instal
 | espanso | v2.4.1 | [its GitHub release](https://github.com/espanso/espanso/releases): `espanso-debian-x11-amd64.deb` or `espanso-debian-wayland-amd64.deb` with apt, `Espanso-X11.AppImage` elsewhere on Xorg | SHA-256: GitHub's digest of each file, since espanso publishes no checksum files |
 
 Below, "Settings" means Slated's settings window, and "GNOME Settings" means GNOME's.
+
+### Opening Slated
+
+As on the Mac, where Slated is a Dock app with a menu bar icon:
+
+- **The first login** after installing: the settings window opens on Get Started a few seconds in.
+  It does that at each login until Get Started is finished, and once per session: closing it isn't
+  undone by locking and unlocking the screen.
+- **Your apps:** Slated is in the app grid and in Activities search, like any app (the installer's
+  desktop entry).
+- **The top bar:** Slated's icon (three tiles). A click opens the settings window, or brings it
+  forward when it's open. A right click (or Ctrl+click) shows the Mac's menu, as far as it applies
+  on GNOME:
+
+  | Item | What it does |
+  |---|---|
+  | Slated is running / paused | What's going on, then a ⚠ line for anything that needs attention (a file that can't be read, shortcuts GNOME refused) |
+  | Open Slated | The settings window |
+  | Caps Lock → Hyper Key | Turns the Hyper key on or off (`keyboard.capsLock` in `config.json`) |
+  | Pause Slated | No shortcuts, Hyper key or hotstrings until you turn it off again, as on the Mac. It lasts until you log out; locking the screen keeps it. With keyd, Caps Lock still sends Ctrl+Alt+Shift+Super: keyd is a system service |
+  | Reload Configuration | Reads `config.json` and `settings.json` again |
+  | Open Config File, Open Settings File | Open them in your text editor |
+  | Show Log | Opens `~/.local/state/slated` in Files |
+
+  The Mac's Grant Accessibility Access (GNOME asks for no permission), Import Slate Config (it's in
+  the settings window) and Quit (turn Slated off in General or the Extensions app) aren't there. The
+  icon shows pause bars while Slated is paused, and an exclamation mark when the menu has a warning.
+  **Settings → General → Show Slated in the top bar** (`general.showStatusIcon`) hides it.
+- `gnome-extensions prefs slated@shobhitg.github.io` and the Extensions app's gear still work.
 
 ### The Hyper key
 
@@ -181,20 +223,20 @@ or up. So:
 ## Settings
 
 The settings window has the Mac app's pages, in the same order and with the same names, listed in
-a sidebar. The first time it opens on **Get Started**; afterwards it opens on the Overview, never on
-the page you left it on.
+a sidebar. Until Get Started is finished it opens on **Get Started** (the extension opens it after
+login); afterwards it opens on the Overview, never on the page you left it on.
 
 | Section | What's there |
 |---|---|
-| Get Started | First-run setup, as on the Mac: welcome, the Hyper key, hotstrings, your Slate config, done. GNOME needs no permission, so instead the Hyper key step recommends keyd (with the `linux/install.sh --hyper-keyd` command until it's set up) and the hotstrings step checks espanso, with "Skip for Now" until it's in sync. The Slate config step says what was imported from your Slate config (and what couldn't be converted), offers **Import…** when one is there but wasn't imported, or the starter shortcuts when there's none. Done lists what works and a shortcut to try. It leads the sidebar until you finish it (the badge says which step you're on); Overview → What's Next → **Get Started** opens it again |
-| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, the last action and error, tips from your own shortcuts, and what to do next. After the move to two files imported your Slate config, it says so once, until you dismiss it. A file that can't be read is named, with **Open Config File** or **Open Settings File** |
+| Get Started | First-run setup, as on the Mac: welcome, the Hyper key, hotstrings, your Slate config, done. Where the Mac asks for Accessibility access, the welcome step leads with whatever keeps Slated from running, and the button that fixes it: GNOME's Extensions switch off (**Turn On Extensions**), Slated turned off (**Turn On Slated**), a login still needed (**Log Out…**) or an error. GNOME needs no permission, so instead the Hyper key step recommends keyd (with the `linux/install.sh --hyper-keyd` command until it's set up) and the hotstrings step checks espanso, with "Skip for Now" until it's in sync. The Slate config step says what was imported from your Slate config (and what couldn't be converted), offers **Import…** when one is there but wasn't imported, or the starter shortcuts when there's none. Done lists what works and a shortcut to try. It leads the sidebar until you finish it (the badge says which step you're on); Overview → What's Next → **Get Started** opens it again |
+| Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, with a status row each for Slated, the Hyper key, hotstrings and shortcuts. A row never just waits: it says what's missing and offers the fix, such as GNOME's Extensions switch being off, Slated turned off or not loaded yet, an error, Pause Slated, keyd set up but stopped, or espanso stopped or missing (**Copy Command** copies what starts it). Then the last action and error, tips from your own shortcuts, and what to do next. After the move to two files imported your Slate config, it says so once, until you dismiss it. A file that can't be read is named, with **Open Config File** or **Open Settings File** |
 | Windows | Your shortcuts, searchable, with keycaps and status (imported Slate shortcuts are ordinary ones). Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
 | Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
 | Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, whether screenshots go in (GNOME copies each one to the clipboard, so the switch is about those copies), privacy (secrets, excluded apps), and the picker's keys. Shows how many items are saved |
 | Automation | What runs now, your automations, eleven recipes (auto-click, hold a button or key, sprint and crouch toggles, spam a key, click N times, double-click, a walk-then-click macro), the safety settings, and what GNOME does differently |
 | Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh |
 | Layouts | Arrange several apps at once |
-| General | Turn Slated on or off, the action banner, the island (on or off, the Caps Lock cheat sheet and its delay, explaining shortcuts that can't run), window behavior, **Files** (where things live, **Open Config File**, **Open Settings File**, **Import Slate Config into Slated…**), the log, and this build |
+| General | Turn Slated on or off, Show Slated in the top bar, the action banner, the island (on or off, the Caps Lock cheat sheet and its delay, explaining shortcuts that can't run), window behavior, **Files** (where things live, **Open Config File**, **Open Settings File**, **Import Slate Config into Slated…**), the log, and this build |
 | About | Version, credits, license, and debug information for bug reports |
 
 Adding a recipe makes an ordinary shortcut and opens its editor with the shortcut recorder running;
@@ -280,7 +322,8 @@ first.
 | `~/.local/state/slated/status.json` | Extension | What's running, read by the settings window (format below) |
 | `~/.local/state/slated/slated.log` | Extension and settings | The event log: JSON Lines with the same events as on the Mac (`app.start`, `action.done`, `config.saved`, `ui.*`…) |
 | `~/.local/state/slated/snapshots.json` | Extension | Saved window snapshots |
-| `~/.local/state/slated/settings-window.json` | Settings | The settings window's own state: `{"setupFinished": true}` once Get Started is done (the Mac keeps this in its user defaults). Delete it to see Get Started again |
+| `~/.local/state/slated/settings-window.json` | Settings | The settings window's own state: `{"setupFinished": true}` once Get Started is done (the Mac keeps this in its user defaults). Until then the extension opens the window on Get Started after login. Delete it to see Get Started again |
+| `~/.local/share/applications/io.github.shobhitg.Slated.desktop`, `~/.local/share/icons/hicolor/scalable/apps/io.github.shobhitg.Slated.svg` | `linux/install.sh` | Slated in your apps: opens the settings window (`gnome-extensions prefs`) |
 | `~/.local/state/slated/clipboard.json` | Extension | Clipboard history, readable only by you (mode 0600), in the Mac app's format. Not written when `clipboard.persist` is off |
 | `~/.local/state/slated/clipboard-images/` | Extension | Copied images, one PNG per image named by its SHA-256, readable only by you (folder 0700, files 0600). A file goes when its item does; with `clipboard.persist` off, they're all removed when Slated stops. Copied files aren't copied here: the history keeps their paths |
 | `~/.config/espanso/match/slated.yml` | Extension | Your hotstrings, for espanso |
@@ -294,8 +337,8 @@ throwaway home.
 `status.json`:
 
 ```json
-{"session": "abcd1234", "version": "0.1.0", "running": true, "updatedAt": "2026-10-22T18:00:00.000Z",
- "hyper": {"wanted": true, "mode": "xkb", "active": true},
+{"session": "abcd1234", "version": "0.1.0", "running": true, "paused": false, "updatedAt": "2026-10-22T18:00:00.000Z",
+ "hyper": {"wanted": true, "mode": "xkb", "active": true, "keyd": "none"},
  "hotstrings": {"engine": "espanso", "espansoInstalled": true, "matchFile": "~/.config/espanso/match/slated.yml", "count": 3},
  "hotkeys": {"hyper+a": "active", "hyper+q": "failed: <reason>", "hyper+w": "duplicate", "hyper+z": "disabled"},
  "screens": [{"displayID": 1, "name": "Built-in display", "isMain": true, "scale": 1,
@@ -307,6 +350,9 @@ throwaway home.
  "lastAction": "Left half · firefox", "lastError": null}
 ```
 
+- `paused` is Pause Slated, from the top bar's menu. `hyper.keyd` says whether keyd has Caps Lock
+  (`running`), is set up for it but doesn't run (`stopped`), isn't set up for it (`none`), or is
+  still being asked (`checking`).
 - The keys in `hotkeys` are config key strings. For modal bindings, the modal key and a space come
   first: `"ctrl+alt+f4 1"`.
 - `screens` is optional, in top-left global coordinates. When it's there, previews use your real
@@ -335,6 +381,8 @@ throwaway home.
 | Config files | `config.json` and `settings.json` | The same files; a version 1 `config.json` migrates on either |
 | Settings | SwiftUI window | libadwaita window |
 | Status at a glance | Overview in Slated's window | Settings → Overview |
+| Opening Slated | Dock icon, Spotlight, menu bar icon; the window opens on Get Started until setup is done | App grid and Activities search, the top-bar icon; the window opens on Get Started after login until setup is done |
+| Status icon and its menu (Open Slated, Caps Lock → Hyper Key, Pause Slated, Reload, Open Config and Settings File, Show Log) | Menu bar | Top bar (`general.showStatusIcon` hides it; the Mac's icon doesn't follow that setting yet) |
 | First-run setup (Get Started) | Accessibility permission, Hyper key, Slate config (imported) | No permission. Hyper key (keyd recommended), espanso for hotstrings, Slate config (imported) |
 | Start at login | Login item | Runs with your session while the extension is enabled |
 | Permissions | Accessibility, granted once | None needed |
@@ -437,11 +485,11 @@ Tests (CI runs all of them on Ubuntu 24.04, which has GNOME 46):
 | Command | What it covers |
 |---|---|
 | `make linux-test` | The engine under Node, held to the Swift behavior by golden vectors. `gjs -m linux/tests/run.mjs` runs the same tests under GJS |
-| `make linux-test-prefs` | The settings logic (model, validation, presets, automation recipes, import, the two files and the migration, status), plus the whole settings UI driven on mock GTK and libadwaita |
+| `make linux-test-prefs` | The settings logic (model, validation, presets, automation recipes, import, the two files and the migration, status and the Overview's status rows), plus the whole settings UI driven on mock GTK and libadwaita |
 | `make linux-test-prefs-gjs` | The settings logic tests under GJS |
 | `make linux-test-gtk` | The settings window on real GTK 4 and libadwaita (needs `gjs gir1.2-adw-1 xvfb dbus`) |
-| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: both config files, first runs and the migration, shortcuts, per-app grabs, automation timing and safety stops, the island and its cheat sheet, clipboard history, status and log (Node 22.15+) |
-| `make linux-test-installer` | `linux/install.sh` on a pretend system: stand-ins for GNOME's tools, sudo, apt, dnf, pacman, systemctl, git, make, curl, setcap and espanso, with only basic tools on `PATH` (Ubuntu, Pop!_OS on Xorg, Fedora, Arch, COSMIC, GNOME 42, re-runs, failures). Plus `scripts/logs.py`'s log locations |
+| `make linux-test-extension` | The extension's runtime against a simulated GNOME Shell: both config files, first runs and the migration, shortcuts, per-app grabs, automation timing and safety stops, the island and its cheat sheet, clipboard history, the top-bar icon and its menu, Pause Slated, Get Started at login, status and log (Node 22.15+) |
+| `make linux-test-installer` | `linux/install.sh` on a pretend system: stand-ins for GNOME's tools, sudo, apt, dnf, pacman, systemctl, git, make, curl, setcap and espanso, with only basic tools on `PATH` (Ubuntu, Pop!_OS on Xorg, Fedora, Arch, COSMIC, GNOME 42, re-runs, failures), the app entry, GNOME's Extensions switch, and what `gnome-extensions info` says (`--verify`'s order: the switch, enabled, ACTIVE, ERROR, OUT OF DATE, INITIALIZED, then the build). Plus `scripts/logs.py`'s log locations |
 | `linux/tests/gnome/run.sh` | The extension in a real GNOME Shell |
 | `node linux/tests/prefs/coverage.mjs` | Which settings code no test runs |
 
@@ -471,6 +519,7 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | keyd didn't install | The message says which part failed: the package, the build tools, the download from github.com, or the build (its log is `build/linux/keyd-build.log`). Fix that and run `linux/install.sh` again. Without systemd, have your init system start keyd as root. |
 | espanso didn't install or start | The message says why: no package for your system (install it yourself, then run `linux/install.sh` again to start it), a failed download (check your connection), or a checksum that doesn't match (run it again; report it if it repeats). `espanso log` says why it won't start. |
 | sudo didn't take the password | The steps that need it fail and say so; the rest still installs. Run `linux/install.sh` again. |
+| I don't see Slated anywhere | Run `linux/install.sh --verify`: it says what's wrong and how to fix it. Usually GNOME's Extensions switch is off, or Slated is turned off; `linux/install.sh` turns both on. Then find Slated in your apps or click its icon in the top bar (unless General → Show Slated in the top bar is off). |
 | Settings says "Log out and back in to start Slated" | GNOME Shell hasn't loaded the extension yet (a new install or an update on Wayland). Log out and back in, then run `linux/install.sh --verify`. |
 | The Extensions app shows Slated with an error | The error is in `journalctl -o cat /usr/bin/gnome-shell`. **Settings → Overview** also shows GNOME Shell's message. |
 | Settings says "A newer build is installed" | GNOME Shell is still running the previous build. Log out and back in. |
@@ -489,4 +538,4 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | Clipboard history stays empty | `clipboard.enabled` must be on. Copies from `excludedApps` and secrets marked by password managers are skipped by design, of images only PNGs up to 20 MB are kept, and screenshots only with `clipboard.screenshots` on. `scripts/logs.py --grep clipboard` shows what was skipped and why. |
 | Pasting copied files does nothing | The app reads only `text/uri-list` or text, not the `x-special/gnome-copied-files` Slated puts back (see [Limitations](#limitations)); paste into Files, or drag the files. The log says `clipboard.paste_skipped` with `"files missing"` when they were all moved or deleted. |
 | The clipboard picker opens at the pointer, not the text cursor | The app didn't report its cursor: `scripts/logs.py --grep switcher_opened` says `"anchor":"pointer"`. Chrome and Electron apps report it with `--enable-wayland-ime` (or under XWayland with IBus); apps that handle typing themselves (games, some terminals) never do. |
-| User extensions are turned off | Run `gsettings set org.gnome.shell disable-user-extensions false`, or turn them on in the Extensions app. |
+| GNOME's Extensions switch is off (`gnome-extensions info` says `Enabled: No`) | No extension runs, Slated included. Run `linux/install.sh` (it asks to turn the switch on), use **Turn On Extensions** in Settings, or turn it on in the Extensions app. Turning it on also starts the other extensions you had turned on. |

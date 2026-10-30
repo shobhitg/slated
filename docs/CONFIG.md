@@ -118,6 +118,9 @@ does the rest.
 }
 ```
 
+`general.showStatusIcon` (default `true`) shows Slated's icon in GNOME's top bar; Settings → General
+→ Show Slated in the top bar sets it. The Mac's menu bar icon doesn't follow it yet.
+
 ## Shortcuts
 
 `keys` is modifiers plus a key joined with `+`: `hyper+a`, `ctrl+cmd+left`, `cmd+shift+'`.
