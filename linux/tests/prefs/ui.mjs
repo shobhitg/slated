@@ -34,7 +34,7 @@ function readFiles(files) {
   const read = file => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
   return decodeConfigurationFiles(read(files.configFile), read(files.settingsFile)).configuration;
 }
-const UUID = 'slated@shobhit-aida.github.io';
+const UUID = 'slated@shobhitg.github.io';
 
 // Fixture ids: config.json ids must be UUIDs (the engine rejects anything else, as Swift does).
 const ID = Object.fromEntries(['HALF', 'CHAIN', 'ORIENT', 'LAYOUT', 'BAD', 'SYNTAX', 'OFF', 'SHRUG', 'SIG', 'CLICKER', 'MOUSE']

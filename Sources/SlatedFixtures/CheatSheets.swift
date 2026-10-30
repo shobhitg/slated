@@ -107,7 +107,7 @@ private let actionCases: [String] = [
   #"{"op":"insert-text","text":"A much longer piece of text to insert","method":"paste"}"#,
   #"{"op":"insert-text","text":"👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽"}"#,
   #"{"op":"insert-text","text":""}"#,
-  #"{"op":"open-url","url":"https://github.com/shobhit-aida/slated"}"#,
+  #"{"op":"open-url","url":"https://github.com/shobhitg/slated"}"#,
   #"{"op":"open-url","url":"http://localhost:8080/status"}"#,
   #"{"op":"open-url","url":"https://user:secret@example.com/path"}"#,
   #"{"op":"open-url","url":"HTTPS://Example.COM"}"#,

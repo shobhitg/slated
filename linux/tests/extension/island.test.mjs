@@ -93,7 +93,7 @@ function events(name) {
 
 function start(config) {
   writeConfig(config);
-  runtime = new SlatedRuntime({path: join(home, 'extension'), metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhit-aida.github.io', core: realCore});
+  runtime = new SlatedRuntime({path: join(home, 'extension'), metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhitg.github.io', core: realCore});
   runtime.start();
   gnome.loop.run();
   return runtime;

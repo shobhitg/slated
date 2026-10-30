@@ -209,7 +209,7 @@ enum PreviewData {
     let hour = 3_600.0
     let day = 86_400.0
     let samples: [(String, String?, Double, Bool)] = [
-      ("https://github.com/shobhit-aida/slated", "com.apple.Safari", 40, false),
+      ("https://github.com/shobhitg/slated", "com.apple.Safari", 40, false),
       ("Let's sync tomorrow at 10 — I'll bring the layout sketches.", "com.tinyspeck.slackmacgap", 5 * minute, false),
       ("git commit -m \"Make the author's Slate config the default\"", "com.apple.Terminal", 15 * minute, false),
       (

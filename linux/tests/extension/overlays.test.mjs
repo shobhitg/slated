@@ -42,7 +42,7 @@ beforeEach(() => {
   });
   // The island off: what a shortcut did shows in the bottom HUD (island.test.mjs covers the island).
   writeConfigFiles(home, {general: {showActionHUD: true}, island: {enabled: false}});
-  runtime = new SlatedRuntime({path: home, metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhit-aida.github.io', core: fakeCore});
+  runtime = new SlatedRuntime({path: home, metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhitg.github.io', core: fakeCore});
   runtime.start();
   gnome.loop.run();
   dbus = gnome.state.dbus.implementation;

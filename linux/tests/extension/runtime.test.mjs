@@ -76,7 +76,7 @@ const events = (name) => logEvents().filter((e) => e.event === name);
 const status = () => JSON.parse(readFileSync(statePath('status.json'), 'utf8'));
 
 function startRuntime() {
-  const runtime = new SlatedRuntime({path: join(home, 'extension'), metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhit-aida.github.io', core: fakeCore});
+  const runtime = new SlatedRuntime({path: join(home, 'extension'), metadata: {'version-name': '0.1.0'}, uuid: 'slated@shobhitg.github.io', core: fakeCore});
   runtime.start();
   gnome.loop.run();
   return runtime;
@@ -378,7 +378,7 @@ test('with SLATED_DEBUG=1 the debug interface runs actions and reports windows w
   writeConfig(config);
   const runtime = startRuntime();
   assert.equal(gnome.state.dbus.exported, true);
-  assert.equal(gnome.state.dbus.path, '/io/github/shobhit_aida/Slated');
+  assert.equal(gnome.state.dbus.path, '/io/github/shobhitg/Slated');
   const dbus = gnome.state.dbus.implementation;
   gnome.addWindow({id: 9, app: {id: 'firefox', name: 'Firefox'}, title: 'Secret', frame: {x: 10, y: 10, width: 300, height: 200}});
   assert.deepEqual(dbus.RunAction('"push right bar-resize:screenSizeX/3"'), [true, '']);

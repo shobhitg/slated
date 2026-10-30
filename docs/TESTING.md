@@ -266,7 +266,7 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       `clipboard.captured` with `"source":"screenshot"`, and no file name.
 - [ ] Renaming that screenshot on the Desktop, or dragging an older screenshot there, adds nothing.
       Turn "Add screenshots" off in Settings → Clipboard and take another: nothing is added.
-- [ ] Denied access: `tccutil reset SystemPolicyDesktopFolder io.github.shobhit-aida.slated`, relaunch,
+- [ ] Denied access: `tccutil reset SystemPolicyDesktopFolder io.github.shobhitg.slated`, relaunch,
       take a screenshot and answer Don't Allow. Settings → Clipboard shows the notice under "Add
       screenshots", and "Open Privacy & Security" opens Files and Folders. The log has
       `clipboard.screenshots_unavailable` once. Turning Desktop Folder on there makes screenshots
@@ -388,7 +388,7 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `lib/platform/islan
 Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extension/prefs.js` or
 `lib/prefs/`, after `linux/install.sh` and a new login.
 - [ ] With no `~/.local/state/slated/settings-window.json`, `gnome-extensions prefs
-      slated@shobhit-aida.github.io` opens on Get Started, first in the sidebar with a "1 of 5" badge.
+      slated@shobhitg.github.io` opens on Get Started, first in the sidebar with a "1 of 5" badge.
       The Hyper key step recommends keyd with its command until `linux/install.sh --hyper-keyd` has
       run, then says keyd is in charge. The hotstrings step says whether espanso is installed and in
       sync, and its button reads Skip for Now until it is. The Slate config step lists your

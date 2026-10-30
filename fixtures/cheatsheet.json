@@ -90,7 +90,7 @@
     {"action":{"method":"paste","op":"insert-text","text":"A much longer piece of text to insert"},"region":null,"section":"Utilities","symbol":"text.insert","title":"Insert “A much longer piece of …”"},
     {"action":{"op":"insert-text","text":"👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽"},"region":null,"section":"Utilities","symbol":"text.insert","title":"Insert “👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽…”"},
     {"action":{"op":"insert-text","text":""},"region":null,"section":"Utilities","symbol":"text.insert","title":"Insert Text"},
-    {"action":{"op":"open-url","url":"https://github.com/shobhit-aida/slated"},"region":null,"section":"Utilities","symbol":"link.circle","title":"Open github.com"},
+    {"action":{"op":"open-url","url":"https://github.com/shobhitg/slated"},"region":null,"section":"Utilities","symbol":"link.circle","title":"Open github.com"},
     {"action":{"op":"open-url","url":"http://localhost:8080/status"},"region":null,"section":"Utilities","symbol":"link.circle","title":"Open localhost"},
     {"action":{"op":"open-url","url":"https://user:secret@example.com/path"},"region":null,"section":"Utilities","symbol":"link.circle","title":"Open example.com"},
     {"action":{"op":"open-url","url":"HTTPS://Example.COM"},"region":null,"section":"Utilities","symbol":"link.circle","title":"Open Example.COM"},

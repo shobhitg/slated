@@ -1,7 +1,7 @@
 # Slated — build, bundle, sign and run the menu-bar app. Needs only the Xcode Command Line Tools.
 
 APP_NAME      := Slated
-BUNDLE_ID     ?= io.github.shobhit-aida.slated
+BUNDLE_ID     ?= io.github.shobhitg.slated
 VERSION       ?= 0.1.0
 BUILD_NUMBER  ?= $(shell git rev-list --count HEAD 2>/dev/null || echo 1)
 CONFIG        ?= debug

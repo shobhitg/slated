@@ -18,7 +18,7 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-UUID="slated@shobhit-aida.github.io"
+UUID="slated@shobhitg.github.io"
 FEDORA_VERSION="${FEDORA_VERSION:-44}"
 
 # --- On the host: build the image and run this script inside it --------------------------------------
@@ -54,7 +54,7 @@ if [ "${1:-}" != "--session" ]; then
   mkdir -p "$target" "$XDG_DATA_HOME/applications" "$XDG_CONFIG_HOME/slated"
   cp -R "$EXTENSION_SOURCE/." "$target/"
 
-  cat >"$XDG_DATA_HOME/applications/io.github.shobhit_aida.SlatedTest.desktop" <<EOF
+  cat >"$XDG_DATA_HOME/applications/io.github.shobhitg.SlatedTest.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Slated Test Window
@@ -109,8 +109,8 @@ trap 'kill "$shell_pid" 2>/dev/null; wait "$shell_pid" 2>/dev/null' EXIT
 
 ready=0
 for _ in $(seq 1 180); do
-  if gdbus call --session --dest org.gnome.Shell --object-path /io/github/shobhit_aida/Slated \
-    --method io.github.shobhit_aida.Slated.Debug.GetStatus >/dev/null 2>&1; then
+  if gdbus call --session --dest org.gnome.Shell --object-path /io/github/shobhitg/Slated \
+    --method io.github.shobhitg.Slated.Debug.GetStatus >/dev/null 2>&1; then
     ready=1
     break
   fi

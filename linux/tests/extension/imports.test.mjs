@@ -36,17 +36,17 @@ test('the settings modules the extension shares (the migration and Slate importe
 test('extension.js exports the Extension subclass GNOME Shell instantiates', async () => {
   const module = await import(pathToFileURL(join(extension, 'extension.js')).href);
   assert.equal(typeof module.default, 'function');
-  const instance = new module.default({uuid: 'slated@shobhit-aida.github.io'});
+  const instance = new module.default({uuid: 'slated@shobhitg.github.io'});
   assert.equal(typeof instance.enable, 'function');
   assert.equal(typeof instance.disable, 'function');
 });
 
 test('enable() never throws, even when GNOME APIs fail; disable() cleans up after it', async () => {
   const {default: SlatedExtension} = await import(pathToFileURL(join(extension, 'extension.js')).href);
-  const instance = new SlatedExtension({uuid: 'slated@shobhit-aida.github.io'});
+  const instance = new SlatedExtension({uuid: 'slated@shobhitg.github.io'});
   instance.path = '/nonexistent';
   instance.metadata = {'version-name': '0.1.0'};
-  instance.uuid = 'slated@shobhit-aida.github.io';
+  instance.uuid = 'slated@shobhitg.github.io';
   const errors = [];
   const original = console.error;
   console.error = (...args) => errors.push(args.join(' '));

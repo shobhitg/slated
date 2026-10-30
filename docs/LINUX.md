@@ -26,7 +26,7 @@ under [Limitations](#limitations): it works only on GNOME, and updates load when
 You need GNOME 46–51, `git`, `python3` and `gnome-extensions` (it comes with GNOME Shell).
 
 ```sh
-git clone https://github.com/shobhit-aida/slated && cd slated
+git clone https://github.com/shobhitg/slated && cd slated
 linux/install.sh
 linux/install.sh --hyper-keyd     # once: the recommended Hyper key (needs keyd; asks for your password)
 ```
@@ -42,7 +42,7 @@ login. Once you're back:
 
 ```sh
 linux/install.sh --verify     # prints "Running: build abc1234" once the new build is live
-gnome-extensions prefs slated@shobhit-aida.github.io    # opens Slated's settings (also in the Extensions app)
+gnome-extensions prefs slated@shobhitg.github.io    # opens Slated's settings (also in the Extensions app)
 ```
 
 | | |

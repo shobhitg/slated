@@ -8,7 +8,7 @@ import Cairo from 'cairo';
 import {box, label, button, group, launchUri, roundedRect} from './widgets.js';
 
 const STOPS = [[0.29, 0.55, 1.0], [0.45, 0.38, 1.0], [0.76, 0.40, 0.98]];
-export const REPOSITORY = 'https://github.com/shobhit-aida/slated';
+export const REPOSITORY = 'https://github.com/shobhitg/slated';
 
 /** Slated's mark: tiled window panes on the accent gradient squircle (SlatedMark.swift). */
 export function slatedMark(size = 96) {

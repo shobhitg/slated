@@ -20,10 +20,10 @@ import gi
 gi.require_version('Gio', '2.0')
 from gi.repository import Gio, GLib  # noqa: E402
 
-UUID = 'slated@shobhit-aida.github.io'
-OBJECT_PATH = '/io/github/shobhit_aida/Slated'
-INTERFACE = 'io.github.shobhit_aida.Slated.Debug'
-APP_ID = 'io.github.shobhit_aida.SlatedTest'
+UUID = 'slated@shobhitg.github.io'
+OBJECT_PATH = '/io/github/shobhitg/Slated'
+INTERFACE = 'io.github.shobhitg.Slated.Debug'
+APP_ID = 'io.github.shobhitg.SlatedTest'
 HOME = Path.home()
 STATE = HOME / '.local/state/slated'
 CONFIG = HOME / '.config/slated/config.json'

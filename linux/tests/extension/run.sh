@@ -36,7 +36,7 @@ if [ "${1:-}" != "--tests" ]; then
   if ! node -e '
     const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const problems = [];
-    if (m.uuid !== "slated@shobhit-aida.github.io") problems.push("uuid");
+    if (m.uuid !== "slated@shobhitg.github.io") problems.push("uuid");
     if (JSON.stringify(m["shell-version"]) !== JSON.stringify(["46", "47", "48", "49", "50", "51"])) problems.push("shell-version");
     for (const key of ["name", "description", "url"]) if (!m[key]) problems.push(key);
     if (problems.length) { console.error("  bad: " + problems.join(", ")); process.exit(1); }

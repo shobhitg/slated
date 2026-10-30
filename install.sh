@@ -22,7 +22,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="Slated"
-BUNDLE_ID="${BUNDLE_ID:-io.github.shobhit-aida.slated}"
+BUNDLE_ID="${BUNDLE_ID:-io.github.shobhitg.slated}"
 CERT="Slated Dev"
 USER_HOME="${SLATED_HOME:-$HOME}"
 DEST_DIR="${SLATED_INSTALL_DIR:-$HOME/Applications}"

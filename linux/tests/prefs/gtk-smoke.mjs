@@ -64,7 +64,7 @@ if (!home.includes('slated-gtk-smoke')) {
   print('Run with HOME set to a temporary folder whose name contains "slated-gtk-smoke" (see linux/tests/prefs/run-gtk.sh).');
   System.exit(2);
 }
-const uuid = 'slated@shobhit-aida.github.io';
+const uuid = 'slated@shobhitg.github.io';
 const extension = GLib.build_filenamev([home, '.local/share/gnome-shell/extensions', uuid]);
 write(GLib.build_filenamev([extension, 'build-info.json']), JSON.stringify({version: '0.1.0', commit: 'test', builtAt: '2026-10-22T00:00:00Z'}));
 // config.json ids must be UUIDs (the engine rejects anything else, as Swift does).

@@ -2,16 +2,16 @@
 // any action, including shell commands, so it never exists in normal use). It lives on GNOME Shell's
 // own bus connection, so callers address `org.gnome.Shell`:
 //
-//   gdbus call --session --dest org.gnome.Shell --object-path /io/github/shobhit_aida/Slated \
-//     --method io.github.shobhit_aida.Slated.Debug.RunAction '{"op":"push","direction":"left"}'
+//   gdbus call --session --dest org.gnome.Shell --object-path /io/github/shobhitg/Slated \
+//     --method io.github.shobhitg.Slated.Debug.RunAction '{"op":"push","direction":"left"}'
 //
 // Window listings carry ids, app ids and frames, never titles.
 
 import Gio from 'gi://Gio';
 
 export const DEBUG_BUS_NAME = 'org.gnome.Shell';
-export const DEBUG_OBJECT_PATH = '/io/github/shobhit_aida/Slated';
-export const DEBUG_INTERFACE = 'io.github.shobhit_aida.Slated.Debug';
+export const DEBUG_OBJECT_PATH = '/io/github/shobhitg/Slated';
+export const DEBUG_INTERFACE = 'io.github.shobhitg.Slated.Debug';
 
 const XML = `<node>
   <interface name="${DEBUG_INTERFACE}">

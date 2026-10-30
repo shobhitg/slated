@@ -30,15 +30,32 @@ usually install other tools for:
 - **One window for all of it**, with live previews of where a window will land. Slated stays in the
   Dock: close the window and it keeps working; click its Dock icon (or its menu bar icon) to come back.
 
-> **Status:** early development. Built for macOS 14+ on Apple Silicon. No releases yet: build from
-> source.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-windows-dark.png">
+    <img src="docs/images/settings-windows-light.png" width="820" alt="Slated's Windows page: shortcuts named by what they do, each with a picture of where the window goes, and a live preview on your displays">
+  </picture>
+</p>
+<p align="center">
+  <img src="docs/images/island-cheatsheet.png" width="820" alt="The notch island while Caps Lock is held: every Hyper shortcut, grouped as Windows, Displays, Apps and Automation">
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/clipboard-picker-dark.png">
+    <img src="docs/images/clipboard-picker-light.png" width="560" alt="The clipboard picker at the text cursor: text, a screenshot with a larger preview beside it, and copied files">
+  </picture>
+</p>
+
+> **Status:** early development, used daily by its author. macOS 14+ (Apple Silicon first) and GNOME
+> 46–51. Free and open source: there are no prebuilt releases yet, so build from source (one
+> command, below).
 
 ## Install
 
 Requires the Xcode Command Line Tools (`xcode-select --install`). Xcode itself is optional.
 
 ```sh
-git clone https://github.com/shobhit-aida/slated && cd slated
+git clone https://github.com/shobhitg/slated && cd slated
 ./install.sh
 ```
 
@@ -53,9 +70,10 @@ On first launch Slated's window opens on **Get Started**, and macOS asks to let 
 Mac. Switch Slated on in System Settings and its window comes back to the front, ready for the
 next step.
 
-It signs every build with the same local certificate, created on the first run. That means you
-grant Slated's Accessibility permission once (**System Settings → Privacy & Security →
-Accessibility**), not after every reinstall.
+It signs every build with the same local certificate, created on the first run (macOS asks for your
+login password once, so later builds can sign without asking). That means you grant Slated's
+Accessibility permission once (**System Settings → Privacy & Security → Accessibility**), not after
+every reinstall. The certificate lives only in your keychain; no Apple developer account is needed.
 
 | | |
 |---|---|
@@ -90,7 +108,7 @@ scripts/logs.py --errors --since 1h    # problems in the last hour
 make log-summary                       # counts, app starts, recent errors
 ```
 
-The same events also appear in Console.app under the subsystem `io.github.shobhit-aida.slated`.
+The same events also appear in Console.app under the subsystem `io.github.shobhitg.slated`.
 
 ## Configuration
 
@@ -148,18 +166,29 @@ The code is a Swift package with no Xcode project:
 | `SlatedCore` | Pure logic: model, Slate syntax, expressions, window math, hotstring matching |
 | `SlatedSystem` | macOS integration: Accessibility, hotkeys, event tap, Hyper key, text injection, the config files |
 | `SlatedScript` | Slate's JavaScript API on JavaScriptCore, to import `~/.slate.js` |
-| `SlatedUI` | The SwiftUI settings app |
+| `SlatedUI` | SwiftUI: the main window (Get Started and the settings pages), the clipboard picker and the island |
 | `Slated` | The app (Dock icon, main window, menu bar icon) that wires it all together |
-
-[CLAUDE.md](CLAUDE.md) records design decisions and conventions.
 
 ## Roadmap
 
-- [ ] Signed, notarized releases and a Homebrew cask
+- [ ] Prebuilt downloads. They won't be notarized (that needs a paid Apple account), so macOS asks
+      you to allow the first launch in System Settings → Privacy & Security.
 - [ ] Automatic updates (Sparkle 2)
 - [ ] A `slated` command-line tool
 - [ ] Importer for Keyboard Maestro hotstrings
-- [ ] Optional Mac App Store edition (window management only; the sandbox rules out the Hyper key)
+
+Slated won't be on the Mac App Store: its sandbox rules out the Hyper key and hotstrings.
+
+## Contributing
+
+Issues and pull requests are welcome.
+- Run `make check` before sending a change: it runs every automated test, Mac and Linux.
+- Behavior only a real Mac or GNOME session can show goes on the manual checklist in
+  [docs/TESTING.md](docs/TESTING.md).
+- [CLAUDE.md](CLAUDE.md) has the conventions: coordinates, logging, privacy rules and the design
+  decisions so far.
+- Slate is GPLv3, so please don't copy its code: Slated reimplements its behavior from the
+  documentation.
 
 ## Credits & license
 

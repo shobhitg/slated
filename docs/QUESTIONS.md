@@ -9,9 +9,9 @@ assumption I'm currently running with, so nothing is blocked.
    → Hyper from Karabiner-Elements, hotstrings from Keyboard Maestro). What's the third?
    *Assumption:* those two only.
 
-2. **Bundle ID and GitHub home.** I used `io.github.shobhit-aida.slated` because `gh` is logged in as
-   `shobhit-aida`. Will the repo live under that account, a personal one, or an org? Changing the
-   bundle ID later resets the Accessibility permission (only for you, while you're the only user).
+2. **Bundle ID and GitHub home.** *Answered (2026-10-30):* the author's personal account,
+   github.com/shobhitg/slated. Bundle ID `io.github.shobhitg.slated`, GNOME extension
+   `slated@shobhitg.github.io`. The rename reset Accessibility once, before any public release.
 
 3. **Install Xcode?** Only the Command Line Tools are installed. Everything builds without Xcode,
    but Swift Testing/XCTest aren't available, so tests run through a small harness (`make test`).

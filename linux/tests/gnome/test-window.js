@@ -1,5 +1,5 @@
 // A plain GTK 4 window for the end-to-end tests to move around: `gjs -m test-window.js`.
-// Its application id matches io.github.shobhit_aida.SlatedTest.desktop, which run.sh installs, so
+// Its application id matches io.github.shobhitg.SlatedTest.desktop, which run.sh installs, so
 // GNOME Shell knows it as an app.
 //
 // For the automation checks it records what reaches it in $HOME/test-window-events.json: mouse
@@ -17,7 +17,7 @@ function save() {
   GLib.file_set_contents(EVENTS, JSON.stringify(events));
 }
 
-const app = new Gtk.Application({application_id: 'io.github.shobhit_aida.SlatedTest'});
+const app = new Gtk.Application({application_id: 'io.github.shobhitg.SlatedTest'});
 app.connect('activate', () => {
   const window = new Gtk.ApplicationWindow({
     application: app,

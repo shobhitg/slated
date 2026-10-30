@@ -11,7 +11,7 @@ set -euo pipefail
 VERSION="${1:?usage: release.sh <version>}"
 : "${DEVELOPER_ID:?set DEVELOPER_ID}"
 : "${NOTARY_PROFILE:?set NOTARY_PROFILE}"
-BUNDLE_ID="${BUNDLE_ID:-io.github.shobhit-aida.slated}"
+BUNDLE_ID="${BUNDLE_ID:-io.github.shobhitg.slated}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/build/release"
 APP="$OUT/Slated.app"

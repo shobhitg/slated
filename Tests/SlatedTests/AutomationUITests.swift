@@ -352,7 +352,7 @@ let uiClipboardTests = Suite(
       {
         try onMain {
           let samples: [(String, ClipboardContentKind)] = [
-            ("https://github.com/shobhit-aida/slated", .link), ("www.example.com", .link),
+            ("https://github.com/shobhitg/slated", .link), ("www.example.com", .link),
             ("raycast://extensions/clipboard", .link), ("hello@example.com", .email), ("#6B5EFC", .color),
             ("#fff", .color), ("~/Library/Application Support/Slated", .path), ("/usr/local/bin", .path),
             ("42.50", .number), ("1,234", .number),

@@ -62,9 +62,9 @@ or `--security-opt seccomp=unconfined` for mutter. Both go on the `docker run` l
 These are the things a headless shell can't show. Use GNOME 46–49 on Wayland.
 
 1. Install: copy `linux/gnome-extension` to
-   `~/.local/share/gnome-shell/extensions/slated@shobhit-aida.github.io`. Log out and back in, since
+   `~/.local/share/gnome-shell/extensions/slated@shobhitg.github.io`. Log out and back in, since
    Wayland only loads new extensions at login. Then run
-   `gnome-extensions enable slated@shobhit-aida.github.io`.
+   `gnome-extensions enable slated@shobhitg.github.io`.
 2. Watch the log with `tail -f ~/.local/state/slated/slated.log` (same events as macOS;
    `scripts/logs.py` only knows the macOS path so far). `journalctl --user -f -g Slated` shows
    errors.
