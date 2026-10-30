@@ -18,14 +18,14 @@ assumption I'm currently running with, so nothing is blocked.
    Installing Xcode would let us use Swift Testing, SwiftUI previews, and the debugger UI, and is
    needed for a future Mac App Store version.
 
-4. **Apple Developer Program.** Needed for notarized releases (Homebrew cask, downloads) and the Mac
-   App Store. Do you have a membership? *Assumption:* not yet; local builds use a self-signed
-   "Slated Dev" certificate (`make dev-cert`).
+4. **Apple Developer Program.** *Answered (2026-10-30):* no. Slated is a free open-source app; no
+   yearly fee. Local builds keep the self-signed "Slated Dev" certificate (`make dev-cert`), which costs
+   nothing and keeps Accessibility permission across rebuilds. Prebuilt downloads, if any, aren't
+   notarized: macOS blocks the first open until you choose Open Anyway in System Settings → Privacy &
+   Security. Building from source (`./install.sh`) never hits that.
 
-5. **Mac App Store.** You mentioned making it a Mac app later. App Store apps must be sandboxed, and
-   the sandbox blocks the Hyper key (`hidutil` + event tap) and likely hotstrings. Window management
-   via Accessibility is possible there (Magnet does it). *Assumption:* the direct-download app stays
-   the full-featured version; a store edition, if any, would be a reduced build.
+5. **Mac App Store.** *Answered (2026-10-30):* no (it needs the paid program, and its sandbox blocks
+   the Hyper key).
 
 6. **Caps Lock tapped alone.** Your Karabiner rule makes Caps Lock pure Hyper. Should a quick tap on
    its own send Escape (a common Karabiner rule)? *Assumption:* no, matching your current setup; it's
