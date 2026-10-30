@@ -47,32 +47,63 @@ usually install other tools for:
 </p>
 
 > **Status:** early development, used daily by its author. macOS 14+ (Apple Silicon first) and GNOME
-> 46–51. Free and open source: there are no prebuilt releases yet, so build from source (one
-> command, below).
+> 46–51. Free and open source: there are no prebuilt releases yet, so build from source: one
+> command on either system, below.
 
 ## Install
 
-Requires the Xcode Command Line Tools (`xcode-select --install`). Xcode itself is optional.
+Clone the repository, then run one command. Both are safe to run again whenever you like, after a
+`git pull` or a change.
+
+<table>
+<tr><th width="50%">macOS 14+</th><th width="50%">Linux: GNOME 46–51</th></tr>
+<tr><td>
 
 ```sh
-git clone https://github.com/shobhitg/slated && cd slated
+git clone https://github.com/shobhitg/slated
+cd slated
 ./install.sh
 ```
 
-`./install.sh` is safe to run as often as you like; rerun it after every `git pull` or code change.
-Each run:
-1. Builds the code.
-2. Installs `~/Applications/Slated.app`, quitting the running copy cleanly first so Caps Lock is
-   restored.
-3. Relaunches it and checks its log to confirm the new build is the one running.
+</td><td>
 
-On first launch Slated's window opens on **Get Started**, and macOS asks to let Slated control your
-Mac. Switch Slated on in System Settings and its window comes back to the front, ready for the
-next step.
+```sh
+git clone https://github.com/shobhitg/slated
+cd slated
+linux/install.sh
+```
 
-It signs every build with the same local certificate, created on the first run (macOS asks for your
-login password once, so later builds can sign without asking). That means you grant Slated's
-Accessibility permission once (**System Settings → Privacy & Security → Accessibility**), not after
+</td></tr>
+<tr><td valign="top">
+
+Needs the Xcode Command Line Tools (`xcode-select --install`).
+
+1. Builds Slated and installs `~/Applications/Slated.app`.
+2. Launches it and checks its log to confirm the new build is running.
+3. Slated opens on **Get Started**, and macOS asks you to let it control your Mac.
+
+The first run asks for your login password once, to create a local signing certificate.
+
+</td><td valign="top">
+
+Ubuntu 24.04+, Fedora 40+, Debian 13, Arch, openSUSE, on Wayland or Xorg.
+
+1. Installs and enables Slated's GNOME Shell extension.
+2. Installs keyd, for the Hyper key, and espanso, for hotstrings.
+3. Offers to log out: GNOME starts Slated when you log back in.
+
+sudo asks for your password once, to install keyd and espanso.
+
+</td></tr>
+</table>
+
+### On macOS
+
+Each run quits the running copy cleanly first, so Caps Lock is restored, then installs and
+relaunches it. When macOS asks, switch Slated on in **System Settings → Privacy & Security →
+Accessibility**, and its window comes back to the front, ready for the next step.
+
+Every build is signed with the same local certificate, so you grant that permission once, not after
 every reinstall. The certificate lives only in your keychain; no Apple developer account is needed.
 
 | | |
@@ -89,11 +120,28 @@ every reinstall. The certificate lives only in your keychain; no Apple developer
 - If Karabiner-Elements turns Caps Lock into Hyper, either keep using it (Slated's bindings work
   with any Hyper key) or turn that rule off and enable Slated's own Hyper key.
 
-## Linux (GNOME)
+### On Linux
 
-Slated also runs on GNOME 46–51 as a GNOME Shell extension, with the same `config.json` and
-`settings.json`. Run `linux/install.sh`, then log out and back in. [docs/LINUX.md](docs/LINUX.md) covers
-installing, the Hyper key and hotstrings on GNOME, and how it differs from the Mac.
+Slated runs on GNOME as a GNOME Shell extension, with the same `config.json` and `settings.json` as
+on the Mac. The installer:
+- **Checks first** for GNOME 46–51, and finds your session (X11 or Wayland) and package manager
+  (apt, dnf, pacman or zypper). On another desktop or GNOME version it stops before changing
+  anything and says what it found.
+- **Installs keyd** from your distribution's packages, or builds a pinned release from source where
+  there's no package (Ubuntu 24.04, Fedora). It makes Caps Lock the Hyper key, as on the Mac.
+- **Installs espanso**, a pinned release checked against its checksum, for your session (X11 or
+  Wayland). Where espanso has no package (Fedora on Wayland), it says so and carries on.
+- **Ends with a summary** and the one step left: logging out, or on Xorg, restarting GNOME Shell
+  with Alt+F2 `r`.
+
+| | |
+|---|---|
+| `linux/install.sh --yes` | Ask nothing (for scripts) |
+| `linux/install.sh --no-keyd`, `--no-espanso` | Leave keyd or espanso out |
+| `linux/install.sh --uninstall` | Remove the extension, keeping config and logs (`--purge` removes those too) |
+
+[docs/LINUX.md](docs/LINUX.md) covers the Hyper key and hotstrings on GNOME, how Slated differs from
+the Mac, and troubleshooting.
 
 ## Logs
 

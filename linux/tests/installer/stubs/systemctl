@@ -1,0 +1,11 @@
+#!/bin/bash
+# Stand-in for systemctl, for linux/tests/installer/run.sh: records the call; a service is active once
+# `enable --now` started it ($STUB_SYSROOT/state/<name>.active).
+echo "systemctl $*" >>"$STUB_LOG"
+state="$STUB_SYSROOT/state"
+mkdir -p "$state"
+case "${1:-}" in
+  is-active) [ -e "$state/${*: -1}.active" ] ;;
+  enable) if [ "${2:-}" = --now ]; then touch "$state/${*: -1}.active"; fi ;;
+  *) true ;;
+esac

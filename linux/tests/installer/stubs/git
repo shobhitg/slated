@@ -1,0 +1,21 @@
+#!/bin/bash
+# Stand-in for git, for linux/tests/installer/run.sh: `git clone` makes a fake checkout (failing with
+# STUB_DOWNLOAD_FAILS=1) whose HEAD is $STUB_KEYD_COMMIT. Everything else goes to the real git
+# ($STUB_REAL_GIT), which stamps the build with this checkout's commit.
+if [ "${1:-}" = -C ] && [ -e "$2/.stub-clone" ]; then
+  echo "git $*" >>"$STUB_LOG"
+  echo "$STUB_KEYD_COMMIT"
+  exit 0
+fi
+for a in "$@"; do
+  if [ "$a" = clone ]; then
+    echo "git $*" >>"$STUB_LOG"
+    if [ "${STUB_DOWNLOAD_FAILS:-0}" = 1 ]; then
+      echo "fatal: unable to access 'https://github.com/rvaiya/keyd/': Could not resolve host: github.com" >&2
+      exit 128
+    fi
+    mkdir -p "${*: -1}" && touch "${*: -1}/.stub-clone"
+    exit 0
+  fi
+done
+exec "$STUB_REAL_GIT" "$@"

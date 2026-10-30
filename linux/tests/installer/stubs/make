@@ -1,0 +1,12 @@
+#!/bin/bash
+# Stand-in for make, for linux/tests/installer/run.sh: builds keyd's fake checkout (see the git
+# stand-in), and `make install` links a keyd stand-in into $STUB_SYSROOT/bin. STUB_MAKE_FAILS=1 fails.
+echo "make $*" >>"$STUB_LOG"
+[ "${STUB_MAKE_FAILS:-0}" = 1 ] && { echo "src/keyd.c:1: error" >&2; exit 2; }
+dir="."
+[ "${1:-}" = -C ] && dir="$2"
+[ -e "$dir/.stub-clone" ] || { echo "make: *** No targets specified and no makefile found." >&2; exit 2; }
+if [ "${*: -1}" = install ]; then
+  mkdir -p "$STUB_SYSROOT/bin"
+  ln -sf "$STUB_DIR/record" "$STUB_SYSROOT/bin/keyd"
+fi
