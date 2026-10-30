@@ -718,7 +718,12 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   };
 
   class Widget extends FakeActor {}
-  class Label extends FakeActor {}
+  class Label extends FakeActor {
+    constructor(props = {}) {
+      super(props);
+      this.clutter_text = {ellipsize: 3}; // Pango.EllipsizeMode.END, St's default
+    }
+  }
   const St = {
     Widget,
     Label,
@@ -937,6 +942,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       'gi://GLib': GLib,
       'gi://Gio': Gio,
       'gi://GdkPixbuf': GdkPixbuf,
+      'gi://Pango': {EllipsizeMode: {NONE: 0, START: 1, MIDDLE: 2, END: 3}},
       'gi://Meta': Meta,
       'gi://Shell': Shell,
       'gi://St': St,

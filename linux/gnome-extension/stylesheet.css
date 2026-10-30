@@ -457,11 +457,37 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
+.slated-clipboard-files-line {
+  spacing: 5px;
+}
+
+.slated-clipboard-more {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.slated-clipboard-row:selected .slated-clipboard-more {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .slated-clipboard-missing-label {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
 }
 
-.slated-clipboard-row:selected .slated-clipboard-missing-label {
+.slated-clipboard-row:selected .slated-clipboard-files-line {
+  spacing: 5px;
+}
+
+.slated-clipboard-more {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.slated-clipboard-row:selected .slated-clipboard-more {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.slated-clipboard-missing-label {
   color: rgba(255, 255, 255, 0.75);
 }

@@ -16,6 +16,7 @@
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -39,6 +40,8 @@ export const PICKER = Object.freeze({
   textRowHeight: 26,
   imageRowHeight: 36,
   thumbnailHeight: 28,
+  /** A files row's thumbnail: as wide as a text row's app icon, so names line up; a page gets a little more height. */
+  fileThumbnail: Object.freeze({width: 16, height: 20}),
   listPadding: 5,
 });
 
@@ -79,10 +82,15 @@ export function imageTitle(image, app = null) {
   return ['Image', `${image.width}×${image.height}`, ...(app ? [app] : [])].join(' · ');
 }
 
-/** A files row's title: the first file's name, "report.pdf + 2 more" for several. */
+/** A files row's title in its two parts: the first file's name, and "+ 2 more" for several (else null). */
+export function filesTitleParts(files) {
+  return {name: fileDisplayName(files[0] ?? ''), more: files.length > 1 ? `+ ${files.length - 1} more` : null};
+}
+
+/** The same on one line: "report.pdf + 2 more". */
 export function filesTitle(files) {
-  const name = fileDisplayName(files[0] ?? '');
-  return files.length > 1 ? `${name} + ${files.length - 1} more` : name;
+  const {name, more} = filesTitleParts(files);
+  return more ? `${name} ${more}` : name;
 }
 
 /** Under a file's preview: "2.4 MB · PNG image"; a folder's kind alone. */
@@ -117,9 +125,9 @@ export function formatBytes(bytes) {
   return `${text} ${BYTE_UNITS[unit]}`;
 }
 
-/** A row's height: images and files are taller, for their thumbnail. */
+/** A row's height: images are taller; text and files (a small thumbnail beside the name) are one line. */
 export function rowHeight(item) {
-  return item.image || item.files ? PICKER.imageRowHeight : PICKER.textRowHeight;
+  return item.image ? PICKER.imageRowHeight : PICKER.textRowHeight;
 }
 
 /**
@@ -393,6 +401,12 @@ const pointerLocation = () => {
   return [x, y];
 };
 
+/** A label shortened in the middle when it doesn't fit ("quarterly…report.pdf"). */
+function middleEllipsized(label) {
+  label.clutter_text.ellipsize = Pango.EllipsizeMode.MIDDLE;
+  return label;
+}
+
 /** What the picker reads about copied files (clipboardFiles.js; tests pass their own). */
 const FILE_INFO = Object.freeze({
   describe: Files.describeFile, thumbnail: Files.thumbnailPath, imageSize: Files.imageFileSize, icon: Files.typeIcon,
@@ -625,15 +639,22 @@ export class ClipboardPicker {
     const box = new St.BoxLayout({style_class: 'slated-clipboard-row-box', x_expand: true});
     const app = item.sourceApp ? this._app(item.sourceApp) : null;
     if (files) {
+      // As on the Mac: the name shortened in the middle (so its extension shows), then "+ 2 more".
+      const {name, more} = filesTitleParts(item.files);
       box.add_child(this._fileThumbnail(files));
-      box.add_child(new St.Label({style_class: 'slated-clipboard-text', text: filesTitle(item.files), x_expand: true, y_align: Clutter.ActorAlign.CENTER}));
+      const line = new St.BoxLayout({style_class: 'slated-clipboard-files-line', x_expand: true});
+      line.add_child(middleEllipsized(new St.Label({style_class: 'slated-clipboard-text', text: name, y_align: Clutter.ActorAlign.CENTER})));
+      if (more) line.add_child(new St.Label({style_class: 'slated-clipboard-more', text: more, y_align: Clutter.ActorAlign.CENTER}));
+      box.add_child(line);
       if (missing) box.add_child(new St.Label({style_class: 'slated-clipboard-missing-label', text: MISSING, y_align: Clutter.ActorAlign.CENTER}));
     } else if (image) {
       box.add_child(this._thumbnail(image));
-      box.add_child(new St.Label({
+      const title = new St.Label({
         style_class: 'slated-clipboard-text', text: imageTitle(image, app?.name ?? item.sourceApp ?? null), x_expand: true,
         y_align: Clutter.ActorAlign.CENTER,
-      }));
+      });
+      // A file name keeps its extension in sight, as on the Mac.
+      box.add_child(image.name ? middleEllipsized(title) : title);
     } else {
       const icon = app?.icon
         ? new St.Icon({gicon: app.icon, style_class: 'slated-clipboard-app-icon', y_align: Clutter.ActorAlign.CENTER})
@@ -676,22 +697,21 @@ export class ClipboardPicker {
   }
 
   /**
-   * A files row's thumbnail: a square with the thumbnail GNOME already made of the first file, else
-   * the icon for its type (from its name, nothing read), else a dimmed generic file for files that are gone.
+   * A files row's thumbnail, 16×20 like the Mac's: the thumbnail GNOME already made of the first
+   * file, else the icon for its type (from its name, nothing read), else a dimmed generic file for
+   * files that are gone. Either fits the 16 px width.
    */
   _fileThumbnail({path, info}) {
-    const size = PICKER.thumbnailHeight;
+    const {width, height} = PICKER.fileThumbnail;
     const bin = new St.Bin({
-      style_class: 'slated-clipboard-thumbnail slated-clipboard-file-thumbnail', width: this._px(size), height: this._px(size),
-      clip_to_allocation: true, y_align: Clutter.ActorAlign.CENTER, opacity: info ? 255 : 115,
+      style_class: 'slated-clipboard-thumbnail slated-clipboard-file-thumbnail', width: this._px(width), height: this._px(height),
+      clip_to_allocation: true, y_align: Clutter.ActorAlign.CENTER, opacity: info ? 255 : 128,
     });
     const thumbnail = info && !info.isDirectory ? this._files.thumbnail(path, 128) : null;
     const gicon = thumbnail
       ? new Gio.FileIcon({file: Gio.File.new_for_path(thumbnail)})
       : this._files.icon(info?.contentType ?? 'application/octet-stream');
-    bin.set_child(new St.Icon({
-      gicon, icon_size: thumbnail ? size : size - 4, x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER,
-    }));
+    bin.set_child(new St.Icon({gicon, icon_size: width, x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER}));
     return bin;
   }
 
