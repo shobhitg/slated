@@ -253,8 +253,8 @@ func importerProbesVariations() throws {
 }
 
 /// The importer runs the script on a pretend Mac, where load-time code can take another branch or stop
-/// with an error. Such an import can't be trusted to have everything, so the app keeps the file
-/// loaded; the problems say why.
+/// with an error. Such an import may not match the real Mac, so the import alert says so; the
+/// problems say why.
 @MainActor
 func importerReportsUnreliableRuns() throws {
   // The pretend Mac's slate.shell returns nothing, so `.trim()` throws and the rest of the script

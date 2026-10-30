@@ -132,7 +132,7 @@ private struct HeroCard: View {
     let status = model.runtimeStatus
     if model.loadError != nil {
       return
-        "Slated can't read your configuration file, so it keeps running what it last loaded. Settings are read-only until the file is fixed."
+        "Slated can't read \(model.unreadableFileName), so it keeps running what it last loaded. Settings are read-only until the file is fixed."
     }
     if status.paused { return "Shortcuts, the Hyper key and hotstrings are off until you resume them." }
     if !status.accessibilityGranted {

@@ -59,7 +59,7 @@ struct SettingsView: View {
   }
 }
 
-/// Shown above every pane when config.json can't be read: saving is paused so Slated never
+/// Shown above every pane when config.json or settings.json can't be read: saving is paused so Slated never
 /// overwrites a file the user is in the middle of editing.
 private struct LoadErrorBanner: View {
   let message: String
@@ -67,7 +67,7 @@ private struct LoadErrorBanner: View {
 
   var body: some View {
     Notice(
-      style: .error, title: "Slated can't read config.json",
+      style: .error, title: "Slated can't read \(model.unreadableFileName)",
       message:
         "\(message)\nSettings are read-only until the file is fixed, so nothing in it is lost. Slated loads it as soon as it can read it."
     ) {

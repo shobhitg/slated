@@ -59,7 +59,11 @@ final class Engine {
     Accessibility.configure()
     // A first run or the migration of a version 1 config.json imported the Slate config: say so once,
     // in Overview and Get Started.
-    store.onSlateImported = { report in SlateImportNotice.save(report) }
+    store.onSlateImported = { [weak self] report in
+      SlateImportNotice.save(report)
+      self?.slateImportNotice = report
+    }
+    slateImportNotice = SlateImportNotice.load()
     store.load()
     store.onExternalChange = { [weak self] in self?.apply() }
     store.startWatching()
@@ -571,6 +575,15 @@ final class Engine {
 
   /// The user's Slate config (`~/.slate.js`, else `~/.slate`) as written there; nil when there's none.
   var slateConfigPath: String? { SlateImport.find(home: SlatedPaths.home) }
+
+  /// What a first run or the migration imported, until dismissed in Overview (`SlateImportNotice`
+  /// keeps it across launches; this keeps it from being read on every refresh).
+  private(set) var slateImportNotice: SlateImportReport?
+
+  func dismissSlateImportNotice() {
+    SlateImportNotice.dismiss()
+    slateImportNotice = nil
+  }
 
   /// Copies the user's Slate config into Slated's own configuration: its shortcuts, layouts, display
   /// defaults and settings, leaving out what Slated already has (`SlatedConfiguration.merge`), so it

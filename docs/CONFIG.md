@@ -238,6 +238,7 @@ Find a game's bundle identifier with `osascript -e 'id of app "Minecraft"'`.
   { "name": "Dash and hit", "keys": "hyper+d",
     "action": "sequence press key:w down | wait 2 | press key:w up | click left" }
 ],
+// The safety settings are in settings.json:
 "automation": {
   "stopShortcut": "hyper+esc",   // always stops everything (null turns it off)
   "stopOnAppSwitch": true,       // stop when you leave the app it started in
@@ -286,6 +287,7 @@ without one. On GNOME it hangs from the top bar of the monitor you're working on
   couldn't run ("No focused window to move").
 
 ```jsonc
+// In settings.json:
 "island": {
   "enabled": true,          // false: no island; feedback and the automation indicator use pills
   "cheatSheet": true,       // hold Caps Lock (or press a modal key) to list its shortcuts
@@ -306,6 +308,7 @@ and with GNOME's own `caps:hyper` option holding Super alone shows the sheet too
 ## Clipboard history
 
 ```jsonc
+// In settings.json:
 "clipboard": {
   "enabled": true,
   "shortcut": "cmd+shift+v",      // opens the picker; null turns it off

@@ -140,7 +140,7 @@ extension AppModel {
 
   // MARK: Shortcuts shared with bindings
 
-  /// Every binding (Slated's and loaded Slate files') that uses `keys`, plus Slated's built-in
+  /// Every binding that uses `keys`, plus Slated's built-in
   /// shortcuts except `builtIn`. For "Also used by …" hints next to the built-in recorders.
   func otherUses(ofBuiltIn builtIn: BuiltInShortcut) -> [String] {
     guard let keys = builtIn.keys(in: configuration) else { return [] }

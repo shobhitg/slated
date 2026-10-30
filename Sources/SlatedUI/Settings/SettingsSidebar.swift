@@ -185,11 +185,11 @@ private struct SaveStatusFooter: View {
 
   private var help: String {
     switch model.saveState {
-    case .saved: return "Changes are saved to config.json as you make them."
-    case .pending: return "Saving to config.json…"
+    case .saved: return "Changes are saved to config.json and settings.json as you make them."
+    case .pending: return "Saving…"
     case .partiallySaved: return "Items with errors keep their last saved version until they're fixed."
     case .failed(let message): return message
-    case .blocked: return "config.json can't be read, so Slated won't overwrite it."
+    case .blocked: return "\(model.unreadableFileName) can't be read, so Slated won't overwrite it."
     }
   }
 }

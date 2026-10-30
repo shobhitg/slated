@@ -35,13 +35,10 @@ private let fullConfig = #"""
   }
   """#
 
+/// docs/CONFIG.md's config.json example, with ids so the output doesn't depend on random ones.
 private let configMarkdownExample = #"""
   {
-    "general": {
-      "launchAtLogin": true,
-      "loadSlateConfigs": true,          // also load ~/.slate.js and ~/.slate
-      "showActionHUD": false             // flash a small confirmation after each action
-    },
+    "version": 2,
 
     // Caps Lock becomes ⌃⌥⇧⌘ (Hyper) while held.
     "keyboard": {
@@ -68,12 +65,25 @@ private let configMarkdownExample = #"""
       { "id": "B0000000-0000-4000-8000-000000000001", "trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯" },
       { "id": "B0000000-0000-4000-8000-000000000002", "trigger": "brb", "replacement": "be right back", "fire": "afterDelimiter", "wordBoundary": true },
       { "id": "B0000000-0000-4000-8000-000000000003", "trigger": ";today", "replacement": "{date:yyyy-MM-dd}" }
-    ],
-
-    // Slate's global settings (`config name value` in .slate files).
-    "settings": { "defaultToCurrentScreen": true, "nudgePercentOf": "screenSize" }
+    ]
   }
   """#
+
+/// docs/CONFIG.md's settings.json example.
+private let settingsMarkdownExample = #"""
+  {
+    "version": 2,
+    "general": {
+      "launchAtLogin": true,
+      "showActionHUD": false,            // name each action as it runs (in the notch island)
+      "hotstringsEnabled": true          // the switch for all hotstrings
+    },
+
+    // How window operations behave: Slate's global settings (`config name value` in .slate files).
+    "windows": { "defaultToCurrentScreen": true, "nudgePercentOf": "screenSize" }
+  }
+  """#
+
 
 /// docs/CONFIG.md's "Game automation" example, wrapped in an object.
 private let configMarkdownAutomation = #"""
@@ -578,6 +588,7 @@ func maskRandomUUIDs(_ text: String, input: String) -> String {
 /// Two files at once: a version 1 config.json and an existing settings.json, the shapes the migration
 /// meets. `(name, config.json, settings.json)`.
 private let fileCases: [(String, String, String?)] = [
+  ("docs/CONFIG.md examples (JSON with comments)", configMarkdownExample, settingsMarkdownExample),
   ("version 2 config.json, no settings.json", #"{"version": 2, "keyboard": {"capsLock": "hyper"}}"#, nil),
   (
     "version 2: both files",

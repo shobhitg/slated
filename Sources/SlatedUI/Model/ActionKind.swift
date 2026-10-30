@@ -152,7 +152,7 @@ enum ActionKind: String, CaseIterable, Identifiable, Hashable {
     case .keystroke: return "Send a keyboard shortcut to the focused app."
     case .openURL: return "Open a link or app URL scheme."
     case .shell: return "Run a command in the background."
-    case .relaunch: return "Reload config.json and your Slate files."
+    case .relaunch: return "Reload config.json and settings.json."
     case .clipboardHistory: return "Open the clipboard history to search and paste something you copied earlier."
     case .click: return "Click a mouse button where the pointer is."
     case .press: return "Press or release a mouse button or key on its own: a building block for macros with waits."

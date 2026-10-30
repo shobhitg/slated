@@ -39,11 +39,11 @@ class LiveServices: AppServices {
     }
   }
 
-  func slateImportNotice() -> SlateImportReport? { SlateImportNotice.load() }
+  func slateImportNotice() -> SlateImportReport? { engine.slateImportNotice }
 
   func dismissSlateImportNotice() {
     Log.record("ui.slate_notice_dismissed")
-    SlateImportNotice.dismiss()
+    engine.dismissSlateImportNotice()
   }
 
   func screens() -> [ScreenInfo] { Screens.current() }

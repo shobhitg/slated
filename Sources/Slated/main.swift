@@ -23,7 +23,7 @@ if CommandLine.arguments.contains("--smoke") {
     print("config:", engine.store.fileURL.path, engine.store.loadError ?? "ok")
     print("native: \(config.bindings.count) bindings, \(config.hotstrings.count) hotstrings, capsLock: \(config.keyboard.capsLock.rawValue), \(config.layouts.count) layouts, \(config.windows.values.count) window settings")
     // What Overview would say about a Slate config a first run or the migration imported.
-    if let notice = SlateImportNotice.load() {
+    if let notice = engine.slateImportNotice {
       print(
         "slate notice: \(notice.added) added, \(notice.alreadyThere) already there, \(notice.notConverted.count) not converted, from \(notice.fileNames)"
       )

@@ -162,7 +162,7 @@ private struct WindowBehaviorCard: View {
   var body: some View {
     SettingsCard(
       title: "Window Behavior", symbol: "macwindow",
-      footer: "These are Slate's own settings; a Slate file can override them."
+      footer: "Slate's own settings, kept under windows in settings.json."
     ) {
       ToggleRow(
         title: "Number displays from left to right",

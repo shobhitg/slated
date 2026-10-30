@@ -9,9 +9,9 @@ struct SlateConfigNotFound: LocalizedError {
 }
 
 /// What a first run or the migration imported from the user's Slate config, kept until they dismiss
-/// it in Overview, so the main window can say so once whenever it's next opened. Counts and key combos
-/// only, never what a shortcut runs. Kept in Slated's support folder (so test runs, with `SLATED_HOME`,
-/// keep their own).
+/// it in Overview, so the main window can say so once whenever it's next opened. Counts, the keys of
+/// what couldn't be converted and why; never what a shortcut runs, and never logged. Kept in Slated's
+/// support folder (so test runs, with `SLATED_HOME`, keep their own).
 enum SlateImportNotice {
   static var fileURL: URL { SlatedPaths.supportURL.appendingPathComponent("slate-import-notice.json") }
 
