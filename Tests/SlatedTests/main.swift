@@ -45,6 +45,8 @@ let suites: [Suite] = [
   keyboardTapTests,
   pasteboardTests,
   clipboardImageTests,
+  screenshotTests,
+  clipboardFilesTests,
   blockedSettingsTests,
   logRedactionTests,
   macOSContractTests,

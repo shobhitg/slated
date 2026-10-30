@@ -2,6 +2,7 @@ import AppKit
 import CryptoKit
 import ImageIO
 import SlatedCore
+import UniformTypeIdentifiers
 
 /// Copied images on disk, one file each, named by the SHA-256 of their bytes: the same image copied
 /// twice is one file. The folder is readable only by you (0700, files 0600): a screenshot can be as
@@ -51,6 +52,44 @@ public struct ClipboardImageStore: Sendable {
     }
     try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
     return .saved(ClipboardImage(file: file, width: size.width, height: size.height, bytes: data.count))
+  }
+
+  /// Copies a screenshot saved as a file into the store, as a copied image, named after the file; the
+  /// file itself is only read. PNG and TIFF keep their bytes; other formats ImageIO reads (JPEG, HEIC,
+  /// GIF) are stored as PNG, the type every app pastes. Bigger than `maxBytes`: not read at all.
+  public func saveScreenshot(at url: URL) -> SaveResult {
+    let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+    guard bytes <= maxBytes else {
+      let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+      let size = source.flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }
+      return .tooLarge(
+        bytes: bytes, width: (size?[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+        height: (size?[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue)
+    }
+    guard let data = try? Data(contentsOf: url), let copied = Self.pasteable(data) else {
+      return .failed(bytes: bytes)
+    }
+    let result = save(copied)
+    guard case .saved(var image) = result else { return result }
+    image.name = url.lastPathComponent
+    return .saved(image)
+  }
+
+  /// The image as PNG or TIFF bytes; nil when ImageIO can't read it.
+  static func pasteable(_ data: Data) -> PasteboardWatcher.CopiedImage? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil), let type = CGImageSourceGetType(source)
+    else { return nil }
+    switch type as String {
+    case UTType.png.identifier: return .init(data: data, type: .png)
+    case UTType.tiff.identifier: return .init(data: data, type: .tiff)
+    default:
+      let png = NSMutableData()
+      guard CGImageSourceGetCount(source) > 0,
+        let destination = CGImageDestinationCreateWithData(png, UTType.png.identifier as CFString, 1, nil)
+      else { return nil }
+      CGImageDestinationAddImageFromSource(destination, source, 0, nil)
+      return CGImageDestinationFinalize(destination) ? .init(data: png as Data, type: .png) : nil
+    }
   }
 
   public func url(for image: ClipboardImage) -> URL { directory.appendingPathComponent(image.file) }
