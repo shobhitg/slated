@@ -1,7 +1,10 @@
 // The clipboard picker: a small list that opens where you're typing (port of the macOS
 // ClipboardPickerModel and its view, Sources/SlatedUI/Clipboard/ClipboardPicker.swift), drawn with St.
 // A filter field that takes typing at once and one-line rows, pinned items first; an image shows as a
-// thumbnail, and selecting one shows it larger beside the picker.
+// thumbnail (and its name when it has one), copied files as their icon or thumbnail and the first
+// file's name ("+ 2 more"), dimmed as "Moved or deleted" once none is left. Selecting an image or
+// files shows them larger beside the picker: the image, or the file's thumbnail or icon with its
+// name, size and kind.
 //
 //   ↑↓ select · ↩ or a click: paste into the window you were in · Ctrl+1–9 paste that item · Esc close
 //
@@ -17,8 +20,9 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {PopupPlacement} from '../core/index.js';
+import {PopupPlacement, fileDisplayName} from '../core/index.js';
 
+import * as Files from './clipboardFiles.js';
 import {currentScreens} from './screens.js';
 
 /** How much of each item the picker searches as you type (huge copies stay responsive). */
@@ -38,8 +42,14 @@ export const PICKER = Object.freeze({
   listPadding: 5,
 });
 
-/** The image preview beside the picker: about 240 px on its long side. */
-export const PREVIEW = Object.freeze({maxSide: 240, padding: 8, captionHeight: 19, minWidth: 120});
+/**
+ * The preview beside the picker: an image about 240 px on its long side; a file's icon, when it has
+ * no picture, at 64 px, in a panel wide enough for its name.
+ */
+export const PREVIEW = Object.freeze({maxSide: 240, padding: 8, captionHeight: 19, minWidth: 120, iconSize: 64, fileMinWidth: 200});
+
+/** A files row whose files are all gone. */
+export const MISSING = 'Moved or deleted';
 
 /** The hint in the filter field, the picker's only one. */
 export const HINT = 'Ctrl+1–9 · esc';
@@ -63,9 +73,21 @@ export function itemPreview(text) {
   return chars.length > PREVIEW_LIMIT ? `${chars.slice(0, PREVIEW_LIMIT).join('')}…` : collapsed;
 }
 
-/** An image row's title: "Image · 1280×720 · Firefox". */
+/** An image row's title: its name ("Screenshot 2026-10-30.png"), else "Image · 1280×720 · Firefox". */
 export function imageTitle(image, app = null) {
+  if (image.name) return image.name;
   return ['Image', `${image.width}×${image.height}`, ...(app ? [app] : [])].join(' · ');
+}
+
+/** A files row's title: the first file's name, "report.pdf + 2 more" for several. */
+export function filesTitle(files) {
+  const name = fileDisplayName(files[0] ?? '');
+  return files.length > 1 ? `${name} + ${files.length - 1} more` : name;
+}
+
+/** Under a file's preview: "2.4 MB · PNG image"; a folder's kind alone. */
+export function fileDetails({size = null, kind = ''} = {}) {
+  return [...(size === null || size === undefined ? [] : [formatBytes(size)]), ...(kind ? [kind] : [])].join(' · ');
 }
 
 /** Under a preview: "1280×720 · 245 kB". */
@@ -95,9 +117,9 @@ export function formatBytes(bytes) {
   return `${text} ${BYTE_UNITS[unit]}`;
 }
 
-/** A row's height: images are taller, for their thumbnail. */
+/** A row's height: images and files are taller, for their thumbnail. */
 export function rowHeight(item) {
-  return item.image ? PICKER.imageRowHeight : PICKER.textRowHeight;
+  return item.image || item.files ? PICKER.imageRowHeight : PICKER.textRowHeight;
 }
 
 /**
@@ -130,6 +152,18 @@ export function previewSize(image) {
   return {
     width: Math.max(fitted.width, PREVIEW.minWidth) + 2 * PREVIEW.padding,
     height: fitted.height + PREVIEW.captionHeight + 2 * PREVIEW.padding,
+  };
+}
+
+/**
+ * A file's preview size: its picture fitted like an image (`shape`, its pixel size) or its icon,
+ * then two lines (name; size and kind), in a panel wide enough for a name.
+ */
+export function filePreviewSize(shape = null) {
+  const visual = shape ? previewImageSize(shape) : {width: PREVIEW.iconSize, height: PREVIEW.iconSize};
+  return {
+    width: Math.max(visual.width, PREVIEW.fileMinWidth) + 2 * PREVIEW.padding,
+    height: visual.height + 2 * PREVIEW.captionHeight + 2 * PREVIEW.padding,
   };
 }
 
@@ -199,10 +233,10 @@ export class PickerModel {
     return this.results.find((item) => item.id === this.selectedId) ?? null;
   }
 
-  /** The image shown larger beside the picker: the selected row's, when it's an image. */
+  /** What's shown larger beside the picker: the selected row, when it's an image or files. */
   get previewItem() {
     const item = this.selectedItem;
-    return item?.image ? item : null;
+    return item?.image || item?.files ? item : null;
   }
 
   /** The Ctrl-number of the result at `index`: the first nine have one. */
@@ -359,6 +393,12 @@ const pointerLocation = () => {
   return [x, y];
 };
 
+/** What the picker reads about copied files (clipboardFiles.js; tests pass their own). */
+const FILE_INFO = Object.freeze({
+  describe: Files.describeFile, thumbnail: Files.thumbnailPath, imageSize: Files.imageFileSize, icon: Files.typeIcon,
+  kind: Files.fileKind,
+});
+
 function uiScale() {
   try {
     return St.ThemeContext.get_for_stage(global.stage).scale_factor || 1;
@@ -377,9 +417,17 @@ export class ClipboardPicker {
    * @param {() => object[]} [options.screens]  ScreenInfo list (screens.js).
    * @param {() => number[]} [options.pointer]  The pointer's [x, y].
    * @param {() => void} [options.onClosed]  After it closes, however that happened.
+   * @param {object} [options.files]  Reads copied files: describe(path), thumbnail(path, size), imageSize(path),
+   *   icon(contentType), kind(contentType) (clipboardFiles.js).
    */
-  constructor({model, log = null, imagePath = () => null, appInfo = lookupApp, screens = currentScreens, pointer = pointerLocation, onClosed = null}) {
+  constructor({
+    model, log = null, imagePath = () => null, appInfo = lookupApp, screens = currentScreens, pointer = pointerLocation, onClosed = null,
+    files = FILE_INFO,
+  }) {
     this._model = model;
+    this._files = files;
+    /** Each files item's first file still there ({path, info}, or {path, info: null} when none is), by id, while open. */
+    this._fileStates = new Map();
     this._log = log;
     this._imagePath = imagePath;
     this._appInfo = appInfo;
@@ -392,7 +440,8 @@ export class ClipboardPicker {
     this._apps = new Map();
     this._frame = null;
     this._preview = null;
-    this._previewFile = null;
+    this._previewKey = null;
+    this._previewSize = null;
     model.onChange = (what) => (what === 'selection' ? this._selectionMoved() : this._render());
   }
 
@@ -405,6 +454,7 @@ export class ClipboardPicker {
     this.close();
     this._scale = uiScale();
     this._apps.clear();
+    this._fileStates.clear();
     this._model.reset(this._pointer());
     this._build();
     this._place(anchor);
@@ -433,7 +483,8 @@ export class ClipboardPicker {
     }
     this._rows.clear();
     this._preview = null;
-    this._previewFile = null;
+    this._previewKey = null;
+    this._previewSize = null;
     this._frame = null;
     if (wasOpen) this.onClosed?.();
   }
@@ -538,16 +589,46 @@ export class ClipboardPicker {
     return this._apps.get(id);
   }
 
-  /** One item on one line: its app's icon and text, or an image's thumbnail and size; a pin and the Ctrl-number at the end. */
+  /**
+   * Each files item's first file that's still there (one stat per file until one is), worked out
+   * once while the picker is open: {path, info}, info null when they're all gone.
+   */
+  _fileState(item) {
+    let state = this._fileStates.get(item.id);
+    if (!state) {
+      state = {path: item.files[0] ?? '', info: null};
+      for (const path of item.files) {
+        const info = this._files.describe(path);
+        if (info) {
+          state = {path, info};
+          break;
+        }
+      }
+      this._fileStates.set(item.id, state);
+    }
+    return state;
+  }
+
+  /**
+   * One item on one line: its app's icon and text, an image's thumbnail and size (or name), or the
+   * files' icon and names; a pin and the Ctrl-number at the end.
+   */
   _row(item, index) {
     const image = item.image ?? null;
+    const files = item.files ? this._fileState(item) : null;
+    const missing = files !== null && files.info === null;
+    const kind = image ? ' slated-clipboard-image-row' : files ? ' slated-clipboard-files-row' : '';
     const row = new St.Button({
-      style_class: image ? 'slated-clipboard-row slated-clipboard-image-row' : 'slated-clipboard-row',
+      style_class: `slated-clipboard-row${kind}${missing ? ' slated-clipboard-missing' : ''}`,
       x_expand: true, can_focus: false, track_hover: true, height: this._px(rowHeight(item)),
     });
     const box = new St.BoxLayout({style_class: 'slated-clipboard-row-box', x_expand: true});
     const app = item.sourceApp ? this._app(item.sourceApp) : null;
-    if (image) {
+    if (files) {
+      box.add_child(this._fileThumbnail(files));
+      box.add_child(new St.Label({style_class: 'slated-clipboard-text', text: filesTitle(item.files), x_expand: true, y_align: Clutter.ActorAlign.CENTER}));
+      if (missing) box.add_child(new St.Label({style_class: 'slated-clipboard-missing-label', text: MISSING, y_align: Clutter.ActorAlign.CENTER}));
+    } else if (image) {
       box.add_child(this._thumbnail(image));
       box.add_child(new St.Label({
         style_class: 'slated-clipboard-text', text: imageTitle(image, app?.name ?? item.sourceApp ?? null), x_expand: true,
@@ -595,15 +676,39 @@ export class ClipboardPicker {
   }
 
   /**
+   * A files row's thumbnail: a square with the thumbnail GNOME already made of the first file, else
+   * the icon for its type (from its name, nothing read), else a dimmed generic file for files that are gone.
+   */
+  _fileThumbnail({path, info}) {
+    const size = PICKER.thumbnailHeight;
+    const bin = new St.Bin({
+      style_class: 'slated-clipboard-thumbnail slated-clipboard-file-thumbnail', width: this._px(size), height: this._px(size),
+      clip_to_allocation: true, y_align: Clutter.ActorAlign.CENTER, opacity: info ? 255 : 115,
+    });
+    const thumbnail = info && !info.isDirectory ? this._files.thumbnail(path, 128) : null;
+    const gicon = thumbnail
+      ? new Gio.FileIcon({file: Gio.File.new_for_path(thumbnail)})
+      : this._files.icon(info?.contentType ?? 'application/octet-stream');
+    bin.set_child(new St.Icon({
+      gicon, icon_size: thumbnail ? size : size - 4, x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER,
+    }));
+    return bin;
+  }
+
+  /**
    * The selected image at preview size, decoded off the main thread at that size and not kept
    * (St.TextureCache.load_file_async): one at a time, and a history can hold many screenshots.
    */
   _previewImage(image) {
-    const {width, height} = previewImageSize(image);
+    return this._previewPicture(this._imagePath(image), image);
+  }
+
+  /** A picture file (`path`, null when it's gone) fitted to the preview by its pixel size (`shape`). */
+  _previewPicture(path, shape) {
+    const {width, height} = previewImageSize(shape);
     const bin = new St.Bin({
       style_class: 'slated-clipboard-preview-image', width: this._px(width), height: this._px(height), x_align: Clutter.ActorAlign.CENTER,
     });
-    const path = this._imagePath(image);
     let actor = null;
     if (path) {
       try {
@@ -617,6 +722,42 @@ export class ClipboardPicker {
     }
     bin.set_child(actor ?? this._placeholder());
     return bin;
+  }
+
+  _caption(text, styleClass = 'slated-clipboard-preview-caption') {
+    return new St.Label({style_class: styleClass, text, x_align: Clutter.ActorAlign.CENTER, height: this._px(PREVIEW.captionHeight)});
+  }
+
+  /** A copied image's preview: the image and "1280×720 · 245 kB". */
+  _imagePreview(image) {
+    const actor = new St.BoxLayout({style_class: 'slated-clipboard-preview', vertical: true, reactive: true});
+    actor.add_child(this._previewImage(image));
+    actor.add_child(this._caption(imageDetails(image)));
+    return {actor, size: previewSize(image)};
+  }
+
+  /**
+   * Copied files' preview, for the first one still there: an image file shown fitted (GNOME's large
+   * thumbnail of it when there is one), another file's thumbnail (a PDF's first page, a video's
+   * frame) or else its icon; then its name ("+ 2 more") and its size and kind. None when all are gone.
+   */
+  _filesPreview(item) {
+    const {path, info} = this._fileState(item);
+    if (!info) return null;
+    const thumbnail = info.isDirectory ? null : this._files.thumbnail(path, PREVIEW.maxSide);
+    const original = info.isDirectory ? null : this._files.imageSize(path);
+    const shape = original ?? (thumbnail ? this._files.imageSize(thumbnail) : null);
+    const actor = new St.BoxLayout({style_class: 'slated-clipboard-preview slated-clipboard-file-preview', vertical: true, reactive: true});
+    if (shape) actor.add_child(this._previewPicture(thumbnail ?? path, shape));
+    else {
+      actor.add_child(new St.Icon({
+        gicon: this._files.icon(info.contentType), icon_size: PREVIEW.iconSize, style_class: 'slated-clipboard-preview-icon',
+        x_align: Clutter.ActorAlign.CENTER,
+      }));
+    }
+    actor.add_child(this._caption(filesTitle(item.files), 'slated-clipboard-preview-name'));
+    actor.add_child(this._caption(fileDetails({size: info.size, kind: this._files.kind(info.contentType)})));
+    return {actor, size: filePreviewSize(shape)};
   }
 
   /** Stands in for an image whose file is gone. */
@@ -650,28 +791,23 @@ export class ClipboardPicker {
     };
   }
 
-  /** Shows the selected image larger beside the picker, level with its row, or hides the preview. */
+  /** Shows the selected image or files larger beside the picker, level with its row, or hides the preview. */
   _updatePreview() {
-    const item = this._model.previewItem;
-    if (!item || !this._frame) {
+    const item = this._frame ? this._model.previewItem : null;
+    const key = item ? (item.image ? `image:${item.image.file}` : `files:${item.id}`) : null;
+    if (key !== this._previewKey) {
       this._preview?.destroy();
       this._preview = null;
-      this._previewFile = null;
-      return;
+      this._previewKey = key;
+      const built = item ? (item.image ? this._imagePreview(item.image) : this._filesPreview(item)) : null;
+      if (built) {
+        this._preview = built.actor;
+        this._previewSize = built.size;
+        this._root.add_child(this._preview);
+      }
     }
-    const image = item.image;
-    if (this._previewFile !== image.file) {
-      this._preview?.destroy();
-      this._preview = new St.BoxLayout({style_class: 'slated-clipboard-preview', vertical: true, reactive: true});
-      this._preview.add_child(this._previewImage(image));
-      this._preview.add_child(new St.Label({
-        style_class: 'slated-clipboard-preview-caption', text: imageDetails(image), x_align: Clutter.ActorAlign.CENTER,
-        height: this._px(PREVIEW.captionHeight),
-      }));
-      this._root.add_child(this._preview);
-      this._previewFile = image.file;
-    }
-    const {width, height} = previewSize(image);
+    if (!this._preview) return;
+    const {width, height} = this._previewSize;
     const size = {width: this._px(width), height: this._px(height)};
     const visible = PopupPlacement.screen(this._frame, this._screens())?.visibleFrame ?? this._frame;
     const frame = PopupPlacement.beside(this._frame, this._rowFrame(), size, visible, GAP_BESIDE * this._scale);

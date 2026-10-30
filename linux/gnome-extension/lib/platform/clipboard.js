@@ -1,11 +1,15 @@
-// Clipboard history on GNOME: records copies of text and images, keeps them private, and pastes a
-// picked item back into the window you were using. A port of the macOS ClipboardService
+// Clipboard history on GNOME: records copies of text, images and files, keeps them private, and
+// pastes a picked item back into the window you were using. A port of the macOS ClipboardService
 // (Sources/Slated/Engine/ClipboardService.swift); the history itself is the core's ClipboardHistory.
 //
 // - Copies: GNOME Shell's Meta.Selection reports every new clipboard owner; the text is read through
-//   St.Clipboard. A copy without text that offers `image/png` (a screenshot, a browser's Copy Image)
+//   St.Clipboard. Files copied in a file manager (`x-special/gnome-copied-files` or `text/uri-list`
+//   with local `file://` URIs, clipboardFiles.js) are a files item, whatever text comes with them.
+//   A copy without text that offers `image/png` (a screenshot, a browser's Copy Image)
 //   is an image: its bytes are stored in `clipboard-images/` beside the history (clipboardImages.js)
-//   and deleted when its item goes. A copy with text and a picture of it (spreadsheet cells) counts
+//   and deleted when its item goes. GNOME's screenshot tool copies every screenshot from GNOME Shell
+//   itself (a Meta.SelectionSourceMemory owner), which is how a screenshot is told apart and left out
+//   when `screenshots` is off. A copy with text and a picture of it (spreadsheet cells) counts
 //   as text, as on the Mac. Skipped: copies whose MIME types include `x-kde-passwordManagerHint` (KeePassXC,
 //   Firefox and other password managers mark secrets that way) when `ignoreConcealed` is on, copies
 //   made in `excludedApps`, and Slated's own writes (insert-text's temporary paste, the switcher's
@@ -17,8 +21,8 @@
 //   new copy.
 // - The picker (clipboardPicker.js) opens below the text cursor when the input method knows where it
 //   is (caret.js), else at the pointer.
-// - The log records counts, lengths, image sizes and app ids, never the text or the image, and which
-//   anchor placed the picker, never where.
+// - The log records counts, lengths, image sizes and app ids, never the text, the image or a file's
+//   path or name, and which anchor placed the picker, never where.
 
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
@@ -27,6 +31,7 @@ import St from 'gi://St';
 import * as Core from '../core/index.js';
 
 import {CaretTracker} from './caret.js';
+import {COPIED_FILES, FILES_MIME_TYPES, copiedFilesText, fileExists, parseCopiedFiles} from './clipboardFiles.js';
 import {ClipboardImageStore, imageMimeType} from './clipboardImages.js';
 import {ClipboardPicker, PickerModel} from './clipboardPicker.js';
 import {readText, remove, writePrivateTextAtomic} from './files.js';
@@ -71,10 +76,29 @@ const OWN_WRITE_MS = 3000;
 /** The image type GNOME apps put on the clipboard (and the only one recorded). */
 const PNG = 'image/png';
 
-/** What the log says about an item: its length, or an image's size and dimensions. Never content. */
+/** What the log says about an item: its length, an image's size and dimensions, or how many files. Never content. */
 function logFields(item) {
+  if (item.files) return {kind: 'files', count: item.files.length};
   if (!item.image) return {chars: [...item.text].length};
   return {kind: 'image', bytes: item.image.bytes, width: item.image.width, height: item.image.height};
+}
+
+/** UTF-8 text from clipboard bytes ('' for none). */
+function textOf(bytes) {
+  if (!bytes || bytes.length === 0) return '';
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Whether GNOME Shell itself owns the clipboard (a Meta.SelectionSourceMemory, as St.Clipboard
+ * writes it) rather than an app (a Wayland or X11 source). For an image, that's the screenshot tool.
+ */
+function isShellOwned(source) {
+  try {
+    return Boolean(source) && source instanceof Meta.SelectionSourceMemory;
+  } catch {
+    return false;
+  }
 }
 
 /** A GLib.Bytes (or a Uint8Array) as a Uint8Array; null when there's nothing. */
@@ -96,7 +120,7 @@ const pointerLocation = () => {
 export function defaultClipboardSettings() {
   return {
     enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
-    excludedApps: [], pasteAfterSelecting: true,
+    excludedApps: [], pasteAfterSelecting: true, screenshots: true,
   };
 }
 
@@ -239,8 +263,8 @@ export class ClipboardService {
   _watch() {
     if (this._selection) return;
     this._selection = global.display.get_selection();
-    this._ownerChanged = this._selection.connect('owner-changed', (_selection, type) => {
-      if (type === Meta.SelectionType.SELECTION_CLIPBOARD) this._copied();
+    this._ownerChanged = this._selection.connect('owner-changed', (_selection, type, source) => {
+      if (type === Meta.SelectionType.SELECTION_CLIPBOARD) this._copied(source);
     });
   }
 
@@ -251,8 +275,8 @@ export class ClipboardService {
     this._ownerChanged = 0;
   }
 
-  /** A new clipboard owner: decide whether to keep it before reading anything. */
-  _copied() {
+  /** A new clipboard owner (`source`): decide whether to keep it before reading anything. */
+  _copied(source = null) {
     if (!this.settings.enabled || this._stopped) return;
     let mimeTypes = [];
     try {
@@ -270,10 +294,29 @@ export class ClipboardService {
       return;
     }
     const clipboard = St.Clipboard.get_default();
+    const screenshot = mimeTypes.includes(PNG) && isShellOwned(source);
+    // Files take priority over the names (or paths) that come with them as text.
+    const filesType = FILES_MIME_TYPES.find((type) => mimeTypes.includes(type));
+    if (!filesType) {
+      this._readCopy(clipboard, mimeTypes, app, screenshot);
+      return;
+    }
+    clipboard.get_content(St.ClipboardType.CLIPBOARD, filesType, (_c, content) => {
+      const paths = parseCopiedFiles(textOf(bytesOf(content)));
+      // A list of web links or network files is text (or an image) as usual.
+      if (paths.length > 0) this._recordFiles(paths, app);
+      else this._readCopy(clipboard, mimeTypes, app, screenshot);
+    });
+  }
+
+  /** Reads a copy's text, or its PNG when it has no text. */
+  _readCopy(clipboard, mimeTypes, app, screenshot) {
     clipboard.get_text(St.ClipboardType.CLIPBOARD, (_clipboard, text) => {
       // Only a copy without text is an image: cells and files come with a picture of themselves.
       if (typeof text === 'string') this._record(text, app);
-      else if (mimeTypes.includes(PNG)) clipboard.get_content(St.ClipboardType.CLIPBOARD, PNG, (_c, bytes) => this._recordImage(bytes, app));
+      else if (mimeTypes.includes(PNG)) {
+        clipboard.get_content(St.ClipboardType.CLIPBOARD, PNG, (_c, bytes) => this._recordImage(bytes, app, {screenshot}));
+      }
     });
   }
 
@@ -289,8 +332,20 @@ export class ClipboardService {
     this._changed();
   }
 
-  /** Stores a copied image and adds it. The log gets its size and dimensions only. */
-  _recordImage(content, app) {
+  /** Adds copied files (local paths). The log gets how many, never their names. */
+  _recordFiles(paths, app) {
+    if (this._stopped || !this.settings.enabled) return;
+    if (this._takeOwnWrite((w) => w.files === paths.join('\n'))) return;
+    if (!this._add((history, at) => history.addFiles(paths, {app: app?.id ?? null, at, limit: this.settings.maxItems}))) return;
+    this._log?.record('clipboard.captured', {kind: 'files', count: paths.length, app: app?.id ?? 'unknown', items: this.count});
+    this._changed();
+  }
+
+  /**
+   * Stores a copied image and adds it. The log gets its size and dimensions only. A screenshot (GNOME
+   * Shell's own copy) is left out when `screenshots` is off.
+   */
+  _recordImage(content, app, {screenshot = false} = {}) {
     if (this._stopped || !this.settings.enabled) return;
     const bytes = bytesOf(content);
     if (!bytes || bytes.length === 0) return;
@@ -303,6 +358,13 @@ export class ClipboardService {
     const image = described.image ?? null;
     // Slated's own paste of an image coming back as a copy.
     if (image && this._takeOwnWrite((w) => w.image === image.file)) return;
+    // GNOME Shell also takes over an app's copy when the app quits (Mutter's clipboard manager): an
+    // image already in the history is that, not a new screenshot.
+    const isScreenshot = screenshot && !(image && this.history.imageFiles.has(image.file));
+    if (isScreenshot && !this.settings.screenshots) {
+      this._log?.record('clipboard.skipped', {reason: 'screenshots are off'}, 'debug');
+      return;
+    }
     if (!image || !this.images.write(bytes, image)) {
       this._log?.record('clipboard.skipped', {reason: 'image unreadable or not saved', bytes: bytes.length}, 'notice');
       return;
@@ -311,7 +373,8 @@ export class ClipboardService {
       if (!this.history.imageFiles.has(image.file)) this.images.remove([image.file]);
       return;
     }
-    this._log?.record('clipboard.captured', {kind: 'image', bytes: image.bytes, width: image.width, height: image.height, items: this.count});
+    const source = isScreenshot ? {source: 'screenshot'} : {};
+    this._log?.record('clipboard.captured', {kind: 'image', ...source, bytes: image.bytes, width: image.width, height: image.height, items: this.count});
     this._changed();
   }
 
@@ -408,9 +471,11 @@ export class ClipboardService {
     const item = this.history.items.find((i) => i.id === id);
     if (!item) return;
     const target = this._previous;
-    if (!this._put(item)) return;
+    const put = this._put(item);
+    if (!put) return;
+    const fields = {...logFields(item), ...put};
     if (!this.settings.pasteAfterSelecting) {
-      this._log?.record('clipboard.copied', logFields(item));
+      this._log?.record('clipboard.copied', fields);
       return;
     }
     this._refocus(target);
@@ -419,7 +484,7 @@ export class ClipboardService {
       const result = this._input.pasteShortcut();
       if (result?.ok === false) this._log?.error('clipboard.paste_failed', result.error ?? "Couldn't press the paste shortcut");
     });
-    this._log?.record('clipboard.pasted', {...logFields(item), app: target?.app?.id ?? 'unknown'});
+    this._log?.record('clipboard.pasted', {...fields, app: target?.app?.id ?? 'unknown'});
   }
 
   delete(id) {
@@ -443,17 +508,30 @@ export class ClipboardService {
 
   /**
    * Writes the item to the clipboard and moves it to the top, without recording the write as a copy.
-   * False when an image's file is gone: the clipboard is left as it was.
+   * Returns what the log adds (files that were missing), or null when an image's file or every one of
+   * the files is gone: the clipboard is left as it was.
    */
   _put(item) {
     const at = Core.referenceSeconds(this._now());
     const limit = this.settings.maxItems;
     const clipboard = St.Clipboard.get_default();
-    if (item.image) {
+    let extra = {};
+    if (item.files) {
+      // Files that were moved or deleted since are left out; the item keeps them all.
+      const present = item.files.filter(fileExists);
+      if (present.length === 0) {
+        this._log?.record('clipboard.paste_skipped', {reason: 'files missing', count: item.files.length}, 'notice');
+        return null;
+      }
+      if (present.length < item.files.length) extra = {missing: item.files.length - present.length};
+      this._markOwn({files: present.join('\n')});
+      clipboard.set_content(St.ClipboardType.CLIPBOARD, COPIED_FILES, new GLib.Bytes(new TextEncoder().encode(copiedFilesText(present))));
+      this._changeHistory((history) => history.addFiles(item.files, {app: item.sourceApp, at, limit}));
+    } else if (item.image) {
       const bytes = this.images.load(item.image);
       if (!bytes) {
         this._log?.record('clipboard.paste_skipped', {reason: "the image's file is missing", bytes: item.image.bytes}, 'error');
-        return false;
+        return null;
       }
       this._markOwn({image: item.image.file});
       clipboard.set_content(St.ClipboardType.CLIPBOARD, imageMimeType(item.image.file), new GLib.Bytes(bytes));
@@ -464,7 +542,7 @@ export class ClipboardService {
       this._changeHistory((history) => history.add(item.text, {app: item.sourceApp, at, limit}));
     }
     this._changed();
-    return true;
+    return extra;
   }
 
   /**

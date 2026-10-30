@@ -449,7 +449,7 @@ const DEFAULT_EXCLUDED_APPS = [
 function defaultClipboard() {
   return {
     enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
-    excludedApps: [...DEFAULT_EXCLUDED_APPS], pasteAfterSelecting: true,
+    excludedApps: [...DEFAULT_EXCLUDED_APPS], pasteAfterSelecting: true, screenshots: true,
   };
 }
 
@@ -480,6 +480,7 @@ function clipboard(v, path) {
     ignoreConcealed: c.optional('ignoreConcealed', bool) ?? d.ignoreConcealed,
     excludedApps: c.optional('excludedApps', arrayOf(str)) ?? d.excludedApps,
     pasteAfterSelecting: c.optional('pasteAfterSelecting', bool) ?? d.pasteAfterSelecting,
+    screenshots: c.optional('screenshots', bool) ?? d.screenshots,
   };
 }
 

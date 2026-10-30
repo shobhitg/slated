@@ -521,7 +521,7 @@ export function configChanges(oldConfig, newConfig) {
     const c = clipboardSettings(newConfig);
     changes.push(`clipboard: enabled ${c.enabled}, shortcut ${c.shortcut ?? 'none'}, maxItems ${c.maxItems}, persist ${c.persist}, `
       + `retentionDays ${c.retentionDays}, ignoreConcealed ${c.ignoreConcealed}, excludedApps ${(c.excludedApps ?? []).length}, `
-      + `pasteAfterSelecting ${c.pasteAfterSelecting}`);
+      + `pasteAfterSelecting ${c.pasteAfterSelecting}, screenshots ${c.screenshots}`);
   }
   if (!deepEqual(oldConfig.automation, newConfig.automation)) {
     const a = automationSettings(newConfig);

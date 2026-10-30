@@ -21,7 +21,7 @@ export const MAC_PASSWORD_MANAGERS = Object.freeze([
 export function defaultClipboardSettings() {
   return {
     enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
-    excludedApps: [...MAC_PASSWORD_MANAGERS], pasteAfterSelecting: true,
+    excludedApps: [...MAC_PASSWORD_MANAGERS], pasteAfterSelecting: true, screenshots: true,
   };
 }
 

@@ -527,13 +527,16 @@ export const checkers = {
 
   'clipboard.json': (data) => {
     const itemsOf = (history) =>
-      history.items.map((i) => ({text: i.text, app: i.sourceApp, copiedAt: i.copiedAt, pinned: i.pinned, ...(i.image ? {image: i.image} : {})}));
+      history.items.map((i) => ({
+        text: i.text, app: i.sourceApp, copiedAt: i.copiedAt, pinned: i.pinned, ...(i.image ? {image: i.image} : {}),
+        ...(i.files ? {files: i.files} : {}),
+      }));
     let counter = 0;
     const newId = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`;
     /** Items listed in a fixture (no ids) as history items, with made-up ids. */
     const fromFixture = (items) =>
       new core.ClipboardHistory(
-        items.map((i) => ({id: newId(), text: i.text, copiedAt: i.copiedAt, sourceApp: i.app, pinned: i.pinned, image: i.image})),
+        items.map((i) => ({id: newId(), text: i.text, copiedAt: i.copiedAt, sourceApp: i.app, pinned: i.pinned, image: i.image, files: i.files})),
         {newId},
       );
     return {
@@ -541,7 +544,7 @@ export const checkers = {
         for (const session of data.sessions) {
           countCheck();
           const history = fromFixture(session.start);
-          // Steps name items by text, images by file.
+          // Steps name items by text, images by file (files items by their text, the names).
           const idOf = (key) => history.items.find((i) => (i.image ? i.image.file === key : i.text === key))?.id;
           session.steps.forEach((step, i) => {
             const label = `${session.name}, step ${i}`;
@@ -551,6 +554,9 @@ export const checkers = {
             } else if (step.addImage) {
               const {image, app, at, limit} = step.addImage;
               expectEqual(history.addImage(image, {app, at, limit}), step.added, `${label}: add image ${show(image.file)}`);
+            } else if (step.addFiles) {
+              const {files, app, at, limit} = step.addFiles;
+              expectEqual(history.addFiles(files, {app, at, limit}), step.added, `${label}: add files ${show(files)}`);
             } else if (step.enforce !== undefined) history.enforce(step.enforce);
             else if (step.prune) history.prune(step.prune.days, step.prune.now);
             else if (step.remove !== undefined) history.remove(idOf(step.remove));

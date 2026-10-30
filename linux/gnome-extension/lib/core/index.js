@@ -142,13 +142,14 @@ export {parseSyntheticInput, formatSyntheticInput, RepeatSchedule, MOUSE_BUTTONS
 
 // --- Clipboard history ----------------------------------------------------------------------------
 /**
- * new ClipboardHistory(items, {newId}): add(text, {app, at, limit}), addImage(image, {app, at, limit}), enforce(limit),
- *   prune(days, now), remove(id), togglePin(id), clear({keepPinned}), search(query), imageFiles, toJSON();
- *   ClipboardHistory.fromJSON(parsed clipboard.json).
+ * new ClipboardHistory(items, {newId}): add(text, {app, at, limit}), addImage(image, {app, at, limit}),
+ *   addFiles(paths, {app, at, limit}), enforce(limit), prune(days, now), remove(id), togglePin(id), clear({keepPinned}),
+ *   search(query), imageFiles, toJSON(); ClipboardHistory.fromJSON(parsed clipboard.json).
  *   Dates are Swift's (seconds since 2001-01-01): referenceSeconds(ms = Date.now()) converts.
  * foldedContains(text, word) → the case- and diacritic-insensitive match search uses.
+ * fileDisplayName(path) → a copied file's name (its last path component), as a files item's text lists it.
  */
-export {ClipboardHistory, referenceSeconds, referenceToMilliseconds, foldedContains} from './clipboard.js';
+export {ClipboardHistory, referenceSeconds, referenceToMilliseconds, foldedContains, fileDisplayName} from './clipboard.js';
 
 // --- Popup placement ------------------------------------------------------------------------------
 /**

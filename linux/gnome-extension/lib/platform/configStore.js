@@ -29,7 +29,7 @@ export function emptyConfiguration() {
     hotstrings: [],
     clipboard: {
       enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
-      excludedApps: [], pasteAfterSelecting: true,
+      excludedApps: [], pasteAfterSelecting: true, screenshots: true,
     },
     automation: {stopShortcut: 'hyper+esc', stopOnAppSwitch: true, maxRunMinutes: 0, showIndicator: true},
     island: {enabled: true, cheatSheet: true, cheatSheetDelay: 0.5, showFailures: true},
