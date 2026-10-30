@@ -1131,6 +1131,11 @@ async function run(mode) {
     check(model.configuration.clipboard.retentionDays === 0, 'forever');
     titled(root, 'Adw.SwitchRow', 'Keep history across restarts')[0].set_active(false);
     check(model.configuration.clipboard.persist === false, 'not kept across restarts');
+    const screenshots = titled(root, 'Adw.SwitchRow', 'Add screenshots to the history')[0];
+    check(prop(world, screenshots, 'active') === true && /GNOME copies every screenshot/.test(String(prop(world, screenshots, 'subtitle'))),
+      'screenshots: on, and why it’s about copies on GNOME');
+    screenshots.set_active(false);
+    check(model.configuration.clipboard.screenshots === false, 'screenshots left out');
     titled(root, 'Adw.SwitchRow', 'Paste after picking')[0].set_active(false);
     check(model.configuration.clipboard.pasteAfterSelecting === false, 'only copies');
     titled(root, 'Adw.SwitchRow', 'Ignore passwords and other secrets')[0].set_active(false);

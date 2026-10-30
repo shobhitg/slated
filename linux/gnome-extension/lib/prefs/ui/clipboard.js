@@ -106,6 +106,16 @@ export function createClipboardPane(ctx) {
     }),
   });
   history.add(persist.row);
+  // The Mac reads screenshots from the folder they're saved in; GNOME copies each one itself.
+  const screenshots = switchRow({
+    title: 'Add screenshots to the history',
+    subtitle: 'GNOME copies every screenshot to the clipboard. Off: Slated leaves those copies out.',
+    active: settings0.screenshots,
+    onChange: on => setClipboard(c => {
+      c.screenshots = on;
+    }),
+  });
+  history.add(screenshots.row);
   prefs.add(history);
 
   // Privacy
@@ -162,9 +172,10 @@ export function createClipboardPane(ctx) {
   keyRow('Delete', 'Ctrl Backspace');
   keyRow('Clear everything but pinned items', 'Ctrl Shift Backspace');
   keyRow('Close', 'Esc');
-  const note = new Adw.ActionRow({use_markup: false, title: 'Text and images',
+  const note = new Adw.ActionRow({use_markup: false, title: 'Text, images and files',
     subtitle: 'The picker opens below the text cursor (else at the pointer). Images copied as PNG are kept too, '
-      + "up to 20 MB each; files aren't recorded, and only copies made while Slated runs are."});
+      + 'up to 20 MB each, and files copied in Files, by name: they paste back as files, as long as they '
+      + "haven't moved. Only copies made while Slated runs are recorded."});
   using.add(note);
   prefs.add(using);
 
@@ -244,6 +255,7 @@ export function createClipboardPane(ctx) {
     maxItems.setItems(itemChoices(settings.maxItems), settings.maxItems);
     retention.setItems(dayChoices(settings.retentionDays), settings.retentionDays);
     persist.set(settings.persist);
+    screenshots.set(settings.screenshots);
     persist.row.set_subtitle(`Saved only on this computer, in ${tildify(ctx.paths.clipboardFile, ctx.paths.home)}, which only you can read. `
       + 'Off: history starts fresh each time Slated starts.');
     concealed.set(settings.ignoreConcealed);
