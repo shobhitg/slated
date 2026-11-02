@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Version, license and credits.
+/// Version, author, source code and license.
 struct AboutPane: View {
   var body: some View {
     PaneScroll(maxWidth: 620) {
@@ -17,7 +17,9 @@ struct AboutPane: View {
           .padding(.horizontal, 10)
           .padding(.vertical, 4)
           .background(Theme.well, in: Capsule())
-        Text("Keyboard-first window management, a Hyper key and text expansion, in one small app.")
+        Text(
+          "Keyboard-first window management, a Hyper key, text expansion, clipboard history and game automation, for macOS and GNOME."
+        )
           .font(.system(size: 13.5))
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
@@ -25,15 +27,26 @@ struct AboutPane: View {
       }
       .frame(maxWidth: .infinity)
       SettingsCard {
-        // config key: none, credits rather than a setting
+        // config key: none, about the app rather than a setting
         SettingRow(
-          title: "Inspired by Slate by Jigish Patel",
-          subtitle:
-            "Slate pioneered configurable, keyboard-driven window management on the Mac. Slated is an independent reimplementation and contains none of Slate's code.",
-          symbol: "heart.fill", tint: Color(hex: 0xE5484D)
+          title: "Made by Shobhit Gupta",
+          subtitle: "Author and maintainer.",
+          symbol: "person.crop.circle.fill", tint: Color(hex: 0x6E56F7)
         ) {
-          Link(destination: URL(string: "https://github.com/jigish/slate")!) {
-            Label("Slate on GitHub", systemImage: "arrow.up.right")
+          Link(destination: AppInfoText.authorURL) {
+            Label("github.com/shobhitg", systemImage: "arrow.up.right")
+          }
+          .font(.system(size: 12))
+        }
+        CardDivider(inset: 54)
+        // config key: none, about the app rather than a setting
+        SettingRow(
+          title: "Source code",
+          subtitle: "Read the code, report a problem or suggest an idea.",
+          symbol: "chevron.left.forwardslash.chevron.right", tint: Color(hex: 0x3B82F6)
+        ) {
+          Link(destination: AppInfoText.repositoryURL) {
+            Label("Slated on GitHub", systemImage: "arrow.up.right")
           }
           .font(.system(size: 12))
         }
@@ -56,6 +69,9 @@ struct AboutPane: View {
 }
 
 enum AppInfoText {
+  static let repositoryURL = URL(string: "https://github.com/shobhitg/slated")!
+  static let authorURL = URL(string: "https://github.com/shobhitg")!
+
   /// "Version 0.1.0 (12)", or a development marker when running outside the app bundle.
   static var version: String {
     let info = Bundle.main.infoDictionary ?? [:]

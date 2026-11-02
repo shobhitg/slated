@@ -1,4 +1,4 @@
-// Settings → About: the mark, version, credits and license (port of AboutPane.swift), plus GNOME's
+// Settings → About: the mark, version, author, source code and license (port of AboutPane.swift), plus GNOME's
 // own About dialog with debug information for bug reports.
 
 import Adw from 'gi://Adw';
@@ -9,6 +9,8 @@ import {box, label, button, group, launchUri, roundedRect} from './widgets.js';
 
 const STOPS = [[0.29, 0.55, 1.0], [0.45, 0.38, 1.0], [0.76, 0.40, 0.98]];
 export const REPOSITORY = 'https://github.com/shobhitg/slated';
+export const AUTHOR = 'Shobhit Gupta';
+export const AUTHOR_URL = 'https://github.com/shobhitg';
 
 /** Slated's mark: tiled window panes on the accent gradient squircle (SlatedMark.swift). */
 export function slatedMark(size = 96) {
@@ -63,7 +65,7 @@ export function createAboutPane(ctx) {
   const versionLabel = label('', {classes: ['slated-pill', 'dim']});
   versionLabel.set_halign(Gtk.Align.CENTER);
   column.append(versionLabel);
-  const blurb = label('Keyboard-first window management, a Hyper key and text expansion — for GNOME, from the same configuration as the Mac app.',
+  const blurb = label('Keyboard-first window management, a Hyper key, text expansion, clipboard history and game automation, for GNOME and macOS.',
     {wrap: true, classes: ['dim-label']});
   blurb.set_xalign(0.5);
   blurb.set_justify(Gtk.Justification.CENTER);
@@ -73,17 +75,16 @@ export function createAboutPane(ctx) {
   prefs.add(hero);
 
   const credits = group();
-  const slate = new Adw.ActionRow({
-    use_markup: false,
-    title: 'Inspired by Slate by Jigish Patel',
-    subtitle: "Slate pioneered configurable, keyboard-driven window management. Slated is an independent reimplementation and contains none of Slate's code.",
-  });
-  slate.set_subtitle_lines(0);
-  slate.add_suffix(button('Slate on GitHub', () => launchUri('https://github.com/jigish/slate', prefs), {classes: ['flat']}));
-  credits.add(slate);
+  const author = new Adw.ActionRow({use_markup: false, title: `Made by ${AUTHOR}`, subtitle: 'Author and maintainer.'});
+  author.add_suffix(button('github.com/shobhitg', () => launchUri(AUTHOR_URL, prefs), {classes: ['flat']}));
+  credits.add(author);
+  const source = new Adw.ActionRow({use_markup: false, title: 'Source code', subtitle: 'Read the code, report a problem or suggest an idea.'});
+  source.set_subtitle_lines(0);
+  source.add_suffix(button('Slated on GitHub', () => launchUri(REPOSITORY, prefs), {classes: ['flat']}));
+  credits.add(source);
   const license = new Adw.ActionRow({use_markup: false, title: 'MIT License', subtitle: 'Slated is free and open source. Use it, change it and share it.'});
   credits.add(license);
-  const more = new Adw.ActionRow({use_markup: false, title: 'Credits, links and debug information', activatable: true});
+  const more = new Adw.ActionRow({use_markup: false, title: 'Links and debug information', activatable: true});
   more.add_suffix(new Gtk.Image({icon_name: 'go-next-symbolic'}));
   more.connect('activated', () => {
     const build = model.build ?? {};
@@ -91,11 +92,12 @@ export function createAboutPane(ctx) {
     const dialog = new Adw.AboutDialog({
       application_name: 'Slated',
       version: version(),
-      developer_name: 'The Slated authors',
+      developer_name: AUTHOR,
+      developers: [`${AUTHOR} ${AUTHOR_URL}`],
       license_type: Gtk.License.MIT_X11,
       website: REPOSITORY,
       issue_url: `${REPOSITORY}/issues`,
-      comments: 'Keyboard-first window management, a Hyper key and text expansion. A modern successor to Slate.',
+      comments: 'Keyboard-first window management, a Hyper key, text expansion, clipboard history and game automation.',
       debug_info: [
         `Version: ${version()}`, `Commit: ${build.commit ?? 'unknown'}`, `Built: ${build.builtAt ?? 'unknown'}`,
         `Extension: ${ctx.ext.uuid} (${model.shell.state})`, `Status: ${summary.title}`, `Session: ${model.status.session ?? 'none'}`,

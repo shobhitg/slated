@@ -1419,7 +1419,7 @@ async function run(mode) {
 
   await step('the About dialog has debug information', async () => {
     settings.showPane('about');
-    activate(rowsIn(visible('about'), (w, s) => s.props.get('title') === 'Credits, links and debug information')[0]);
+    activate(rowsIn(visible('about'), (w, s) => s.props.get('title') === 'Links and debug information')[0]);
     const dialog = world.report.dialogs[world.report.dialogs.length - 1];
     check(String(prop(world, dialog, 'debug-info')).includes('abc1234-dirty'), 'debug info names the build');
   });

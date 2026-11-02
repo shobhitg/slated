@@ -4,15 +4,14 @@
 
 <p align="center"><b>Keyboard-first window management, a Hyper key, text expansion, clipboard history and game automation for macOS and GNOME, in one app.</b></p>
 
-Slated is a modern successor to [Slate](https://github.com/jigish/slate), the endlessly configurable
-window manager that has been unmaintained since 2013. It keeps everything that made Slate great,
-imports your existing `~/.slate` or `~/.slate.js` into its own config, and adds what Slate users
-usually install other tools for:
+Slated is a keyboard-first productivity app for macOS and GNOME. Everything it does lives in two plain
+JSON files, with a polished window for changing them:
 
-- **Window management:** every Slate operation is supported:
+- **Window management:**
   - move, resize, push, nudge, throw and corner;
   - chain, sequence, layouts, and layouts applied automatically when your displays change;
-  - snapshots, undo, directional focus, window hints and the grid.
+  - snapshots, undo, directional focus, window hints and the grid;
+  - an existing Slate config (`~/.slate.js` or `~/.slate`) imported in one step.
 - **A Hyper key** (from Karabiner-Elements): Caps Lock becomes ⌃⌥⇧⌘ while held. No kernel or driver
   extension needed.
 - **Key repeat, faster than System Settings allows**, saved in config.json so every computer you use
@@ -229,5 +228,9 @@ Issues and pull requests are welcome.
 
 ## Credits & license
 
-Inspired by [Slate](https://github.com/jigish/slate) by Jigish Patel. Slated is an independent
-reimplementation that contains no code from Slate (GPLv3). MIT licensed; see [LICENSE](LICENSE).
+Slated is written and maintained by [Shobhit Gupta](https://github.com/shobhitg). MIT licensed; see
+[LICENSE](LICENSE).
+
+Its window management was inspired by [Slate](https://github.com/jigish/slate) by Jigish Patel, which
+has been unmaintained since 2013. Slated is an independent reimplementation and contains no code from
+Slate (GPLv3).
