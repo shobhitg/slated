@@ -4,7 +4,7 @@ Slated's configuration is two files in `~/.config/slated`, and nothing else:
 
 | File | What's in it | Sections |
 |---|---|---|
-| `config.json` | What your keys do | `keyboard` (the Hyper key), `bindings`, `hotstrings`, `layouts`, `defaults` |
+| `config.json` | What your keys do | `keyboard` (the Hyper key, key repeat), `bindings`, `hotstrings`, `layouts`, `defaults` |
 | `settings.json` | How Slated behaves | `general`, `windows`, `clipboard`, `automation`, `island` |
 
 Both start with `"version": 2`. The main window edits them, and you can too: they're plain JSON, and
@@ -118,8 +118,38 @@ does the rest.
 }
 ```
 
-`general.showStatusIcon` (default `true`) shows Slated's icon in GNOME's top bar; Settings → General
-→ Show Slated in the top bar sets it. The Mac's menu bar icon doesn't follow it yet.
+`general.showStatusIcon` (default `true`) shows Slated's icon in the Mac's menu bar and GNOME's top
+bar; Settings → General → Show Slated in the menu bar (on GNOME, the top bar) sets it. Without it,
+the Dock icon (on GNOME, Slated in the app grid) opens Slated.
+
+## Key repeat
+
+`keyboard.keyRepeat` sets how a held key repeats, in milliseconds, on every computer that reads this
+config.json:
+
+```jsonc
+"keyboard": {
+  "capsLock": "hyper",
+  "keyRepeat": { "delay": 200, "interval": 17 }   // wait 200 ms, then repeat every 17 ms
+}
+```
+
+- **`delay`**: how long a key is held before it repeats, 100–2000 ms.
+- **`interval`**: the time between repeats, 15–500 ms (17 ms is 60 per second).
+- Values outside those ranges are read as the nearest limit. Both are needed; a fraction or text is an
+  error.
+- **Absent** (the default, or Settings' switch off): Slated leaves the computer's own setting alone.
+  Turning it off doesn't undo anything either: it's your preference, not a temporary change.
+- **Captured once per computer:** the first time this version runs on a computer, if config.json has
+  no `keyRepeat`, Slated copies that computer's current setting into it (logged as
+  `keyboard.key_repeat_captured`). Copy config.json to another computer and it repeats keys the same
+  way there. Settings → Keyboard → Use this Mac's current setting captures it again.
+- **On the Mac** Slated saves it as macOS does (the global `InitialKeyRepeat` and `KeyRepeat`, in
+  ticks of 1/60 s: 200 ms is 12 ticks, 17 ms is 1 tick) and also asks the HID system to use it
+  now. If macOS keeps the old timing until the next login, Settings and Overview say so. The Mac
+  repeats in whole ticks, so 30 ms runs as 33 ms (2 ticks).
+- **On GNOME** it's `org.gnome.desktop.peripherals.keyboard` (`delay`, `repeat-interval`, and
+  `repeat` on), and it applies at once.
 
 ## Shortcuts
 

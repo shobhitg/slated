@@ -155,6 +155,9 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Running the binary from a terminal and pressing Ctrl-C or Ctrl-\ restores Caps Lock too, also
       when pressed right after launching it (before its window appears).
 - [ ] After sleep and wake, the Hyper key still works.
+- [ ] Caps Lock on, then turn the Hyper key on: Caps Lock goes off (its light too). The log has
+      `hyper.caps_lock_cleared` with reason "hyper turned on". Also at launch: quit Slated, turn Caps
+      Lock on, start Slated with the Hyper key on.
 - [ ] Hold Caps Lock while a password field takes focus (a Hyper shortcut that opens a login
       prompt, say), let go there, then type in another app: keys arrive without ⌃⌥⇧⌘.
 - [ ] When the log shows `tap.reenabled_after_timeout` or `tap.reenabled_after_user_input` while you
@@ -192,6 +195,29 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       Quit; File → Reload Configuration (⌘R), Open Config File, Open Settings File, Close Window (⌘W); Edit → Undo, Cut,
       Copy, Paste and Select All in a text field (a hotstring's replacement); Window → Minimize.
 - [ ] With Launch at Login on, logging in starts Slated without opening its window (once set up).
+- [ ] The menu bar icon is Slated's three tiles, tinted like the other icons in light and dark menu
+      bars; pause bars while paused, outlined tiles while a modal key waits, an exclamation mark when
+      a shortcut couldn't be registered (the menu lists it).
+- [ ] General → Show Slated in the menu bar off takes the icon away; on brings it back. The Dock icon
+      still opens Slated.
+- [ ] On a MacBook with a full menu bar (the icon behind the notch): Overview and General say so, and
+      `scripts/logs.py --grep menubar` shows `menubar.icon_hidden` with the icon's x and the notch.
+      Got It hides the notice. Turn off a few other icons in System Settings → Menu Bar: the icon
+      appears, the notice goes, the log has `menubar.icon_visible`.
+
+**Key repeat (Settings → Keyboard → Key Repeat)**
+- [ ] First launch of this version: config.json gains `keyboard.keyRepeat` equal to this Mac's
+      setting (`defaults read -g InitialKeyRepeat` × 1000/60 ms, and `KeyRepeat`), and the log has
+      `keyboard.key_repeat_captured`. Nothing changes in how keys repeat.
+- [ ] Move "Delay until repeat" and "Repeat rate", then hold a key in "Try it here". Either it repeats
+      the new way at once and the status says Applied, or Settings and Overview say macOS uses it after
+      you log out and back in; after logging in, it does. `defaults read -g KeyRepeat` shows the new
+      ticks either way; the log has `keyboard.key_repeat_applied` with `live` true or false.
+- [ ] Use This Mac's Current Setting puts the sliders back to what macOS uses now.
+- [ ] Switch off, quit and relaunch Slated: the setting isn't captured again, and key repeat stays as
+      it was (nothing is undone).
+- [ ] Copy a config.json with `"keyRepeat": {"delay": 200, "interval": 17}` from another computer:
+      after Slated reloads it, keys repeat after 200 ms, 60 per second (maybe after logging in).
 - [ ] The main window takes keyboard focus.
 - [ ] Recording a shortcut with the real Caps Lock (Hyper) works: holding Caps Lock and pressing K
       records ✦K (⌃⌥⇧K with Keyboard → Meh), and whatever ✦K is bound to doesn't run. Global hotkeys,
@@ -456,6 +482,21 @@ Run on GNOME 46 (Ubuntu 24.04, and the author's Pop!_OS on Xorg) and GNOME 49 af
 - [ ] A binding on Super+A: the icon shows an exclamation mark, and the menu lists the shortcut that
       couldn't be registered.
 - [ ] General → Show Slated in the top bar off takes the icon away within a second; on brings it back.
+
+**Keyboard: key repeat and Caps Lock (GNOME)**
+- [ ] Caps Lock on, then turn the Hyper key on: Caps Lock goes off. Check it with keyd (Settings →
+      Keyboard on, `linux/install.sh --hyper-keyd` run) and with GNOME's option (`--no-keyd`).
+      `scripts/logs.py --grep hyper.caps_lock` shows `hyper.caps_lock_cleared`.
+- [ ] With Caps Lock on and Slated running, run `linux/install.sh --hyper-keyd`: within a second Caps
+      Lock goes off (reason "hyper mode changed").
+- [ ] Settings → Keyboard → Key Repeat: switch on, drag "Delay until repeat" and "Repeat rate", hold a
+      key in "Try it here": the new timing applies at once, and GNOME Settings → Keyboard → Repeat Keys
+      shows the same values. The status says Applied. Switch off: GNOME's values stay as they were.
+- [ ] First start of this version on a fresh computer: config.json gains `keyboard.keyRepeat` equal to
+      GNOME's delay and interval, and the log has `keyboard.key_repeat_captured`. Turn the switch off
+      and restart Slated: it isn't captured again.
+- [ ] Copy a config.json with `keyRepeat` {200, 17} to the GNOME machine: after Slated reloads, GNOME
+      uses 200 ms and 17 ms.
 - [ ] With no `~/.local/state/slated/settings-window.json`, a new login opens the settings window on Get
       Started about 3 seconds in, without taking focus from an app you already opened. Closing it,
       then locking and unlocking, doesn't open it again; the next login does, until it's finished.

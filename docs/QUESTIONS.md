@@ -393,8 +393,8 @@ extension with no app of its own.
   Accessibility Access, Import Slate Config and Quit. Pause bars while paused, an exclamation mark
   for warnings (a file that can't be read, shortcuts GNOME refused).
 - **`general.showStatusIcon`** (default on) in the shared settings, Swift included, pinned by the
-  fixtures. *Open:* should the Mac's menu bar icon follow it, with a switch in the Mac's General?
-  *Assumption:* no for now; the Mac keeps its icon.
+  fixtures. The Mac's menu bar icon follows it too now (2026-11-01), with General → Show Slated in
+  the menu bar.
 - **Pause Slated on GNOME** lets go of shortcuts, Caps Lock's GNOME option and espanso's match file,
   as on the Mac. It survives a screen lock (GNOME disables extensions while locked), not a login.
   keyd keeps mapping Caps Lock while paused: it's a system service.
@@ -411,3 +411,44 @@ extension with no app of its own.
 - **Settings never shows a bare "Waiting":** each status row names what's missing and offers the fix.
   Whether espanso runs comes from `espanso status`, asked by the settings window while it's open;
   whether keyd runs comes from the extension (`status.json`'s `hyper.keyd`).
+
+## Key repeat, a stuck Caps Lock and the menu bar icon (2026-11-01): decisions
+
+- **`keyboard.keyRepeat` is milliseconds** (`delay`, `interval`), both required, clamped into
+  100–2000 ms and 15–500 ms when read rather than refused: a typo can't make the keyboard unusable,
+  and the rest of config.json still loads. A fraction or text is an error like any other.
+- **Captured once per computer**, remembered outside config.json (the Mac: Slated's own defaults,
+  `keyRepeatCaptured`; GNOME: `~/.local/state/slated/key-repeat.json`). The mark is set on the first
+  run of this version even when config.json already has a `keyRepeat` (copied from another computer),
+  so turning the switch off later sticks. *Edge:* a config.json without `keyRepeat` copied to a new
+  computer gets that computer's setting captured, so "off" doesn't travel. Tell me if it should
+  (that needs an explicit "off" value in the file).
+- **The Mac applies in whole 1/60 s ticks** (what macOS stores), so the slider moves in ticks and shows
+  the rate macOS really uses: 17 ms reads "60 per second (17 ms)". GNOME stores milliseconds and shows
+  round(1000/interval), "59 per second (17 ms)". The number fields take any whole number on both.
+- **Live on the Mac:** Slated writes the global defaults (CFPreferences) and sets the HID system's
+  `HIDInitialKeyRepeat`/`HIDKeyRepeat` with `hidutil property --set`, then reads them back. Whether
+  macOS 26 lets hidutil change them for a user process wasn't tried on the author's Mac (the rules
+  forbid it); if it doesn't, Settings and Overview say the change applies after logging out and in.
+  It's re-checked after waking up. Nothing is undone on quit.
+- **Turning the switch on** starts from the computer's current setting (GNOME's default, 500/30 ms, if
+  it can't be read), so nothing changes until a slider moves.
+- **GNOME with Repeat Keys off:** nothing is captured (applying a `keyRepeat` turns repeating on, and
+  that should be your choice); the mark is still set. *Open:* capture anyway and turn it on?
+- **A stuck Caps Lock under Hyper:** the Mac turns the lock off with IOKit's public
+  `IOHIDSetModifierLockState` when the Hyper key comes on (before mapping Caps Lock to F18), at launch,
+  after waking up, and when a modifier change shows the lock on while Hyper is active (a global
+  `flagsChanged` monitor). GNOME taps Caps_Lock through Mutter's virtual keyboard before adding
+  `caps:hyper`, when the keymap reports the lock on, and after the Hyper mode changes (keyd set up).
+  Logged as `hyper.caps_lock_cleared`. *Untested on real hardware:* that keyd (evdev level) leaves
+  Mutter's virtual Caps_Lock alone, and how Mutter 46–51 drop the tap once `caps:hyper` is set.
+- **The menu bar icon behind the notch** is detected from the icon's window frame and the screen's
+  `auxiliaryTopLeftArea`/`auxiliaryTopRightArea` (public API; at least half the icon behind the notch
+  counts). Re-checked when its window moves, its occlusion changes or the displays change. Icons
+  hidden under the frontmost app's menus aren't detected (no public API says so). The notice names
+  System Settings → Menu Bar (Allow in the Menu Bar) on macOS 26, and ⌘-dragging icons out on older
+  versions. *Open:* a button that opens that pane needs its URL, which I couldn't confirm.
+- **The Mac's icon is Slated's tiles** drawn as a template image (`StatusGlyph`), matching GNOME's
+  symbolic icons; paused and warning variants as on GNOME, plus outlined tiles for a waiting modal
+  key (GNOME has no modal variant). Warnings: a file that can't be read, shortcuts that couldn't be
+  registered, and the Mac's conflicts (Slate or Karabiner running).

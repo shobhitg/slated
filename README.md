@@ -15,6 +15,8 @@ usually install other tools for:
   - snapshots, undo, directional focus, window hints and the grid.
 - **A Hyper key** (from Karabiner-Elements): Caps Lock becomes ⌃⌥⇧⌘ while held. No kernel or driver
   extension needed.
+- **Key repeat, faster than System Settings allows**, saved in config.json so every computer you use
+  repeats keys the same way.
 - **Hotstrings** (from Keyboard Maestro): type `;shrug` and get `¯\_(ツ)_/¯`. Placeholders like
   `{date}` and `{clipboard}`, per-app filters, and a choice of typing or pasting.
 - **Clipboard history** (like Keyboard Maestro's): text, images, copied files and screenshots saved
