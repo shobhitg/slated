@@ -251,6 +251,17 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       `0.5`. On a hotstring's Replacement: `hotstrings[n].replacement` and the text in quotes. On
       Repeat while held (a Slate setting at its default): a toast says it isn't in settings.json.
       Open settings.json opens your editor. `scripts/logs.py --grep config_key` shows the file only.
+- [ ] File names are links: under any setting, the key's `settings.json` / `config.json` is in the
+      accent color, underlined with the pointing hand under the pointer, "Open settings.json" as its
+      tooltip; a click opens the file in your editor (TextEdit if no app opens .json), and right-click
+      still shows the key's menu. In sentences, the names open too: General's header and Configuration
+      Files card (the paths beside Open config.json / Open settings.json), Key Repeat's "Saved in
+      config.json", the conflict and can't-read banners, "Updated from config.json" in the sidebar's
+      foot, Overview's import notice (`~/.config/slated/config.json`, `~/.slate.js`), Import from Slate
+      and Get Started's Slate step. `~/.config/slated` opens the folder in the Finder; a file that isn't
+      there (`~/.slate` when you only have `~/.slate.js`) says so in a toast. With no Slate config,
+      "No ~/.slate or ~/.slate.js here" isn't a link. `scripts/logs.py --grep config_file_opened` shows
+      the file's name and how it opened, never a path.
 - [ ] Edit settings.json in an editor while Slated is open (turn `island.enabled` off, save): the
       switch follows within a second, and the sidebar's foot says "Updated from settings.json" for a
       few seconds. The ↻ beside it re-reads both files ("Configuration reloaded").
@@ -588,6 +599,13 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
       the real GTK too; a right-click opens Copy Key / Copy Value as JSON / Open settings.json, and the
       menu goes away cleanly (no GTK warnings in `journalctl -f -o cat /usr/bin/gnome-shell` or the
       terminal running `gnome-extensions prefs`). General → Show config keys off hides them.
+- [ ] File names are links (accent color, the pointing hand, "Open settings.json" as the tooltip):
+      the file part of every key, and the names in General's Files group (the paths, the folder, the
+      Slate config row), Window Behavior and Key Repeat descriptions, the conflict banner, the
+      sidebar's "Updated from config.json", Overview's can't-read and import notices and Get Started's
+      Slate step. A click opens the file in its default app (the folder in Files) rather than a
+      "no app for slated-file" error; a missing file (`~/.slate`) says so in a toast; clicking a link
+      in a switch row's subtitle opens the file without flipping the switch.
 - [ ] Edit settings.json in an editor with the window open: the sidebar's foot says "Updated from
       settings.json"; ↻ reloads. Change a setting and save a hand edit to the same file at once: the
       banner above the section offers Reload from File and Keep My Changes, and nothing is saved until

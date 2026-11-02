@@ -12,7 +12,11 @@ comments and trailing commas are allowed. Slated reloads a file the moment it ch
 `settings.json` means every setting at its default. Settings writes only the file whose part changed,
 so turning the island off never rewrites `config.json`, and a new shortcut never rewrites
 `settings.json`. The menus' **Open Config File** and **Open Settings File** open them, as do General's
-**Open config.json** and **Open settings.json** buttons.
+**Open config.json** and **Open settings.json** buttons. **Wherever the window names a file, the name
+opens it**: the file at the start of every key below, and `config.json`, `settings.json`,
+`config.v1.json`, `~/.config/slated` (the folder) and `~/.slate.js` / `~/.slate` (while there's a
+Slate config) in the window's text, in your editor (TextEdit when no app opens it), or a note when the
+file isn't there yet.
 
 **The window shows every setting's key** in small monospace text under its name, so you know what to
 look for in the file: `settings.json › island.cheatSheetDelay`, `config.json › keyboard.capsLock`. An
