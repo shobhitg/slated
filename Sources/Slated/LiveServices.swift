@@ -80,16 +80,15 @@ class LiveServices: AppServices {
     NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL])
   }
 
-  /// The same as File → Open Config File / Open Settings File, from General's buttons and the settings'
-  /// context menus.
-  func openConfigFile(_ file: ConfigFile) {
-    Log.record(file == .config ? "ui.open_config" : "ui.open_settings")
-    let url = file == .config ? engine.store.fileURL : engine.store.settingsURL
-    if FileManager.default.fileExists(atPath: url.path) {
-      NSWorkspace.shared.open(url)
-    } else {
-      NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL])
-    }
+  /// A file's name in the window (a key's file, a link in a sentence), General's Open buttons and the
+  /// settings' context menus. The log names the file only, never its path.
+  func openFile(_ link: FileLink) -> FileOpenPlan {
+    let url = link.location(
+      configFile: engine.store.fileURL, settingsFile: engine.store.settingsURL,
+      home: URL(fileURLWithPath: SlatedPaths.home))
+    let plan = FileOpener.live.open(link, at: url)
+    Log.record("ui.config_file_opened", ["file": link.logName, "with": plan.rawValue])
+    return plan
   }
 
   func copyText(_ text: String) {

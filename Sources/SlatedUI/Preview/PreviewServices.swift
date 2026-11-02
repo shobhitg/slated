@@ -246,10 +246,16 @@ public final class PreviewServices: AppServices {
   public private(set) var openedFilesAndFoldersSettings = 0
 
   /// What the UI opened, copied and logged about the files, for tests.
-  public private(set) var openedConfigFiles: [ConfigFile] = []
+  public private(set) var openedFiles: [FileLink] = []
+  /// The links whose files aren't there, for tests (`openFile` says `.missing` for them).
+  public var missingFiles: Set<FileLink> = []
   public private(set) var copiedTexts: [String] = []
   public private(set) var configEvents: [ConfigUIEvent] = []
-  public func openConfigFile(_ file: ConfigFile) { openedConfigFiles.append(file) }
+  public func openFile(_ link: FileLink) -> FileOpenPlan {
+    if missingFiles.contains(link) { return .missing }
+    openedFiles.append(link)
+    return link.isFolder ? .finder : .defaultApp
+  }
   public func copyText(_ text: String) { copiedTexts.append(text) }
   public func logConfigEvent(_ event: ConfigUIEvent) { configEvents.append(event) }
 

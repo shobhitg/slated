@@ -7,17 +7,45 @@ import SwiftUI
 // (`LabeledField(key: "trigger")`), which `configKeyItem` and `configKeyBase` put in the environment.
 // ConfigKeyCoverageTests fails when a control in a settings pane names no key.
 
-/// A key in small monospace secondary text, as shown under a setting's label.
+/// A key in small monospace secondary text, as shown under a setting's label. A whole key starts with
+/// its file's name, which is a link that opens the file (`FileNameLink`); the rest is plain text.
 struct ConfigKeyCaption: View {
   let text: String
+  /// The file the key is in; nil for a field's key, which is relative to its item (`trigger`).
+  var file: ConfigFile?
+
+  /// A field's key, relative to its item.
+  init(text: String) {
+    self.text = text
+  }
+
+  /// A whole key: `settings.json › island.enabled`, its file's name a link.
+  init(key: ConfigKey) {
+    text = key.display
+    file = key.file
+  }
+
+  /// The caption's parts: the file its start links to (nil when it names none) and the text after it.
+  static func parts(of text: String, file: ConfigFile?) -> (link: FileLink?, rest: String) {
+    guard let file, text.hasPrefix(file.rawValue) else { return (nil, text) }
+    return (FileLink(file), String(text.dropFirst(file.rawValue.count)))
+  }
 
   var body: some View {
-    Text(verbatim: text)
-      .font(.system(size: 10.5, design: .monospaced))
-      .foregroundStyle(.secondary)
-      .lineLimit(1)
-      .truncationMode(.middle)
-      .accessibilityLabel("Config key: \(text)")
+    let parts = Self.parts(of: text, file: file)
+    HStack(alignment: .firstTextBaseline, spacing: 0) {
+      if let link = parts.link {
+        FileNameLink(link: link)
+          .fixedSize()
+          .layoutPriority(1)
+      }
+      Text(verbatim: parts.rest)
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .accessibilityLabel("Config key: \(text)")
+    }
+    .font(.system(size: 10.5, design: .monospaced))
+    .foregroundStyle(.secondary)
   }
 }
 
@@ -148,7 +176,7 @@ struct ConfigItemCaption: View {
 
   var body: some View {
     if let key, model?.showsConfigKeys == true {
-      ConfigKeyCaption(text: key.display)
+      ConfigKeyCaption(key: key)
         .configKeyMenu(key)
     }
   }

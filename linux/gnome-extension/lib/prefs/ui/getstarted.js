@@ -19,6 +19,7 @@ import {fileExists} from '../io.js';
 import {plural} from '../util.js';
 import {box, label, button, icon, keycaps, group, notice, switchRow, commandRow, triggerChip, launchUri, clear} from './widgets.js';
 import {importSlateDialog} from './slateimport.js';
+import {setLinkedLabel, setLinkedRow} from './filelinks.js';
 import {slatedMark} from './about.js';
 import {hyperIllustration} from './keyboard.js';
 import {summaryActions} from './overview.js';
@@ -39,7 +40,8 @@ function stepPage() {
 function stepTitle(titleText = '', subtitleText = '') {
   const column = box('vertical', 10);
   const title = label(titleText, {classes: ['title-1'], wrap: true, xalign: 0.5});
-  const subtitle = label(subtitleText, {classes: ['dim-label'], wrap: true, xalign: 0.5});
+  // File names in the subtitle (the Slate config imported) open the file.
+  const subtitle = setLinkedLabel(label('', {classes: ['dim-label'], wrap: true, xalign: 0.5}), subtitleText);
   for (const l of [title, subtitle]) l.set_justify(Gtk.Justification.CENTER);
   column.append(title);
   column.append(subtitle);
@@ -47,7 +49,7 @@ function stepTitle(titleText = '', subtitleText = '') {
     widget: column,
     set(t, s) {
       title.set_label(t);
-      subtitle.set_label(s);
+      setLinkedLabel(subtitle, s);
     },
   };
 }
@@ -280,7 +282,7 @@ export function createGetStartedPane(ctx) {
     slateIcon.set_from_icon_name(s.state === 'none' ? 'document-new-symbolic' : 'text-x-generic-symbolic');
     slateTitle.set(s.title, s.subtitle);
     importGroup.set_visible(s.offerImport && model.slateFiles.length > 0);
-    importRow.set_title(model.slateFiles.map(f => f.displayPath).join(', '));
+    setLinkedRow(importRow, {title: model.slateFiles.map(f => f.displayPath).join(', ')});
     importButton.set_label(s.state === 'imported' ? 'Import Again…' : 'Import…');
     const added = starterAdded(config.bindings);
     starterGroup.set_visible(s.offerStarter);

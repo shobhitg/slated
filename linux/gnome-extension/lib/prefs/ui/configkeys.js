@@ -10,6 +10,8 @@ import Gtk from 'gi://Gtk';
 
 import {appendKey, bindingKey, hotstringKey, itemKey, keyDisplay, keyPath, layoutKey, valueText} from '../../core/index.js';
 import {escapeMarkup} from '../util.js';
+import {keyLinkMarkup} from '../filelinks.js';
+import {linkedMarkup, setLinkedDescription, wireLinks} from './filelinks.js';
 
 /** The window's model and actions: {model, toast(message), open(file)}. Set once by the window. */
 let context = null;
@@ -84,7 +86,8 @@ export function fieldIndex(scope, index) {
   };
 }
 
-const keyMarkup = text => `<span font_family="monospace" size="small">${escapeMarkup(text)}</span>`;
+// The key's file name is a link that opens the file (filelinks.js); the rest is plain.
+const keyMarkup = text => `<span font_family="monospace" size="small">${keyLinkMarkup(text)}</span>`;
 /** Text for a row with markup on: only what Pango would read as markup is escaped, so titles stay as written. */
 const markupText = text => String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -100,11 +103,13 @@ export function attachKey(row, info, {kind = 'action', title = null, subtitle = 
   row._slatedConfigKey = {info, kind, title, subtitle, tooltip: kind === 'widget' ? row.get_tooltip_text() : null};
   if (kind === 'action') row.set_use_markup(true);
   if (kind === 'entry') {
-    const caption = new Gtk.Label({css_classes: ['dim-label', 'slated-config-key'], valign: Gtk.Align.CENTER});
+    const caption = new Gtk.Label({use_markup: true, css_classes: ['dim-label', 'slated-config-key'], valign: Gtk.Align.CENTER});
     row.add_suffix(caption);
     row._slatedConfigKey.caption = caption;
   }
   applyKey(row);
+  // The file's name in the key opens it, wherever the row shows it (its subtitle is a label of its own).
+  if (kind !== 'widget') wireLinks(row);
   const click = new Gtk.GestureClick({button: 3});
   click.connect('pressed', () => showMenu(row));
   row.add_controller(click);
@@ -150,14 +155,16 @@ export function applyKey(row) {
   }
   const text = keysShown() ? s.info.text : '';
   if (s.kind === 'entry') {
-    s.caption.set_label(text);
+    s.caption.set_label(keyLinkMarkup(text));
     s.caption.set_visible(Boolean(text));
   } else if (s.kind === 'action') {
     if (s.title !== null) row.set_title(markupText(s.title));
-    row.set_subtitle([text && keyMarkup(text), s.subtitle && markupText(s.subtitle)].filter(Boolean).join('\n'));
+    row.set_subtitle([text && keyMarkup(text), s.subtitle && linkedMarkup(s.subtitle)].filter(Boolean).join('\n'));
   } else if (s.kind === 'group') {
-    // A group's description is plain text: the key goes on a line of its own.
-    row.set_description([s.subtitle, text].filter(Boolean).join('\n'));
+    // A group's description is plain text: the key goes on a line of its own, and the label libadwaita
+    // shows it in gets the markup with the links.
+    const markup = [s.subtitle && linkedMarkup(s.subtitle), text && keyLinkMarkup(text)].filter(Boolean).join('\n');
+    setLinkedDescription(row, [s.subtitle, text].filter(Boolean).join('\n'), markup);
   } else {
     row.set_tooltip_text([s.tooltip, text].filter(Boolean).join('\n') || null);
   }
@@ -201,10 +208,11 @@ export function itemCaption(resolve, {pathOnly = false} = {}) {
   caption.add_controller(click);
   const update = () => {
     const key = keysShown() ? resolve() : null;
-    caption.set_label(key ? escapeMarkup(pathOnly ? keyPath(key) : keyDisplay(key)) : '');
+    caption.set_label(key ? (pathOnly ? escapeMarkup(keyPath(key)) : keyLinkMarkup(keyDisplay(key))) : '');
     caption.set_visible(Boolean(key));
   };
   caption._slatedCaptionUpdate = update;
+  wireLinks(caption);
   update();
   return {widget: caption, update};
 }

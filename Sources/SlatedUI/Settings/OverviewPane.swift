@@ -56,6 +56,7 @@ struct SlateImportNoticeCard: View {
 
   private var message: String {
     var text =
+      // file link: Notice's message (LinkedText)
       "Slated doesn't read \(report.fileNames) any more: edit them here or in ~/.config/slated/config.json."
     let skipped = report.notConverted
     if !skipped.isEmpty {
@@ -78,10 +79,10 @@ private struct HeroCard: View {
           .foregroundStyle(Theme.accentGradientHorizontal)
           .textCase(.uppercase)
           .tracking(0.6)
-        Text(headline)
+        LinkedText(headline)
           .font(.system(size: 24, weight: .bold))
           .tracking(-0.4)
-        Text(summary)
+        LinkedText(summary)
           .font(.system(size: 13))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -123,11 +124,13 @@ private struct HeroCard: View {
     var items: [String] = []
     if !model.runtimeStatus.accessibilityGranted { items.append("Accessibility") }
     if model.problemBindingCount > 0 { items.append("shortcuts") }
+    // file link: counted, not shown
     if model.loadError != nil { items.append("config.json") }
     return items
   }
 
   private var headline: String {
+    // file link: LinkedText(headline)
     if model.loadError != nil { return "config.json needs a fix" }
     if model.runtimeStatus.paused { return "Slated is paused" }
     if attention.isEmpty { return "Everything's running" }
@@ -155,6 +158,7 @@ private struct HeroCard: View {
   }
 
   private var primaryAction: (title: String, run: () -> Void)? {
+    // file link: a button's title
     if model.loadError != nil { return ("Reveal config.json", { model.revealConfigurationFile() }) }
     if model.runtimeStatus.paused { return ("Resume Slated", { model.setPaused(false) }) }
     if !model.runtimeStatus.accessibilityGranted {
@@ -274,6 +278,7 @@ private struct StatusGrid: View {
     if failed > 0 { parts.append("\(failed) failed") }
     if parts.isEmpty {
       let count = model.configuration.bindings.count
+      // file link: StatusTile's detail (LinkedText)
       return "\(count) shortcut\(count == 1 ? "" : "s") in config.json"
     }
     return parts.joined(separator: " · ")
@@ -319,7 +324,7 @@ private struct StatusTile<Action: View>: View {
           StatusDot(color: state.color, size: 6)
         }
         Text(value).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
-        Text(detail).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1)
+        LinkedText(detail).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -530,6 +535,7 @@ private struct NextSteps: View {
           symbol: "capslock.fill", tint: SettingsPane.keyboard.tint, run: { model.selectedPane = .keyboard }))
     }
     if let slate = model.slateConfigPath, model.configuration.bindings.isEmpty {
+      // file link: none here, the whole tile is the button that imports it.
       steps.append(
         Step(
           title: "Import your Slate config", detail: "Bring the shortcuts in \(slate) into Slated, to edit here.",

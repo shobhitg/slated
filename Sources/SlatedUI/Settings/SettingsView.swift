@@ -23,6 +23,7 @@ struct SettingsView: View {
       }
     }
     .environment(model)
+    .fileLinkHandler(model)
     .tint(Theme.accent)
   }
 

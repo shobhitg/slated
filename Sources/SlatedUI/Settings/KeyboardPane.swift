@@ -83,7 +83,7 @@ private struct HyperCard: View {
             Text("Caps Lock as Hyper").font(.system(size: 16, weight: .semibold))
             StatusPill(text: statusText, color: statusColor)
           }
-          if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.capsLock.display) }
+          if model.showsConfigKeys { ConfigKeyCaption(key: ConfigKeys.capsLock) }
           Text(
             "Hold Caps Lock and every key you press gets \(model.configuration.keyboard.hyperModifiers.symbols) — a combination no app uses, so shortcuts like ✦← are all yours."
           )

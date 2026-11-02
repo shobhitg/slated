@@ -144,7 +144,7 @@ let configReloadTests = Suite(
           expectEqual(services.copiedTexts.count, 3)
           expect(model.toast?.message.contains("default") == true)
           model.openConfigFile(.settings)
-          expectEqual(services.openedConfigFiles, [.settings])
+          expectEqual(services.openedFiles, [.settings])
         }
       }
     ),

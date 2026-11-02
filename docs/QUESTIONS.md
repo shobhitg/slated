@@ -513,3 +513,13 @@ extension with no app of its own.
 - **The app's own writes** (an import, the hotstrings switch from the menu) are never a conflict.
 - Events: `ui.config_key_copied` {file, copied: key|value}, `ui.config_reloaded` {files, source:
   disk|conflict}, `ui.config_conflict` {files, choice: pending|reload|keep}. File names only.
+- **File names are links (2026-11-02).** Every key's file part and every mention of `config.json`,
+  `settings.json`, `config.v1.json`, `~/.config/slated`, `~/.slate.js` and `~/.slate` in the window's
+  text opens that file (`slated-file://config` links routed to the app; GNOME: Pango links with an
+  `activate-link` handler). Decisions I made: the key's file name is in the accent color at rest
+  (underlined on hover), so it reads as clickable without hovering; a Slate file is a link only while
+  there's a Slate config ("No ~/.slate here" isn't one); a missing file says so in a toast instead of
+  revealing the folder; the menus, toasts, tooltips, button titles, the GNOME window title and text
+  inside a button (Overview's suggestion tiles) stay plain. All opens log `ui.config_file_opened`
+  {file (name only), with: default|textedit|finder|files|missing}, replacing `ui.open_config` and
+  `ui.open_settings`. *Open:* should the accent be dimmer at rest, or only on hover?

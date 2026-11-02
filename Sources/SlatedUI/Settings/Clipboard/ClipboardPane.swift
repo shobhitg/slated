@@ -49,7 +49,7 @@ private struct ClipboardHero: View {
         .toggleStyle(.switch)
         .configKeyMenu(ConfigKeys.clipboardEnabled)
       }
-      if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.clipboardEnabled.display) }
+      if model.showsConfigKeys { ConfigKeyCaption(key: ConfigKeys.clipboardEnabled) }
       heroBody(settings)
     }
     .padding(18)
@@ -322,7 +322,7 @@ private struct PrivacyCard: View {
           IconTile(symbol: "hand.raised.fill", tint: Color(hex: 0xE5484D), size: 26)
           VStack(alignment: .leading, spacing: 2) {
             Text("Never record copies from").font(.system(size: 13, weight: .medium))
-            if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.clipboardExcludedApps.display) }
+            if model.showsConfigKeys { ConfigKeyCaption(key: ConfigKeys.clipboardExcludedApps) }
             Text("Anything copied in these apps stays out of your history.")
               .font(.system(size: 11.5)).foregroundStyle(.secondary)
           }

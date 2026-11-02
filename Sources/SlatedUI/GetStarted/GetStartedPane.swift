@@ -128,7 +128,7 @@ struct StepTitle: View {
         .font(.system(size: 28, weight: .bold))
         .tracking(-0.6)
         .multilineTextAlignment(.center)
-      Text(subtitle)
+      LinkedText(subtitle)
         .font(.system(size: 14))
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)

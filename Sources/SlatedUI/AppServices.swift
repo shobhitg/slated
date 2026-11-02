@@ -187,9 +187,10 @@ public protocol AppServices: AnyObject {
 
   // MARK: The files
 
-  /// Opens config.json or settings.json in the user's editor (settings.json's folder when it's not
-  /// there yet).
-  func openConfigFile(_ file: ConfigFile)
+  /// Opens one of Slated's files, its folder or a Slate config, from a link or button in the window: a
+  /// file in its default app (TextEdit when none), the folder in the Finder. Returns `.missing`, having
+  /// opened nothing, when it isn't there, for the window to say so. Logs `ui.config_file_opened`.
+  func openFile(_ link: FileLink) -> FileOpenPlan
   /// Puts text on the pasteboard: a setting's key or its value, from the settings' context menus.
   func copyText(_ text: String)
   /// Records what the settings window did with the files. Events name files only, never values.
@@ -254,7 +255,7 @@ extension AppServices {
   public func currentSystemKeyRepeat() -> KeyRepeat? { nil }
   public func dismissMenuBarNotice() {}
   /// Test doubles open nothing, copy nothing to the real pasteboard and log nothing.
-  public func openConfigFile(_ file: ConfigFile) {}
+  public func openFile(_ link: FileLink) -> FileOpenPlan { .defaultApp }
   public func copyText(_ text: String) {}
   public func logConfigEvent(_ event: ConfigUIEvent) {}
 }

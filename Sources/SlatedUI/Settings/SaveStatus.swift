@@ -33,11 +33,15 @@ struct SaveStatusFooter: View {
             .help(status.help)
             .accessibilityElement(children: .combine)
             if !updated.isEmpty {
-              Label(SaveStatusText.updated(updated), systemImage: "arrow.down.doc.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.accent)
-                .lineLimit(1)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+              Label {
+                LinkedText(SaveStatusText.updated(updated), underline: true)
+              } icon: {
+                Image(systemName: "arrow.down.doc.fill")
+              }
+              .font(.system(size: 11))
+              .foregroundStyle(Theme.accent)
+              .lineLimit(1)
+              .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
           }
           Spacer(minLength: 0)
@@ -118,6 +122,7 @@ struct SaveStatusText {
 
   var help: String {
     switch model.saveState {
+    // file link: a tooltip
     case .saved: return "Changes are saved to config.json and settings.json as you make them."
     case .pending: return "Saving…"
     case .partiallySaved: return "Items with errors keep their last saved version until they're fixed."
@@ -146,9 +151,10 @@ struct SaveStatusLabel: View {
     let status = SaveStatusText(model: model)
     Label {
       HStack(spacing: 6) {
-        Text(status.long).lineLimit(2)
+        LinkedText(status.long).lineLimit(2)
         if !model.updatedFromDisk.isEmpty {
-          Text(SaveStatusText.updated(model.updatedFromDisk)).foregroundStyle(Theme.accent).lineLimit(1)
+          LinkedText(SaveStatusText.updated(model.updatedFromDisk), underline: true).foregroundStyle(Theme.accent)
+            .lineLimit(1)
         }
       }
     } icon: {

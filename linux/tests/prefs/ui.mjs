@@ -26,6 +26,13 @@ const {decodeConfigurationFiles, CONFIG_SETTINGS} = await import('../../gnome-ex
 const {kindById} = await import('../../gnome-extension/lib/prefs/actions.js');
 
 const here = path.dirname(new URL(import.meta.url).pathname);
+
+/** What a label or row with markup on shows: the markup's text, tags (file links, the key's span) gone. */
+const plain = text => String(text ?? '').replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+/** Whether markup links `name` to `link` (lib/prefs/filelinks.js). */
+const linksTo = (markup, name, link) => String(markup ?? '').includes(`<a href="slated-file://${link}" title="Open `)
+  && String(markup).includes(`>${name}</a>`);
 const api = JSON.parse(fs.readFileSync(path.join(here, 'gi/api.json'), 'utf8'));
 const author = fs.readFileSync(path.join(here, 'fixtures/slate-author-like.js'), 'utf8');
 
@@ -252,7 +259,7 @@ async function run(mode) {
     const onStep = name => {
       check(model.getStartedStep === name && stack.get_visible_child_name() === name, `on ${model.getStartedStep}, showing ${stack.get_visible_child_name()}; expected ${name}`);
     };
-    const labels = () => findAll(world, root, 'Gtk.Label').map(l => prop(world, l, 'label'));
+    const labels = () => findAll(world, root, 'Gtk.Label').map(l => plain(prop(world, l, 'label')));
     check(settings.current === 'getStarted', `the window opens on ${settings.current}`);
     check(prop(world, getStartedRow.row, 'visible') !== false, 'Get Started is in the sidebar');
     check(prop(world, findAll(world, getStartedRow.holder, 'Gtk.Label')[0], 'label') === '1 of 5', 'its badge counts the steps');
@@ -282,7 +289,8 @@ async function run(mode) {
     // Slated doesn't read ~/.slate.js: it's offered for import (done under General, below).
     check(labels().includes('Your Slate config is here'), 'the ~/.slate.js is found');
     check(buttons(root, 'Import…').length === 1, 'and offered for import');
-    check(rowsIn(root, (w, s) => s.props.get('title') === '~/.slate.js').length === 1, 'naming the file');
+    check(rowsIn(root, (w, s) => plain(s.props.get('title')) === '~/.slate.js' && linksTo(s.props.get('title'), '~/.slate.js', 'slate-js')).length === 1,
+      'naming the file, which opens it');
     click(buttons(root, 'Back')[0]);
     onStep('hotstrings');
     next();
@@ -956,7 +964,7 @@ async function run(mode) {
     check(model.summary().action === 'enableExtensions', `headline: ${model.summary().title}`);
     settings.showPane('overview');
     const root = visible('overview');
-    const labels = findAll(world, root, 'Gtk.Label').map(l => prop(world, l, 'label'));
+    const labels = findAll(world, root, 'Gtk.Label').map(l => plain(prop(world, l, 'label')));
     check(!labels.some(l => /^Waiting/.test(l ?? '')), `no bare Waiting: ${labels.filter(l => /wait/i.test(l ?? '')).join(' | ')}`);
     check(labels.includes('Extensions off'), 'the Slated row says why');
     check(buttons(root, 'Turn On Extensions').length >= 3, 'the headline, the Slated row and the rows that need Slated offer the fix');
@@ -1293,7 +1301,8 @@ async function run(mode) {
     fs.writeFileSync(files.configFile, JSON.stringify(config));
     model.syncFromDisk();
     check(model.configuration.keyboard.capsLockAlone === 'escape', 'and one to config.json');
-    check(prop(world, settings.updatedLabel, 'label') === 'Updated from config.json', `the footer says so: ${prop(world, settings.updatedLabel, 'label')}`);
+    check(plain(prop(world, settings.updatedLabel, 'label')) === 'Updated from config.json', `the footer says so: ${prop(world, settings.updatedLabel, 'label')}`);
+    check(linksTo(prop(world, settings.updatedLabel, 'label'), 'config.json', 'config'), 'and the file\'s name opens it');
     await settle();
     fs.writeFileSync(files.statusFile, JSON.stringify({running: false}));
     world.touch(files.statusFile);
@@ -1312,8 +1321,9 @@ async function run(mode) {
     model.syncFromDisk();
     const banner = settings.conflictBanner.widget;
     check(prop(world, banner, 'visible'), 'the banner shows');
-    check(findAll(world, banner, 'Gtk.Label', (w, s) => s.props.get('label') === 'config.json changed on disk').length === 1, 'and names the file');
-    check(prop(world, settings.saveLabel, 'label') === 'Not saved: config.json changed on disk', `the footer: ${prop(world, settings.saveLabel, 'label')}`);
+    check(findAll(world, banner, 'Gtk.Label', (w, s) => plain(s.props.get('label')) === 'config.json changed on disk'
+      && linksTo(s.props.get('label'), 'config.json', 'config')).length === 1, 'and names the file, which opens it');
+    check(plain(prop(world, settings.saveLabel, 'label')) === 'Not saved: config.json changed on disk', `the footer: ${prop(world, settings.saveLabel, 'label')}`);
     await settle();
     check(JSON.parse(fs.readFileSync(files.configFile, 'utf8')).keyboard.capsLockAlone === 'escape', 'nothing is saved meanwhile');
     click(buttons(banner, 'Keep My Changes')[0]);
@@ -1330,7 +1340,7 @@ async function run(mode) {
     model.syncFromDisk();
     check(model.conflict.length === 1, 'asked again');
     click(buttons(banner, 'Reload from File')[0]);
-    check(prop(world, settings.updatedLabel, 'label') === 'Updated from config.json', 'the footer says where it came from');
+    check(plain(prop(world, settings.updatedLabel, 'label')) === 'Updated from config.json', 'the footer says where it came from');
     await settle();
     const keyboard = model.configuration.keyboard;
     check(keyboard.hyperModifiers.length === 2 && keyboard.capsLockAlone === 'nothing', `the file is shown: ${JSON.stringify(keyboard)}`);
@@ -1354,7 +1364,7 @@ async function run(mode) {
     settings.showPane('overview');
     const primary = findAll(world, visible('overview'), 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('suggested-action'))[0];
     check(prop(world, primary, 'label') === 'Open Config File', `the Overview opens the broken file: ${prop(world, primary, 'label')}`);
-    check(findAll(world, visible('overview'), 'Gtk.Label', (w, st) => st.props.get('label') === 'config.json needs a fix').length === 1, 'and names it');
+    check(findAll(world, visible('overview'), 'Gtk.Label', (w, st) => plain(st.props.get('label')) === 'config.json needs a fix').length === 1, 'and names it');
     check(fs.readFileSync(files.configFile, 'utf8') === '{"bindings": [', 'and the file is left alone');
     fs.writeFileSync(files.configFile, text);
     world.touch(files.configFile);
@@ -1440,9 +1450,10 @@ async function run(mode) {
     check(migrated.windows.undoMaxStackSize === 7 && migrated.island.enabled === false, 'the settings moved to settings.json');
     check(migrated.bindings.length > 15 && migrated.bindings[0].action.op === 'undo', "~/.slate.js imported; Slated's own hyper+a kept");
     settings.showPane('overview');
-    const notice = rowsIn(visible('overview'), (w, st) => String(st.props.get('title')).startsWith('Your ~/.slate.js shortcuts'))[0];
-    check(notice && prop(world, notice, 'title') === "Your ~/.slate.js shortcuts are now part of Slated's config. Slated doesn't read "
+    const notice = rowsIn(visible('overview'), (w, st) => plain(st.props.get('title')).startsWith('Your ~/.slate.js shortcuts'))[0];
+    check(notice && plain(prop(world, notice, 'title')) === "Your ~/.slate.js shortcuts are now part of Slated's config. Slated doesn't read "
       + '~/.slate.js any more: edit them here or in ~/.config/slated/config.json.', `the notice: ${notice && prop(world, notice, 'title')}`);
+    check(linksTo(prop(world, notice, 'title'), '~/.config/slated/config.json', 'config'), 'the config file\'s path opens it');
     check(findAll(world, visible('overview'), 'Gtk.Label', (w, st) => st.props.get('label') === 'Import your Slate config').length === 0,
       'and no suggestion to import it again');
     click(buttons(visible('overview'), 'Dismiss')[0]);
@@ -1493,7 +1504,8 @@ async function run(mode) {
     // Shown under the title, in the file's words; hidden by General's switch; copied from the menu.
     settings.navigate('general');
     const islandRow = titled(visible('general'), 'Adw.SwitchRow', 'Show the island')[0];
-    check(prop(world, islandRow, 'subtitle').includes('settings.json › island.enabled'), `the key under the title: ${prop(world, islandRow, 'subtitle')}`);
+    check(plain(prop(world, islandRow, 'subtitle')).includes('settings.json › island.enabled'), `the key under the title: ${prop(world, islandRow, 'subtitle')}`);
+    check(linksTo(prop(world, islandRow, 'subtitle'), 'settings.json', 'settings'), 'its file\'s name opens the file');
     const clicks = world.stateOf(islandRow).controllers.filter(c => world.stateOf(c).cls === 'Gtk.GestureClick');
     check(clicks.length === 1 && prop(world, clicks[0], 'button') === 3, 'a right-click opens its menu');
     world.emit(clicks[0], 'pressed', 1, 10, 10);
@@ -1517,8 +1529,9 @@ async function run(mode) {
     const nameRow = titled(visible('windows'), 'Adw.EntryRow', 'Name')[0];
     const nameKey = findAll(world, nameRow, 'Gtk.Label', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-config-key'))[0];
     check(prop(world, nameKey, 'label') === 'name', `a field shows its sub-key: ${prop(world, nameKey, 'label')}`);
-    const location = findAll(world, visible('windows'), 'Gtk.Label', (w, s) => String(s.props.get('label') ?? '').startsWith('config.json › bindings'))[0];
-    check(location && prop(world, location, 'label') === 'config.json › bindings › &quot;hyper+a&quot;', `the editor names the item: ${location && prop(world, location, 'label')}`);
+    const location = findAll(world, visible('windows'), 'Gtk.Label', (w, s) => plain(s.props.get('label')).startsWith('config.json › bindings'))[0];
+    check(location && plain(prop(world, location, 'label')) === 'config.json › bindings › "hyper+a"', `the editor names the item: ${location && prop(world, location, 'label')}`);
+    check(linksTo(prop(world, location, 'label'), 'config.json', 'config'), 'its file\'s name opens the file');
     // Hidden by the switch, everywhere at once.
     settings.navigate('general');
     titled(visible('general'), 'Adw.SwitchRow', 'Show config keys')[0].set_active(false);
@@ -1528,6 +1541,68 @@ async function run(mode) {
     titled(visible('general'), 'Adw.SwitchRow', 'Show config keys')[0].set_active(true);
     check(prop(world, islandRow, 'subtitle').includes('island.enabled'), 'and back');
     await settle();
+  });
+
+  await step('every file name a page shows is a link, and a link opens its file', async () => {
+    await settle();
+    const {hasUnlinkedFileName, isLinked} = await import('../../gnome-extension/lib/prefs/filelinks.js');
+    // A Slate file is a link while there's a Slate config (the fake home has a ~/.slate.js).
+    check(model.slateFiles.length > 0, 'a Slate config is found');
+    const options = {linked: link => isLinked(link, {slateFound: model.slateFiles.length > 0})};
+    const unlinked = [];
+    // Labels, rows' titles and subtitles, groups' and status pages' descriptions. A button's label is
+    // its title (Open config.json); a group's description is linked in libadwaita's own label
+    // (setLinkedDescription), which the mock doesn't have, so the group says what it linked.
+    const audit = (what, widget, inButton = false) => {
+      const st = world.stateOf(widget);
+      const button = inButton || st.cls.endsWith('Button');
+      const texts = [];
+      if (!button && st.cls === 'Gtk.Label') texts.push(['label', st.props.get('label')]);
+      if (!button) for (const name of ['title', 'subtitle']) if (st.props.has(name)) texts.push([name, st.props.get(name)]);
+      const description = st.props.get('description');
+      if (description && st.expandos._slatedLinkedText?.description !== description) texts.push(['description', description]);
+      for (const [name, text] of texts) {
+        if (hasUnlinkedFileName(text, options)) unlinked.push(`${what}: ${st.cls} ${name} “${text}”`);
+      }
+      for (let child = widget.get_first_child(); child; child = child.get_next_sibling()) audit(what, child, button);
+    };
+    for (const id of settings.panes.keys()) {
+      settings.navigate(id);
+      audit(id, visible(id));
+    }
+    settings.navigate('windows', {binding: ID.HALF});
+    audit('shortcut', visible('windows'));
+    settings.navigate('hotstrings', {newHotstring: true});
+    audit('hotstring', visible('hotstrings'));
+    audit('footer', settings.saveLabel);
+    audit('banner', settings.conflictBanner.widget);
+    check(unlinked.length === 0, `file names that aren't links:\n      ${unlinked.join('\n      ')}`);
+
+    // Clicking one: the file opens (logged by its name only); another URI is GTK's; a missing file says so.
+    settings.navigate('windows', {binding: ID.HALF});
+    const caption = findAll(world, visible('windows'), 'Gtk.Label', (w, st) => plain(st.props.get('label')).startsWith('config.json › bindings'))[0];
+    check(caption && world.stateOf(caption).handlers.get('activate-link')?.size === 1, 'the caption handles its link');
+    const before = world.report.launches.length;
+    check(world.emit(caption, 'activate-link', 'slated-file://config') === true, 'a file link is handled');
+    check(world.report.launches.at(-1)?.file === files.configFile, `opens config.json: ${JSON.stringify(world.report.launches.at(-1))}`);
+    check(world.emit(caption, 'activate-link', 'slated-file://folder') === true, 'so is the folder');
+    check(world.report.launches.at(-1)?.file === path.dirname(files.configFile), `opens the folder: ${JSON.stringify(world.report.launches.at(-1))}`);
+    check(world.emit(caption, 'activate-link', 'https://example.com/') === false, 'another URI is left to GTK');
+    check(world.emit(caption, 'activate-link', 'slated-file://slate') === true, 'a link to a missing file is handled');
+    check(world.report.launches.length === before + 2, 'and opens nothing');
+    check(plain(world.report.toasts.at(-1)) === "There's no ~/.slate in your home folder.", `says so: ${world.report.toasts.at(-1)}`);
+    // The key's right-click menu opens its file the same way.
+    settings.navigate('general');
+    const islandRow = titled(visible('general'), 'Adw.SwitchRow', 'Show the island')[0];
+    const rightClick = world.stateOf(islandRow).controllers.find(c => world.stateOf(c).cls === 'Gtk.GestureClick');
+    world.emit(rightClick, 'pressed', 1, 10, 10);
+    const menu = world.stateOf(islandRow).expandos._slatedConfigKeyMenu;
+    click(findAll(world, menu, 'Gtk.Button').find(b => findAll(world, b, 'Gtk.Label').some(l => prop(world, l, 'label') === 'Open settings.json')));
+    check(world.report.launches.at(-1)?.file === files.settingsFile, `the menu opens settings.json: ${JSON.stringify(world.report.launches.at(-1))}`);
+    await settle();
+    const opened = readLog(files).filter(e => e.event === 'ui.config_file_opened').map(e => JSON.stringify(e.data));
+    check(opened.slice(-4).join() === [{file: 'config.json', with: 'default'}, {file: 'folder', with: 'files'},
+      {file: '.slate', with: 'missing'}, {file: 'settings.json', with: 'default'}].map(d => JSON.stringify(d)).join(), `logged by name: ${opened.slice(-4)}`);
   });
 
   await step('closing saves, logs and stops watching', async () => {

@@ -85,7 +85,7 @@ struct PaneHeader<Accessory: View>: View {
           Spacer(minLength: 8)
           accessory
         }
-        Text(subtitle)
+        LinkedText(subtitle)
           .font(.system(size: 12.5))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -102,7 +102,7 @@ struct PaneHeader<Accessory: View>: View {
         Text(pane.title)
           .font(.system(size: 22, weight: .bold))
           .tracking(-0.3)
-        Text(subtitle)
+        LinkedText(subtitle)
           .font(.system(size: 13))
           .foregroundStyle(.secondary)
           .lineLimit(2)
@@ -161,7 +161,7 @@ struct SettingsCard<Content: View>: View {
       VStack(alignment: .leading, spacing: 0) { content }
         .cardStyle(padding: 0)
       if let footer {
-        Text(footer)
+        LinkedText(footer)
           .font(.system(size: 11.5))
           .foregroundStyle(.secondary)
           .padding(.horizontal, 6)
@@ -197,10 +197,10 @@ struct SettingRow<Trailing: View>: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(title).font(.system(size: 13, weight: .medium))
         if let configKey, model?.showsConfigKeys == true {
-          ConfigKeyCaption(text: configKey.display)
+          ConfigKeyCaption(key: configKey)
         }
         if let subtitle {
-          Text(subtitle)
+          LinkedText(subtitle)
             .font(.system(size: 11.5))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -246,7 +246,7 @@ struct FactRow: View {
     HStack(alignment: .firstTextBaseline) {
       Text(label).foregroundStyle(.secondary)
       Spacer(minLength: 12)
-      Text(value)
+      LinkedText(value)
         .font(monospaced ? .system(size: 12, design: .monospaced) : .system(size: 13))
         .textSelection(.enabled)
         .lineLimit(1)

@@ -27,6 +27,7 @@ import {
 import {clampKeyRepeat, CONFIG_KEYS} from '../../core/index.js';
 import {attachKey, noKey, setSubtitle, settingKey} from './configkeys.js';
 import {box, label, group, switchRow, comboRow, pill, commandRow} from './widgets.js';
+import {setLinkedDescription} from './filelinks.js';
 
 /** This computer's key repeat (GNOME Settings → Keyboard), clamped as config.json holds it; null if unreadable. */
 function computerKeyRepeat() {
@@ -197,8 +198,8 @@ export function createKeyboardPane(ctx) {
   prefs.add(options);
 
   // Key repeat
-  const repeat = group({title: 'Key Repeat',
-    description: 'How long a held key waits before it repeats, and how fast it repeats then. Saved in config.json, so every computer you use Slated on gets the same, a Mac too. GNOME uses a change right away.'});
+  const repeat = setLinkedDescription(group({title: 'Key Repeat'}),
+    'How long a held key waits before it repeats, and how fast it repeats then. Saved in config.json, so every computer you use Slated on gets the same, a Mac too. GNOME uses a change right away.');
   const setKeyRepeat = value => model.update(config => {
     config.keyboard = withKeyRepeat(config, value).keyboard;
   });

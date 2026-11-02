@@ -17,11 +17,13 @@ import {PrefsModel} from '../model.js';
 import {slatedPaths} from '../paths.js';
 import {lastStart} from '../eventlog.js';
 import {sessionId} from '../util.js';
-import {readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter} from '../io.js';
+import {readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter, fileExists} from '../io.js';
+import {linkForFile, openFileLink} from '../filelinks.js';
 import {getExtensionInfo, getUserExtensionsEnabled, setUserExtensionsEnabled, setExtensionEnabled, requestLogout, espansoRunning} from '../shell.js';
 import {installStyles} from './style.js';
 import {box, label, icon, button, badge as badgeLabel, emptyState, launchFile} from './widgets.js';
 import {setConfigKeyContext, keysShown, refreshKeys} from './configkeys.js';
+import {setFileLinkContext, setLinkedLabel} from './filelinks.js';
 import {stopAllRecording} from './recorder.js';
 import {saveStateText, updatedText} from './general.js';
 import {createGetStartedPane} from './getstarted.js';
@@ -95,12 +97,10 @@ export class SlatedSettings {
     setConfigKeyContext({
       model: this.model,
       toast: message => this.toast(message),
-      open: file => {
-        this.model.saveNow();
-        launchFile(file === 'settings.json' ? this.paths.settingsFile : this.paths.configFile, this.window, {onError: e => this.toast(e.message)});
-        this.model.log(file === 'settings.json' ? 'ui.open_settings' : 'ui.open_config');
-      },
+      open: file => this.openLink(linkForFile(file)),
     });
+    // Every file name the window shows opens that file (filelinks.js).
+    setFileLinkContext({open: link => this.openLink(link), slateFound: () => this.model.slateFiles.length > 0});
     this.model.setBuildInfo(readBuildInfo(ext.path));
     this._readStatus();
     this._refreshShell();
@@ -323,6 +323,20 @@ export class SlatedSettings {
     this._syncChrome();
   }
 
+  /**
+   * Opens the file a link or button names (config.json, settings.json, config.v1.json, the folder, a
+   * Slate config): the pending edit saved first, then its default app, or a toast when it isn't there.
+   */
+  openLink(link) {
+    return openFileLink(link, {
+      paths: this.paths, exists: fileExists,
+      launch: path => launchFile(path, this.window, {onError: e => this.toast(e.message)}),
+      toast: message => this.toast(message),
+      log: (event, data) => this.model.log(event, data),
+      saveNow: () => this.model.saveNow(),
+    });
+  }
+
   _createPane(id, title, iconName, create) {
     const nav = new Adw.NavigationView();
     const ctx = {
@@ -334,6 +348,7 @@ export class SlatedSettings {
       enableUserExtensions: () => this.enableUserExtensions(),
       logout: () => this.logout(),
       reload: () => this.reload(),
+      openLink: link => this.openLink(link),
       showGetStarted: () => this.showGetStarted(),
       finishGetStarted: () => this.finishGetStarted(),
     };
@@ -399,10 +414,10 @@ export class SlatedSettings {
     const summary = this.model.summary();
     this.windowTitle.set_subtitle(this.model.loadError ? 'config.json needs a fix' : summary.running ? 'Running' : summary.title);
     const save = saveStateText({...this.model.saveState, file: this.model.loadErrorFile});
-    this.saveLabel.set_label(save.text);
+    setLinkedLabel(this.saveLabel, save.text);
     this.saveLabel.set_tooltip_text(save.text);
     const updated = updatedText(this.model.updatedFromDisk);
-    this.updatedLabel.set_label(updated);
+    setLinkedLabel(this.updatedLabel, updated);
     this.updatedLabel.set_visible(Boolean(updated));
     this.conflictBanner.update(this.model.conflict);
     this.saveIcon.set_from_icon_name(SAVE_ICONS[save.style] ?? SAVE_ICONS.dim);
@@ -452,7 +467,7 @@ function conflictBanner({reload, keep}) {
     widget: card,
     update(files) {
       card.set_visible(files.length > 0);
-      if (files.length) title.set_label(`${files.join(' and ')} changed on disk`);
+      if (files.length) setLinkedLabel(title, `${files.join(' and ')} changed on disk`);
     },
   };
 }
