@@ -405,15 +405,18 @@ out=$(SLATED_SMOKE_SECONDS=3 smoke "$home"); wait
 expect_output "an edit to the file config.json links to is reloaded" "$out" "native: 1 bindings, 2 hotstrings"
 
 # 9b. A hand edit saved in place just before Settings saves (before the once-a-second check has seen it)
-#     is loaded, not overwritten, and Settings then shows it. An unreadable one is left alone too.
+#     is loaded, not overwritten. Settings had an unsaved edit to that file, so it asks which version
+#     wins, and Reload from File shows the hand edit. An unreadable one is left alone too.
 home=$(new_home)
 mkdir -p "$home/.config/slated"
 cp "$FIXTURES/config-no-builtins.json" "$home/.config/slated/config.json"
 out=$(SLATED_SMOKE_STEPS=hand-edit-then-save SLATED_SMOKE_EDIT="$FIXTURES/config-hand-edited.json" smoke "$home")
 expect_true "a hand edit made just before a save isn't overwritten" \
   cmp -s "$FIXTURES/config-hand-edited.json" "$home/.config/slated/config.json"
-expect_output "Settings shows the hand edit instead of its own" "$out" \
-  "after a hand edit, Settings shows 1 bindings, 2 hotstrings"
+expect_output "Settings asks which version wins instead of picking one" "$out" \
+  "after a hand edit, Settings asks which version wins: config.json"
+expect_output "Reload from File shows the hand edit" "$out" \
+  "after Reload from File, Settings shows 1 bindings, 2 hotstrings"
 expect_output "the log says why it didn't save" "$(log_of "$home")" "config.json changed on disk, so Slated loaded it"
 home=$(new_home)
 mkdir -p "$home/.config/slated"

@@ -70,8 +70,13 @@ enum SmokeSteps {
       try? handle.close()
       model.saveNow()
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        // The window had an unsaved edit in config.json: it asks which version wins, then shows the
+        // file's after Reload from File.
+        let files = ConfigFile.allCases.filter(model.conflict.contains).map(\.rawValue).joined(separator: ", ")
+        print("after a hand edit, Settings asks which version wins: \(files.isEmpty ? "none" : files)")
+        model.reloadConflictingFiles()
         let (bindings, hotstrings) = (model.configuration.bindings.count, model.configuration.hotstrings.count)
-        print("after a hand edit, Settings shows \(bindings) bindings, \(hotstrings) hotstrings")
+        print("after Reload from File, Settings shows \(bindings) bindings, \(hotstrings) hotstrings")
       }
     case "repeat-text":
       // Two auto-repeats of different text of the same length, started with no shortcut (as when a

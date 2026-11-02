@@ -475,3 +475,41 @@ extension with no app of its own.
   buttons never truncate their titles; the text beside them wraps instead.
 - **Clipboard:** the hero's picture of stacked clips is left out under 700 pt so its text and button
   keep their room.
+
+## Config keys in the window, and hand edits while it's open (2026-11-01): decisions
+
+- **Every setting shows its key** under its name, as you asked, in small monospace secondary text:
+  the file and the path (`settings.json › island.cheatSheetDelay`). Item editors name the item and
+  each field shows its key relative to it (`trigger`, `action.direction`). Header switches (a
+  hotstring's or shortcut's own on/off, Hotstrings' Expansion) show it too, under the switch; on GNOME
+  the switch's tooltip has it and entry rows show it at their end, where libadwaita leaves room.
+- **Items are named by their natural key when it's unique, else by index**: a hotstring by its
+  trigger, a shortcut by its keys (one behind a modal key by index, since the file has no single
+  "modal keys" text), a layout by its name, a layout's app by its app. Two hotstrings with the same
+  trigger both go by index.
+- **Copy Key copies the path inside the file with items by index** (`hotstrings[2].replacement`), so
+  it's exact even where names repeat and works with `jq`. The window shows the readable form.
+- **Copy Value copies the window's current value** in the file's format (pretty JSON, sorted keys).
+  It's what the next save writes, half a second later. A value the file leaves out (a Slate setting
+  at its default, `keyRepeat` when Slated doesn't set it) isn't copied; a toast says so.
+- **One registry** (`ConfigKeys` in SlatedCore, mirrored in `lib/core/configKeys.js` and pinned by
+  `fixtures/config-keys.json`). Tests encode a configuration and look every key up in it, and fail
+  when the files gain a setting with no key (or a reason it has none: `version`, `defaults`, Slate's
+  other `windows` settings). On the Mac a test reads the panes' source for controls with no key; on
+  GNOME the UI test walks every section, editor and action kind. Get Started isn't checked: it's
+  setup, and its two switches are the Keyboard pane's.
+- **Recipes have no keys** until they're added (they're not in config.json yet); the editor they open
+  into has them.
+- **Hand edits are adopted file by file.** A hand edit to settings.json no longer waits for an unsaved
+  edit to config.json to be saved, or the other way round. "Updated from config.json" shows for 4
+  seconds beside the save status in the sidebar's foot, with a Reload button there (in the icon
+  sidebar, the status icon turns into a document icon with a tooltip).
+- **A conflict is a file you edited by hand while the window had unsaved changes in that same file.**
+  "Unsaved" means what the next save would write: items held back for an error (a new shortcut still
+  waiting for its keys) don't count, so a hand edit then is adopted as before. On a conflict the banner
+  waits for Reload from File or Keep My Changes; saving pauses meanwhile, even for further edits.
+  *Open:* should Keep My Changes merge, keeping the file's changes to other items? I kept it simple:
+  the window's version of that file wins.
+- **The app's own writes** (an import, the hotstrings switch from the menu) are never a conflict.
+- Events: `ui.config_key_copied` {file, copied: key|value}, `ui.config_reloaded` {files, source:
+  disk|conflict}, `ui.config_conflict` {files, choice: pending|reload|keep}. File names only.

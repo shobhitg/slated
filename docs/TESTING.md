@@ -243,6 +243,23 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Break config.json by hand (delete a comma) with Settings open: the banner appears and says where
       the error is, and changing anything shows "Fix config.json first". Fix the file: Settings shows
       it within a second or two, and edits save again.
+- [ ] Config keys: every row in General, Keyboard, Clipboard and Automation shows its key under its
+      name (`settings.json › island.enabled`), in light and dark, at 640 and 1080 pt; a shortcut's,
+      hotstring's or layout's editor names the item (`config.json › hotstrings › ";sig"`) and each
+      field its sub-key. General → Show config keys off hides them all at once, and on brings them back.
+- [ ] Right-click Cheat sheet delay → Copy Key, paste: `island.cheatSheetDelay`. Copy Value as JSON:
+      `0.5`. On a hotstring's Replacement: `hotstrings[n].replacement` and the text in quotes. On
+      Repeat while held (a Slate setting at its default): a toast says it isn't in settings.json.
+      Open settings.json opens your editor. `scripts/logs.py --grep config_key` shows the file only.
+- [ ] Edit settings.json in an editor while Slated is open (turn `island.enabled` off, save): the
+      switch follows within a second, and the sidebar's foot says "Updated from settings.json" for a
+      few seconds. The ↻ beside it re-reads both files ("Configuration reloaded").
+- [ ] Edit while the window has unsaved changes: change a setting and, within half a second, save a
+      hand edit to the same file (or set a long typing session going in the hotstring editor and
+      save config.json from the editor). The banner "settings.json changed on disk" appears and
+      nothing is saved. Reload from File shows the file's version; doing it again and choosing Keep
+      My Changes writes the window's version over it. `scripts/logs.py --grep config_conflict` shows
+      the file names and the choice.
 - [ ] Renaming a layout keeps the name field focused, and its shortcuts (also one that applies it in
       a sequence or by orientation) still apply it. Typing another layout's name, or a Slate file's,
       shows "Another layout already has this name." and that layout's shortcut still applies it. A
@@ -567,6 +584,14 @@ Run on GNOME 46 (Ubuntu 24.04) and GNOME 49 after changes to `linux/gnome-extens
 - [ ] Clipboard: the pill says Recording and the count grows as you copy. KeePassXC is offered under
       Password Managers when installed. Clearing the shortcut (Backspace while recording) turns off
       Super+Shift+V; Default puts it back.
+- [ ] Config keys: rows show their key under the title in monospace (entry rows at their end), on
+      the real GTK too; a right-click opens Copy Key / Copy Value as JSON / Open settings.json, and the
+      menu goes away cleanly (no GTK warnings in `journalctl -f -o cat /usr/bin/gnome-shell` or the
+      terminal running `gnome-extensions prefs`). General → Show config keys off hides them.
+- [ ] Edit settings.json in an editor with the window open: the sidebar's foot says "Updated from
+      settings.json"; ↻ reloads. Change a setting and save a hand edit to the same file at once: the
+      banner above the section offers Reload from File and Keep My Changes, and nothing is saved until
+      you pick.
 
 ## Manual checklist: GNOME clipboard picker
 

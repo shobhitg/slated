@@ -58,7 +58,7 @@ public final class AppModel {
   private(set) var loadError: String?
   /// Files that changed on disk while the window had unsaved edits in them. A banner asks which
   /// version wins; saving waits until then, so neither is dropped silently.
-  private(set) var conflict: Set<ConfigFile> = []
+  public private(set) var conflict: Set<ConfigFile> = []
   /// Files whose hand edits were just adopted, for a moment's "Updated from config.json".
   private(set) var updatedFromDisk: [ConfigFile] = []
   /// What the files said when the conflict arose.
@@ -339,7 +339,7 @@ public final class AppModel {
 
   /// The conflict banner's "Reload from File": the files' versions replace the window's edits in them.
   /// Edits to the other file stay and are saved.
-  func reloadConflictingFiles() {
+  public func reloadConflictingFiles() {
     guard let disk = conflictDisk, !conflict.isEmpty else { return }
     let files = ConfigFile.allCases.filter(conflict.contains)
     for file in files { draft.adopt(file, of: disk) }
@@ -355,7 +355,7 @@ public final class AppModel {
 
   /// The conflict banner's "Keep My Changes": the next save writes the window's version over the
   /// file's changes.
-  func keepMyChanges() {
+  public func keepMyChanges() {
     guard let disk = conflictDisk, !conflict.isEmpty else { return }
     let files = ConfigFile.allCases.filter(conflict.contains)
     // What's on disk now is what the save replaces.

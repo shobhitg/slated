@@ -11,7 +11,28 @@ Both start with `"version": 2`. The main window edits them, and you can too: the
 comments and trailing commas are allowed. Slated reloads a file the moment it changes. A missing
 `settings.json` means every setting at its default. Settings writes only the file whose part changed,
 so turning the island off never rewrites `config.json`, and a new shortcut never rewrites
-`settings.json`. The menus' **Open Config File** and **Open Settings File** open them.
+`settings.json`. The menus' **Open Config File** and **Open Settings File** open them, as do General's
+**Open config.json** and **Open settings.json** buttons.
+
+**The window shows every setting's key** in small monospace text under its name, so you know what to
+look for in the file: `settings.json › island.cheatSheetDelay`, `config.json › keyboard.capsLock`. An
+item's editor names where the item is, by its natural key when no other item has it, else by its
+index (`config.json › hotstrings › ";sig"`, `config.json › bindings[3]`), and each field its key
+under the item (`trigger`, `replacement`, `action.direction`, `action.operations[1].x`). Right-click
+any setting or field for **Copy Key** (its path in the file, items by index: `island.cheatSheetDelay`,
+`hotstrings[2].replacement`), **Copy Value as JSON** (the value as the file writes it; a setting the
+file leaves out because it's at its default says so) and **Open config.json** / **Open
+settings.json**. Settings → General → **Show config keys** (`general.showConfigKeys`, default `true`)
+hides them. It's a per-machine preference, like the others in `settings.json`.
+
+**Edit a file while the window is open** and the window takes the change, file by file, with a
+moment's "Updated from config.json" beside the save status at the bottom of the sidebar; the
+↻ button there re-reads both files. When the window has unsaved changes in the file you edited (you
+changed something in the last half second, or both at once), it doesn't pick a winner: a banner says
+"config.json changed on disk", with **Reload from File** (the file wins and your unsaved changes to it
+are dropped) and **Keep My Changes** (the window's version is saved over the file's changes). Nothing
+is saved until you choose. Items held back for an error (a new shortcut still waiting for its keys)
+don't count as unsaved changes: they wouldn't be saved either way.
 
 **A file that doesn't parse** shows a banner naming it; Slated keeps running what it last read, the
 main window is read-only, and nothing is written until the file is fixed.
@@ -110,7 +131,8 @@ does the rest.
   "general": {
     "launchAtLogin": true,
     "showActionHUD": false,            // name each action as it runs (in the notch island)
-    "hotstringsEnabled": true          // the switch for all hotstrings
+    "hotstringsEnabled": true,         // the switch for all hotstrings
+    "showConfigKeys": true             // show each setting's key under its name in the window
   },
 
   // How window operations behave: Slate's global settings (`config name value` in .slate files).
