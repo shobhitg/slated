@@ -7,7 +7,12 @@
 //
 // Views are hosted in offscreen windows and captured with `cacheDisplay` (see `Renderer` for the
 // setup that makes that faithful on macOS 26). The run fails if any snapshot comes out blank.
-// SNAPSHOT_HEIGHT=1600 renders settings shots taller, to review content below the fold.
+// SNAPSHOT_HEIGHT=1600 renders settings shots taller, to review content below the fold;
+// SNAPSHOT_WIDTHS=851,1000 renders the narrow set at other widths.
+//
+// Main-window shots render at its default 1080 pt width; `w640-…`, `w756-…` and `w900-…` repeat each
+// pane at narrower widths (half of a 1280-pt screen, half of a 1512-pt MacBook screen, and where the
+// sidebar keeps its labels), since the author snaps Slated's window to half the screen.
 
 import AppKit
 import SlatedCore
@@ -18,8 +23,17 @@ struct Shot {
   var name: String
   /// Height 0 means "as tall as the content wants at this width".
   var size: CGSize
+  /// The main window's content: SNAPSHOT_HEIGHT applies.
+  var mainWindow = false
   var make: @MainActor () -> AnyView
 }
+
+/// The narrower main-window widths every pane is also rendered at (the default is 1080).
+let narrowWidths: [CGFloat] =
+  ProcessInfo.processInfo.environment["SNAPSHOT_WIDTHS"].map {
+    $0.split(separator: ",").compactMap { Double($0).map { CGFloat($0) } }
+  }
+  ?? [640, 756, 900]
 
 // MARK: - Arguments
 
@@ -56,10 +70,11 @@ try FileManager.default.createDirectory(at: outputURL, withIntermediateDirectori
 
 func settings(
   _ name: String, scenario: PreviewServices.Scenario = .configured, pane: SettingsPane,
+  width: CGFloat = SlatedUI.mainWindowSize.width,
   configure: @escaping @MainActor (AppModel) -> Void = { _ in },
   services prepare: @escaping @MainActor (PreviewServices) -> Void = { _ in }
 ) -> Shot {
-  Shot(name: name, size: SlatedUI.mainWindowSize) {
+  Shot(name: name, size: CGSize(width: width, height: SlatedUI.mainWindowSize.height), mainWindow: true) {
     let services = PreviewServices(scenario: scenario)
     prepare(services)
     let model = AppModel(services: services)
@@ -158,6 +173,40 @@ shots.append(
     model.getStartedStep = .slateConfig
   })
 
+// Every pane at the narrower widths, with list + detail panes both ways: the list, and an item open.
+func narrowShots(width: CGFloat) -> [Shot] {
+  func shot(
+    _ name: String, scenario: PreviewServices.Scenario = .configured, pane: SettingsPane,
+    configure: @escaping @MainActor (AppModel) -> Void = { _ in }
+  ) -> Shot {
+    settings("w\(Int(width))-\(name)", scenario: scenario, pane: pane, width: width, configure: configure)
+  }
+  return [
+    shot("overview", pane: .overview),
+    shot("windows-list", pane: .windows),
+    shot("windows", pane: .windows, configure: selectBinding(named: "Left Half")),
+    shot("windows-autoclick", pane: .windows, configure: selectBinding(named: "Auto-Click Left")),
+    shot("hotstrings-list", pane: .hotstrings),
+    shot("hotstrings", pane: .hotstrings) { model in
+      model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
+    },
+    shot("clipboard", pane: .clipboard),
+    shot("automation", pane: .automation),
+    shot("keyboard", pane: .keyboard),
+    shot("layouts-list", pane: .layouts),
+    shot("layouts", pane: .layouts) { model in model.selectedLayout = .slated(name: "Coding") },
+    shot("slate", pane: .slate),
+    shot("general", pane: .general),
+    shot("about", pane: .about),
+  ]
+    + GetStartedStep.allCases.map { step in
+      shot("getstarted-\(step.rawValue + 1)-\(step)", scenario: .firstRun, pane: .getStarted) { model in
+        model.getStartedStep = step
+      }
+    }
+}
+for width in narrowWidths { shots += narrowShots(width: width) }
+
 /// The clipboard picker as it opens, and with an image selected: its preview beside it, as the app
 /// places it (to the right, top level with the row).
 func picker(
@@ -232,7 +281,7 @@ var rendered: [Bool: [(name: String, image: NSBitmapImageRep)]] = [false: [], tr
 var blank: [String] = []
 for shot in shots where filter.map({ shot.name.contains($0) }) ?? true {
   var size = shot.size
-  if size == SlatedUI.mainWindowSize, let tallHeight { size.height = tallHeight }
+  if shot.mainWindow, let tallHeight { size.height = tallHeight }
   for dark in [false, true] {
     let name = "\(shot.name)-\(dark ? "dark" : "light")"
     let image = Renderer.render(shot.make(), size: size, dark: dark, options: Renderer.Options(scale: scale))

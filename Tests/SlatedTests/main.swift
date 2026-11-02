@@ -57,6 +57,7 @@ let suites: [Suite] = [
   macOSContractTests,
   keyRepeatContractTests,
   uiHostingContractTests,
+  uiAdaptiveLayoutTests,
   uiGetStartedTests,
 ]
 
