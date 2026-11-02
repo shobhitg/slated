@@ -18,7 +18,7 @@
       "sessions": 19
     },
     "config.json": {
-      "decode": 635,
+      "decode": 649,
       "files": 16
     },
     "expressions.json": {
@@ -87,12 +87,12 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 18380,
+  "totalVectors": 18394,
   "vectors": {
     "automation.json": 103,
     "cheatsheet.json": 144,
     "clipboard.json": 265,
-    "config.json": 651,
+    "config.json": 665,
     "expressions.json": 876,
     "frames.json": 9978,
     "hotstrings.json": 846,

@@ -542,6 +542,20 @@ function windowSettings(v, path) {
   return out;
 }
 
+/** KeyRepeat's ranges, in milliseconds (KeyRepeat.delayRange and intervalRange). */
+export const KEY_REPEAT_RANGES = Object.freeze({delay: Object.freeze([100, 2000]), interval: Object.freeze([15, 500])});
+
+/** A whole number (maybe a BigInt) clamped into [lo, hi], as a Number. */
+const clampInt = (n, [lo, hi]) => (n < lo ? lo : n > hi ? hi : Number(n));
+
+/** keyboard.keyRepeat: {delay, interval} in milliseconds, both required, clamped into range (KeyRepeat). */
+function keyRepeat(v, path) {
+  const c = new Keyed(v, path);
+  const delay = c.required('delay', int);
+  const interval = c.required('interval', int);
+  return {delay: clampInt(delay, KEY_REPEAT_RANGES.delay), interval: clampInt(interval, KEY_REPEAT_RANGES.interval)};
+}
+
 function keyboard(v, path) {
   const c = new Keyed(v, path);
   let mask = 15;
@@ -561,11 +575,15 @@ function keyboard(v, path) {
   const hyperModifiers = [['fn', 16], ['ctrl', 1], ['alt', 2], ['shift', 4], ['cmd', 8]]
     .filter(([, bit]) => mask & bit)
     .map(([n]) => n);
-  return {
+  const out = {
     capsLock: c.optional('capsLock', enumOf(['off', 'hyper'], 'CapsLockMode')) ?? 'off',
     capsLockAlone: c.optional('capsLockAlone', enumOf(['nothing', 'escape'], 'CapsLockAlone')) ?? 'nothing',
     hyperModifiers,
   };
+  // Written only when set: without it Slated leaves the computer's key repeat alone.
+  const repeat = c.optional('keyRepeat', keyRepeat);
+  if (repeat !== undefined) out.keyRepeat = repeat;
+  return out;
 }
 
 function binding(v, path) {

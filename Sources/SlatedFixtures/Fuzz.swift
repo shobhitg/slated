@@ -766,6 +766,13 @@ private func randomConfigJSON(_ rng: inout FuzzRNG) -> String {
       ]
       k.append("\"hyperModifiers\": [\((0..<rng.int(5)).map { _ in rng.pick(tokens) }.joined(separator: ", "))]")
     }
+    if rng.chance(0.3) {
+      let values = ["0", "15", "17", "100", "200", "2000", "2001", "-1", "250.0", "30.5", "\"30\"", "null", "1e3"]
+      var r: [String] = []
+      if rng.chance(0.9) { r.append("\"delay\": \(rng.pick(values))") }
+      if rng.chance(0.9) { r.append("\"interval\": \(rng.pick(values))") }
+      k.append(rng.chance(0.1) ? "\"keyRepeat\": null" : "\"keyRepeat\": {\(r.joined(separator: ", "))}")
+    }
     top.append("\"keyboard\": {\(k.joined(separator: ", "))}")
   }
   if rng.chance(0.7) {

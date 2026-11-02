@@ -70,8 +70,8 @@ public struct GeneralSettings: Hashable, Sendable {
   public var showActionHUD: Bool
   /// Master switch for text expansion; each hotstring's own `enabled` flag is kept as is.
   public var hotstringsEnabled: Bool
-  /// Slated's icon in GNOME's top bar. The Mac's menu bar icon doesn't follow it (yet): it stays, as
-  /// the Mac's way to the menu; the Dock icon opens Slated too.
+  /// Slated's icon in the Mac's menu bar and GNOME's top bar. Without it, the Dock icon (on GNOME, the
+  /// app grid) opens Slated.
   public var showStatusIcon: Bool
 
   public init(
@@ -130,16 +130,23 @@ public struct KeyboardSettings: Hashable, Sendable {
   public var capsLockAlone: CapsLockAlone
   /// What the Hyper key holds down. Defaults to ⌃⌥⇧⌘.
   public var hyperModifiers: Modifiers
+  /// The key repeat Slated sets on every computer it runs on; nil leaves the computer's own setting
+  /// alone. Written only when set.
+  public var keyRepeat: KeyRepeat?
 
-  public init(capsLock: CapsLockMode = .off, capsLockAlone: CapsLockAlone = .nothing, hyperModifiers: Modifiers = .hyper) {
+  public init(
+    capsLock: CapsLockMode = .off, capsLockAlone: CapsLockAlone = .nothing, hyperModifiers: Modifiers = .hyper,
+    keyRepeat: KeyRepeat? = nil
+  ) {
     self.capsLock = capsLock
     self.capsLockAlone = capsLockAlone
     self.hyperModifiers = hyperModifiers
+    self.keyRepeat = keyRepeat
   }
 }
 
 extension KeyboardSettings: Codable {
-  private enum Key: String, CodingKey { case capsLock, capsLockAlone, hyperModifiers }
+  private enum Key: String, CodingKey { case capsLock, capsLockAlone, hyperModifiers, keyRepeat }
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: Key.self)
@@ -162,7 +169,8 @@ extension KeyboardSettings: Codable {
     self.init(
       capsLock: try c.decodeIfPresent(CapsLockMode.self, forKey: .capsLock) ?? d.capsLock,
       capsLockAlone: try c.decodeIfPresent(CapsLockAlone.self, forKey: .capsLockAlone) ?? d.capsLockAlone,
-      hyperModifiers: mods)
+      hyperModifiers: mods,
+      keyRepeat: try c.decodeIfPresent(KeyRepeat.self, forKey: .keyRepeat))
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -176,6 +184,7 @@ extension KeyboardSettings: Codable {
     if hyperModifiers.contains(.shift) { tokens.append("shift") }
     if hyperModifiers.contains(.command) { tokens.append("cmd") }
     try c.encode(tokens, forKey: .hyperModifiers)
+    try c.encodeIfPresent(keyRepeat, forKey: .keyRepeat)
   }
 }
 

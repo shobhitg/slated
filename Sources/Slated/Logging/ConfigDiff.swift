@@ -13,7 +13,8 @@ enum ConfigDiff {
       let k = new.keyboard
       changes.append(
         "keyboard: capsLock \(k.capsLock.rawValue), alone \(k.capsLockAlone.rawValue), "
-          + "modifiers \(k.hyperModifiers.symbols)")
+          + "modifiers \(k.hyperModifiers.symbols), "
+          + "keyRepeat \(k.keyRepeat.map { "\($0.delay)/\($0.interval) ms" } ?? "system")")
     }
     if old.general != new.general {
       let g = new.general
