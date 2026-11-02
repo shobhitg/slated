@@ -24,9 +24,11 @@ struct HotstringEditor: View {
             .textFieldStyle(.plain)
             .font(.system(size: 12.5))
             .lineLimit(2...6)
+            .configField(ConfigKeys.Hotstring.notes)
             .padding(14)
         }
       }
+      .configKeyItem(model.configKey(forHotstring: hotstring.id))
       .padding(24)
       .frame(maxWidth: 640, alignment: .leading)
       .frame(maxWidth: .infinity)
@@ -51,11 +53,13 @@ struct HotstringEditor: View {
         }
         let pill = state
         StatusPill(text: pill.text, color: pill.color, symbol: pill.symbol)
+        ConfigItemCaption(key: model.configKey(forHotstring: hotstring.id))
       }
       Spacer()
       Toggle("Enabled", isOn: $hotstring.enabled)
         .labelsHidden()
         .toggleStyle(.switch)
+        .configField(ConfigKeys.Hotstring.enabled)
       Menu {
         Button("Duplicate") { model.duplicateHotstring(hotstring.id) }
         Divider()
@@ -101,6 +105,7 @@ struct HotstringEditor: View {
                   issues.contains { $0.severity == .error } ? Theme.critical.opacity(0.7) : Theme.wellStroke,
                   lineWidth: 1)
             )
+            .configField(ConfigKeys.Hotstring.trigger)
           ForEach(issues) { issue in
             Label(
               issue.message,
@@ -113,15 +118,16 @@ struct HotstringEditor: View {
             Hint("Tip: start triggers with a character you rarely type, like ; or //, so they never fire by accident.")
           }
         }
-        LabeledField("Expand", labelWidth: 60) {
+        LabeledField("Expand", labelWidth: 60, key: ConfigKeys.Hotstring.fire) {
           FittingPicker("Expand", selection: $hotstring.fire) {
             Text("Right away").tag(Hotstring.Fire.immediately)
             Text("After a space or punctuation").tag(Hotstring.Fire.afterDelimiter)
           }
         }
         VStack(alignment: .leading, spacing: 8) {
-          Toggle("Match case exactly", isOn: $hotstring.caseSensitive)
-          Toggle("Only at the start of a word", isOn: $hotstring.wordBoundary)
+          Toggle("Match case exactly", isOn: $hotstring.caseSensitive).configField(ConfigKeys.Hotstring.caseSensitive)
+          Toggle("Only at the start of a word", isOn: $hotstring.wordBoundary).configField(
+            ConfigKeys.Hotstring.wordBoundary)
         }
         .toggleStyle(.checkbox)
         .font(.system(size: 12.5))
@@ -143,13 +149,14 @@ struct HotstringEditor: View {
           .padding(8)
           .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
           .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.wellStroke))
+          .configField(ConfigKeys.Hotstring.replacement)
         HStack {
           Text("\(hotstring.replacement.count) characters")
             .font(.system(size: 11).monospacedDigit())
             .foregroundStyle(.tertiary)
           Spacer()
         }
-        LabeledField("Insert by", labelWidth: 60) {
+        LabeledField("Insert by", labelWidth: 60, key: ConfigKeys.Hotstring.method) {
           InsertMethodPicker(method: $hotstring.method)
         }
       }
@@ -195,6 +202,8 @@ struct HotstringEditor: View {
           Text("Only in…").tag(Scope.only)
           Text("Everywhere except…").tag(Scope.except)
         }
+        .configField(
+          scope.wrappedValue == .except ? ConfigKeys.Hotstring.exceptInApps : ConfigKeys.Hotstring.onlyInApps)
         switch scope.wrappedValue {
         case .everywhere:
           Hint("Expands in every app. Slated never expands in password fields.")
@@ -230,6 +239,7 @@ struct TryItField: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      // config key: none, a test field that isn't saved
       TextField(prompt, text: $text, axis: .vertical)
         .textFieldStyle(.plain)
         .font(.system(size: 13))

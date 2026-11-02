@@ -67,19 +67,24 @@ private struct MasterSwitch: View {
   @Environment(AppModel.self) private var model
 
   var body: some View {
-    HStack(spacing: 8) {
-      Text("Expansion")
-        .font(.system(size: 12.5))
-        .foregroundStyle(.secondary)
-      Toggle(
-        "Expansion",
-        isOn: Binding(get: { model.runtimeStatus.hotstringsEnabled }, set: { model.setHotstringsEnabled($0) })
-      )
-      .labelsHidden()
-      .toggleStyle(.switch)
-      .controlSize(.small)
+    VStack(alignment: .trailing, spacing: 2) {
+      HStack(spacing: 8) {
+        Text("Expansion")
+          .font(.system(size: 12.5))
+          .foregroundStyle(.secondary)
+        Toggle(
+          "Expansion",
+          isOn: Binding(get: { model.runtimeStatus.hotstringsEnabled }, set: { model.setHotstringsEnabled($0) })
+        )
+        .labelsHidden()
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .configKeyMenu(ConfigKeys.hotstringsEnabled)
+      }
+      if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.hotstringsEnabled.path) }
     }
     .help("Turn all text expansion on or off. Each hotstring keeps its own setting.")
+    .configKeyMenu(ConfigKeys.hotstringsEnabled)
   }
 }
 

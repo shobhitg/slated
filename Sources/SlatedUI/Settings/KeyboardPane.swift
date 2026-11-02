@@ -16,10 +16,11 @@ struct KeyboardPane: View {
         ToggleRow(
           title: "Tap Caps Lock alone for Escape",
           subtitle: "A quick tap sends Escape; holding it is still Hyper. Handy in Vim and for closing dialogs.",
-          symbol: "escape", tint: Color(hex: 0x14A89A), isOn: escapeBinding)
+          symbol: "escape", tint: Color(hex: 0x14A89A), isOn: escapeBinding, configKey: ConfigKeys.capsLockAlone)
         CardDivider(inset: 54)
         SettingRow(
-          title: "Hyper key sends", subtitle: modifierExplanation, symbol: "command", tint: SettingsPane.keyboard.tint
+          title: "Hyper key sends", subtitle: modifierExplanation, symbol: "command", tint: SettingsPane.keyboard.tint,
+          configKey: ConfigKeys.hyperModifiers
         ) {
           FittingPicker("Hyper key sends", selection: $model.configuration.keyboard.hyperModifiers) {
             Text("Hyper ⌃⌥⇧⌘").tag(Modifiers.hyper)
@@ -31,6 +32,7 @@ struct KeyboardPane: View {
       .opacity(model.hyperKeyEnabled ? 1 : 0.55)
       KeyRepeatCard()
       SettingsCard(title: "Good to Know", symbol: "lightbulb") {
+        // config key: none, a fact rather than a setting
         SettingRow(
           title: "Secure Input pauses the Hyper key",
           subtitle:
@@ -38,12 +40,14 @@ struct KeyboardPane: View {
           symbol: "lock.shield.fill", tint: Color(hex: 0x2F7BF5)
         ) { EmptyView() }
         CardDivider(inset: 54)
+        // config key: none, a fact rather than a setting
         SettingRow(
           title: "Using Karabiner-Elements?",
           subtitle: "Quit it, or remove its Caps Lock rule, so the two apps don't fight over the key.",
           symbol: "exclamationmark.triangle.fill", tint: Theme.caution
         ) { EmptyView() }
         CardDivider(inset: 54)
+        // config key: none, a fact rather than a setting
         SettingRow(
           title: "Typing in capitals",
           subtitle: "Caps Lock no longer toggles capitals while it's the Hyper key. Hold Shift instead.",
@@ -79,6 +83,7 @@ private struct HyperCard: View {
             Text("Caps Lock as Hyper").font(.system(size: 16, weight: .semibold))
             StatusPill(text: statusText, color: statusColor)
           }
+          if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.capsLock.display) }
           Text(
             "Hold Caps Lock and every key you press gets \(model.configuration.keyboard.hyperModifiers.symbols) — a combination no app uses, so shortcuts like ✦← are all yours."
           )
@@ -87,10 +92,12 @@ private struct HyperCard: View {
           .fixedSize(horizontal: false, vertical: true)
         }
         Spacer(minLength: 20)
+        // config key: the card's (keyboard.capsLock)
         Toggle("Caps Lock as Hyper", isOn: Binding(get: { model.hyperKeyEnabled }, set: { model.hyperKeyEnabled = $0 }))
           .labelsHidden()
           .toggleStyle(.switch)
       }
+      .configKeyMenu(ConfigKeys.capsLock)
       HyperIllustration(modifiers: model.configuration.keyboard.hyperModifiers, isOn: isOn)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)

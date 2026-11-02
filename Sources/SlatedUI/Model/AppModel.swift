@@ -12,6 +12,9 @@ enum SaveState: Equatable {
   case failed(String)
   /// config.json couldn't be read, so saving is paused rather than overwriting the user's file.
   case blocked
+  /// A file changed on disk while the window had unsaved edits in it: saving waits for the user to
+  /// pick a version (`AppModel.conflict`).
+  case conflict
 }
 
 /// The UI's single source of truth: a draft of the configuration plus the engine's live state.
@@ -53,6 +56,14 @@ public final class AppModel {
   private(set) var saveState: SaveState = .saved
   /// Why config.json couldn't be read, if it couldn't. Saving is paused until a reload succeeds.
   private(set) var loadError: String?
+  /// Files that changed on disk while the window had unsaved edits in them. A banner asks which
+  /// version wins; saving waits until then, so neither is dropped silently.
+  private(set) var conflict: Set<ConfigFile> = []
+  /// Files whose hand edits were just adopted, for a moment's "Updated from config.json".
+  private(set) var updatedFromDisk: [ConfigFile] = []
+  /// What the files said when the conflict arose.
+  @ObservationIgnored private var conflictDisk: SlatedConfiguration?
+  @ObservationIgnored private var updatedTask: Task<Void, Never>?
 
   // MARK: Live state
 
@@ -168,6 +179,16 @@ public final class AppModel {
       saveState = .blocked
       return
     }
+    guard conflict.isEmpty else {
+      saveState = .conflict
+      return
+    }
+    scheduleSave()
+  }
+
+  /// Saves after the usual pause.
+  private func scheduleSave() {
+    saveTask?.cancel()
     saveState = .pending
     let delay = saveDelay
     saveTask = Task { [weak self] in
@@ -183,6 +204,10 @@ public final class AppModel {
     saveTask = nil
     guard loadError == nil else {
       saveState = .blocked
+      return
+    }
+    guard conflict.isEmpty else {
+      saveState = .conflict
       return
     }
     let output = ConfigValidator.savable(draft, lastSaved: saved, issues: issues)
@@ -245,9 +270,11 @@ public final class AppModel {
     if !isSaving { syncFromDisk() }
   }
 
-  /// Adopts config.json when it changed on disk (hand edits), unless the UI has unsaved edits. A file
-  /// that can't be read blocks saving either way.
-  private func syncFromDisk() {
+  /// Adopts hand edits to config.json and settings.json, file by file. A file the window has unsaved
+  /// edits in isn't adopted or overwritten: a banner asks which version wins (`conflict`). A file that
+  /// can't be read blocks saving either way. The app's own write (`ownWrite`, an import) replaces
+  /// everything unless an edit is still waiting to be saved.
+  private func syncFromDisk(ownWrite: Bool = false) {
     let disk: SlatedConfiguration
     do {
       disk = withUniqueIDs(try services.loadConfiguration())
@@ -259,15 +286,84 @@ public final class AppModel {
       saveState = .blocked
       return
     }
-    guard saveTask == nil else { return }
-    let wasBlocked = loadError != nil
-    loadError = nil
-    if disk != saved || wasBlocked {
+    if ownWrite, saveTask != nil { return }
+    if loadError != nil || (ownWrite && conflict.isEmpty) {
+      // Edits were refused meanwhile, so the fixed file is all there is; or the app just wrote it.
+      guard loadError != nil || disk != saved else { return }
+      loadError = nil
       saved = disk
       draft = disk
       issues = ConfigValidator.validate(disk, knownLayouts: knownLayoutNames)
       saveState = .saved
+      return
     }
+    let changed = ConfigFile.allCases.filter { disk.differs(from: saved, in: $0) }
+    guard !changed.isEmpty else { return }
+    // Unsaved edits are what the next save would write. Items held back for their errors (a new
+    // shortcut still waiting for its keys) aren't: the next save leaves them out either way.
+    let pending = ConfigValidator.savable(draft, lastSaved: saved, issues: issues)
+    let conflicting = changed.filter { pending.differs(from: saved, in: $0) }
+    let adopted = changed.filter { !conflicting.contains($0) }
+    for file in adopted {
+      draft.adopt(file, of: disk)
+      saved.adopt(file, of: disk)
+    }
+    if !conflicting.isEmpty {
+      saveTask?.cancel()
+      saveTask = nil
+      conflictDisk = disk
+      if !conflict.isSuperset(of: conflicting) {
+        conflict.formUnion(conflicting)
+        services.logConfigEvent(.conflict(conflicting, choice: nil))
+      }
+      saveState = .conflict
+    }
+    if !adopted.isEmpty {
+      issues = ConfigValidator.validate(draft, knownLayouts: knownLayoutNames)
+      if conflict.isEmpty, saveTask == nil, draft == saved { saveState = .saved }
+      showUpdated(from: adopted)
+      services.logConfigEvent(.reloaded(adopted, source: "disk"))
+    }
+  }
+
+  /// "Updated from config.json" beside the save status, for a few seconds.
+  private func showUpdated(from files: [ConfigFile]) {
+    updatedFromDisk = files
+    updatedTask?.cancel()
+    updatedTask = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(4))
+      guard !Task.isCancelled else { return }
+      self?.updatedFromDisk = []
+    }
+  }
+
+  /// The conflict banner's "Reload from File": the files' versions replace the window's edits in them.
+  /// Edits to the other file stay and are saved.
+  func reloadConflictingFiles() {
+    guard let disk = conflictDisk, !conflict.isEmpty else { return }
+    let files = ConfigFile.allCases.filter(conflict.contains)
+    for file in files { draft.adopt(file, of: disk) }
+    saved = disk
+    conflict = []
+    conflictDisk = nil
+    issues = ConfigValidator.validate(draft, knownLayouts: knownLayoutNames)
+    services.logConfigEvent(.conflict(files, choice: "reload"))
+    services.logConfigEvent(.reloaded(files, source: "conflict"))
+    showUpdated(from: files)
+    if draft != saved { scheduleSave() } else { saveState = .saved }
+  }
+
+  /// The conflict banner's "Keep My Changes": the next save writes the window's version over the
+  /// file's changes.
+  func keepMyChanges() {
+    guard let disk = conflictDisk, !conflict.isEmpty else { return }
+    let files = ConfigFile.allCases.filter(conflict.contains)
+    // What's on disk now is what the save replaces.
+    saved = disk
+    conflict = []
+    conflictDisk = nil
+    services.logConfigEvent(.conflict(files, choice: "keep"))
+    scheduleSave()
   }
 
   /// Shows the configuration as the app just wrote it itself (an import), along with the status. Call
@@ -275,7 +371,7 @@ public final class AppModel {
   /// and its save would then write over the app's change.
   public func showSavedConfiguration() {
     refresh()
-    syncFromDisk()
+    syncFromDisk(ownWrite: true)
   }
 
   /// "Import Slate Config into Slated…" (the menus, Get Started, Settings): adds the Slate config's
@@ -311,13 +407,14 @@ public final class AppModel {
       ? ConfigFile.settings.rawValue : ConfigFile.config.rawValue
   }
 
-  /// Saves pending edits, then asks the app to reload config.json and settings.json.
+  /// Saves pending edits, then asks the app to reload config.json and settings.json. While a conflict
+  /// banner is up, its choice comes first: nothing is saved, and the files are re-read.
   public func reload() {
     if hasUnsavedChanges { saveNow() }
     services.reload()
     refresh()
     syncFromDisk()
-    if loadError == nil { showToast("Configuration reloaded", symbol: "arrow.clockwise") }
+    if loadError == nil, conflict.isEmpty { showToast("Configuration reloaded", symbol: "arrow.clockwise") }
   }
 
   // MARK: App actions

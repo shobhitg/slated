@@ -21,7 +21,9 @@ struct ActionEditor: View {
           .font(.system(size: 11.5))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        ConfigFieldCaption(path: ConfigKeys.Action.op)
       }
+      .configFieldMenu(ConfigKeys.Action.op)
       if kind.isWindowGeometry {
         PresetGallery(action: $action)
       }

@@ -184,6 +184,46 @@ public protocol AppServices: AnyObject {
   func activeAutomations() -> [ActiveAutomation]
   /// Stops every automation and releases anything held down.
   func stopAutomations()
+
+  // MARK: The files
+
+  /// Opens config.json or settings.json in the user's editor (settings.json's folder when it's not
+  /// there yet).
+  func openConfigFile(_ file: ConfigFile)
+  /// Puts text on the pasteboard: a setting's key or its value, from the settings' context menus.
+  func copyText(_ text: String)
+  /// Records what the settings window did with the files. Events name files only, never values.
+  func logConfigEvent(_ event: ConfigUIEvent)
+}
+
+/// What the settings window did with config.json and settings.json, for the event log.
+public enum ConfigUIEvent: Hashable, Sendable {
+  /// Copy Key or Copy Value as JSON, on a setting in `file`.
+  case keyCopied(ConfigFile, value: Bool)
+  /// Hand edits adopted (`source` "disk"), or a conflict settled by reloading the file ("conflict").
+  case reloaded([ConfigFile], source: String)
+  /// A file changed on disk while the window had unsaved edits in it (`choice` nil), and what the user
+  /// chose: "reload" or "keep".
+  case conflict([ConfigFile], choice: String?)
+
+  /// The event's name in the log.
+  public var name: String {
+    switch self {
+    case .keyCopied: return "ui.config_key_copied"
+    case .reloaded: return "ui.config_reloaded"
+    case .conflict: return "ui.config_conflict"
+    }
+  }
+
+  /// The event's data: file names and what happened, nothing from the files.
+  public var data: [String: String] {
+    let names = { (files: [ConfigFile]) in files.map(\.rawValue).sorted().joined(separator: ",") }
+    switch self {
+    case .keyCopied(let file, let value): return ["file": file.rawValue, "copied": value ? "value" : "key"]
+    case .reloaded(let files, let source): return ["files": names(files), "source": source]
+    case .conflict(let files, let choice): return ["files": names(files), "choice": choice ?? "pending"]
+    }
+  }
 }
 
 /// A running automation, for the UI: an auto-repeat or a held mouse button or key.
@@ -213,4 +253,8 @@ extension AppServices {
   public func openFilesAndFoldersSettings() {}
   public func currentSystemKeyRepeat() -> KeyRepeat? { nil }
   public func dismissMenuBarNotice() {}
+  /// Test doubles open nothing, copy nothing to the real pasteboard and log nothing.
+  public func openConfigFile(_ file: ConfigFile) {}
+  public func copyText(_ text: String) {}
+  public func logConfigEvent(_ event: ConfigUIEvent) {}
 }

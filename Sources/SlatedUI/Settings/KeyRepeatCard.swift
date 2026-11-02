@@ -18,12 +18,13 @@ struct KeyRepeatCard: View {
         title: "Set key repeat with Slated",
         subtitle: "Faster than System Settings allows. Starts from this Mac's current setting.",
         symbol: "repeat", tint: SettingsPane.keyboard.tint,
-        isOn: Binding(get: { model.keyRepeatEnabled }, set: { model.keyRepeatEnabled = $0 }))
+        isOn: Binding(get: { model.keyRepeatEnabled }, set: { model.keyRepeatEnabled = $0 }),
+        configKey: ConfigKeys.keyRepeat)
       if let setting = model.configuration.keyboard.keyRepeat {
         CardDivider(inset: 54)
         SliderRow(
           title: "Delay until repeat", subtitle: "How long you hold a key before it starts repeating.",
-          symbol: "timer", tint: Color(hex: 0x2F7BF5), label: setting.delayLabel,
+          symbol: "timer", tint: Color(hex: 0x2F7BF5), configKey: ConfigKeys.keyRepeatDelay, label: setting.delayLabel,
           slider: Binding(get: { Double(setting.delay) }, set: { setDelay(snapped: $0) }),
           range: Double(KeyRepeat.delayRange.lowerBound)...Double(KeyRepeat.delayRange.upperBound),
           ends: ("Short", "Long"),
@@ -31,12 +32,13 @@ struct KeyRepeatCard: View {
         CardDivider(inset: 54)
         SliderRow(
           title: "Repeat rate", subtitle: "How fast it repeats after that.", symbol: "hare.fill",
-          tint: Color(hex: 0x14A89A), label: setting.rateLabel,
+          tint: Color(hex: 0x14A89A), configKey: ConfigKeys.keyRepeatInterval, label: setting.rateLabel,
           slider: Binding(get: { 1000 / setting.macEffectiveInterval }, set: { setRate(perSecond: $0) }),
           range: 2...60, ends: ("Slow", "Fast"),
           field: Binding(get: { setting.interval }, set: { model.configuration.keyboard.keyRepeat?.interval = $0 }))
         CardDivider(inset: 54)
         HStack(spacing: 10) {
+          // config key: none, a test field that isn't saved
           TextField("Try it here: hold down a key", text: $tryText)
             .textFieldStyle(.roundedBorder)
             .frame(maxWidth: 260)
@@ -75,6 +77,7 @@ private struct SliderRow: View {
   let subtitle: String
   let symbol: String
   let tint: Color
+  let configKey: ConfigKey
   let label: String
   @Binding var slider: Double
   let range: ClosedRange<Double>
@@ -83,7 +86,7 @@ private struct SliderRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      SettingRow(title: title, subtitle: subtitle, symbol: symbol, tint: tint) {
+      SettingRow(title: title, subtitle: subtitle, symbol: symbol, tint: tint, configKey: configKey) {
         Text(label)
           .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
           .foregroundStyle(tint)
@@ -91,11 +94,13 @@ private struct SliderRow: View {
       .padding(.bottom, -8)
       HStack(spacing: 10) {
         Text(ends.0).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 34, alignment: .leading)
+        // config key: the row's
         Slider(value: $slider, in: range)
           .controlSize(.small)
           .accessibilityLabel(title)
           .accessibilityValue(label)
         Text(ends.1).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 30, alignment: .trailing)
+        // config key: the row's
         TextField(title, value: $field, format: .number)
           .textFieldStyle(.roundedBorder)
           .multilineTextAlignment(.trailing)
@@ -107,6 +112,7 @@ private struct SliderRow: View {
       .padding(.leading, 54)
       .padding(.trailing, 16)
       .padding(.bottom, 12)
+      .configKeyMenu(configKey)
     }
   }
 }

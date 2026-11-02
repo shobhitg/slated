@@ -114,7 +114,8 @@ public enum ConfigKeys {
   public static let notShown: [String: String] = [
     "settings.json › version": "The format's version, written by Slated.",
     "config.json › version": "The format's version, written by Slated.",
-    "settings.json › windows": "Slate's own settings: the window shows the three people tune; the rest are for hand edits.",
+    "settings.json › windows":
+      "Slate's own settings: the window shows the three people tune; the rest are for hand edits.",
     "config.json › defaults": "Slate's default layouts per display arrangement: imported from Slate, edited by hand.",
   ]
 
@@ -210,6 +211,8 @@ public enum ConfigKeys {
     public static let times = "times"
     public static let jitter = "jitter"
     public static let seconds = "seconds"
+    /// A sequence step's, under `steps[i]` (written only when some step keeps its window).
+    public static let keepWindow = "keepWindow"
 
     /// Each operation's parameters besides `op`, as the encoder writes them (optional ones included).
     public static let parameters: [String: [String]] = [

@@ -237,6 +237,7 @@ struct AutomationBindingRow: View {
         .toggleStyle(.switch)
         .controlSize(.small)
         .help(binding.enabled ? "Turn this automation off" : "Turn this automation on")
+        .configKeyMenu(model.configKey(forBinding: binding.id)?.appending(ConfigKeys.Binding.enabled))
       Button {
         model.openInEditor(binding.id)
       } label: {
@@ -287,7 +288,7 @@ private struct SafetyCard: View {
       VStack(alignment: .leading, spacing: 0) {
         SettingRow(
           title: "Stop shortcut", subtitle: "Stops every automation and lets go of anything held, from any app.",
-          symbol: "stop.circle.fill", tint: Theme.critical
+          symbol: "stop.circle.fill", tint: Theme.critical, configKey: ConfigKeys.automationStopShortcut
         ) {
           OptionalShortcutRecorder(
             combo: $model.configuration.automation.stopShortcut, defaultCombo: AutomationSettings().stopShortcut)
@@ -317,11 +318,11 @@ private struct SafetyCard: View {
         title: "Stop when you switch apps",
         subtitle: "Leaving the app an automation started in stops it. Slated's own windows don't count.",
         symbol: "arrow.left.arrow.right", tint: SettingsPane.automation.tint,
-        isOn: $model.configuration.automation.stopOnAppSwitch)
+        isOn: $model.configuration.automation.stopOnAppSwitch, configKey: ConfigKeys.automationStopOnAppSwitch)
       CardDivider(inset: 54)
       SettingRow(
         title: "Time limit", subtitle: "Stop everything after a while, in case you walk away.", symbol: "timer",
-        tint: Color(hex: 0x7A5AF8)
+        tint: Color(hex: 0x7A5AF8), configKey: ConfigKeys.automationMaxRunMinutes
       ) {
         Picker("Time limit", selection: $model.configuration.automation.maxRunMinutes) {
           ForEach(timeLimitChoices, id: \.self) { minutes in
@@ -334,7 +335,7 @@ private struct SafetyCard: View {
       CardDivider(inset: 54)
       SettingRow(
         title: "Show an indicator", subtitle: AutomationIndicatorPreview.settingSubtitle,
-        symbol: "record.circle", tint: Color(hex: 0xE5484D)
+        symbol: "record.circle", tint: Color(hex: 0xE5484D), configKey: ConfigKeys.automationShowIndicator
       ) {
         HStack(spacing: 14) {
           AutomationIndicatorPreview(

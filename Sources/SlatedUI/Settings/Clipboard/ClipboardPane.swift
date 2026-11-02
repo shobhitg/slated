@@ -47,7 +47,9 @@ private struct ClipboardHero: View {
         )
         .labelsHidden()
         .toggleStyle(.switch)
+        .configKeyMenu(ConfigKeys.clipboardEnabled)
       }
+      if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.clipboardEnabled.display) }
       heroBody(settings)
     }
     .padding(18)
@@ -147,7 +149,7 @@ private struct ShortcutCard: View {
         SettingRow(
           title: "Open the picker",
           subtitle: "Works in any app. Clear it to open the picker only from Overview.",
-          symbol: "list.clipboard", tint: SettingsPane.clipboard.tint
+          symbol: "list.clipboard", tint: SettingsPane.clipboard.tint, configKey: ConfigKeys.clipboardShortcut
         ) {
           OptionalShortcutRecorder(
             combo: $model.configuration.clipboard.shortcut, defaultCombo: ClipboardSettings().shortcut)
@@ -178,7 +180,7 @@ private struct ShortcutCard: View {
         subtitle:
           "Pick an item and Slated pastes it into the app you were using. Off: it's only copied, ready for you to paste.",
         symbol: "doc.on.clipboard.fill", tint: Color(hex: 0x2F7BF5),
-        isOn: $model.configuration.clipboard.pasteAfterSelecting)
+        isOn: $model.configuration.clipboard.pasteAfterSelecting, configKey: ConfigKeys.clipboardPasteAfterSelecting)
     }
   }
 }
@@ -195,7 +197,7 @@ private struct HistoryCard: View {
       SettingRow(
         title: "Remember up to", subtitle: "The oldest items make room for new ones.",
         symbol: "square.stack.3d.up.fill",
-        tint: Color(hex: 0x7A5AF8)
+        tint: Color(hex: 0x7A5AF8), configKey: ConfigKeys.clipboardMaxItems
       ) {
         Picker("Remember up to", selection: $model.configuration.clipboard.maxItems) {
           ForEach(choices(ClipboardOptions.maxItems, current: model.configuration.clipboard.maxItems), id: \.self) {
@@ -208,7 +210,7 @@ private struct HistoryCard: View {
       CardDivider(inset: 54)
       SettingRow(
         title: "Forget items after", subtitle: "Older items are removed, so history doesn't pile up.",
-        symbol: "calendar.badge.clock", tint: Color(hex: 0xF08A24)
+        symbol: "calendar.badge.clock", tint: Color(hex: 0xF08A24), configKey: ConfigKeys.clipboardRetentionDays
       ) {
         Picker("Forget items after", selection: $model.configuration.clipboard.retentionDays) {
           ForEach(retentionChoices, id: \.self) { Text(ClipboardOptions.retentionTitle($0)).tag($0) }
@@ -220,7 +222,8 @@ private struct HistoryCard: View {
       ToggleRow(
         title: "Keep history across restarts",
         subtitle: "Saved only on this Mac, in a file only you can read. Off: history starts fresh each launch.",
-        symbol: "internaldrive.fill", tint: Color(hex: 0x14A89A), isOn: $model.configuration.clipboard.persist)
+        symbol: "internaldrive.fill", tint: Color(hex: 0x14A89A), isOn: $model.configuration.clipboard.persist,
+        configKey: ConfigKeys.clipboardPersist)
       CardDivider(inset: 54)
       ScreenshotsRow()
     }
@@ -251,7 +254,8 @@ private struct ScreenshotsRow: View {
         title: "Add screenshots",
         subtitle:
           "Screenshots saved as files join your history too. The first time, macOS asks to let Slated see your \(folder) folder, where they're saved.",
-        symbol: "camera.viewfinder", tint: Color(hex: 0xE0457B), isOn: $model.configuration.clipboard.screenshots)
+        symbol: "camera.viewfinder", tint: Color(hex: 0xE0457B), isOn: $model.configuration.clipboard.screenshots,
+        configKey: ConfigKeys.clipboardScreenshots)
       if on, let problem {
         VStack(alignment: .leading, spacing: 6) {
           Label(problem.text, systemImage: "exclamationmark.triangle.fill")
@@ -310,13 +314,15 @@ private struct PrivacyCard: View {
         title: "Ignore passwords and other concealed items",
         subtitle:
           "Password managers mark what they copy as concealed or temporary. Slated skips those, so passwords never land in your history.",
-        symbol: "key.fill", tint: Color(hex: 0x30B85A), isOn: $model.configuration.clipboard.ignoreConcealed)
+        symbol: "key.fill", tint: Color(hex: 0x30B85A), isOn: $model.configuration.clipboard.ignoreConcealed,
+        configKey: ConfigKeys.clipboardIgnoreConcealed)
       CardDivider(inset: 54)
       VStack(alignment: .leading, spacing: 10) {
         HStack(spacing: 12) {
           IconTile(symbol: "hand.raised.fill", tint: Color(hex: 0xE5484D), size: 26)
           VStack(alignment: .leading, spacing: 2) {
             Text("Never record copies from").font(.system(size: 13, weight: .medium))
+            if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.clipboardExcludedApps.display) }
             Text("Anything copied in these apps stays out of your history.")
               .font(.system(size: 11.5)).foregroundStyle(.secondary)
           }
@@ -337,6 +343,7 @@ private struct PrivacyCard: View {
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 12)
+      .configKeyMenu(ConfigKeys.clipboardExcludedApps)
     }
   }
 

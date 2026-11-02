@@ -153,7 +153,36 @@ var shots: [Shot] = [
   settings("state-empty-clipboard", scenario: .empty, pane: .clipboard),
   settings("state-empty-automation", scenario: .empty, pane: .automation),
   settings("state-broken-config", scenario: .brokenConfig, pane: .overview),
+  // settings.json changed on disk while the window had an unsaved edit in it: the banner asks which wins.
+  settings("state-config-conflict", pane: .general, configure: handEditConflict),
+  // A hand edit to config.json was just picked up: "Updated from config.json" beside the save status.
+  settings("state-config-updated", pane: .keyboard, configure: handEdit),
+  settings(
+    "settings-general-keys-off", pane: .general,
+    services: { services in
+      var config = services.configuration
+      config.general.showConfigKeys = false
+      try? services.saveConfiguration(config)
+    }),
 ]
+
+/// settings.json edited by hand while the window has an unsaved edit in it.
+@MainActor func handEditConflict(_ model: AppModel) {
+  guard let services = model.services as? PreviewServices else { return }
+  model.saveDelay = .seconds(600)
+  model.configuration.island.cheatSheetDelay = 0.8
+  var edited = services.configuration
+  edited.island.enabled = false
+  services.simulateHandEdit(edited)
+}
+
+/// config.json edited by hand, nothing unsaved in the window.
+@MainActor func handEdit(_ model: AppModel) {
+  guard let services = model.services as? PreviewServices else { return }
+  var edited = services.configuration
+  edited.keyboard.capsLockAlone = .escape
+  services.simulateHandEdit(edited)
+}
 
 // Get Started, on a first run: each step, in the main window.
 for step in GetStartedStep.allCases {
@@ -198,6 +227,8 @@ func narrowShots(width: CGFloat) -> [Shot] {
     shot("slate", pane: .slate),
     shot("general", pane: .general),
     shot("about", pane: .about),
+    shot("config-conflict", pane: .general, configure: handEditConflict),
+    shot("config-updated", pane: .keyboard, configure: handEdit),
   ]
     + GetStartedStep.allCases.map { step in
       shot("getstarted-\(step.rawValue + 1)-\(step)", scenario: .firstRun, pane: .getStarted) { model in

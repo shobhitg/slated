@@ -17,13 +17,15 @@ struct GeneralPane: View {
           title: "Launch at login",
           subtitle: "Start Slated in the background when you log in, so your shortcuts are always ready.",
           symbol: "power", tint: Color(hex: 0x30B85A),
-          isOn: Binding(get: { model.configuration.general.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
+          isOn: Binding(get: { model.configuration.general.launchAtLogin }, set: { model.setLaunchAtLogin($0) }),
+          configKey: ConfigKeys.launchAtLogin)
         CardDivider(inset: 54)
         ToggleRow(
           title: "Show Slated in the menu bar",
           subtitle: "Click the icon to open Slated, right-click it for a short menu. Without it, the Dock icon "
             + "opens Slated.",
-          symbol: "menubar.rectangle", tint: Color(hex: 0x2F7BF5), isOn: $model.configuration.general.showStatusIcon)
+          symbol: "menubar.rectangle", tint: Color(hex: 0x2F7BF5), isOn: $model.configuration.general.showStatusIcon,
+          configKey: ConfigKeys.showStatusIcon)
       }
       if model.showsMenuBarNotice {
         MenuBarNoticeCard()
@@ -32,6 +34,7 @@ struct GeneralPane: View {
         HStack(spacing: 16) {
           VStack(alignment: .leading, spacing: 3) {
             Text("Show what just happened").font(.system(size: 13, weight: .medium))
+            if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.showActionHUD.display) }
             Text(
               "Names the action each time a shortcut runs — in the notch island, or a small HUD when the island is "
                 + "off. Handy while you learn your bindings."
@@ -42,12 +45,14 @@ struct GeneralPane: View {
           }
           Spacer(minLength: 12)
           HUDPreview(isOn: model.configuration.general.showActionHUD)
+          // config key: the row's (general.showActionHUD)
           Toggle("Show action HUD", isOn: $model.configuration.general.showActionHUD)
             .labelsHidden()
             .toggleStyle(.switch)
             .controlSize(.small)
         }
         .padding(16)
+        .configKeyMenu(ConfigKeys.showActionHUD)
       }
       IslandCard()
       WindowBehaviorCard()
@@ -58,10 +63,16 @@ struct GeneralPane: View {
           + "these settings are in \(model.services.settingsFileURL.lastPathComponent). Edit either by hand "
           + "and Slated picks up the change."
       ) {
-        FactRow(
-          label: "Shortcuts", value: displayPath(model.services.configurationFileURL.path), monospaced: true)
+        ToggleRow(
+          title: "Show config keys",
+          subtitle: "Each setting's key in config.json or settings.json, under its name. Right-click any setting to "
+            + "copy its key or value, or to open its file.",
+          symbol: "curlybraces", tint: Color(hex: 0x4F5BD5), isOn: $model.configuration.general.showConfigKeys,
+          configKey: ConfigKeys.showConfigKeys)
+        CardDivider(inset: 54)
+        fileRow("Shortcuts", file: .config, url: model.services.configurationFileURL)
         CardDivider()
-        FactRow(label: "Settings", value: displayPath(model.services.settingsFileURL.path), monospaced: true)
+        fileRow("Settings", file: .settings, url: model.services.settingsFileURL)
         CardDivider()
         HStack(spacing: 8) {
           SaveStatusLabel()
@@ -80,6 +91,26 @@ struct GeneralPane: View {
         .padding(.vertical, 10)
       }
     }
+  }
+
+  /// A file's path, with a button that opens it in your editor.
+  private func fileRow(_ label: String, file: ConfigFile, url: URL) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 12) {
+      Text(label).foregroundStyle(.secondary)
+      Spacer(minLength: 8)
+      Text(displayPath(url.path))
+        .font(.system(size: 12, design: .monospaced))
+        .textSelection(.enabled)
+        .lineLimit(1)
+        .truncationMode(.middle)
+      Button("Open \(file.rawValue)") { model.openConfigFile(file) }
+        .buttonStyle(.soft)
+        .controlSize(.small)
+        .fixedSize()
+    }
+    .font(.system(size: 13))
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
   }
 
   private func displayPath(_ path: String) -> String {
@@ -125,20 +156,22 @@ private struct IslandCard: View {
         title: "Show the island",
         subtitle: "Running automations, the active modal key and quick feedback grow out of the notch. Hover over "
           + "a running automation to stop it.",
-        symbol: "laptopcomputer", tint: Color(hex: 0x1C1C1E), isOn: $model.configuration.island.enabled)
+        symbol: "laptopcomputer", tint: Color(hex: 0x1C1C1E), isOn: $model.configuration.island.enabled,
+        configKey: ConfigKeys.islandEnabled)
       CardDivider(inset: 54)
       ToggleRow(
         title: "Hold Caps Lock to see your shortcuts",
         subtitle: "Keep the Hyper key held for a moment to list every Hyper shortcut; after a modal key, its keys "
           + "appear the same way.",
-        symbol: "keyboard", tint: Theme.accent, isOn: $model.configuration.island.cheatSheet
+        symbol: "keyboard", tint: Theme.accent, isOn: $model.configuration.island.cheatSheet,
+        configKey: ConfigKeys.islandCheatSheet
       )
       .disabled(!island.enabled)
       CardDivider(inset: 54)
       SettingRow(
         title: "Cheat sheet delay",
         subtitle: "How long to hold before the shortcuts appear. Quick taps never show them.",
-        symbol: "timer", tint: Color(hex: 0x2F7BF5)
+        symbol: "timer", tint: Color(hex: 0x2F7BF5), configKey: ConfigKeys.islandCheatSheetDelay
       ) {
         FittingPicker("Cheat sheet delay", selection: $model.configuration.island.cheatSheetDelay) {
           Text("Short").tag(0.3)
@@ -154,7 +187,8 @@ private struct IslandCard: View {
       ToggleRow(
         title: "Explain shortcuts that can't run",
         subtitle: "When a shortcut has nothing to act on — no window to move, say — the island briefly says why.",
-        symbol: "exclamationmark.triangle", tint: Theme.caution, isOn: $model.configuration.island.showFailures
+        symbol: "exclamationmark.triangle", tint: Theme.caution, isOn: $model.configuration.island.showFailures,
+        configKey: ConfigKeys.islandShowFailures
       )
       .disabled(!island.enabled)
     }
@@ -173,12 +207,13 @@ private struct WindowBehaviorCard: View {
       ToggleRow(
         title: "Number displays from left to right",
         subtitle: "Display 1 is the leftmost. Turn off to use macOS's order, with the main display first.",
-        symbol: "rectangle.split.3x1", tint: Color(hex: 0x2F7BF5), isOn: bool("orderScreensLeftToRight", default: true))
+        symbol: "rectangle.split.3x1", tint: Color(hex: 0x2F7BF5), isOn: bool("orderScreensLeftToRight", default: true),
+        configKey: ConfigKeys.orderScreensLeftToRight)
       CardDivider(inset: 54)
       SettingRow(
         title: "Repeat while held",
         subtitle: "How long to hold a shortcut before it repeats, for operations that repeat.",
-        symbol: "repeat", tint: Color(hex: 0x7A5AF8)
+        symbol: "repeat", tint: Color(hex: 0x7A5AF8), configKey: ConfigKeys.secondsBeforeRepeat
       ) {
         FittingPicker("Repeat delay", selection: number("secondsBeforeRepeat", default: 0.4)) {
           Text("Short").tag(0.25)
@@ -190,7 +225,7 @@ private struct WindowBehaviorCard: View {
       SettingRow(
         title: "Undo history", subtitle: "How many window moves Undo can step back through.",
         symbol: "arrow.uturn.backward",
-        tint: Color(hex: 0x14A89A)
+        tint: Color(hex: 0x14A89A), configKey: ConfigKeys.undoMaxStackSize
       ) {
         // What Undo keeps, as the engine reads the setting. Not `Int(_:)` of the raw number, which traps
         // on what a hand edit or an imported Slate config can put there: 1e20, Infinity, NaN.
@@ -219,36 +254,5 @@ private struct WindowBehaviorCard: View {
     Binding(
       get: { model.configuration.windows.double(key, default: value) },
       set: { model.configuration.windows[key] = .number($0) })
-  }
-}
-
-/// "All changes saved" in words, for the configuration card.
-struct SaveStatusLabel: View {
-  @Environment(AppModel.self) private var model
-
-  var body: some View {
-    let (text, symbol, color): (String, String, Color) = {
-      switch model.saveState {
-      case .saved: return ("All changes saved", "checkmark.circle.fill", Theme.positive)
-      case .pending: return ("Saving…", "arrow.triangle.2.circlepath", .secondary)
-      case .partiallySaved(let count):
-        return (
-          "\(count) item\(count == 1 ? "" : "s") not saved — fix the errors shown", "exclamationmark.triangle.fill",
-          Theme.caution
-        )
-      case .failed(let message): return ("Couldn't save: \(message)", "xmark.octagon.fill", Theme.critical)
-      case .blocked:
-        return (
-          "Saving paused until \(model.unreadableFileName) can be read", "exclamationmark.triangle.fill", Theme.caution
-        )
-      }
-    }()
-    Label {
-      Text(text).lineLimit(2)
-    } icon: {
-      Image(systemName: symbol).foregroundStyle(color)
-    }
-    .font(.system(size: 12))
-    .foregroundStyle(.secondary)
   }
 }

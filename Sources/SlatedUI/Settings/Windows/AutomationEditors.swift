@@ -136,6 +136,7 @@ struct KeyChooser: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
+        // config key: the caller's field
         ShortcutRecorder(combo: $combo, requiresModifier: false, allowsMouseButtons: false)
           .frame(maxWidth: 280)
         if allowsModifierKeys {
@@ -183,6 +184,7 @@ struct IntervalField: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: 6) {
+        // config key: the caller's field
         TextField(
           "100",
           value: Binding(
@@ -288,16 +290,19 @@ struct RepeatLimitField: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 10) {
+        // config key: the caller's field
         FittingPicker("Stop", selection: limited) {
           Text("When stopped").tag(false)
           Text("After a number of runs").tag(true)
         }
         if let current = times {
           HStack(spacing: 6) {
+            // config key: the caller's field
             TextField("50", value: Binding(get: { current }, set: { times = max(1, $0) }), format: .number)
               .textFieldStyle(.roundedBorder)
               .multilineTextAlignment(.trailing)
               .frame(width: 58)
+            // config key: the caller's field
             Stepper("Runs", value: Binding(get: { current }, set: { times = max(1, $0) }), in: 1...100_000)
               .labelsHidden()
             Text("runs").font(.system(size: 12)).foregroundStyle(.secondary)
@@ -326,11 +331,13 @@ struct JitterField: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 10) {
+        // config key: the caller's field
         Toggle("Humanize timing", isOn: Binding(get: { jitter > 0 }, set: { jitter = $0 ? max(jitter, 0.15) : 0 }))
           .toggleStyle(.switch)
           .controlSize(.small)
           .font(.system(size: 12.5, weight: .medium))
         if jitter > 0 {
+          // config key: the caller's field
           Slider(value: Binding(get: { jitter }, set: { jitter = max(0.05, ($0 * 20).rounded() / 20) }), in: 0.05...0.5)
             .frame(width: 150)
           Text(AutomationDescriber.jitter(jitter))
@@ -398,6 +405,7 @@ struct RepeatedActionEditor: View {
       case .click(let button, let count):
         HStack(spacing: 14) {
           MouseButtonPicker(button: Binding(get: { button }, set: { action = .click($0, count: count) }))
+          // config key: the caller's field
           FittingPicker(
             "Clicks", selection: Binding(get: { min(count, 2) }, set: { action = .click(button, count: $0) })
           ) {
@@ -447,6 +455,7 @@ struct DurationField: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 6) {
+        // config key: the caller's field
         TextField("0.5", value: $seconds, format: .number.precision(.fractionLength(0...3)))
           .textFieldStyle(.roundedBorder)
           .multilineTextAlignment(.trailing)
@@ -469,6 +478,7 @@ struct PressPhasePicker: View {
   @Binding var phase: PressPhase
 
   var body: some View {
+    // config key: the caller's field
     FittingPicker("Press or release", selection: $phase) {
       Label("Press Down", systemImage: "arrow.down.to.line").tag(PressPhase.down)
       Label("Release", systemImage: "arrow.up.to.line").tag(PressPhase.up)

@@ -1,3 +1,4 @@
+import SlatedCore
 import SwiftUI
 
 /// A System Settings-style icon: a white SF Symbol on a tinted squircle.
@@ -178,19 +179,26 @@ struct CardDivider: View {
   }
 }
 
-/// One row in a settings card: optional icon, title, subtitle, trailing control.
+/// One row in a settings card: optional icon, title, its key in the files, subtitle, trailing control.
+/// A row that's a setting names its `configKey`; a right-click on it copies the key or the value, or
+/// opens the file.
 struct SettingRow<Trailing: View>: View {
   let title: String
   var subtitle: String?
   var symbol: String?
   var tint: Color = Theme.accent
+  var configKey: ConfigKey?
   @ViewBuilder var trailing: Trailing
+  @Environment(AppModel.self) private var model: AppModel?
 
   var body: some View {
     HStack(spacing: 12) {
       if let symbol { IconTile(symbol: symbol, tint: tint, size: 26) }
       VStack(alignment: .leading, spacing: 2) {
         Text(title).font(.system(size: 13, weight: .medium))
+        if let configKey, model?.showsConfigKeys == true {
+          ConfigKeyCaption(text: configKey.display)
+        }
         if let subtitle {
           Text(subtitle)
             .font(.system(size: 11.5))
@@ -205,6 +213,7 @@ struct SettingRow<Trailing: View>: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 11)
+    .configKeyMenu(configKey)
   }
 }
 
@@ -215,9 +224,10 @@ struct ToggleRow: View {
   var symbol: String?
   var tint: Color = Theme.accent
   @Binding var isOn: Bool
+  var configKey: ConfigKey?
 
   var body: some View {
-    SettingRow(title: title, subtitle: subtitle, symbol: symbol, tint: tint) {
+    SettingRow(title: title, subtitle: subtitle, symbol: symbol, tint: tint, configKey: configKey) {
       Toggle(title, isOn: $isOn)
         .labelsHidden()
         .toggleStyle(.switch)

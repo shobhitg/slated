@@ -80,6 +80,26 @@ class LiveServices: AppServices {
     NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL])
   }
 
+  /// The same as File → Open Config File / Open Settings File, from General's buttons and the settings'
+  /// context menus.
+  func openConfigFile(_ file: ConfigFile) {
+    Log.record(file == .config ? "ui.open_config" : "ui.open_settings")
+    let url = file == .config ? engine.store.fileURL : engine.store.settingsURL
+    if FileManager.default.fileExists(atPath: url.path) {
+      NSWorkspace.shared.open(url)
+    } else {
+      NSWorkspace.shared.activateFileViewerSelecting([engine.store.fileURL])
+    }
+  }
+
+  func copyText(_ text: String) {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(text, forType: .string)
+  }
+
+  /// File names and what happened only: ConfigUIEvent carries nothing from the files.
+  func logConfigEvent(_ event: ConfigUIEvent) { Log.record(event.name, event.data) }
+
   func revealFile(atPath path: String) {
     Log.record("ui.reveal_file", ["path": path])
     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: SlatedPaths.expand(path))])

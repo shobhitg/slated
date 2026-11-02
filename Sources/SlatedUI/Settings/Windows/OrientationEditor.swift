@@ -12,8 +12,10 @@ struct OrientationEditor: View {
   var body: some View {
     VStack(spacing: 0) {
       OrientationBranch(title: "Landscape displays", symbol: "rectangle", action: $landscape, depth: depth)
+        .configKeyBase(ConfigKeys.Action.landscape)
       CardDivider(inset: 44)
       OrientationBranch(title: "Portrait displays", symbol: "rectangle.portrait", action: $portrait, depth: depth)
+        .configKeyBase(ConfigKeys.Action.portrait)
     }
     .wellStyle()
   }
@@ -34,6 +36,7 @@ private struct OrientationBranch: View {
         .frame(width: 22)
       VStack(alignment: .leading, spacing: 2) {
         Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+        ConfigFieldCaption(path: ConfigKeys.Action.op)
         HStack(spacing: 6) {
           ActionGlyph(action: action, width: 22, height: 15)
           Text(ActionDescriber.title(action)).font(.system(size: 12.5, weight: .medium)).lineLimit(1)

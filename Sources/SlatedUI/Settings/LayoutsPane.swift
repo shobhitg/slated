@@ -148,6 +148,7 @@ private struct LayoutDetail: View {
         appsCard
         beforeAfterCard
       }
+      .configKeyItem(index.flatMap { model.configKey(forLayoutAt: $0) })
       .padding(24)
       .frame(maxWidth: 640, alignment: .leading)
       .frame(maxWidth: .infinity)
@@ -173,12 +174,14 @@ private struct LayoutDetail: View {
           .onChange(of: nameProblem) { _, problem in
             if problem == nil { commitName(nameDraft) }
           }
+          .configField(ConfigKeys.Layout.name)
         if let problem = nameProblem {
           Label(problem, systemImage: "exclamationmark.circle.fill")
             .font(.system(size: 11.5))
             .foregroundStyle(Theme.critical)
         }
         HStack(spacing: 8) { triggers }
+        ConfigItemCaption(key: index.flatMap { model.configKey(forLayoutAt: $0) })
       }
       Spacer()
       Menu {
@@ -227,6 +230,7 @@ private struct LayoutDetail: View {
         ForEach(layout.apps.indices, id: \.self) { index in
           if index > 0 { CardDivider() }
           LayoutAppRow(app: appBinding(index)) { layout.apps.remove(at: index) }
+            .configKeyBase(ConfigKeys.Layout.apps, index: index)
         }
         CardDivider()
         HStack {
@@ -254,11 +258,13 @@ private struct LayoutDetail: View {
       VStack(alignment: .leading, spacing: 14) {
         VStack(alignment: .leading, spacing: 6) {
           Text("Before arranging").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-          OperationListEditor(operations: $layout.before, depth: 1, isChain: false)
+          OperationListEditor(operations: $layout.before, depth: 1, isChain: false).configKeyBase(
+            ConfigKeys.Layout.before)
         }
         VStack(alignment: .leading, spacing: 6) {
           Text("After arranging").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-          OperationListEditor(operations: $layout.after, depth: 1, isChain: false)
+          OperationListEditor(operations: $layout.after, depth: 1, isChain: false).configKeyBase(
+            ConfigKeys.Layout.after)
         }
       }
       .padding(16)
@@ -293,6 +299,7 @@ private struct LayoutAppRow: View {
         AppIconView(path: info?.path, bundleID: info?.bundleID, size: 26)
         AppNameField(name: $app.app, showsIcon: false)
           .frame(maxWidth: 240)
+          .configField(ConfigKeys.Layout.app)
         Spacer()
         optionTags
         Menu {
@@ -308,6 +315,7 @@ private struct LayoutAppRow: View {
         .fixedSize()
       }
       OperationListEditor(operations: $app.operations, depth: 1, isChain: false)
+        .configKeyBase(ConfigKeys.Layout.operations)
         .padding(.leading, 36)
       if showOptions {
         OptionsEditor(options: $app.options)
@@ -350,10 +358,11 @@ private struct OptionsEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Toggle("Skip quietly if the app isn't running", isOn: $options.ignoreFail)
-      Toggle("Repeat the operations for extra windows", isOn: $options.repeat)
-      Toggle("Arrange the main window first", isOn: $options.mainFirst)
-      Toggle("Order windows by title", isOn: $options.sortTitle)
+      Toggle("Skip quietly if the app isn't running", isOn: $options.ignoreFail).configField(
+        ConfigKeys.Layout.ignoreFail)
+      Toggle("Repeat the operations for extra windows", isOn: $options.repeat).configField(ConfigKeys.Layout.repeat)
+      Toggle("Arrange the main window first", isOn: $options.mainFirst).configField(ConfigKeys.Layout.mainFirst)
+      Toggle("Order windows by title", isOn: $options.sortTitle).configField(ConfigKeys.Layout.sortTitle)
     }
     .toggleStyle(.checkbox)
     .font(.system(size: 12))

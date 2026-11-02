@@ -30,6 +30,8 @@ struct SettingsView: View {
     VStack(spacing: 0) {
       if let error = model.loadError {
         LoadErrorBanner(message: error)
+      } else if !model.conflict.isEmpty {
+        ConflictBanner()
       }
       pane
         .frame(maxWidth: .infinity, maxHeight: .infinity)

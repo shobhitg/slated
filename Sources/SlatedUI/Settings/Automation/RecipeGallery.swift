@@ -1,3 +1,4 @@
+// config keys: none in this file. A recipe isn't in config.json until it's added; its editor then shows the keys.
 import SlatedCore
 import SwiftUI
 
@@ -206,7 +207,7 @@ struct RecipeSheet: View {
         .padding(12)
         .wellStyle()
       }
-      FieldGroup("Shortcut") {
+      FieldGroup("Shortcut", key: nil) {
         VStack(alignment: .leading, spacing: 8) {
           ShortcutRecorder(
             combo: $keys, requiresModifier: currentApps.isEmpty, autoStart: true,
@@ -231,7 +232,7 @@ struct RecipeSheet: View {
           }
         }
       }
-      FieldGroup("Works In") {
+      FieldGroup("Works In", key: nil) {
         AppScopeEditor(apps: appsBinding)
       }
       AutomationSafetyNote()
@@ -312,11 +313,11 @@ struct RecipeSheet: View {
     let form = ActionForm(action)
     switch option {
     case .speed:
-      FieldGroup("How Often") { IntervalField(interval: field(\.interval), jitter: form.jitter) }
+      FieldGroup("How Often", key: nil) { IntervalField(interval: field(\.interval), jitter: form.jitter) }
     case .humanize:
       JitterField(jitter: field(\.jitter))
     case .count:
-      FieldGroup("How Many") {
+      FieldGroup("How Many", key: nil) {
         HStack(spacing: 8) {
           TextField("50", value: timesBinding, format: .number)
             .textFieldStyle(.roundedBorder)
@@ -327,11 +328,11 @@ struct RecipeSheet: View {
         }
       }
     case .key:
-      FieldGroup(recipe.id == "spam-key" ? "Key to Press" : "Key to Hold") {
+      FieldGroup(recipe.id == "spam-key" ? "Key to Press" : "Key to Hold", key: nil) {
         KeyChooser(combo: keyBinding, allowsModifierKeys: recipe.id != "spam-key")
       }
     case .modifierKey:
-      FieldGroup("Key to Hold") {
+      FieldGroup("Key to Hold", key: nil) {
         Picker("Key to hold", selection: keyBinding) {
           ForEach(AutomationRecipes.modifierKeys.prefix(4), id: \.key) { modifier in
             Text(modifier.title).tag(KeyCombo(key: modifier.key))
@@ -342,7 +343,7 @@ struct RecipeSheet: View {
         .fixedSize()
       }
     case .button:
-      FieldGroup("Button") { MouseButtonPicker(button: field(\.mouseButton)) }
+      FieldGroup("Button", key: nil) { MouseButtonPicker(button: field(\.mouseButton)) }
     }
   }
 

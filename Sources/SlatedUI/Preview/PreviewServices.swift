@@ -245,6 +245,22 @@ public final class PreviewServices: AppServices {
   /// How often the UI opened Privacy & Security → Files and Folders, for tests.
   public private(set) var openedFilesAndFoldersSettings = 0
 
+  /// What the UI opened, copied and logged about the files, for tests.
+  public private(set) var openedConfigFiles: [ConfigFile] = []
+  public private(set) var copiedTexts: [String] = []
+  public private(set) var configEvents: [ConfigUIEvent] = []
+  public func openConfigFile(_ file: ConfigFile) { openedConfigFiles.append(file) }
+  public func copyText(_ text: String) { copiedTexts.append(text) }
+  public func logConfigEvent(_ event: ConfigUIEvent) { configEvents.append(event) }
+
+  /// A hand edit: the files now say `configuration`, and the app reports the change as its file
+  /// watcher would.
+  public func simulateHandEdit(_ configuration: SlatedConfiguration) {
+    self.configuration = configuration
+    recomputeStatus()
+    notify()
+  }
+
   /// The screenshot folder's state as the app would report it: watching, not allowed or missing.
   public func setScreenshotStatus(_ screenshots: ScreenshotFolderStatus) {
     status.screenshots = screenshots

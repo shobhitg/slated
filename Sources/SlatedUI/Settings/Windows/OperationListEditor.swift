@@ -15,7 +15,9 @@ struct OperationListEditor: View {
           StepRow(
             index: index, count: operations.count, action: binding(index), depth: depth,
             caption: isChain ? "Press \(index + 1)" : nil,
-            onMove: { offset in move(index, by: offset) }, onDelete: { operations.remove(at: index) })
+            onMove: { offset in move(index, by: offset) }, onDelete: { operations.remove(at: index) }
+          )
+          .configKeyBase { $0.item(index) }
         }
       }
       .wellStyle()
@@ -59,6 +61,8 @@ struct SequenceEditor: View {
         .padding(12)
         .wellStyle()
       }
+      // As the encoder writes it: plain operations unless a step keeps the window.
+      let plain = steps.allSatisfy { !$0.keepWindow }
       VStack(spacing: 0) {
         ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
           // "Same window" only means something for steps that act on windows.
@@ -74,6 +78,8 @@ struct SequenceEditor: View {
               .controlSize(.small)
               .fixedSize()
               .help("Slate's “>” separator: run on the window that was focused when this run of steps began.")
+              .configField(ConfigKeys.Action.keepWindow)
+              .configKeyBase { $0.appending(ConfigKeys.Action.steps).item(index) }
               Rectangle().fill(Theme.hairline).frame(width: 12, height: 0.5)
             }
             .padding(.leading, 44)
@@ -81,7 +87,13 @@ struct SequenceEditor: View {
           }
           StepRow(
             index: index, count: steps.count, action: action(index), depth: depth, caption: "Step \(index + 1)",
-            onMove: { offset in move(index, by: offset) }, onDelete: { steps.remove(at: index) })
+            onMove: { offset in move(index, by: offset) }, onDelete: { steps.remove(at: index) }
+          )
+          .configKeyBase { base in
+            plain
+              ? base.appending(ConfigKeys.Action.operations).item(index)
+              : base.appending(ConfigKeys.Action.steps).item(index).appending(ConfigKeys.Action.action)
+          }
         }
       }
       .wellStyle()

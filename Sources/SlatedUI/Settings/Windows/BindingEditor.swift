@@ -28,10 +28,12 @@ struct BindingEditor: View {
         shortcutCard
         SettingsCard(title: "Action", symbol: "bolt.fill") {
           ActionEditor(action: $binding.action)
+            .configKeyBase(ConfigKeys.Binding.action)
             .padding(16)
         }
         issueList
       }
+      .configKeyItem(model.configKey(forBinding: binding.id))
       .padding(24)
       .frame(maxWidth: 640, alignment: .leading)
       .frame(maxWidth: .infinity)
@@ -63,12 +65,14 @@ struct BindingEditor: View {
             KeyComboView(combo: binding.keys, modal: binding.modal, size: .small)
           }
         }
+        ConfigItemCaption(key: model.configKey(forBinding: binding.id))
       }
       Spacer()
       Toggle("Enabled", isOn: $binding.enabled)
         .labelsHidden()
         .toggleStyle(.switch)
         .help(binding.enabled ? "Turn this shortcut off" : "Turn this shortcut on")
+        .configField(ConfigKeys.Binding.enabled)
       Menu {
         Button("Duplicate") { model.duplicateBinding(binding.id) }
         Divider()
@@ -86,11 +90,11 @@ struct BindingEditor: View {
   private var shortcutCard: some View {
     SettingsCard(title: "Shortcut", symbol: "command") {
       VStack(alignment: .leading, spacing: 14) {
-        LabeledField("Name") {
+        LabeledField("Name", key: ConfigKeys.Binding.name) {
           TextField(ActionDescriber.title(binding.action), text: nameBinding)
             .textFieldStyle(.roundedBorder)
         }
-        LabeledField("Keys") {
+        LabeledField("Keys", key: ConfigKeys.Binding.keys) {
           VStack(alignment: .leading, spacing: 6) {
             // A plain key is fine where it can't swallow typing: in its apps only, or after a modal key.
             ShortcutRecorder(
@@ -120,19 +124,19 @@ struct BindingEditor: View {
             }
           }
         }
-        LabeledField("Works in") {
+        LabeledField("Works in", key: ConfigKeys.Binding.onlyInApps) {
           AppScopeEditor(apps: $binding.onlyInApps)
         }
         DisclosureGroup(isExpanded: $showAdvanced) {
           VStack(alignment: .leading, spacing: 14) {
-            LabeledField("Repeat") {
+            LabeledField("Repeat", key: ConfigKeys.Binding.repeats) {
               FittingPicker("Repeat while held", selection: $binding.repeats) {
                 Text("Default").tag(Bool?.none)
                 Text("While held").tag(Bool?.some(true))
                 Text("Never").tag(Bool?.some(false))
               }
             }
-            LabeledField("Modal key") {
+            LabeledField("Modal key", key: ConfigKeys.Binding.modal) {
               ModalKeyEditor(modal: $binding.modal)
             }
           }
@@ -171,6 +175,7 @@ struct AppScopeEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      // config key: the caller's field (onlyInApps)
       FittingPicker("Works in", selection: limited) {
         Text("Everywhere").tag(false)
         Text("Only in…").tag(true)
@@ -207,18 +212,22 @@ private struct ModalKeyEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      // config key: the caller's field (modal)
       Toggle("Press a modal key first", isOn: enabled)
         .toggleStyle(.checkbox)
       if let current = modal {
         ShortcutRecorder(
           combo: Binding(get: { current.keys }, set: { modal?.keys = $0 }), requiresModifier: false,
-          allowsMouseButtons: false)
+          allowsMouseButtons: false
+        )
+        .configField(ConfigKeys.Binding.modalKeys)
         Toggle(
           "Stay in modal mode after the shortcut runs",
           isOn: Binding(get: { current.toggle }, set: { modal?.toggle = $0 })
         )
         .toggleStyle(.checkbox)
         .font(.system(size: 12))
+        .configField(ConfigKeys.Binding.modalToggle)
       }
     }
   }
@@ -230,15 +239,18 @@ private struct ModalKeyEditor: View {
   }
 }
 
-/// A label column + field, aligned across rows.
+/// A label column + field, aligned across rows. `key` is the field's key under the editor's item
+/// (`"trigger"`, `"direction"` under an action), shown under the field.
 struct LabeledField<Content: View>: View {
   let label: String
   var labelWidth: CGFloat = 76
+  var key: String?
   @ViewBuilder var content: Content
 
-  init(_ label: String, labelWidth: CGFloat = 76, @ViewBuilder content: () -> Content) {
+  init(_ label: String, labelWidth: CGFloat = 76, key: String?, @ViewBuilder content: () -> Content) {
     self.label = label
     self.labelWidth = labelWidth
+    self.key = key
     self.content = content()
   }
 
@@ -248,9 +260,13 @@ struct LabeledField<Content: View>: View {
         .font(.system(size: 12.5))
         .foregroundStyle(.secondary)
         .frame(width: labelWidth, alignment: .trailing)
-      content
-        .frame(maxWidth: .infinity, alignment: .leading)
+      VStack(alignment: .leading, spacing: 3) {
+        content
+        ConfigFieldCaption(path: key)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .configFieldMenu(key)
   }
 }
 

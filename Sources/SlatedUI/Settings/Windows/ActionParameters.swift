@@ -21,55 +21,85 @@ struct ActionParameters: View {
     switch ActionKind(action) {
     case .move:
       VStack(alignment: .leading, spacing: 10) {
-        ExpressionGrid(fields: [("X", field(\.x)), ("Y", field(\.y)), ("W", field(\.width)), ("H", field(\.height))])
-        LabeledField("Display", labelWidth: 56) { ScreenRefPicker(selection: field(\.screen)) }
+        ExpressionGrid(fields: [
+          ("X", field(\.x), ConfigKeys.Action.x), ("Y", field(\.y), ConfigKeys.Action.y),
+          ("W", field(\.width), ConfigKeys.Action.width),
+          ("H", field(\.height), ConfigKeys.Action.height),
+        ])
+        LabeledField("Display", labelWidth: 56, key: ConfigKeys.Action.screen) {
+          ScreenRefPicker(selection: field(\.screen))
+        }
       }
     case .resize:
       VStack(alignment: .leading, spacing: 10) {
-        ExpressionGrid(fields: [("W", field(\.resizeWidth)), ("H", field(\.resizeHeight))], relative: true)
-        LabeledField("Anchor", labelWidth: 56) { CornerPicker(corner: field(\.anchor)) }
+        ExpressionGrid(
+          fields: [
+            ("W", field(\.resizeWidth), ConfigKeys.Action.width),
+            ("H", field(\.resizeHeight), ConfigKeys.Action.height),
+          ], relative: true)
+        LabeledField("Anchor", labelWidth: 56, key: ConfigKeys.Action.anchor) { CornerPicker(corner: field(\.anchor)) }
         Hint("Use +10% or -100 to grow or shrink, or an expression for an exact size.")
       }
     case .push:
       VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Edge", labelWidth: 56) { DirectionPicker(direction: field(\.direction)) }
-        LabeledField("Size", labelWidth: 56) { PushStylePicker(style: field(\.pushStyle)) }
-        if case .barResize = ActionForm(action).pushStyle {
-          ExpressionField(label: ActionForm(action).direction.isVertical ? "H" : "W", text: barResizeExpression)
+        LabeledField("Edge", labelWidth: 56, key: ConfigKeys.Action.direction) {
+          DirectionPicker(direction: field(\.direction))
         }
-        LabeledField("Display", labelWidth: 56) { ScreenRefPicker(selection: field(\.screen)) }
+        LabeledField("Size", labelWidth: 56, key: ConfigKeys.Action.style) {
+          PushStylePicker(style: field(\.pushStyle))
+        }
+        if case .barResize = ActionForm(action).pushStyle {
+          ExpressionField(
+            label: ActionForm(action).direction.isVertical ? "H" : "W", text: barResizeExpression,
+            key: ConfigKeys.Action.style)
+        }
+        LabeledField("Display", labelWidth: 56, key: ConfigKeys.Action.screen) {
+          ScreenRefPicker(selection: field(\.screen))
+        }
       }
     case .nudge:
       VStack(alignment: .leading, spacing: 10) {
-        ExpressionGrid(fields: [("X", field(\.nudgeX)), ("Y", field(\.nudgeY))], relative: true)
+        ExpressionGrid(
+          fields: [("X", field(\.nudgeX), ConfigKeys.Action.x), ("Y", field(\.nudgeY), ConfigKeys.Action.y)],
+          relative: true)
         Hint(
           "Positive values move right and down. Percentages are of the screen size unless nudgePercentOf says otherwise."
         )
       }
     case .throwWindow:
       VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Display", labelWidth: 56) {
+        LabeledField("Display", labelWidth: 56, key: ConfigKeys.Action.screen) {
           ScreenRefPicker(
             selection: Binding(
               get: { ActionForm(action).throwScreen },
               set: { if let ref = $0 { field(\.throwScreen).wrappedValue = ref } }), allowsNone: false)
         }
-        Toggle("Resize on the new display", isOn: field(\.resizes)).toggleStyle(.checkbox)
+        Toggle("Resize on the new display", isOn: field(\.resizes)).toggleStyle(.checkbox).configField(
+          ConfigKeys.Action.width)
         if ActionForm(action).resizes {
-          ExpressionGrid(fields: [("W", field(\.width)), ("H", field(\.height))])
+          ExpressionGrid(fields: [
+            ("W", field(\.width), ConfigKeys.Action.width), ("H", field(\.height), ConfigKeys.Action.height),
+          ])
         }
       }
     case .corner:
       VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Corner", labelWidth: 56) { CornerPicker(corner: field(\.corner)) }
-        Toggle("Resize", isOn: field(\.resizes)).toggleStyle(.checkbox)
-        if ActionForm(action).resizes {
-          ExpressionGrid(fields: [("W", field(\.width)), ("H", field(\.height))])
+        LabeledField("Corner", labelWidth: 56, key: ConfigKeys.Action.direction) {
+          CornerPicker(corner: field(\.corner))
         }
-        LabeledField("Display", labelWidth: 56) { ScreenRefPicker(selection: field(\.screen)) }
+        Toggle("Resize", isOn: field(\.resizes)).toggleStyle(.checkbox).configField(ConfigKeys.Action.width)
+        if ActionForm(action).resizes {
+          ExpressionGrid(fields: [
+            ("W", field(\.width), ConfigKeys.Action.width), ("H", field(\.height), ConfigKeys.Action.height),
+          ])
+        }
+        LabeledField("Display", labelWidth: 56, key: ConfigKeys.Action.screen) {
+          ScreenRefPicker(selection: field(\.screen))
+        }
       }
     case .chain:
       OperationListEditor(operations: field(\.operations), depth: depth, isChain: true)
+        .configKeyBase(ConfigKeys.Action.operations)
     case .sequence:
       SequenceEditor(steps: field(\.steps), depth: depth)
     case .layout:
@@ -77,11 +107,13 @@ struct ActionParameters: View {
     case .byOrientation:
       OrientationEditor(landscape: field(\.landscape), portrait: field(\.portrait), depth: depth)
     case .focus:
-      LabeledField("Direction", labelWidth: 64) { FocusDirectionPicker(direction: field(\.focusDirection)) }
+      LabeledField("Direction", labelWidth: 64, key: ConfigKeys.Action.direction) {
+        FocusDirectionPicker(direction: field(\.focusDirection))
+      }
     case .focusApp:
-      LabeledField("App", labelWidth: 56) { AppNameField(name: field(\.app)) }
+      LabeledField("App", labelWidth: 56, key: ConfigKeys.Action.app) { AppNameField(name: field(\.app)) }
     case .hint:
-      LabeledField("Letters", labelWidth: 56) {
+      LabeledField("Letters", labelWidth: 56, key: ConfigKeys.Action.characters) {
         TextField("Default (A–Z, 0–9)", text: field(\.hintCharacters))
           .textFieldStyle(.roundedBorder)
           .font(.system(size: 12, design: .monospaced))
@@ -96,25 +128,29 @@ struct ActionParameters: View {
         message: "Slated keeps this binding, from your Slate config, but the app switcher doesn't run yet.")
     case .snapshot:
       VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Name", labelWidth: 56) {
+        LabeledField("Name", labelWidth: 56, key: ConfigKeys.Action.name) {
           TextField("main", text: field(\.snapshotName)).textFieldStyle(.roundedBorder)
         }
-        Toggle("Save to disk so it survives restarts", isOn: field(\.save)).toggleStyle(.checkbox)
+        Toggle("Save to disk so it survives restarts", isOn: field(\.save)).toggleStyle(.checkbox).configField(
+          ConfigKeys.Action.save)
         Toggle("Stack: keep earlier snapshots with this name", isOn: field(\.stack)).toggleStyle(.checkbox)
+          .configField(ConfigKeys.Action.stack)
       }
     case .activateSnapshot:
       VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Name", labelWidth: 56) {
+        LabeledField("Name", labelWidth: 56, key: ConfigKeys.Action.name) {
           TextField("main", text: field(\.snapshotName)).textFieldStyle(.roundedBorder)
         }
         Toggle("Delete the snapshot after restoring it", isOn: field(\.delete)).toggleStyle(.checkbox)
+          .configField(ConfigKeys.Action.delete)
       }
     case .deleteSnapshot:
       VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Name", labelWidth: 56) {
+        LabeledField("Name", labelWidth: 56, key: ConfigKeys.Action.name) {
           TextField("main", text: field(\.snapshotName)).textFieldStyle(.roundedBorder)
         }
         Toggle("Delete every stacked snapshot with this name", isOn: field(\.all)).toggleStyle(.checkbox)
+          .configField(ConfigKeys.Action.all)
       }
     case .undo, .relaunch:
       EmptyView()
@@ -126,10 +162,13 @@ struct ActionParameters: View {
           .scrollContentBackground(.hidden)
           .padding(6)
           .wellStyle(radius: 8)
-        LabeledField("Insert by", labelWidth: 64) { InsertMethodPicker(method: field(\.method)) }
+          .configField(ConfigKeys.Action.text)
+        LabeledField("Insert by", labelWidth: 64, key: ConfigKeys.Action.method) {
+          InsertMethodPicker(method: field(\.method))
+        }
       }
     case .keystroke:
-      LabeledField("Keys", labelWidth: 56) {
+      LabeledField("Keys", labelWidth: 56, key: ConfigKeys.Action.keys) {
         ShortcutRecorder(combo: field(\.keys), requiresModifier: false, allowsMouseButtons: false)
       }
     case .clipboardHistory:
@@ -138,8 +177,8 @@ struct ActionParameters: View {
       StopAutomationsInfo()
     case .click:
       VStack(alignment: .leading, spacing: 14) {
-        FieldGroup("Button") { MouseButtonPicker(button: field(\.mouseButton)) }
-        FieldGroup("Clicks") {
+        FieldGroup("Button", key: ConfigKeys.Action.button) { MouseButtonPicker(button: field(\.mouseButton)) }
+        FieldGroup("Clicks", key: ConfigKeys.Action.count) {
           FittingPicker("Clicks", selection: field(\.clickCount)) {
             Text("Single").tag(1)
             Text("Double").tag(2)
@@ -150,50 +189,55 @@ struct ActionParameters: View {
       }
     case .press:
       VStack(alignment: .leading, spacing: 14) {
-        FieldGroup("Input") { InputPicker(input: field(\.input)) }
-        FieldGroup("Action") { PressPhasePicker(phase: field(\.phase)) }
+        FieldGroup("Input", key: ConfigKeys.Action.input) { InputPicker(input: field(\.input)) }
+        FieldGroup("Action", key: ConfigKeys.Action.phase) { PressPhasePicker(phase: field(\.phase)) }
         Hint("Something pressed down stays down until a Release step, or until you press the stop shortcut.")
       }
     case .hold:
       VStack(alignment: .leading, spacing: 14) {
-        FieldGroup("Hold Down") { InputPicker(input: field(\.input)) }
+        FieldGroup("Hold Down", key: ConfigKeys.Action.input) { InputPicker(input: field(\.input)) }
         Hint("The first press holds it down; the next press lets go. Stopping automations lets go too.")
       }
     case .autoRepeat:
       let form = ActionForm(action)
       VStack(alignment: .leading, spacing: 16) {
         AutomationSummary(text: AutomationDescriber.sentence(action))
-        FieldGroup("What to Repeat") { RepeatedActionEditor(action: field(\.repeatAction), depth: depth) }
-        FieldGroup("How Often") { IntervalField(interval: field(\.interval), jitter: form.jitter) }
-        FieldGroup("Starting and Stopping") {
+        FieldGroup("What to Repeat", key: ConfigKeys.Action.action) {
+          RepeatedActionEditor(action: field(\.repeatAction), depth: depth).configKeyBase(ConfigKeys.Action.action)
+        }
+        FieldGroup("How Often", key: ConfigKeys.Action.interval) {
+          IntervalField(interval: field(\.interval), jitter: form.jitter)
+        }
+        FieldGroup("Starting and Stopping", key: ConfigKeys.Action.mode) {
           VStack(alignment: .leading, spacing: 10) {
             RepeatModePicker(mode: field(\.repeatMode))
-            RepeatLimitField(times: field(\.repeatTimes), interval: form.interval)
+            RepeatLimitField(times: field(\.repeatTimes), interval: form.interval).configField(ConfigKeys.Action.times)
           }
         }
-        FieldGroup("Timing") { JitterField(jitter: field(\.jitter)) }
+        FieldGroup("Timing", key: ConfigKeys.Action.jitter) { JitterField(jitter: field(\.jitter)) }
       }
     case .wait:
-      FieldGroup("Wait") { DurationField(seconds: field(\.seconds)) }
+      FieldGroup("Wait", key: ConfigKeys.Action.seconds) { DurationField(seconds: field(\.seconds)) }
     case .openURL:
-      LabeledField("URL", labelWidth: 56) {
+      LabeledField("URL", labelWidth: 56, key: ConfigKeys.Action.url) {
         TextField("https://example.com", text: field(\.url))
           .textFieldStyle(.roundedBorder)
           .font(.system(size: 12, design: .monospaced))
       }
     case .shell:
       VStack(alignment: .leading, spacing: 10) {
-        LabeledField("Command", labelWidth: 72) {
+        LabeledField("Command", labelWidth: 72, key: ConfigKeys.Action.command) {
           TextField("open -a Terminal", text: field(\.command))
             .textFieldStyle(.roundedBorder)
             .font(.system(size: 12, design: .monospaced))
         }
-        LabeledField("Folder", labelWidth: 72) {
+        LabeledField("Folder", labelWidth: 72, key: ConfigKeys.Action.path) {
           TextField("Home folder", text: field(\.workingDirectory))
             .textFieldStyle(.roundedBorder)
             .font(.system(size: 12, design: .monospaced))
         }
-        Toggle("Wait for the command to finish", isOn: field(\.wait)).toggleStyle(.checkbox)
+        Toggle("Wait for the command to finish", isOn: field(\.wait)).toggleStyle(.checkbox).configField(
+          ConfigKeys.Action.wait)
       }
     }
   }
@@ -208,21 +252,28 @@ struct ActionParameters: View {
   }
 }
 
-/// A titled group of fields, for editors whose controls are too large for a label column.
+/// A titled group of fields, for editors whose controls are too large for a label column. `key` is
+/// the field's key under the editor's item, shown under the title.
 struct FieldGroup<Content: View>: View {
   let title: String
+  var key: String?
   @ViewBuilder var content: Content
 
-  init(_ title: String, @ViewBuilder content: () -> Content) {
+  init(_ title: String, key: String?, @ViewBuilder content: () -> Content) {
     self.title = title
+    self.key = key
     self.content = content()
   }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
-      Text(title)
-        .font(.system(size: 11.5, weight: .semibold))
-        .foregroundStyle(.secondary)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.system(size: 11.5, weight: .semibold))
+          .foregroundStyle(.secondary)
+        ConfigFieldCaption(path: key)
+      }
+      .configFieldMenu(key)
       content
     }
   }
@@ -266,16 +317,18 @@ struct Hint: View {
 
 /// Expression fields two to a row.
 struct ExpressionGrid: View {
-  let fields: [(String, Binding<String>)]
+  /// Label, text and key under the action.
+  let fields: [(String, Binding<String>, String)]
   var relative = false
 
   var body: some View {
     Grid(horizontalSpacing: 10, verticalSpacing: 10) {
       ForEach(Array(stride(from: 0, to: fields.count, by: 2)), id: \.self) { start in
         GridRow(alignment: .top) {
-          ExpressionField(label: fields[start].0, text: fields[start].1, relative: relative)
+          ExpressionField(label: fields[start].0, text: fields[start].1, relative: relative, key: fields[start].2)
           if start + 1 < fields.count {
-            ExpressionField(label: fields[start + 1].0, text: fields[start + 1].1, relative: relative)
+            ExpressionField(
+              label: fields[start + 1].0, text: fields[start + 1].1, relative: relative, key: fields[start + 1].2)
           }
         }
       }
@@ -289,6 +342,7 @@ struct DirectionPicker: View {
   @Binding var direction: Direction
 
   var body: some View {
+    // config key: the caller's field
     FittingPicker("Edge", selection: $direction) {
       Label("Left", systemImage: "arrow.left.to.line").tag(Direction.left)
       Label("Right", systemImage: "arrow.right.to.line").tag(Direction.right)
@@ -302,6 +356,7 @@ struct FocusDirectionPicker: View {
   @Binding var direction: FocusDirection
 
   var body: some View {
+    // config key: the caller's field
     FittingPicker("Direction", selection: $direction) {
       Label("Left", systemImage: "arrow.left").tag(FocusDirection.left)
       Label("Right", systemImage: "arrow.right").tag(FocusDirection.right)
@@ -316,6 +371,7 @@ struct CornerPicker: View {
   @Binding var corner: Corner
 
   var body: some View {
+    // config key: the caller's field
     FittingPicker("Corner", selection: $corner) {
       Label("Top Left", systemImage: "arrow.up.left").tag(Corner.topLeft)
       Label("Top Right", systemImage: "arrow.up.right").tag(Corner.topRight)
@@ -351,6 +407,7 @@ struct PushStylePicker: View {
   }
 
   var body: some View {
+    // config key: the caller's field
     FittingPicker("Size", selection: tag) {
       Text("Keep").tag("none")
       Text("Centered").tag("center")
@@ -365,6 +422,7 @@ struct InsertMethodPicker: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
+      // config key: the caller's field
       FittingPicker("Insert by", selection: $method) {
         Text("Automatic").tag(InsertMethod.auto)
         Text("Typing").tag(InsertMethod.type)
@@ -393,6 +451,7 @@ struct ScreenRefPicker: View {
 
   var body: some View {
     let ordered = model.screens.orderedLeftToRight()
+    // config key: the caller's field
     Picker("Display", selection: tag) {
       if allowsNone {
         Text("Window's display").tag("")
@@ -435,7 +494,7 @@ struct LayoutPicker: View {
   var body: some View {
     let names = model.knownLayoutNames.sorted()
     VStack(alignment: .leading, spacing: 8) {
-      LabeledField("Layout", labelWidth: 56) {
+      LabeledField("Layout", labelWidth: 56, key: ConfigKeys.Action.name) {
         if names.isEmpty {
           Text("No layouts yet").foregroundStyle(.secondary)
         } else {
@@ -468,6 +527,7 @@ struct AppNameField: View {
       if showsIcon, let app = model.runningApps.first(where: { $0.name == name }) {
         AppIconView(path: app.path, bundleID: app.bundleID, size: 18)
       }
+      // config key: the caller's field (App, Except)
       TextField(prompt, text: $name)
         .textFieldStyle(.roundedBorder)
       Menu {
@@ -518,9 +578,10 @@ struct AppSelectorEditor: View {
         Text("All But…").tag("allBut")
         Text("These Apps").tag("apps")
       }
+      .configField(ConfigKeys.Action.app)
       switch selector {
       case .allBut(let app):
-        LabeledField("Except", labelWidth: 56) {
+        LabeledField("Except", labelWidth: 56, key: ConfigKeys.Action.app) {
           AppNameField(name: Binding(get: { app }, set: { selector = .allBut($0) }))
         }
       case .apps(let apps):
@@ -583,7 +644,7 @@ struct GridEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      LabeledField("Padding", labelWidth: 56) {
+      LabeledField("Padding", labelWidth: 56, key: ConfigKeys.Action.padding) {
         Stepper("\(padding) pt", value: $padding, in: 0...40)
           .font(.system(size: 12.5).monospacedDigit())
           .fixedSize()
@@ -593,7 +654,9 @@ struct GridEditor: View {
           Text(Self.displayTitle(grid.screen))
             .font(.system(size: 12.5))
             .frame(width: 72, alignment: .leading)
+          // config key: the row's, grids.<display>
           Stepper("\(grid.width) wide", value: size(index, \.width), in: 1...24).fixedSize()
+          // config key: the row's, grids.<display>
           Stepper("\(grid.height) tall", value: size(index, \.height), in: 1...24).fixedSize()
           Spacer()
           Button {
@@ -606,6 +669,7 @@ struct GridEditor: View {
           .accessibilityLabel("Remove the grid size for \(Self.displayPhrase(grid.screen))")
         }
         .font(.system(size: 12.5).monospacedDigit())
+        .configField("\(ConfigKeys.Action.grids).\(grid.screen)")
       }
       if grids.count < max(model.screens.count, 1) {
         Button {

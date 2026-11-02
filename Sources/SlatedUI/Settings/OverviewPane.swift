@@ -337,6 +337,7 @@ private struct ActivityCard: View {
     VStack(alignment: .leading, spacing: 10) {
       SectionHeader("Activity", symbol: "clock")
       VStack(spacing: 0) {
+        // config key: none, live activity rather than a setting
         SettingRow(
           title: status.lastAction ?? "Nothing yet",
           subtitle: status.lastAction == nil ? "Use a shortcut and it shows up here." : "Last action",
@@ -344,6 +345,7 @@ private struct ActivityCard: View {
         ) { EmptyView() }
         if let error = status.lastError {
           CardDivider(inset: 54)
+          // config key: none, live activity rather than a setting
           SettingRow(
             title: error, subtitle: "Last problem", symbol: "exclamationmark.triangle.fill", tint: Theme.caution
           ) {

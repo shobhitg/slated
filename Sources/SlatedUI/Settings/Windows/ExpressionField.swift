@@ -7,6 +7,8 @@ struct ExpressionField: View {
   @Binding var text: String
   /// Accepts `+10%` / `-100` (resize and nudge).
   var relative = false
+  /// The parameter's key under the action (`"x"`), shown under the field.
+  var key: String?
   @Environment(AppModel.self) private var model
   @FocusState private var focused: Bool
 
@@ -20,6 +22,7 @@ struct ExpressionField: View {
           .foregroundStyle(.secondary)
           .frame(minWidth: 14)
         Rectangle().fill(Theme.hairline).frame(width: 0.5, height: 16)
+        // config key: the field's own, under it
         TextField(relative ? "+10%" : "screenSizeX/2", text: $text)
           .textFieldStyle(.plain)
           .font(.system(size: 12, design: .monospaced))
@@ -45,7 +48,9 @@ struct ExpressionField: View {
           .foregroundStyle(Theme.critical)
           .fixedSize(horizontal: false, vertical: true)
       }
+      ConfigFieldCaption(path: key)
     }
+    .configFieldMenu(key)
     .accessibilityElement(children: .combine)
     .accessibilityLabel("\(label) expression")
   }

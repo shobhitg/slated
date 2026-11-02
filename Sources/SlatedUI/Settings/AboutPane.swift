@@ -25,6 +25,7 @@ struct AboutPane: View {
       }
       .frame(maxWidth: .infinity)
       SettingsCard {
+        // config key: none, credits rather than a setting
         SettingRow(
           title: "Inspired by Slate by Jigish Patel",
           subtitle:
@@ -37,6 +38,7 @@ struct AboutPane: View {
           .font(.system(size: 12))
         }
         CardDivider(inset: 54)
+        // config key: none, credits rather than a setting
         SettingRow(
           title: "MIT License",
           subtitle: "Slated is free and open source. Use it, change it and share it.",
