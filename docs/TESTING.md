@@ -14,7 +14,8 @@
 | Installer scripts | `Tests/Installer/test_restore_caps_lock.py` | `make test-scripts` | `scripts/restore-caps-lock.py` against a stand-in `hidutil`, for every case in `Tests/Installer/caps-lock-cases.json`; `HIDRemapperTests` checks Slated against the same cases, so the installer and the app agree on which Caps Lock mapping is Slated's. |
 | Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~4,500 curated inputs, ~16,400 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
 | Linux engine | `linux/tests/run.mjs` (+ `harness.mjs`, `fixtures.mjs`, `unit.mjs`) | `make linux-test` | The JavaScript port of SlatedCore (`linux/gnome-extension/lib/core`) against every golden vector, plus tests for its JavaScript-only API (GNOME accelerators). Runs on Node if installed, else macOS's JavaScriptCore; `make linux-test-all` runs every runtime available (Node, GJS, JavaScriptCore). |
-| UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every pane of the main window (Get Started's steps included), the clipboard switcher and the notch island to PNGs (light and dark) for review. |
+| Window widths | `Tests/SlatedTests/AdaptiveLayoutTests.swift` | `make test` | Every pane of the main window, with and without an item open, in offscreen windows 640, 851 and 1080 pt wide: no scroll view (every pane, list and editor has one) reaches past the window, the scroll view it's in, or its neighbor. A window under 640 pt keeps the layout anchored left and scrolls. |
+| UI snapshots | `SlatedUISnapshots` target | `make snapshots` | Renders every pane of the main window (Get Started's steps included), the clipboard switcher and the notch island to PNGs (light and dark) for review. Main-window panes also render at 640, 756 and 900 pt wide (`w640-…`, `w756-…`, `w900-…`); `SNAPSHOT_WIDTHS=851` picks other widths. |
 | Toolchain | `scripts/check-swift-testing.sh` | `make check-swift-testing` | Whether Swift Testing works yet (needs Xcode). |
 | Manual | below | by hand | Things only a real Mac with a keyboard can tell. |
 
@@ -200,6 +201,13 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       a shortcut couldn't be registered (the menu lists it).
 - [ ] General → Show Slated in the menu bar off takes the icon away; on brings it back. The Dock icon
       still opens Slated.
+- [ ] Half-screen window: snap Slated's window to the left and right half with ✦A/✦D, and again with
+      macOS tiling (Window → Move & Resize → Left/Right, or drag it to the screen edge). On every pane
+      nothing is cut off at either edge. Under 900 pt the sidebar is a column of icons: hovering one
+      names it, counts and warnings sit on its corner. Windows, Hotstrings and Layouts show the list;
+      clicking an item opens it full width under "‹ All …" (⌘[ goes back). Pane headers put the
+      subtitle on its own line and "New Hotstring" reads "New". Drag the window narrower: it stops at
+      640 × 480. Wider than about 850 pt the list and editor sit side by side again.
 - [ ] On a MacBook with a full menu bar (the icon behind the notch): Overview and General say so, and
       `scripts/logs.py --grep menubar` shows `menubar.icon_hidden` with the icon's x and the notch.
       Got It hides the notice. Turn off a few other icons in System Settings → Menu Bar: the icon

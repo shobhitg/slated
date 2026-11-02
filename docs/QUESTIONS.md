@@ -452,3 +452,26 @@ extension with no app of its own.
   symbolic icons; paused and warning variants as on GNOME, plus outlined tiles for a waiting modal
   key (GNOME has no modal variant). Warnings: a file that can't be read, shortcuts that couldn't be
   registered, and the Mac's conflicts (Slate or Karabiner running).
+
+## Main window at half-screen widths (2026-11-01): decisions
+
+- **Designed for 640 pt and up** (half of a 1280-pt screen; your MacBook's half is 756), and the
+  window can be dragged down to 640 × 480. macOS tiling and Accessibility frames (✦A/✦D) can make it
+  narrower still: the content then keeps its 640-pt layout, anchored left, and scrolls. It's never
+  centered and cut on both sides.
+- **Icon sidebar under 900 pt** of window width (60 pt wide): names in tooltips and for VoiceOver,
+  counts as small numbers on each icon's corner, warnings orange, running automations red. From 900 pt
+  the full 224-pt sidebar comes back.
+- **List and editor side by side only when the editor keeps 460 pt.** With the icon sidebar that's
+  from 851 pt of window width for Windows, 831 for Hotstrings and 801 for Layouts; with the full
+  sidebar from 1015, 995 and 965. Below that, one at a time, the same in all three panes: the list,
+  then the item full width under "‹ All Shortcuts" (⌘[ goes back, and the list comes back scrolled to
+  it). I picked this over a narrower list column because the editors (placement preview, presets,
+  chains) need the room. *Open:* in this mode, arrow keys in the list open the item they land on.
+- **Pane headers under 700 pt** of pane width: the subtitle gets its own line, and the main button
+  reads "New" (the full name is its tooltip).
+- **Segmented controls become pop-up menus** when their options don't fit (Expand, Where it works,
+  Insert by, Edge, Size, Corner…), decided by the width they get rather than a breakpoint. Styled
+  buttons never truncate their titles; the text beside them wraps instead.
+- **Clipboard:** the hero's picture of stacked clips is left out under 700 pt so its text and button
+  keep their room.
