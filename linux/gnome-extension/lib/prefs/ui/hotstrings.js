@@ -15,6 +15,8 @@ import {
 } from './widgets.js';
 import {confirm} from './bindingeditor.js';
 import {METHOD_HINTS} from './actioneditor.js';
+import {CONFIG_KEYS, appendKey} from '../../core/index.js';
+import {applyKey, attachKey, fieldKey, groupKey, hotstringScope, itemCaption, noKey, setSubtitle, settingKey} from './configkeys.js';
 
 const FIRE_ITEMS = [{id: 'immediately', label: 'Right away'}, {id: 'afterDelimiter', label: 'After a space or punctuation'}];
 const METHOD_ITEMS = [{id: 'auto', label: 'Automatic'}, {id: 'type', label: 'Typing'}, {id: 'paste', label: 'Pasting'}];
@@ -42,6 +44,8 @@ function pushHotstringEditor(ctx, id) {
   const model = ctx.model;
   const page = new Adw.NavigationPage({title: 'Hotstring'});
   page._slatedKey = `hotstring:${id}`;
+  // Its fields' keys, under config.json › hotstrings › its trigger (or its index).
+  const keys = hotstringScope(model, id);
   const header = new Adw.HeaderBar();
   const enabled = new Gtk.Switch({valign: Gtk.Align.CENTER, tooltip_text: 'Turn this hotstring on or off'});
   let quietSwitch = false;
@@ -68,6 +72,7 @@ function pushHotstringEditor(ctx, id) {
     });
   }, {classes: ['flat', 'destructive-action']}));
   header.pack_end(new Gtk.MenuButton({icon_name: 'view-more-symbolic', popover: menuPopover, tooltip_text: 'More'}));
+  attachKey(enabled, fieldKey(keys, 'enabled'), {kind: 'widget'});
   header.pack_end(enabled);
 
   const h0 = model.hotstring(id);
@@ -86,41 +91,45 @@ function pushHotstringEditor(ctx, id) {
   summary.append(replacementLabel);
   summary.append(stateHolder);
   top.add(summary);
+  const location = itemCaption(keys.resolve);
+  top.add(location.widget);
   prefs.add(top);
 
   // Trigger
   const triggerGroup = group({title: 'Trigger'});
-  const trigger = entryRow({title: 'Trigger', text: h0.trigger, monospace: true, onChange: v => model.setHotstring(id, h => {
+  const trigger = entryRow({title: 'Trigger', text: h0.trigger, monospace: true, key: fieldKey(keys, 'trigger'), onChange: v => model.setHotstring(id, h => {
     h.trigger = v;
   })});
   triggerGroup.add(trigger.row);
   const triggerIssues = new Adw.ActionRow({use_markup: false, title: 'Tip', subtitle: '', activatable: false});
   triggerIssues.set_subtitle_lines(0);
   triggerGroup.add(triggerIssues);
-  const fire = comboRow({title: 'Expand', items: FIRE_ITEMS, selected: h0.fire, onChange: v => model.setHotstring(id, h => {
+  const fire = comboRow({title: 'Expand', items: FIRE_ITEMS, selected: h0.fire, key: fieldKey(keys, 'fire'), onChange: v => model.setHotstring(id, h => {
     h.fire = v;
   })});
   triggerGroup.add(fire.row);
-  const caseRow = switchRow({title: 'Match case exactly', active: h0.caseSensitive !== false, onChange: v => model.setHotstring(id, h => {
+  const caseRow = switchRow({title: 'Match case exactly', active: h0.caseSensitive !== false, key: fieldKey(keys, 'caseSensitive'), onChange: v => model.setHotstring(id, h => {
     h.caseSensitive = v;
   })});
   triggerGroup.add(caseRow.row);
-  const word = switchRow({title: 'Only at the start of a word', active: h0.wordBoundary === true, onChange: v => model.setHotstring(id, h => {
+  const word = switchRow({title: 'Only at the start of a word', active: h0.wordBoundary === true, key: fieldKey(keys, 'wordBoundary'), onChange: v => model.setHotstring(id, h => {
     h.wordBoundary = v;
   })});
   triggerGroup.add(word.row);
   prefs.add(triggerGroup);
 
   // Replacement
-  const replacementGroup = group({title: 'Replacement',
-    description: 'Placeholders: {date}, {time}, {datetime}, {clipboard}, {date:yyyy-MM-dd}. Use {{ and }} for literal braces.'});
+  const replacementGroup = group({title: 'Replacement'});
+  groupKey(replacementGroup, fieldKey(keys, 'replacement'),
+    'Placeholders: {date}, {time}, {datetime}, {clipboard}, {date:yyyy-MM-dd}. Use {{ and }} for literal braces.');
   const count = label('', {classes: ['dim-label', 'caption']});
   replacementGroup.set_header_suffix(count);
-  const replacement = textArea({text: h0.replacement, onChange: v => model.setHotstring(id, h => {
+  const replacement = textArea({text: h0.replacement, key: fieldKey(keys, 'replacement'), onChange: v => model.setHotstring(id, h => {
     h.replacement = v;
   })});
   replacementGroup.add(replacement.widget);
   const method = comboRow({title: 'Insert by', subtitle: METHOD_HINTS[h0.method ?? 'auto'], items: METHOD_ITEMS, selected: h0.method ?? 'auto',
+    key: fieldKey(keys, 'method'),
     onChange: v => model.setHotstring(id, h => {
       h.method = v;
     })});
@@ -132,7 +141,17 @@ function pushHotstringEditor(ctx, id) {
   // so there's no picker of GNOME apps here, only a field for the shared config's Mac side.
   const whereGroup = group({title: 'Where It Works', description: 'Expands in every app.'});
   let storedScope = h0.onlyInApps?.length ? 'only' : h0.exceptInApps?.length ? 'except' : 'everywhere';
-  const scope = comboRow({title: 'Expands', items: SCOPE_ITEMS, selected: storedScope, onChange: v => {
+  // onlyInApps, or exceptInApps once "Everywhere except" is picked.
+  const appsKey = {
+    get text() {
+      return storedScope === 'except' ? 'exceptInApps' : 'onlyInApps';
+    },
+    resolve: () => {
+      const key = keys.resolve();
+      return key ? appendKey(key, appsKey.text) : null;
+    },
+  };
+  const scope = comboRow({title: 'Expands', items: SCOPE_ITEMS, selected: storedScope, key: appsKey, onChange: v => {
     storedScope = v;
     model.setHotstring(id, h => {
       const apps = h.onlyInApps?.length ? h.onlyInApps : (h.exceptInApps ?? []);
@@ -144,6 +163,7 @@ function pushHotstringEditor(ctx, id) {
   whereGroup.add(scope.row);
   let appRows = [];
   const addApp = new Adw.EntryRow({use_markup: false, title: 'Add a Mac app (bundle identifier)', show_apply_button: true});
+  attachKey(addApp, appsKey, {kind: 'entry', title: 'Add a Mac app (bundle identifier)'});
   const appendApp = appId => {
     const value = appId.trim();
     if (!value) return;
@@ -168,6 +188,8 @@ function pushHotstringEditor(ctx, id) {
     appRows = [];
     const active = h.onlyInApps?.length ? 'only' : h.exceptInApps?.length ? 'except' : storedScope;
     scope.set(active);
+    applyKey(scope.row);
+    applyKey(addApp);
     const list = active === 'only' ? h.onlyInApps : active === 'except' ? h.exceptInApps : [];
     for (const appId of list) {
       const row = new Adw.ActionRow({use_markup: false, title: appId});
@@ -191,7 +213,7 @@ function pushHotstringEditor(ctx, id) {
 
   // Try it
   const tryGroup = group({title: 'Try It', description: 'Simulates this hotstring in the field below. If espanso is running, it may expand here too — that\'s the real thing.'});
-  const tryEntry = new Gtk.Entry({hexpand: true});
+  const tryEntry = noKey(new Gtk.Entry({hexpand: true}), "a test field that isn't saved");
   const tryStatus = label('', {classes: ['dim-label', 'caption']});
   let previous = '';
   let quietTry = false;
@@ -233,7 +255,8 @@ function pushHotstringEditor(ctx, id) {
 
   // Notes
   const notesGroup = group({title: 'Notes'});
-  const notes = textArea({text: h0.notes ?? '', minHeight: 60, onChange: v => model.setHotstring(id, h => {
+  groupKey(notesGroup, fieldKey(keys, 'notes'));
+  const notes = textArea({text: h0.notes ?? '', minHeight: 60, key: fieldKey(keys, 'notes'), onChange: v => model.setHotstring(id, h => {
     if (v) h.notes = v;
     else delete h.notes;
   })});
@@ -251,6 +274,7 @@ function pushHotstringEditor(ctx, id) {
       return;
     }
     page.set_title(h.trigger || 'New Hotstring');
+    location.update();
     chipHolder.get_first_child() && chipHolder.remove(chipHolder.get_first_child());
     chipHolder.append(triggerChip(h.trigger || 'trigger'));
     replacementLabel.set_label(h.replacement ? truncate(singleLine(h.replacement), 60) : 'Replacement');
@@ -274,7 +298,7 @@ function pushHotstringEditor(ctx, id) {
     replacement.set(h.replacement);
     count.set_label(`${[...(h.replacement ?? '')].length} characters`);
     method.set(h.method ?? 'auto');
-    method.row.set_subtitle(METHOD_HINTS[h.method ?? 'auto'] ?? '');
+    setSubtitle(method.row, METHOD_HINTS[h.method ?? 'auto'] ?? '');
     notes.set(h.notes ?? '');
     syncApps();
     syncTryHelp();
@@ -339,8 +363,13 @@ export function createHotstringsPane(ctx) {
     model.log('ui.hotstrings_enabled', {enabled: master.get_active()});
   });
   const masterBox = box('horizontal', 8);
-  masterBox.append(label('Expansion', {classes: ['dim-label']}));
+  const masterText = box('vertical', 0);
+  masterText.set_valign(Gtk.Align.CENTER);
+  masterText.append(label('Expansion', {classes: ['dim-label']}));
+  masterText.append(itemCaption(() => CONFIG_KEYS.hotstringsEnabled, {pathOnly: true}).widget);
+  masterBox.append(masterText);
   masterBox.append(master);
+  attachKey(masterBox, settingKey(CONFIG_KEYS.hotstringsEnabled), {kind: 'widget'});
 
   const page = new Adw.NavigationPage({title: 'Hotstrings', tag: 'hotstrings'});
   const toolbar = new Adw.ToolbarView({content: stack});

@@ -20,7 +20,8 @@ import {sessionId} from '../util.js';
 import {readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter} from '../io.js';
 import {getExtensionInfo, getUserExtensionsEnabled, setUserExtensionsEnabled, setExtensionEnabled, requestLogout, espansoRunning} from '../shell.js';
 import {installStyles} from './style.js';
-import {box, label, icon, button, badge as badgeLabel, emptyState} from './widgets.js';
+import {box, label, icon, button, badge as badgeLabel, emptyState, launchFile} from './widgets.js';
+import {setConfigKeyContext, keysShown, refreshKeys} from './configkeys.js';
 import {stopAllRecording} from './recorder.js';
 import {saveStateText, updatedText} from './general.js';
 import {createGetStartedPane} from './getstarted.js';
@@ -90,6 +91,16 @@ export class SlatedSettings {
       // New ids come from the engine's randomUUID (the model's default), as config.json requires.
     });
     this.model.load();
+    // The keys under every setting: their right-click menus copy through the model and open the files.
+    setConfigKeyContext({
+      model: this.model,
+      toast: message => this.toast(message),
+      open: file => {
+        this.model.saveNow();
+        launchFile(file === 'settings.json' ? this.paths.settingsFile : this.paths.configFile, this.window, {onError: e => this.toast(e.message)});
+        this.model.log(file === 'settings.json' ? 'ui.open_settings' : 'ui.open_config');
+      },
+    });
     this.model.setBuildInfo(readBuildInfo(ext.path));
     this._readStatus();
     this._refreshShell();
@@ -301,6 +312,13 @@ export class SlatedSettings {
     window.set_content(bin);
 
     for (const signal of ['config', 'status', 'sources', 'save-state', 'setup']) this.model.on(signal, () => this._syncChrome());
+    // "Show config keys" shows or hides the key under every setting at once.
+    this._keysShown = keysShown();
+    this.model.on('config', () => {
+      if (keysShown() === this._keysShown) return;
+      this._keysShown = keysShown();
+      refreshKeys(bin);
+    });
     this.showPane(this.model.startingPane());
     this._syncChrome();
   }

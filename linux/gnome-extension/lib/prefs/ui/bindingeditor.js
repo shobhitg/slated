@@ -19,6 +19,7 @@ import {ShortcutRecorder} from './recorder.js';
 import {PlacementPreview} from './preview.js';
 import {ActionEditor} from './actioneditor.js';
 import {appPickerButton, installedApps} from './apps.js';
+import {attachKey, bindingScope, fieldKey, groupKey, itemCaption, setSubtitle} from './configkeys.js';
 
 const REPEAT_ITEMS = [{id: 'default', label: 'Default'}, {id: 'held', label: 'While held'}, {id: 'never', label: 'Never'}];
 const repeatId = repeats => (repeats === true ? 'held' : repeats === false ? 'never' : 'default');
@@ -46,12 +47,12 @@ export function safetySummary(config) {
  * app, a shortcut can be a plain key like F: GNOME grabs it only while that app is in front.
  * Returns {group, sync()}.
  */
-function appScopeEditor(ctx, id) {
+function appScopeEditor(ctx, id, key = null) {
   const model = ctx.model;
   const scopeGroup = group({title: 'Works In'});
   let choosing = false;
   const scope = comboRow({
-    title: 'Works in', items: SCOPE_ITEMS, selected: model.binding(id)?.onlyInApps?.length ? 'only' : 'everywhere',
+    title: 'Works in', items: SCOPE_ITEMS, selected: model.binding(id)?.onlyInApps?.length ? 'only' : 'everywhere', key,
     onChange: value => {
       choosing = value === 'only';
       if (value === 'everywhere') {
@@ -72,6 +73,7 @@ function appScopeEditor(ctx, id) {
     });
   };
   const add = new Adw.EntryRow({use_markup: false, title: 'Add an app id or window class', show_apply_button: true});
+  attachKey(add, key, {kind: 'entry', title: 'Add an app id or window class'});
   add.connect('apply', () => {
     addApp(add.get_text());
     add.set_text('');
@@ -171,6 +173,8 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
   const page = new Adw.NavigationPage({title: 'Shortcut'});
   // No tag: a NavigationView treats duplicate tags as errors, and editors come and go.
   page._slatedKey = `binding:${id}`;
+  // Its fields' keys, under config.json › bindings › its keys (or its index).
+  const keys = bindingScope(model, id);
   const header = new Adw.HeaderBar();
   const enabled = new Gtk.Switch({valign: Gtk.Align.CENTER, tooltip_text: 'Turn this shortcut on or off'});
   let quietSwitch = false;
@@ -199,12 +203,15 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
     });
   }, {classes: ['flat', 'destructive-action']}));
   header.pack_end(new Gtk.MenuButton({icon_name: 'view-more-symbolic', popover: menuPopover, tooltip_text: 'More'}));
+  attachKey(enabled, fieldKey(keys, 'enabled'), {kind: 'widget'});
   header.pack_end(enabled);
 
   const prefs = new Adw.PreferencesPage();
   const top = group();
   const head = summary();
   top.add(head.widget);
+  const location = itemCaption(keys.resolve);
+  top.add(location.widget);
   const problem = notice({level: 'warning', title: ''});
   top.add(problem.widget);
   prefs.add(top);
@@ -215,13 +222,13 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
   prefs.add(previewGroup);
 
   const shortcut = group({title: 'Shortcut'});
-  const name = entryRow({title: 'Name', text: model.binding(id)?.name ?? '', onChange: value => model.setBinding(id, b => {
+  const name = entryRow({title: 'Name', text: model.binding(id)?.name ?? '', key: fieldKey(keys, 'name'), onChange: value => model.setBinding(id, b => {
     if (value.trim()) b.name = value;
     else delete b.name;
   })});
   shortcut.add(name.row);
   const recorder = new ShortcutRecorder({
-    title: 'Keys', keys: model.binding(id)?.keys ?? '',
+    title: 'Keys', keys: model.binding(id)?.keys ?? '', key: fieldKey(keys, 'keys'),
     plainKeyHint: 'Or limit the shortcut to a game below to use a plain key there.',
     onChange: keys => model.setBinding(id, b => {
       b.keys = keys;
@@ -241,7 +248,7 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
 
   const advanced = new Adw.ExpanderRow({use_markup: false, title: 'Advanced', subtitle: 'Repeat and modal keys'});
   const repeat = comboRow({
-    title: 'Repeat while held', items: REPEAT_ITEMS, selected: repeatId(model.binding(id)?.repeats),
+    title: 'Repeat while held', items: REPEAT_ITEMS, selected: repeatId(model.binding(id)?.repeats), key: fieldKey(keys, 'repeats'),
     onChange: value => model.setBinding(id, b => {
       if (value === 'default') delete b.repeats;
       else b.repeats = value === 'held';
@@ -250,7 +257,7 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
   advanced.add_row(repeat.row);
   const modalSwitch = switchRow({
     title: 'Press a modal key first', subtitle: "Slate's modal keys: press it, then this shortcut's key",
-    active: Boolean(model.binding(id)?.modal),
+    active: Boolean(model.binding(id)?.modal), key: fieldKey(keys, 'modal'),
     onChange: on => model.setBinding(id, b => {
       if (on) b.modal = {keys: 'ctrl+f4', toggle: false};
       else delete b.modal;
@@ -258,14 +265,14 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
   });
   advanced.add_row(modalSwitch.row);
   const modalRecorder = new ShortcutRecorder({
-    title: 'Modal key', keys: model.binding(id)?.modal?.keys ?? '', requiresModifier: false,
+    title: 'Modal key', keys: model.binding(id)?.modal?.keys ?? '', requiresModifier: false, key: fieldKey(keys, 'modal.keys'),
     onChange: keys => keys && model.setBinding(id, b => {
       if (b.modal) b.modal.keys = keys;
     }),
   });
   advanced.add_row(modalRecorder.row);
   const modalToggle = switchRow({
-    title: 'Stay in modal mode after the shortcut runs', active: model.binding(id)?.modal?.toggle === true,
+    title: 'Stay in modal mode after the shortcut runs', active: model.binding(id)?.modal?.toggle === true, key: fieldKey(keys, 'modal.toggle'),
     onChange: on => model.setBinding(id, b => {
       if (b.modal) b.modal.toggle = on;
     }),
@@ -274,7 +281,7 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
   shortcut.add(advanced);
   prefs.add(shortcut);
 
-  const scopeEditor = appScopeEditor(ctx, id);
+  const scopeEditor = appScopeEditor(ctx, id, fieldKey(keys, 'onlyInApps'));
   prefs.add(scopeEditor.group);
 
   // Automations: how they're kept safe, with a way to the settings.
@@ -285,6 +292,7 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
   prefs.add(safety);
 
   const editor = new ActionEditor(ctx, {
+    keys: fieldKey(keys, 'action'),
     get: () => model.binding(id)?.action,
     set: action => model.setBinding(id, b => {
       b.action = action;
@@ -309,6 +317,7 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
     const state = model.bindingState(binding);
     const presentation = statePresentation(state);
     page.set_title(bindingTitle(binding));
+    location.update();
     head.update({action: binding.action, titleText: bindingTitle(binding), pills: [presentation], keys: binding.keys, modal: binding.modal});
     const explanation = state.state === 'disabled' ? null : stateExplanation(state);
     problem.update({level: state.state === 'duplicate' || state.state === 'not-running' ? 'warning' : 'error', title: presentation.label, detail: explanation});
@@ -328,7 +337,7 @@ export function pushBindingEditor(ctx, id, {autoRecord = false} = {}) {
     const keyIssues = model.issuesFor(target.binding(id))
       .filter(i => i.field === 'keys' && i.message !== 'Record a shortcut.' && !i.message.startsWith('Same shortcut as'));
     const inline = keyIssues.find(i => i.severity === 'error') ?? keyIssues.find(i => i.message.startsWith('Without '));
-    recorder.row.set_subtitle(inline?.message ?? '');
+    setSubtitle(recorder.row, inline?.message ?? '');
     if (keyIssues.some(i => i.severity === 'error')) recorder.row.add_css_class('slated-invalid');
     else recorder.row.remove_css_class('slated-invalid');
     const others = model.otherUses(binding.keys, binding.modal, id);

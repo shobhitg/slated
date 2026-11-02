@@ -17,6 +17,8 @@ import {
 } from '../automation.js';
 import {box, label, button, icon, keycaps, pill, notice, group, comboRow, switchRow, glyph, commandRow} from './widgets.js';
 import {ShortcutRecorder} from './recorder.js';
+import {CONFIG_KEYS} from '../../core/index.js';
+import {attachKey, bindingScope, fieldKey, setSubtitle, settingKey} from './configkeys.js';
 import {pushBindingEditor} from './bindingeditor.js';
 import {installedApps} from './apps.js';
 
@@ -88,6 +90,7 @@ export function createAutomationPane(ctx) {
   });
   const stopRecorder = new ShortcutRecorder({
     title: 'Stop shortcut', keys: automationSettings(model.configuration).stopShortcut ?? '', allowClear: true,
+    key: settingKey(CONFIG_KEYS.automationStopShortcut),
     subtitle: 'Stops every automation and lets go of anything held, from any app. Backspace while recording clears it.',
     onChange: keys => setAutomation(a => {
       a.stopShortcut = keys || null;
@@ -104,7 +107,7 @@ export function createAutomationPane(ctx) {
   const appSwitch = switchRow({
     title: 'Stop when you switch apps',
     subtitle: "Leaving the app an automation started in stops it; opening the Activities overview counts as leaving. Slated's own settings window doesn't count.",
-    active: automationSettings(model.configuration).stopOnAppSwitch,
+    active: automationSettings(model.configuration).stopOnAppSwitch, key: settingKey(CONFIG_KEYS.automationStopOnAppSwitch),
     onChange: on => setAutomation(a => {
       a.stopOnAppSwitch = on;
     }),
@@ -114,6 +117,7 @@ export function createAutomationPane(ctx) {
   const limit = comboRow({
     title: 'Time limit', subtitle: 'Stop everything after a while, in case you walk away.',
     items: timeItems(automationSettings(model.configuration).maxRunMinutes), selected: automationSettings(model.configuration).maxRunMinutes,
+    key: settingKey(CONFIG_KEYS.automationMaxRunMinutes),
     onChange: minutes => setAutomation(a => {
       a.maxRunMinutes = minutes;
     }),
@@ -121,7 +125,7 @@ export function createAutomationPane(ctx) {
   safety.add(limit.row);
   const indicator = switchRow({
     title: 'Show an indicator', subtitle: 'A small pill at the top of the screen while anything runs, with the stop shortcut.',
-    active: automationSettings(model.configuration).showIndicator,
+    active: automationSettings(model.configuration).showIndicator, key: settingKey(CONFIG_KEYS.automationShowIndicator),
     onChange: on => setAutomation(a => {
       a.showIndicator = on;
     }),
@@ -195,6 +199,7 @@ export function createAutomationPane(ctx) {
     enabled.connect('notify::active', () => model.setBinding(binding.id, b => {
       b.enabled = enabled.get_active();
     }));
+    attachKey(enabled, fieldKey(bindingScope(model, binding.id), 'enabled'), {kind: 'widget'});
     row.add_suffix(enabled);
     row.add_suffix(icon('go-next-symbolic'));
     if (binding.enabled === false) row.add_css_class('dim-label');
@@ -251,13 +256,13 @@ export function createAutomationPane(ctx) {
     const conflicts = model.otherUsesOfBuiltIn('stopAutomations');
     const state = model.builtInState('stopAutomations');
     if (conflicts.length) {
-      stopRecorder.row.set_subtitle(`Also used by ${conflicts.join(', ')}, which wins over the stop shortcut.`);
+      setSubtitle(stopRecorder.row, `Also used by ${conflicts.join(', ')}, which wins over the stop shortcut.`);
       stopRecorder.row.add_css_class('slated-warning-row');
     } else if (state?.state === 'failed') {
-      stopRecorder.row.set_subtitle(`GNOME didn't take it: ${state.reason}`);
+      setSubtitle(stopRecorder.row, `GNOME didn't take it: ${state.reason}`);
       stopRecorder.row.add_css_class('slated-warning-row');
     } else {
-      stopRecorder.row.set_subtitle('Stops every automation and lets go of anything held, from any app. Backspace while recording clears it.');
+      setSubtitle(stopRecorder.row, 'Stops every automation and lets go of anything held, from any app. Backspace while recording clears it.');
       stopRecorder.row.remove_css_class('slated-warning-row');
     }
     noStop.widget.set_visible(!settings.stopShortcut);

@@ -22,7 +22,7 @@ import {createWorld, findAll, descendants, prop, MockError} from './gi/mock.mjs'
 
 // Before anything imports the preferences modules: gi://, cairo and the engine go to the mocks.
 register('./gi/hooks.mjs', import.meta.url);
-const {decodeConfigurationFiles} = await import('../../gnome-extension/lib/core/index.js');
+const {decodeConfigurationFiles, CONFIG_SETTINGS} = await import('../../gnome-extension/lib/core/index.js');
 const {kindById} = await import('../../gnome-extension/lib/prefs/actions.js');
 
 const here = path.dirname(new URL(import.meta.url).pathname);
@@ -198,6 +198,26 @@ async function run(mode) {
   const click = button => world.emit(button, 'clicked');
   const rowsIn = (root, filter = () => true) => findAll(world, root, 'Adw.ActionRow', filter);
   const titled = (root, cls, title) => findAll(world, root, cls, (w, s) => s.props.get('title') === title);
+  const readLog = f => fs.readFileSync(f.logFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  // The controls that edit a setting. Each must carry its config key (configkeys.js), itself or on a
+  // row or group around it, or say why it has none (noKey).
+  const CONTROLS = ['Adw.SwitchRow', 'Adw.ComboRow', 'Adw.SpinRow', 'Adw.EntryRow', 'Gtk.Switch', 'Gtk.CheckButton',
+    'Gtk.DropDown', 'Gtk.Entry', 'Gtk.SpinButton', 'Gtk.TextView', 'Gtk.Scale'];
+  const unkeyed = root => {
+    const recorders = findAll(world, root, 'Gtk.Button', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-recorder'));
+    const controls = [...CONTROLS.flatMap(cls => findAll(world, root, cls)), ...recorders];
+    return controls.filter(w => {
+      for (let p = w; p; p = world.stateOf(p).parent) {
+        const e = world.stateOf(p).expandos;
+        if (e._slatedConfigKey || e._slatedNoKey) return false;
+      }
+      return true;
+    }).map(w => {
+      const s = world.stateOf(w);
+      return `${s.cls} “${s.props.get('title') ?? s.props.get('label') ?? s.props.get('tooltip-text') ?? ''}”`;
+    });
+  };
+  const actionKindsMissingKeys = [];
   /** Buttons labeled `text`, directly or through an Adw.ButtonContent child. */
   const buttons = (root, text) => findAll(world, root, 'Gtk.Button', (w, s) =>
     s.props.get('label') === text || world.stateOf(s.slots.child ?? null)?.props.get('label') === text);
@@ -394,6 +414,8 @@ async function run(mode) {
       kindIds.add(prop(world, next, 'tooltip-text'));
       click(next);
       await settle();
+      // Every parameter row of every kind names its key (checked in the config keys step).
+      actionKindsMissingKeys.push(...unkeyed(page).map(m => `${prop(world, next, 'tooltip-text')}: ${m}`));
       // Poke the parameter rows.
       for (const s of findAll(world, page, 'Adw.SwitchRow')) {
         if (prop(world, s, 'title') === 'Press a modal key first') continue;
@@ -796,14 +818,15 @@ async function run(mode) {
     const scaleOf = row => findAll(world, row, 'Gtk.Scale')[0];
     const spinOf = row => findAll(world, row, 'Gtk.SpinButton')[0];
     check(prop(world, repeatSwitch, 'active') === false && prop(world, delayRow, 'sensitive') === false, 'off: GNOME\'s own setting, sliders disabled');
-    check(prop(world, delayRow, 'subtitle') === '250 ms', `shows this computer's delay: ${prop(world, delayRow, 'subtitle')}`);
+    // The subtitle's last line: the row's key in the files is above it.
+    check(prop(world, delayRow, 'subtitle').split('\n').at(-1) === '250 ms', `shows this computer's delay: ${prop(world, delayRow, 'subtitle')}`);
     repeatSwitch.set_active(true);
     check(JSON.stringify(model.configuration.keyboard.keyRepeat) === '{"delay":250,"interval":25}', `the switch takes this computer's setting: ${JSON.stringify(model.configuration.keyboard.keyRepeat)}`);
     scaleOf(delayRow).set_value(200);
-    check(model.configuration.keyboard.keyRepeat.delay === 200 && prop(world, delayRow, 'subtitle') === '200 ms', 'the delay slider');
+    check(model.configuration.keyboard.keyRepeat.delay === 200 && prop(world, delayRow, 'subtitle').split('\n').at(-1) === '200 ms', 'the delay slider');
     scaleOf(rateRow).set_value(59);
     check(model.configuration.keyboard.keyRepeat.interval === 17, `the rate slider runs in repeats per second: ${model.configuration.keyboard.keyRepeat.interval}`);
-    check(prop(world, rateRow, 'subtitle') === '59 per second (17 ms)', `rate label: ${prop(world, rateRow, 'subtitle')}`);
+    check(prop(world, rateRow, 'subtitle').split('\n').at(-1) === '59 per second (17 ms)', `rate label: ${prop(world, rateRow, 'subtitle')}`);
     spinOf(rateRow).set_value(30);
     check(model.configuration.keyboard.keyRepeat.interval === 30, 'the interval field');
     check(pills('Applying') === 1, 'running, status.json not caught up yet');
@@ -1017,8 +1040,8 @@ async function run(mode) {
   await step('General: open, show and reload the configuration', async () => {
     settings.showPane('general');
     const root = visible('general');
-    // The Mac's "Open Config File" and "Open Settings File".
-    for (const label of ['Open Config File', 'Open Settings File', 'Show in Files']) {
+    // General's "Open config.json" and "Open settings.json", as on the Mac.
+    for (const label of ['Open config.json', 'Open settings.json', 'Show in Files']) {
       for (const b of findAll(world, root, 'Gtk.Button', (w, s) => s.props.get('label') === label)) click(b);
     }
     check(world.report.launches.some(l => l.file === files.configFile && !l.folder), 'opens config.json');
@@ -1431,6 +1454,80 @@ async function run(mode) {
     const event = events.find(e => e.event === 'config.migrated');
     check(event && event.data.by === 'settings' && event.data.settingsMoved === true && event.data.slate.imported > 15, `logged: ${JSON.stringify(event?.data)}`);
     fs.writeFileSync(files.settingsFile, settingsText);
+  });
+
+  await step('every control in every section names its config key, and the keys show, copy and hide', async () => {
+    await settle();
+    const missing = [];
+    const audit = (what, root) => missing.push(...unkeyed(root).map(m => `${what}: ${m}`));
+    for (const id of settings.panes.keys()) {
+      // Get Started is setup, not settings (the Mac's check skips it too).
+      if (id === 'getStarted') continue;
+      settings.navigate(id);
+      audit(id, visible(id));
+    }
+    // Item editors: a shortcut, an automation, a hotstring, a layout with its app expanded.
+    settings.navigate('windows', {binding: ID.HALF});
+    audit('shortcut', visible('windows'));
+    settings.navigate('windows', {binding: ID.CLICKER});
+    audit('automation', visible('windows'));
+    settings.navigate('hotstrings', {newHotstring: true});
+    check(String(world.stateOf(visible('hotstrings')).expandos._slatedKey).startsWith('hotstring:'), 'a hotstring editor is open');
+    audit('hotstring', visible('hotstrings'));
+    if (!model.configuration.layouts.length) model.addLayout();
+    await settle();
+    settings.navigate('layouts');
+    const layoutRow = rowsIn(visible('layouts'), (w, s) => model.configuration.layouts.some(l => l.name === s.props.get('title')))[0];
+    check(layoutRow, 'a layout to open');
+    activate(layoutRow);
+    for (const expander of findAll(world, visible('layouts'), 'Adw.ExpanderRow')) expander.set_expanded(true);
+    audit('layout', visible('layouts'));
+    check(missing.length === 0, `controls with no config key (or reason they have none):\n      ${missing.join('\n      ')}`);
+    check(actionKindsMissingKeys.length === 0, `action editors: ${actionKindsMissingKeys.join(', ')}`);
+    // And every setting the registry says GNOME offers is shown by some control.
+    const uiDir = path.join(here, '../../gnome-extension/lib/prefs/ui');
+    const source = fs.readdirSync(uiDir).map(f => fs.readFileSync(path.join(uiDir, f), 'utf8')).join('\n');
+    const unshown = CONFIG_SETTINGS.filter(s => s.platforms.includes('gnome') && !source.includes(`CONFIG_KEYS.${s.id}`)).map(s => s.id);
+    check(unshown.length === 0, `settings no control shows: ${unshown}`);
+
+    // Shown under the title, in the file's words; hidden by General's switch; copied from the menu.
+    settings.navigate('general');
+    const islandRow = titled(visible('general'), 'Adw.SwitchRow', 'Show the island')[0];
+    check(prop(world, islandRow, 'subtitle').includes('settings.json › island.enabled'), `the key under the title: ${prop(world, islandRow, 'subtitle')}`);
+    const clicks = world.stateOf(islandRow).controllers.filter(c => world.stateOf(c).cls === 'Gtk.GestureClick');
+    check(clicks.length === 1 && prop(world, clicks[0], 'button') === 3, 'a right-click opens its menu');
+    world.emit(clicks[0], 'pressed', 1, 10, 10);
+    const openMenu = () => world.stateOf(islandRow).expandos._slatedConfigKeyMenu;
+    const menu = openMenu();
+    check(menu, 'the menu is there');
+    const menuItems = findAll(world, menu, 'Gtk.Label').map(l => prop(world, l, 'label'));
+    check(menuItems.join() === 'Copy Key,Copy Value as JSON,Open settings.json', `the menu: ${menuItems}`);
+    const item = text => findAll(world, menu, 'Gtk.Button').find(b => findAll(world, b, 'Gtk.Label').some(l => prop(world, l, 'label') === text));
+    click(item('Copy Key'));
+    check(world.report.clipboard.at(-1) === 'island.enabled', `Copy Key: ${world.report.clipboard.at(-1)}`);
+    world.emit(clicks[0], 'pressed', 1, 10, 10);
+    const menu2 = openMenu();
+    click(findAll(world, menu2, 'Gtk.Button').find(b => findAll(world, b, 'Gtk.Label').some(l => prop(world, l, 'label') === 'Copy Value as JSON')));
+    check(world.report.clipboard.at(-1) === String(model.configuration.island.enabled), `Copy Value: ${world.report.clipboard.at(-1)}`);
+    await settle();
+    const copied = readLog(files).filter(e => e.event === 'ui.config_key_copied').map(e => e.data);
+    check(copied.slice(-2).map(d => `${d.file}:${d.copied}:${Object.keys(d).length}`).join() === 'settings.json:key:2,settings.json:value:2', `logged by file only: ${JSON.stringify(copied)}`);
+    // An item's field: relative to the item, and the full path copied.
+    settings.navigate('windows', {binding: ID.HALF});
+    const nameRow = titled(visible('windows'), 'Adw.EntryRow', 'Name')[0];
+    const nameKey = findAll(world, nameRow, 'Gtk.Label', (w, s) => (s.props.get('css-classes') ?? []).includes('slated-config-key'))[0];
+    check(prop(world, nameKey, 'label') === 'name', `a field shows its sub-key: ${prop(world, nameKey, 'label')}`);
+    const location = findAll(world, visible('windows'), 'Gtk.Label', (w, s) => String(s.props.get('label') ?? '').startsWith('config.json › bindings'))[0];
+    check(location && prop(world, location, 'label') === 'config.json › bindings › &quot;hyper+a&quot;', `the editor names the item: ${location && prop(world, location, 'label')}`);
+    // Hidden by the switch, everywhere at once.
+    settings.navigate('general');
+    titled(visible('general'), 'Adw.SwitchRow', 'Show config keys')[0].set_active(false);
+    check(!prop(world, islandRow, 'subtitle').includes('island.enabled'), `hidden: ${prop(world, islandRow, 'subtitle')}`);
+    await settle();
+    check(JSON.parse(fs.readFileSync(files.settingsFile, 'utf8')).general.showConfigKeys === false, 'saved in settings.json');
+    titled(visible('general'), 'Adw.SwitchRow', 'Show config keys')[0].set_active(true);
+    check(prop(world, islandRow, 'subtitle').includes('island.enabled'), 'and back');
+    await settle();
   });
 
   await step('closing saves, logs and stops watching', async () => {

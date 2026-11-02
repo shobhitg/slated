@@ -22,6 +22,7 @@ import {
   box, label, button, icon, glyph, comboRow, switchRow, entryRow, spinRow, textArea, notice, group, clear,
 } from './widgets.js';
 import {ShortcutRecorder} from './recorder.js';
+import {attachKey, fieldIndex, fieldKey, keyRows, setSubtitle, setTitle} from './configkeys.js';
 import {PlacementPreview, previewScreens} from './preview.js';
 import {appPickerButton} from './apps.js';
 import {
@@ -84,10 +85,20 @@ const VARIABLE_GROUPS = [
   ['Functions', ['min(', 'max(', 'floor(', 'ceiling(', 'abs(', 'sqrt(']],
 ];
 
+/** The parameter each form field is written as (ConfigKeys.Action); `resizes` shows as the width it adds. */
+const PARAMETER = {
+  x: 'x', y: 'y', width: 'width', height: 'height', screen: 'screen', throwScreen: 'screen', resizeWidth: 'width',
+  resizeHeight: 'height', anchor: 'anchor', direction: 'direction', corner: 'direction', pushStyle: 'style', nudgeX: 'x',
+  nudgeY: 'y', resizes: 'width', name: 'name', focusDirection: 'direction', app: 'app', hintCharacters: 'characters',
+  snapshotName: 'name', save: 'save', stack: 'stack', delete: 'delete', all: 'all', text: 'text', method: 'method',
+  keys: 'keys', url: 'url', command: 'command', workingDirectory: 'path', wait: 'wait',
+};
+
 /** A row with a monospaced expression entry, checked as you type, and a menu of variables. */
-function expressionRow(model, {title, value, relative = false, onChange}) {
+function expressionRow(model, {title, value, relative = false, onChange, key = null}) {
   let quiet = false;
   const row = new Adw.ActionRow({use_markup: false, title});
+  attachKey(row, key, {title});
   const entry = new Gtk.Entry({
     text: value ?? '', hexpand: true, valign: Gtk.Align.CENTER, width_chars: 22, css_classes: ['slated-mono'],
     placeholder_text: relative ? '+10%' : 'screenSizeX/2',
@@ -115,7 +126,7 @@ function expressionRow(model, {title, value, relative = false, onChange}) {
     if (result.status === 'empty') [message, invalid] = ['Required', true];
     else if (result.status === 'invalid') [message, invalid] = [result.message, true];
     else if (result.value !== null && result.value !== undefined) message = `= ${Math.round(result.value)}`;
-    row.set_subtitle(message);
+    setSubtitle(row, message);
     if (invalid) row.add_css_class('slated-invalid');
     else row.remove_css_class('slated-invalid');
   };
@@ -141,14 +152,14 @@ function expressionRow(model, {title, value, relative = false, onChange}) {
  * Pushes a page that edits one nested action (a chain step, a by-orientation branch, a layout
  * operation). `get()` returns undefined once the item is gone; the page then closes itself.
  */
-export function pushActionPage(ctx, {title, get, set, depth, exclude = []}) {
+export function pushActionPage(ctx, {title, get, set, depth, exclude = [], keys = null}) {
   const page = new Adw.NavigationPage({title});
   const prefs = new Adw.PreferencesPage();
   const preview = new PlacementPreview(ctx.model);
   const previewGroup = group();
   previewGroup.add(preview.widget);
   prefs.add(previewGroup);
-  const editor = new ActionEditor(ctx, {get, set, depth, exclude});
+  const editor = new ActionEditor(ctx, {get, set, depth, exclude, keys});
   for (const g of editor.groups) prefs.add(g);
   const toolbar = new Adw.ToolbarView({content: prefs});
   toolbar.add_top_bar(new Adw.HeaderBar());
@@ -241,8 +252,8 @@ function kindPicker(onPick) {
       selected = kindId;
       allowComposition = composition;
       excluded = exclude;
-      row.set_title(k?.title ?? 'Operation');
-      row.set_subtitle(CATEGORIES.find(c => c.id === k?.category)?.title ?? '');
+      setTitle(row, k?.title ?? 'Operation');
+      setSubtitle(row, CATEGORIES.find(c => c.id === k?.category)?.title ?? '');
       kindIcon.set_from_icon_name(k?.icon ?? 'dialog-question-symbolic');
     },
   };
@@ -288,9 +299,11 @@ export class ActionEditor {
    * @param {(action: any) => void} options.set stores a new action
    * @param {number} [options.depth] nesting level (chains inside chains stop at 2)
    * @param {string[]} [options.exclude] kinds the picker doesn't offer (no repeat inside a repeat)
+   * @param {object} [options.keys] where the action is in the files (configkeys.js), for its fields' keys
    */
-  constructor(ctx, {get, set, depth = 0, exclude = []}) {
+  constructor(ctx, {get, set, depth = 0, exclude = [], keys = null}) {
     this.ctx = ctx;
+    this.keys = keys;
     this.get = get;
     this.set = set;
     this.depth = depth;
@@ -302,6 +315,7 @@ export class ActionEditor {
     this.picker = kindPicker(kindId => {
       this.set(convertAction(this.get(), kindId, {knownLayouts: this.ctx.model.knownLayoutNames()}));
     });
+    attachKey(this.picker.row, fieldKey(keys, 'op'), {title: 'Operation'});
     this.operationGroup.add(this.picker.row);
     this.presets = presetGallery(action => this.set(JSON.parse(JSON.stringify(action))));
     this.presetsBox = box('vertical', 6);
@@ -350,8 +364,18 @@ export class ActionEditor {
       form.grids.length, lists, previewScreens(this.ctx.model).map(s => s.name)]);
   }
 
-  _add(field) {
+  /**
+   * Adds a field's rows. `parameter` names the key they edit: one name for every row, or a function
+   * of the row's index (null: no key).
+   */
+  _add(field, parameter = null) {
     const rows = Array.isArray(field.rows) ? field.rows : [field.row];
+    if (parameter && this.keys) {
+      rows.forEach((row, i) => {
+        const name = typeof parameter === 'function' ? parameter(i) : parameter;
+        if (name) keyRows([row], fieldKey(this.keys, name));
+      });
+    }
     for (const row of rows) this.paramsGroup.add(row);
     this.fields.push(field);
     return field;
@@ -366,24 +390,24 @@ export class ActionEditor {
     const model = this.ctx.model;
     const expr = (title, key, relative = false) => {
       const row = expressionRow(model, {title, value: form[key], relative, onChange: v => this._update(key, v)});
-      return this._add({row: row.row, sync: f => row.sync(f[key])});
+      return this._add({row: row.row, sync: f => row.sync(f[key])}, PARAMETER[key]);
     };
     const combo = (title, key, items, subtitle = null) => {
       const c = comboRow({title, subtitle, items, selected: form[key], onChange: v => this._update(key, v)});
-      return this._add({row: c.row, sync: f => c.set(f[key])});
+      return this._add({row: c.row, sync: f => c.set(f[key])}, PARAMETER[key]);
     };
     const toggle = (title, key, subtitle = null) => {
       const s = switchRow({title, subtitle, active: form[key], onChange: v => this._update(key, v)});
-      return this._add({row: s.row, sync: f => s.set(f[key])});
+      return this._add({row: s.row, sync: f => s.set(f[key])}, PARAMETER[key]);
     };
     const text = (title, key, monospace = false) => {
       const e = entryRow({title, text: form[key], monospace, onChange: v => this._update(key, v)});
-      return this._add({row: e.row, sync: f => e.set(f[key])});
+      return this._add({row: e.row, sync: f => e.set(f[key])}, PARAMETER[key]);
     };
     const screen = (key, allowsNone = true) => {
       const items = screenItems(model, form[key] ?? '', allowsNone);
       const c = comboRow({title: 'Display', items, selected: form[key] ?? '', onChange: v => this._update(key, v || null)});
-      return this._add({row: c.row, sync: f => c.set(f[key] ?? '')});
+      return this._add({row: c.row, sync: f => c.set(f[key] ?? '')}, PARAMETER[key]);
     };
     // Explanations for the fields go in the group's description, below them.
     const hint = text2 => this.paramsGroup.set_description(text2);
@@ -417,14 +441,14 @@ export class ActionEditor {
           this._update('pushStyle', `bar-resize:${['up', 'down'].includes(current.direction) ? 'screenSizeY/2' : 'screenSizeX/2'}`);
         },
       });
-      this._add({row: style.row, sync: f => style.set(styleKind(f.pushStyle))});
+      this._add({row: style.row, sync: f => style.set(styleKind(f.pushStyle))}, 'style');
       if (styleKind(form.pushStyle) === 'bar-resize') {
         const vertical = ['up', 'down'].includes(form.direction);
         const row = expressionRow(model, {
           title: vertical ? 'Height' : 'Width', value: form.pushStyle.slice('bar-resize:'.length),
           onChange: v => this._update('pushStyle', `bar-resize:${v}`),
         });
-        this._add({row: row.row, sync: f => row.sync(f.pushStyle.slice('bar-resize:'.length))});
+        this._add({row: row.row, sync: f => row.sync(f.pushStyle.slice('bar-resize:'.length))}, 'style');
       }
       screen('screen');
       break;
@@ -453,13 +477,13 @@ export class ActionEditor {
       break;
     case 'chain':
       this._add(new OperationList(this.ctx, {
-        mode: 'chain', depth: this.depth,
+        mode: 'chain', depth: this.depth, keys: this.keys,
         get: () => formFromAction(this.get()).operations, set: ops => this._update('operations', ops),
       }));
       break;
     case 'sequence':
       this._add(new OperationList(this.ctx, {
-        mode: 'sequence', depth: this.depth,
+        mode: 'sequence', depth: this.depth, keys: this.keys,
         get: () => formFromAction(this.get()).steps, set: steps => this._update('steps', steps),
       }));
       break;
@@ -475,13 +499,13 @@ export class ActionEditor {
         if (!form.name) items.unshift({id: '', label: 'Choose…'});
         const c = comboRow({title: 'Layout', items, selected: form.name, onChange: v => this._update('name', v)});
         c.row.add_suffix(button('Edit', () => this.ctx.navigate('layouts'), {classes: ['flat'], tooltip: 'Edit layouts'}));
-        this._add({row: c.row, sync: f => c.set(f.name)});
+        this._add({row: c.row, sync: f => c.set(f.name)}, 'name');
       }
       break;
     }
     case 'by-orientation':
       this._add(orientationRows(this.ctx, {
-        depth: this.depth,
+        depth: this.depth, keys: this.keys,
         get: () => this.get(),
         setBranch: (branch, value) => this._update(branch, value),
       }));
@@ -492,17 +516,17 @@ export class ActionEditor {
     case 'focus-app': {
       const e = entryRow({title: 'App name', text: form.app, onChange: v => this._update('app', v)});
       e.row.add_suffix(appPickerButton({onPick: app => this._update('app', app.name)}));
-      this._add({row: e.row, sync: f => e.set(f.app)});
+      this._add({row: e.row, sync: f => e.set(f.app)}, 'app');
       break;
     }
     case 'hint':
       text('Letters (default A–Z, 0–9)', 'hintCharacters', true);
       break;
     case 'grid':
-      this._add(gridRows(model, {get: () => formFromAction(this.get()), update: (k, v) => this._update(k, v)}));
+      this._add(gridRows(model, {get: () => formFromAction(this.get()), update: (k, v) => this._update(k, v)}), i => (i === 0 ? 'padding' : 'grids'));
       break;
     case 'hide': case 'show': case 'toggle':
-      this._add(appSelectorRows({get: () => formFromAction(this.get()).appSelector, set: v => this._update('appSelector', v)}));
+      this._add(appSelectorRows({get: () => formFromAction(this.get()).appSelector, set: v => this._update('appSelector', v)}), 'app');
       break;
     case 'switch':
       this._add({row: notice({level: 'info', title: 'Not available yet',
@@ -523,13 +547,13 @@ export class ActionEditor {
       break;
     case 'insert-text': {
       const area = textArea({text: form.text, onChange: v => this._update('text', v)});
-      this._add({row: area.widget, sync: f => area.set(f.text)});
+      this._add({row: area.widget, sync: f => area.set(f.text)}, 'text');
       const method = comboRow({title: 'Insert by', subtitle: METHOD_HINTS[form.method], items: METHOD_ITEMS, selected: form.method,
         onChange: v => this._update('method', v)});
       this._add({row: method.row, sync: f => {
         method.set(f.method);
-        method.row.set_subtitle(METHOD_HINTS[f.method] ?? '');
-      }});
+        setSubtitle(method.row, METHOD_HINTS[f.method] ?? '');
+      }}, 'method');
       break;
     }
     case 'keystroke': {
@@ -537,7 +561,7 @@ export class ActionEditor {
         title: 'Keys', keys: form.keys, requiresModifier: false, onChange: keys => keys && this._update('keys', keys),
         subtitle: 'Sent to the focused app',
       });
-      this._add({row: recorder.row, sync: f => recorder.set(f.keys), recorder});
+      this._add({row: recorder.row, sync: f => recorder.set(f.keys), recorder}, 'keys');
       break;
     }
     case 'open-url':
@@ -547,16 +571,16 @@ export class ActionEditor {
       this._add(clipboardHistoryInfo(this.ctx));
       break;
     case 'click':
-      this._add(clickRows({get: () => this._form(), update: (k, v) => this._update(k, v)}));
+      this._add(clickRows({get: () => this._form(), update: (k, v) => this._update(k, v)}), i => ['button', 'count'][i]);
       hint('Clicks where the pointer is, without moving it.');
       break;
     case 'press':
-      this._add(inputRows({get: () => this._form().input, set: v => this._update('input', v)}));
-      this._add(phaseRows({get: () => this._form(), update: (k, v) => this._update(k, v)}));
+      this._add(inputRows({get: () => this._form().input, set: v => this._update('input', v)}), 'input');
+      this._add(phaseRows({get: () => this._form(), update: (k, v) => this._update(k, v)}), 'phase');
       hint('Something pressed down stays down until a Release step, or until you press the stop shortcut.');
       break;
     case 'hold':
-      this._add(inputRows({title: 'Hold down', get: () => this._form().input, set: v => this._update('input', v)}));
+      this._add(inputRows({title: 'Hold down', get: () => this._form().input, set: v => this._update('input', v)}), 'input');
       hint('The first press holds it down; the next press lets go. Stopping automations lets go too.');
       break;
     case 'repeat':
@@ -565,17 +589,17 @@ export class ActionEditor {
         update: (k, v) => this._update(k, v),
         whileHeldMode: () => model.status.automation?.whileHeld ?? 'key-repeat',
         openNested: () => pushActionPage(this.ctx, {
-          title: 'What to Repeat', depth: this.depth + 1, exclude: ['repeat'],
+          title: 'What to Repeat', depth: this.depth + 1, exclude: ['repeat'], keys: fieldKey(this.keys, 'action'),
           get: () => {
             const action = this.get();
             return action?.op === 'repeat' ? action.action : undefined;
           },
           set: value => this._update('repeatAction', value),
         }),
-      }));
+      }), i => REPEAT_ROW_PARAMETERS[i]);
       break;
     case 'wait':
-      this._add(waitRows({get: () => this._form(), update: (k, v) => this._update(k, v)}));
+      this._add(waitRows({get: () => this._form(), update: (k, v) => this._update(k, v)}), 'seconds');
       hint("Waits only pause a sequence. Steps after the wait run when it's over; nothing is blocked meanwhile.");
       break;
     case 'stop-automations':
@@ -588,6 +612,8 @@ export class ActionEditor {
       break;
     case 'syntax': {
       const e = entryRow({title: 'Slate operation', text: form.syntax, monospace: true, onChange: v => this.set(v)});
+      // The whole action, written as Slate syntax.
+      if (this.keys) attachKey(e.row, this.keys.text ? this.keys : {...this.keys, text: 'action'}, {kind: 'entry', title: 'Slate operation'});
       this._add({row: e.row, sync: f => {
         e.set(f.syntax);
         const problem = actionProblems(f.syntax).find(p => p.severity === 'error');
@@ -622,8 +648,13 @@ export class ActionEditor {
   }
 }
 
+/** repeatRows' rows, in order: what to repeat (and its button, count, key), how often, how, how many, timing. */
+const REPEAT_ROW_PARAMETERS = [
+  'action', 'action.button', 'action.count', 'action', 'action', 'interval', 'interval', 'mode', 'times', 'times', 'jitter', 'jitter',
+];
+
 /** The two branches of a by-orientation action, each opening a nested editor. */
-function orientationRows(ctx, {depth, get, setBranch}) {
+function orientationRows(ctx, {depth, get, setBranch, keys = null}) {
   const rows = ['landscape', 'portrait'].map(branch => {
     const title = branch === 'landscape' ? 'Landscape displays' : 'Portrait displays';
     const row = new Adw.ActionRow({use_markup: false, title, subtitle: '', activatable: true});
@@ -631,8 +662,9 @@ function orientationRows(ctx, {depth, get, setBranch}) {
     const g = glyph(get()[branch]);
     row.add_suffix(g);
     row.add_suffix(icon('go-next-symbolic'));
+    attachKey(row, fieldKey(keys, branch), {title});
     row.connect('activated', () => pushActionPage(ctx, {
-      title, depth: depth + 1,
+      title, depth: depth + 1, keys: fieldKey(keys, branch),
       get: () => {
         const action = get();
         return action?.op === 'by-orientation' ? action[branch] : undefined;
@@ -646,7 +678,7 @@ function orientationRows(ctx, {depth, get, setBranch}) {
     sync() {
       const action = get();
       for (const r of rows) {
-        r.row.set_subtitle(actionTitle(action[r.branch]));
+        setSubtitle(r.row, actionTitle(action[r.branch]));
         r.glyph._slatedUpdate(action[r.branch]);
       }
     },
@@ -666,9 +698,14 @@ export class OperationList {
    * @param {(items: Array) => void} options.set
    * @param {number} options.depth
    * @param {string} [options.emptyText]
+   * @param {object} [options.keys] where the list's owner is in the files (an action, a layout or its app)
+   * @param {string} [options.list] the list's key under it: "operations" (sequences pick "steps" when a
+   *   step keeps its window, as the encoder does), "before", "after"
    */
-  constructor(ctx, {mode, get, set, depth, emptyText = 'No operations yet.'}) {
+  constructor(ctx, {mode, get, set, depth, emptyText = 'No operations yet.', keys = null, list = 'operations'}) {
     this.ctx = ctx;
+    this.keys = keys;
+    this.list = list;
     this.mode = mode;
     this.getItems = get;
     this.setItems = set;
@@ -693,16 +730,22 @@ export class OperationList {
     const items = this.getItems() ?? [];
     this.rows = [];
     if (!items.length) this.rows.push(new Adw.ActionRow({use_markup: false, title: this.emptyText, activatable: false}));
+    // As the encoder writes a sequence: plain operations unless a step keeps the window.
+    const steps = this.mode === 'sequence' && items.some(item => item.keepWindow);
+    const stepKey = index => fieldIndex(fieldKey(this.keys, 'steps'), index);
     items.forEach((item, index) => {
       const action = this._action(item);
       const prefix = this.mode === 'chain' ? `Press ${index + 1}` : `Step ${index + 1}`;
+      const keys = steps ? fieldKey(stepKey(index), 'action') : fieldIndex(fieldKey(this.keys, this.list), index);
       const row = new Adw.ActionRow({use_markup: false, title: `${prefix} · ${actionTitle(action)}`, subtitle: actionDetail(action), activatable: true});
+      attachKey(row, keys, {title: `${prefix} · ${actionTitle(action)}`, subtitle: actionDetail(action)});
       row.set_subtitle_lines(1);
       row.add_prefix(glyph(action));
       // "Same window" only means something for steps that act on windows.
       if (this.mode === 'sequence' && index > 0 && !isInputStep(action)) {
         const same = new Gtk.CheckButton({label: 'Same window', active: item.keepWindow === true, valign: Gtk.Align.CENTER,
           tooltip_text: 'Slate\'s “>”: run on the window that was focused when this run of steps began'});
+        attachKey(same, fieldKey(stepKey(index), 'keepWindow'), {kind: 'widget'});
         same.connect('toggled', () => {
           const next = this.getItems().slice();
           next[index] = {...next[index], keepWindow: same.get_active()};
@@ -713,7 +756,7 @@ export class OperationList {
       row.add_suffix(this._itemMenu(index, items.length));
       row.add_suffix(icon('go-next-symbolic'));
       row.connect('activated', () => pushActionPage(this.ctx, {
-        title: prefix, depth: this.depth + 1,
+        title: prefix, depth: this.depth + 1, keys,
         get: () => {
           const current = this.getItems()?.[index];
           return current === undefined ? undefined : this._action(current);
@@ -770,6 +813,7 @@ export class OperationList {
     const menu = new Gtk.MenuButton({icon_name: 'list-add-symbolic', popover, valign: Gtk.Align.CENTER, css_classes: ['flat']});
     row.add_suffix(menu);
     row.set_activatable_widget(menu);
+    attachKey(row, fieldKey(this.keys, this.mode === 'sequence' ? 'operations' : this.list), {title: row.get_title()});
     return row;
   }
 }

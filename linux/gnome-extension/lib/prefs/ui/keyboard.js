@@ -24,7 +24,8 @@ import {
   GNOME_DEFAULT_KEY_REPEAT, KEY_REPEAT_RANGES, RATE_RANGE, delayLabel, intervalForRate, keyRepeatStatusLine, rateLabel,
   repeatsPerSecond, withKeyRepeat,
 } from '../keyRepeat.js';
-import {clampKeyRepeat} from '../../core/index.js';
+import {clampKeyRepeat, CONFIG_KEYS} from '../../core/index.js';
+import {attachKey, noKey, setSubtitle, settingKey} from './configkeys.js';
 import {box, label, group, switchRow, comboRow, pill, commandRow} from './widgets.js';
 
 /** This computer's key repeat (GNOME Settings → Keyboard), clamped as config.json holds it; null if unreadable. */
@@ -41,8 +42,9 @@ function computerKeyRepeat() {
  * A slider with a number field beside it, both in milliseconds as far as `onChange` knows: the slider
  * may run in other units (`toScale`/`fromScale`). Returns {row, set(ms)}.
  */
-function sliderRow({title, scale: [min, max], marks, spin: [spinMin, spinMax], toScale = v => v, fromScale = v => v, onChange}) {
+function sliderRow({title, scale: [min, max], marks, spin: [spinMin, spinMax], toScale = v => v, fromScale = v => v, onChange, key = null}) {
   const row = new Adw.ActionRow({use_markup: false, title});
+  attachKey(row, key, {title});
   const scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, min, max, 1);
   scale.set_draw_value(false);
   scale.set_hexpand(true);
@@ -142,7 +144,7 @@ export function createKeyboardPane(ctx) {
   hero.add(picture.widget);
   const enabled = switchRow({
     title: 'Use Caps Lock as Hyper', subtitle: 'Caps Lock no longer toggles capitals; hold Shift instead.',
-    active: model.configuration.keyboard.capsLock === 'hyper',
+    active: model.configuration.keyboard.capsLock === 'hyper', key: settingKey(CONFIG_KEYS.capsLock),
     onChange: on => model.update(config => {
       config.keyboard.capsLock = on ? 'hyper' : 'off';
     }),
@@ -178,14 +180,14 @@ export function createKeyboardPane(ctx) {
   const options = group({title: 'Options'});
   const escape = switchRow({
     title: 'Tap Caps Lock alone for Escape', subtitle: '',
-    active: model.configuration.keyboard.capsLockAlone === 'escape',
+    active: model.configuration.keyboard.capsLockAlone === 'escape', key: settingKey(CONFIG_KEYS.capsLockAlone),
     onChange: on => model.update(config => {
       config.keyboard.capsLockAlone = on ? 'escape' : 'nothing';
     }),
   });
   options.add(escape.row);
   const modifiers = comboRow({
-    title: 'Hyper key sends', subtitle: '', items: MODIFIER_ITEMS,
+    title: 'Hyper key sends', subtitle: '', items: MODIFIER_ITEMS, key: settingKey(CONFIG_KEYS.hyperModifiers),
     selected: model.configuration.keyboard.hyperModifiers.includes('cmd') ? 'hyper' : 'meh',
     onChange: id => model.update(config => {
       config.keyboard.hyperModifiers = id === 'hyper' ? ['ctrl', 'alt', 'shift', 'cmd'] : ['ctrl', 'alt', 'shift'];
@@ -203,19 +205,19 @@ export function createKeyboardPane(ctx) {
   const current = () => model.configuration.keyboard.keyRepeat ?? null;
   const repeatSwitch = switchRow({
     title: 'Set key repeat with Slated', subtitle: 'Off leaves GNOME’s own setting as it is.',
-    active: !!current(),
+    active: !!current(), key: settingKey(CONFIG_KEYS.keyRepeat),
     onChange: on => setKeyRepeat(on ? (current() ?? computerKeyRepeat() ?? GNOME_DEFAULT_KEY_REPEAT) : null),
   });
   repeat.add(repeatSwitch.row);
   const delay = sliderRow({
-    title: 'Delay until repeat', scale: KEY_REPEAT_RANGES.delay, spin: KEY_REPEAT_RANGES.delay,
+    title: 'Delay until repeat', scale: KEY_REPEAT_RANGES.delay, spin: KEY_REPEAT_RANGES.delay, key: settingKey(CONFIG_KEYS.keyRepeatDelay),
     marks: [[KEY_REPEAT_RANGES.delay[0], 'Short'], [KEY_REPEAT_RANGES.delay[1], 'Long']],
     onChange: ms => setKeyRepeat({...(current() ?? GNOME_DEFAULT_KEY_REPEAT), delay: ms}),
   });
   repeat.add(delay.row);
   // The slider runs in repeats per second, faster to the right; the field is the interval in ms.
   const rate = sliderRow({
-    title: 'Repeat rate', scale: RATE_RANGE, spin: KEY_REPEAT_RANGES.interval,
+    title: 'Repeat rate', scale: RATE_RANGE, spin: KEY_REPEAT_RANGES.interval, key: settingKey(CONFIG_KEYS.keyRepeatInterval),
     marks: [[RATE_RANGE[0], 'Slow'], [RATE_RANGE[1], 'Fast']],
     toScale: repeatsPerSecond, fromScale: intervalForRate,
     onChange: ms => setKeyRepeat({...(current() ?? GNOME_DEFAULT_KEY_REPEAT), interval: ms}),
@@ -236,7 +238,7 @@ export function createKeyboardPane(ctx) {
   useComputer.add_suffix(useButton);
   repeat.add(useComputer);
   // A place to hold a key down; nothing typed here is kept or logged.
-  const tryIt = new Adw.EntryRow({use_markup: false, title: 'Try it here: hold a key'});
+  const tryIt = noKey(new Adw.EntryRow({use_markup: false, title: 'Try it here: hold a key'}), 'a test field that isn\'t saved');
   repeat.add(tryIt);
   const repeatStatus = new Adw.ActionRow({use_markup: false, title: 'Status'});
   const repeatPill = box('horizontal', 0);
@@ -294,14 +296,14 @@ export function createKeyboardPane(ctx) {
     }
     const keyd = model.running && hyper.mode === 'keyd';
     const rerun = 'keyd applies it: run linux/install.sh --hyper-keyd again after changing this.';
-    escape.row.set_subtitle(xkb
+    setSubtitle(escape.row, xkb
       ? "Needs keyd: GNOME's keyboard option can't tell a tap from a hold."
       : keyd ? `A quick tap sends Escape; holding it is still Hyper. ${rerun}`
         : 'A quick tap sends Escape; holding it is still Hyper. On GNOME this needs keyd (see above).');
     const choice = keyboard.hyperModifiers.includes('cmd')
       ? 'All four, like the Mac\'s Hyper key.'
       : 'Meh leaves out Super, so ✦ shortcuts stay clear of GNOME\'s own Super shortcuts.';
-    modifiers.row.set_subtitle(xkb
+    setSubtitle(modifiers.row, xkb
       ? "GNOME's keyboard option always sends the Hyper modifier; this applies with keyd and on the Mac."
       : keyd ? `${choice} ${rerun}` : choice);
 
@@ -310,8 +312,8 @@ export function createKeyboardPane(ctx) {
     repeatSwitch.set(!!keyRepeat);
     delay.set(shown.delay);
     rate.set(shown.interval);
-    delay.row.set_subtitle(delayLabel(shown.delay));
-    rate.row.set_subtitle(rateLabel(shown.interval));
+    setSubtitle(delay.row, delayLabel(shown.delay));
+    setSubtitle(rate.row, rateLabel(shown.interval));
     delay.row.set_sensitive(!!keyRepeat);
     rate.row.set_sensitive(!!keyRepeat);
     const computer = computerKeyRepeat();

@@ -19,6 +19,7 @@ import {
   keyLabel, keysCombo,
 } from '../keys.js';
 import {keycaps, box, label, icon} from './widgets.js';
+import {attachKey, setSubtitle} from './configkeys.js';
 
 const MASKS = {
   SHIFT: Gdk.ModifierType.SHIFT_MASK, CONTROL: Gdk.ModifierType.CONTROL_MASK, ALT: Gdk.ModifierType.ALT_MASK,
@@ -47,8 +48,9 @@ export class ShortcutRecorder {
    * @param {boolean} [options.allowClear] Backspace clears the shortcut
    * @param {(recording: boolean) => void} [options.onRecording]
    * @param {string} [options.plainKeyHint] added when a key without Ctrl, Alt or Super is refused
+   * @param {object} [options.key] the setting's key in the files (configkeys.js), shown under the title
    */
-  constructor({title, keys, onChange, requiresModifier = true, allowClear = false, onRecording = () => {}, subtitle = '', plainKeyHint = ''}) {
+  constructor({title, keys, onChange, requiresModifier = true, allowClear = false, onRecording = () => {}, subtitle = '', plainKeyHint = '', key = null}) {
     this.keys = keys ?? '';
     this.onChange = onChange;
     /** Global shortcuts need Ctrl, Alt or Super; one limited to some apps doesn't (settable). */
@@ -64,6 +66,7 @@ export class ShortcutRecorder {
     this.held = new Set();
 
     this.row = new Adw.ActionRow({use_markup: false, title, subtitle});
+    attachKey(this.row, key, {title, subtitle});
     this.button = new Gtk.Button({valign: Gtk.Align.CENTER, css_classes: ['slated-recorder']});
     this.button.connect('clicked', () => (this.recording ? this.stop() : this.start()));
     this.row.add_suffix(this.button);
@@ -96,7 +99,7 @@ export class ShortcutRecorder {
   }
 
   _hint(text) {
-    this.row.set_subtitle(text ?? this.baseSubtitle);
+    setSubtitle(this.row, text ?? this.baseSubtitle);
     if (text) this.row.add_css_class('slated-invalid');
     else this.row.remove_css_class('slated-invalid');
   }

@@ -13,6 +13,7 @@ import {OperationList} from './actioneditor.js';
 import {LayoutPreview} from './preview.js';
 import {appPickerButton} from './apps.js';
 import {confirm} from './bindingeditor.js';
+import {attachKey, fieldIndex, fieldKey, itemCaption, layoutScope, setSubtitle, setTitle} from './configkeys.js';
 
 const OPTION_ROWS = [
   ['ignoreFail', 'Skip quietly if the app isn\'t running'],
@@ -53,6 +54,8 @@ function pushLayoutEditor(ctx, name, index = null) {
 
   const page = new Adw.NavigationPage({title: name || 'Layout'});
   page._slatedKey = `layout:${name}`;
+  // Its fields' keys, under config.json › layouts › its name (or its index).
+  const keys = layoutScope(model, () => currentIndex);
   const header = new Adw.HeaderBar();
   header.pack_end(button('', () => confirm(ctx, {
     heading: `Delete “${currentName}”?`, body: 'Shortcuts that apply it will stop working.', accept: 'Delete',
@@ -71,7 +74,7 @@ function pushLayoutEditor(ctx, name, index = null) {
   // shortcut for a layout still to be made) keeps it when typing goes on: only this layout's own
   // shortcuts move with it.
   const arrivals = new Map();
-  const nameRow = entryRow({title: 'Name', text: name, onChange: v => {
+  const nameRow = entryRow({title: 'Name', text: name, key: fieldKey(keys, 'name'), onChange: v => {
     const before = currentName;
     nameProblem = model.layoutNameProblem(before, v, currentIndex);
     const named = nameProblem || v === before ? null : model.layoutReferences(v);
@@ -99,6 +102,8 @@ function pushLayoutEditor(ctx, name, index = null) {
   const triggersBox = box('horizontal', 6);
   triggersRow.add_suffix(triggersBox);
   top.add(triggersRow);
+  const location = itemCaption(keys.resolve);
+  top.add(location.widget);
   prefs.add(top);
 
   const previewGroup = group();
@@ -126,11 +131,13 @@ function pushLayoutEditor(ctx, name, index = null) {
     appWidgets = [];
     (layout.apps ?? []).forEach((app, index) => {
       const row = new Adw.ExpanderRow({use_markup: false, title: app.app || 'App', subtitle: appSummary(app)});
+      const appKeys = fieldIndex(fieldKey(keys, 'apps'), index);
+      attachKey(row, appKeys, {title: app.app || 'App', subtitle: appSummary(app)});
       row.set_subtitle_lines(1);
       row.set_expanded(expanded.has(index));
       row.connect('notify::expanded', () => (row.get_expanded() ? expanded.add(index) : expanded.delete(index)));
       const widget = {row, sync: null};
-      const appName = entryRow({title: 'App name', text: app.app, onChange: v => mutate(l => {
+      const appName = entryRow({title: 'App name', text: app.app, key: fieldKey(appKeys, 'app'), onChange: v => mutate(l => {
         if (l.apps[index]) l.apps[index].app = v;
       })});
       appName.row.add_suffix(appPickerButton({onPick: picked => mutate(l => {
@@ -138,7 +145,7 @@ function pushLayoutEditor(ctx, name, index = null) {
       })}));
       row.add_row(appName.row);
       const ops = new OperationList(ctx, {
-        mode: 'plain', depth: 1, emptyText: 'No operations: the app is left where it is.',
+        mode: 'plain', depth: 1, emptyText: 'No operations: the app is left where it is.', keys: appKeys,
         get: () => getLayout()?.apps?.[index]?.operations,
         set: operations => mutate(l => {
           if (l.apps[index]) l.apps[index].operations = operations;
@@ -146,7 +153,7 @@ function pushLayoutEditor(ctx, name, index = null) {
       });
       for (const r of ops.rows) row.add_row(r);
       const switches = OPTION_ROWS.map(([key, title]) => {
-        const s = switchRow({title, active: app.options?.[key] === true, onChange: v => mutate(l => {
+        const s = switchRow({title, active: app.options?.[key] === true, key: fieldKey(appKeys, `options.${key}`), onChange: v => mutate(l => {
           if (l.apps[index]) l.apps[index].options = {...defaultLayoutAppOptions(), ...l.apps[index].options, [key]: v};
         })});
         row.add_row(s.row);
@@ -159,14 +166,15 @@ function pushLayoutEditor(ctx, name, index = null) {
       row.add_row(remove);
       widget.sync = a => {
         appName.set(a.app);
-        row.set_title(a.app || 'App');
-        row.set_subtitle(appSummary(a));
+        setTitle(row, a.app || 'App');
+        setSubtitle(row, appSummary(a));
         for (const [key, s] of switches) s.set(a.options?.[key] === true);
       };
       appsGroup.add(row);
       appWidgets.push(widget);
     });
     const add = new Adw.EntryRow({use_markup: false, title: 'Add an app by name', show_apply_button: true});
+    attachKey(add, fieldKey(keys, 'apps'), {kind: 'entry', title: 'Add an app by name'});
     const addApp = appName => {
       if (!appName.trim()) return;
       mutate(l => {
@@ -191,7 +199,7 @@ function pushLayoutEditor(ctx, name, index = null) {
       heading.add_css_class('heading');
       beforeAfterRows.push(heading);
       const list = new OperationList(ctx, {
-        mode: 'plain', depth: 1, emptyText: 'Nothing',
+        mode: 'plain', depth: 1, emptyText: 'Nothing', keys, list: key,
         get: () => getLayout()?.[key],
         set: ops => mutate(l => {
           l[key] = ops;
@@ -209,6 +217,7 @@ function pushLayoutEditor(ctx, name, index = null) {
       return;
     }
     page.set_title(layout.name || 'Untitled Layout');
+    location.update();
     if (!nameProblem) nameRow.set(layout.name);
     showNameIssues();
     clear(triggersBox);

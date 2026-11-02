@@ -16,6 +16,7 @@ import {
 } from '../automation.js';
 import {box, label, button, glyph, icon, comboRow, switchRow, spinRow, notice, keycaps} from './widgets.js';
 import {ShortcutRecorder} from './recorder.js';
+import {setSubtitle, setTitle} from './configkeys.js';
 
 const BUTTON_ITEMS = [{id: 'left', label: 'Left'}, {id: 'right', label: 'Right'}, {id: 'middle', label: 'Middle'}];
 const PHASE_ITEMS = [{id: 'down', label: 'Press down'}, {id: 'up', label: 'Release'}];
@@ -240,27 +241,27 @@ export function repeatRows({get, update, openNested, whileHeldMode = () => 'key-
         double.set(action.count === 2);
       }
       if (choice === 'key') key.set(keysString(action.keys));
-      nested.set_title(choice === 'other' ? actionTitle(action) : 'Something else');
-      nested.set_subtitle(choice === 'other' ? 'Change what repeats' : 'Any action but another auto-repeat');
+      setTitle(nested, choice === 'other' ? actionTitle(action) : 'Something else');
+      setSubtitle(nested, choice === 'other' ? 'Change what repeats' : 'Any action but another auto-repeat');
       nestedGlyph._slatedUpdate(action);
       const ms = Math.round(f.interval * 1000);
       every.set(ms);
-      every.row.set_subtitle(f.interval < 0.03
+      setSubtitle(every.row, f.interval < 0.03
         ? `${ms} ms, ${rate(f.interval)}. Very fast: some games ignore clicks faster than about 30 a second.`
         : `${ms} ms, ${rate(f.interval)}`);
       presets.sync(f.interval);
       mode.set(f.repeatMode);
       const note = f.repeatMode === 'while-held' ? whileHeldNote({action: {op: 'repeat', action, mode: 'while-held'}}, whileHeldMode()) : null;
-      mode.row.set_subtitle([modeExplanation(f.repeatMode), note].filter(Boolean).join(' '));
+      setSubtitle(mode.row, [modeExplanation(f.repeatMode), note].filter(Boolean).join(' '));
       limited.set(f.repeatTimes !== null);
       times.row.set_visible(f.repeatTimes !== null);
       if (f.repeatTimes !== null) {
         times.set(f.repeatTimes);
         const total = secondsText(Math.max(f.repeatTimes - 1, 0) * f.interval);
-        times.row.set_subtitle(`Stops by itself after ${f.repeatTimes} run${f.repeatTimes === 1 ? '' : 's'}, about ${total} at this speed. Press the shortcut again to stop early.`);
+        setSubtitle(times.row, `Stops by itself after ${f.repeatTimes} run${f.repeatTimes === 1 ? '' : 's'}, about ${total} at this speed. Press the shortcut again to stop early.`);
       }
       humanize.set(f.jitter > 0);
-      humanize.row.set_subtitle(f.jitter > 0
+      setSubtitle(humanize.row, f.jitter > 0
         ? `Each interval varies by up to ${jitterText(f.jitter)}, so it doesn't tick like clockwork.`
         : "Off: perfectly even timing. Some games ignore input that's too regular; humanizing helps.");
       vary.row.set_visible(f.jitter > 0);
@@ -282,7 +283,7 @@ export function waitRows({get, update}) {
     rows: [seconds.row, presets.row],
     sync(f) {
       seconds.set(f.seconds);
-      seconds.row.set_subtitle(secondsText(f.seconds));
+      setSubtitle(seconds.row, secondsText(f.seconds));
       presets.sync(f.seconds);
     },
   };

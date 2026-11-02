@@ -10,6 +10,7 @@ import {keycaps as keycapLabels, keysCombo, spokenCombo} from '../keys.js';
 import {matchingPreset} from '../presets.js';
 import {kindById, kindOf} from '../actions.js';
 import {escapeMarkup} from '../util.js';
+import {attachKey} from './configkeys.js';
 
 // --- Text and layout --------------------------------------------------------------------------------
 
@@ -245,13 +246,15 @@ export function glyph(action, {width = 26, height = 18} = {}) {
 
 /**
  * An Adw.ComboRow over fixed choices. `items` is [{id, label}]; `onChange(id)` runs on user changes
- * only. Returns {row, set(id), setItems(items)}.
+ * only. `key` is the setting's key in the files (configkeys.js), shown under the title. Returns
+ * {row, set(id), setItems(items)}.
  */
-export function comboRow({title, subtitle = null, items, selected, onChange}) {
+export function comboRow({title, subtitle = null, items, selected, onChange, key = null}) {
   let current = items;
   let quiet = false;
   const model = Gtk.StringList.new(current.map(i => i.label));
   const row = new Adw.ComboRow({use_markup: false, title, subtitle: subtitle ?? '', model});
+  attachKey(row, key, {title, subtitle});
   const indexOf = id => Math.max(0, current.findIndex(i => i.id === id));
   row.set_selected(indexOf(selected));
   row.connect('notify::selected', () => {
@@ -284,10 +287,11 @@ export function comboRow({title, subtitle = null, items, selected, onChange}) {
   };
 }
 
-/** An Adw.SwitchRow. Returns {row, set(active)}. */
-export function switchRow({title, subtitle = null, active, onChange}) {
+/** An Adw.SwitchRow, with the setting's `key` under its title. Returns {row, set(active)}. */
+export function switchRow({title, subtitle = null, active, onChange, key = null}) {
   let quiet = false;
   const row = new Adw.SwitchRow({use_markup: false, title, subtitle: subtitle ?? '', active: Boolean(active)});
+  attachKey(row, key, {title, subtitle});
   row.connect('notify::active', () => {
     if (!quiet) onChange(row.get_active());
   });
@@ -302,10 +306,11 @@ export function switchRow({title, subtitle = null, active, onChange}) {
   };
 }
 
-/** An Adw.EntryRow. Returns {row, set(text)}; `onChange` runs as the user types. */
-export function entryRow({title, text, onChange, monospace = false}) {
+/** An Adw.EntryRow, with the field's `key` beside its title. Returns {row, set(text)}; `onChange` runs as the user types. */
+export function entryRow({title, text, onChange, monospace = false, key = null}) {
   let quiet = false;
   const row = new Adw.EntryRow({use_markup: false, title, text: text ?? ''});
+  attachKey(row, key, {kind: 'entry', title});
   if (monospace) row.add_css_class('slated-mono');
   row.connect('changed', () => {
     if (!quiet) onChange(row.get_text());
@@ -321,12 +326,13 @@ export function entryRow({title, text, onChange, monospace = false}) {
   };
 }
 
-/** An Adw.SpinRow (libadwaita 1.4+). Returns {row, set(value)}. */
-export function spinRow({title, subtitle = null, min, max, step = 1, digits = 0, value, onChange}) {
+/** An Adw.SpinRow (libadwaita 1.4+), with the setting's `key` under its title. Returns {row, set(value)}. */
+export function spinRow({title, subtitle = null, min, max, step = 1, digits = 0, value, onChange, key = null}) {
   let quiet = false;
   const row = Adw.SpinRow.new_with_range(min, max, step);
   row.set_title(title);
   if (subtitle) row.set_subtitle(subtitle);
+  attachKey(row, key, {title, subtitle});
   row.set_digits(digits);
   row.set_value(value);
   row.connect('notify::value', () => {
@@ -343,8 +349,11 @@ export function spinRow({title, subtitle = null, min, max, step = 1, digits = 0,
   };
 }
 
-/** A multi-line text editor in a card. Returns {widget, set(text), get()}. */
-export function textArea({text, onChange, monospace = false, minHeight = 80, placeholder = null}) {
+/**
+ * A multi-line text editor in a card. `key` gives it the right-click menu; the group's title shows the
+ * key. Returns {widget, set(text), get()}.
+ */
+export function textArea({text, onChange, monospace = false, minHeight = 80, placeholder = null, key = null}) {
   let quiet = false;
   const view = new Gtk.TextView({
     wrap_mode: Gtk.WrapMode.WORD_CHAR,
@@ -360,6 +369,7 @@ export function textArea({text, onChange, monospace = false, minHeight = 80, pla
     hscrollbar_policy: Gtk.PolicyType.NEVER, css_classes: ['card', 'slated-textview'],
   });
   if (placeholder) view.set_tooltip_text(placeholder);
+  attachKey(scroller, key, {kind: 'widget'});
   return {
     widget: scroller,
     view,

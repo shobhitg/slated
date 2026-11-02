@@ -13,6 +13,8 @@ import {islandSettings, cheatSheetDelayItems, islandRowsSensitive, cheatSheetDel
 import {button, group, switchRow, comboRow, spinRow, commandRow, launchFile} from './widgets.js';
 import {openFileAction} from './overview.js';
 import {importSlateDialog, IMPORT_TITLE} from './slateimport.js';
+import {CONFIG_KEYS} from '../../core/index.js';
+import {noKey, setSubtitle, settingKey} from './configkeys.js';
 
 const REPEAT_ITEMS = [{id: 0.25, label: 'Short'}, {id: 0.4, label: 'Medium'}, {id: 0.7, label: 'Long'}];
 
@@ -76,12 +78,14 @@ export function createGeneralPane(ctx) {
       ctx.setEnabled(on);
     },
   });
+  // GNOME's own switch for the extension: not in Slated's files.
+  noKey(enabled.row, "the extension's GNOME switch");
   extension.add(enabled.row);
   // The Mac's menu bar icon: a click opens this window, a right click shows Slated's menu.
   const topBar = switchRow({
     title: 'Show Slated in the top bar',
     subtitle: 'Click the icon to open Slated; right-click it to pause Slated, turn the Hyper key on or off, or open the log. Slated is in your apps too.',
-    active: model.configuration.general.showStatusIcon !== false,
+    active: model.configuration.general.showStatusIcon !== false, key: settingKey(CONFIG_KEYS.showStatusIcon),
     onChange: on => model.update(config => {
       config.general.showStatusIcon = on;
     }),
@@ -94,7 +98,7 @@ export function createGeneralPane(ctx) {
   const hud = switchRow({
     title: 'Show what just happened',
     subtitle: 'Names the action each time a shortcut runs — in the island, or a small banner when the island is off. Handy while you learn your bindings.',
-    active: model.configuration.general.showActionHUD,
+    active: model.configuration.general.showActionHUD, key: settingKey(CONFIG_KEYS.showActionHUD),
     onChange: on => model.update(config => {
       config.general.showActionHUD = on;
     }),
@@ -111,24 +115,24 @@ export function createGeneralPane(ctx) {
   const islandOn = switchRow({
     title: 'Show the island',
     subtitle: 'Running automations, the active modal key and quick feedback appear at the top center of the screen. Hover over a running automation to stop it.',
-    active: island().enabled,
+    active: island().enabled, key: settingKey(CONFIG_KEYS.islandEnabled),
     onChange: on => setIsland('enabled', on),
   });
   const cheatSheet = switchRow({
     title: 'Hold Caps Lock to see your shortcuts',
     subtitle: 'Keep the Hyper key held for a moment to list every Hyper shortcut; after a modal key, its keys appear the same way.',
-    active: island().cheatSheet,
+    active: island().cheatSheet, key: settingKey(CONFIG_KEYS.islandCheatSheet),
     onChange: on => setIsland('cheatSheet', on),
   });
   const sheetDelay = comboRow({
     title: 'Cheat sheet delay', subtitle: cheatSheetDelayText(false),
-    items: cheatSheetDelayItems(island().cheatSheetDelay), selected: island().cheatSheetDelay,
+    items: cheatSheetDelayItems(island().cheatSheetDelay), selected: island().cheatSheetDelay, key: settingKey(CONFIG_KEYS.islandCheatSheetDelay),
     onChange: value => setIsland('cheatSheetDelay', value),
   });
   const failures = switchRow({
     title: "Explain shortcuts that can't run",
     subtitle: 'When a shortcut has nothing to act on — no window to move, say — the island briefly says why.',
-    active: island().showFailures,
+    active: island().showFailures, key: settingKey(CONFIG_KEYS.islandShowFailures),
     onChange: on => setIsland('showFailures', on),
   });
   for (const control of [islandOn, cheatSheet, sheetDelay, failures]) islandGroup.add(control.row);
@@ -140,7 +144,7 @@ export function createGeneralPane(ctx) {
   const leftToRight = switchRow({
     title: 'Number displays from left to right',
     subtitle: "Display 1 is the leftmost. Turn off to use GNOME's order, with the primary display first.",
-    active: bool(settings(), 'orderScreensLeftToRight', true),
+    active: bool(settings(), 'orderScreensLeftToRight', true), key: settingKey(CONFIG_KEYS.orderScreensLeftToRight),
     onChange: on => model.update(config => {
       config.windows.orderScreensLeftToRight = on;
     }),
@@ -149,6 +153,7 @@ export function createGeneralPane(ctx) {
   const repeat = comboRow({
     title: 'Repeat while held', subtitle: 'How long to hold a shortcut before it repeats, for operations that repeat.',
     items: repeatItems(number(settings(), 'secondsBeforeRepeat', 0.4)), selected: number(settings(), 'secondsBeforeRepeat', 0.4),
+    key: settingKey(CONFIG_KEYS.secondsBeforeRepeat),
     onChange: value => model.update(config => {
       config.windows.secondsBeforeRepeat = value;
     }),
@@ -156,7 +161,7 @@ export function createGeneralPane(ctx) {
   behavior.add(repeat.row);
   const undo = spinRow({
     title: 'Undo history', subtitle: 'How many window moves Undo can step back through.', min: 1, max: 50,
-    value: number(settings(), 'undoMaxStackSize', 10),
+    value: number(settings(), 'undoMaxStackSize', 10), key: settingKey(CONFIG_KEYS.undoMaxStackSize),
     onChange: value => model.update(config => {
       config.windows.undoMaxStackSize = Math.round(value);
     }),
@@ -174,7 +179,7 @@ export function createGeneralPane(ctx) {
     row.set_title_selectable(true);
     row.add_css_class('slated-mono-title');
     const open = openFileAction(ctx, file, prefs);
-    row.add_suffix(button(open.label, () => {
+    row.add_suffix(button(`Open ${file}`, () => {
       model.saveNow();
       open.run();
       model.log(file === 'settings.json' ? 'ui.open_settings' : 'ui.open_config');
@@ -182,6 +187,16 @@ export function createGeneralPane(ctx) {
     filesGroup.add(row);
     return row;
   };
+  // The keys under every setting, and the right-click menu that copies them.
+  const showKeys = switchRow({
+    title: 'Show config keys',
+    subtitle: 'Each setting’s key in config.json or settings.json, under its name. Right-click any setting to copy its key or value, or to open its file.',
+    active: model.configuration.general.showConfigKeys !== false, key: settingKey(CONFIG_KEYS.showConfigKeys),
+    onChange: on => model.update(config => {
+      config.general.showConfigKeys = on;
+    }),
+  });
+  filesGroup.add(showKeys.row);
   const configRow = fileRow('config.json', paths.configFile);
   const settingsRow = fileRow('settings.json', paths.settingsFile);
   const folderRow = new Adw.ActionRow({use_markup: false, title: 'Configuration folder', subtitle: configDir});
@@ -230,7 +245,7 @@ export function createGeneralPane(ctx) {
     enabled.set(shell.reachable ? shell.state === 'active' || shell.state === 'activating' : model.status.running);
     quiet = false;
     enabled.row.set_sensitive(shell.reachable && shell.known);
-    enabled.row.set_subtitle(!shell.reachable
+    setSubtitle(enabled.row, !shell.reachable
       ? "Couldn't reach GNOME Shell. Use the Extensions app to turn Slated on or off."
       : shell.userExtensionsEnabled === false
         ? "GNOME's Extensions switch is off, so no extension runs, Slated included. Overview has the button that turns it on."
@@ -238,6 +253,7 @@ export function createGeneralPane(ctx) {
         ? 'GNOME Shell loads Slated after you log out and back in.'
         : turningOffText(model.status.hyper.mode, fileExists(paths.keydConfig)));
     hud.set(model.configuration.general.showActionHUD);
+    showKeys.set(model.configuration.general.showConfigKeys !== false);
     topBar.set(model.configuration.general.showStatusIcon !== false);
     const isl = island();
     islandOn.set(isl.enabled);
@@ -250,7 +266,7 @@ export function createGeneralPane(ctx) {
     failures.row.set_sensitive(sensitive.showFailures);
     // keyd's tap for Escape stops at the delay (linux/install.sh writes it into keyd's config).
     const keydTap = model.running && model.status.hyper.mode === 'keyd' && model.configuration.keyboard.capsLockAlone === 'escape';
-    sheetDelay.row.set_subtitle(cheatSheetDelayText(keydTap));
+    setSubtitle(sheetDelay.row, cheatSheetDelayText(keydTap));
     leftToRight.set(bool(settings(), 'orderScreensLeftToRight', true));
     const delay = number(settings(), 'secondsBeforeRepeat', 0.4);
     repeat.setItems(repeatItems(delay), delay);

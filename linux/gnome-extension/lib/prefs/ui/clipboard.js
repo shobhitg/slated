@@ -16,6 +16,8 @@ import {
 } from '../automation.js';
 import {box, label, button, keycaps, pill, group, comboRow, switchRow} from './widgets.js';
 import {ShortcutRecorder} from './recorder.js';
+import {CONFIG_KEYS} from '../../core/index.js';
+import {groupKey, setSubtitle, settingKey} from './configkeys.js';
 import {appPickerButton, installedApps} from './apps.js';
 
 /** The hero's status pill: what clipboard history is doing right now. */
@@ -45,8 +47,8 @@ export function createClipboardPane(ctx) {
     });
   });
   statusHolder.append(enabled);
-  const hero = group({title: 'Clipboard History', suffix: statusHolder,
-    description: 'Everything you copy, a keystroke away: search it, pin favorites, paste it again.'});
+  const hero = group({title: 'Clipboard History', suffix: statusHolder});
+  groupKey(hero, settingKey(CONFIG_KEYS.clipboardEnabled), 'Everything you copy, a keystroke away: search it, pin favorites, paste it again.');
   const pressRow = new Adw.ActionRow({use_markup: false, title: 'Press in any app to bring it back', subtitle: ''});
   const pressKeys = box('horizontal', 0);
   pressRow.add_suffix(pressKeys);
@@ -59,6 +61,7 @@ export function createClipboardPane(ctx) {
   const shortcut = group({title: 'Shortcut'});
   const recorder = new ShortcutRecorder({
     title: 'Open the switcher', keys: clipboardSettings(model.configuration).shortcut ?? '', allowClear: true,
+    key: settingKey(CONFIG_KEYS.clipboardShortcut),
     subtitle: '', onChange: keys => setClipboard(c => {
       c.shortcut = keys || null;
     }),
@@ -69,7 +72,7 @@ export function createClipboardPane(ctx) {
   recorder.row.add_suffix(restore);
   shortcut.add(recorder.row);
   const paste = switchRow({
-    title: 'Paste after picking',
+    title: 'Paste after picking', key: settingKey(CONFIG_KEYS.clipboardPasteAfterSelecting),
     subtitle: 'Pick an item and Slated pastes it into the app you were using (Ctrl+V, or Ctrl+Shift+V in terminals). Off: it\'s only copied, ready for you to paste.',
     active: clipboardSettings(model.configuration).pasteAfterSelecting,
     onChange: on => setClipboard(c => {
@@ -86,6 +89,7 @@ export function createClipboardPane(ctx) {
   const settings0 = clipboardSettings(model.configuration);
   const maxItems = comboRow({
     title: 'Remember up to', subtitle: 'The oldest items make room for new ones.', items: itemChoices(settings0.maxItems), selected: settings0.maxItems,
+    key: settingKey(CONFIG_KEYS.clipboardMaxItems),
     onChange: n => setClipboard(c => {
       c.maxItems = n;
     }),
@@ -93,6 +97,7 @@ export function createClipboardPane(ctx) {
   history.add(maxItems.row);
   const retention = comboRow({
     title: 'Forget items after', subtitle: "Older items are removed, so history doesn't pile up.", items: dayChoices(settings0.retentionDays),
+    key: settingKey(CONFIG_KEYS.clipboardRetentionDays),
     selected: settings0.retentionDays,
     onChange: d => setClipboard(c => {
       c.retentionDays = d;
@@ -100,7 +105,7 @@ export function createClipboardPane(ctx) {
   });
   history.add(retention.row);
   const persist = switchRow({
-    title: 'Keep history across restarts', subtitle: '', active: settings0.persist,
+    title: 'Keep history across restarts', subtitle: '', active: settings0.persist, key: settingKey(CONFIG_KEYS.clipboardPersist),
     onChange: on => setClipboard(c => {
       c.persist = on;
     }),
@@ -108,7 +113,7 @@ export function createClipboardPane(ctx) {
   history.add(persist.row);
   // The Mac reads screenshots from the folder they're saved in; GNOME copies each one itself.
   const screenshots = switchRow({
-    title: 'Add screenshots to the history',
+    title: 'Add screenshots to the history', key: settingKey(CONFIG_KEYS.clipboardScreenshots),
     subtitle: 'GNOME copies every screenshot to the clipboard. Off: Slated leaves those copies out.',
     active: settings0.screenshots,
     onChange: on => setClipboard(c => {
@@ -122,7 +127,7 @@ export function createClipboardPane(ctx) {
   const privacy = group({title: 'Privacy',
     description: "Clipboard history never leaves this computer. Slated's log notes how long a copy was, never what it said."});
   const concealed = switchRow({
-    title: 'Ignore passwords and other secrets',
+    title: 'Ignore passwords and other secrets', key: settingKey(CONFIG_KEYS.clipboardIgnoreConcealed),
     subtitle: 'Password managers such as KeePassXC, and Firefox, mark what they copy as secret, and Slated skips those. Chrome and other Chromium browsers don’t, so what you copy there that looks like a password is skipped too.',
     active: settings0.ignoreConcealed,
     onChange: on => setClipboard(c => {
@@ -131,7 +136,8 @@ export function createClipboardPane(ctx) {
   });
   privacy.add(concealed.row);
   prefs.add(privacy);
-  const excluded = group({title: 'Never Record Copies From', description: "Anything copied in these apps stays out of your history."});
+  const excluded = group({title: 'Never Record Copies From'});
+  groupKey(excluded, settingKey(CONFIG_KEYS.clipboardExcludedApps), 'Anything copied in these apps stays out of your history.');
   const excludedApps = () => clipboardSettings(model.configuration).excludedApps ?? [];
   const isExcluded = id => excludedApps().some(a => normalizeAppId(a) === normalizeAppId(id));
   const exclude = id => {
@@ -239,16 +245,16 @@ export function createClipboardPane(ctx) {
     const conflicts = model.otherUsesOfBuiltIn('clipboard');
     const state = model.builtInState('clipboard');
     if (!settings.shortcut) {
-      recorder.row.set_subtitle('No shortcut: open it with a shortcut that runs Clipboard History.');
+      setSubtitle(recorder.row, 'No shortcut: open it with a shortcut that runs Clipboard History.');
       recorder.row.remove_css_class('slated-warning-row');
     } else if (conflicts.length) {
-      recorder.row.set_subtitle(`Also used by ${conflicts.join(', ')}, which wins over this shortcut.`);
+      setSubtitle(recorder.row, `Also used by ${conflicts.join(', ')}, which wins over this shortcut.`);
       recorder.row.add_css_class('slated-warning-row');
     } else if (state?.state === 'failed') {
-      recorder.row.set_subtitle(`GNOME didn't take it: ${state.reason}`);
+      setSubtitle(recorder.row, `GNOME didn't take it: ${state.reason}`);
       recorder.row.add_css_class('slated-warning-row');
     } else {
-      recorder.row.set_subtitle('Works in any app. Super is the key Slated calls cmd. Backspace while recording clears it.');
+      setSubtitle(recorder.row, 'Works in any app. Super is the key Slated calls cmd. Backspace while recording clears it.');
       recorder.row.remove_css_class('slated-warning-row');
     }
     paste.set(settings.pasteAfterSelecting);
@@ -256,7 +262,7 @@ export function createClipboardPane(ctx) {
     retention.setItems(dayChoices(settings.retentionDays), settings.retentionDays);
     persist.set(settings.persist);
     screenshots.set(settings.screenshots);
-    persist.row.set_subtitle(`Saved only on this computer, in ${tildify(ctx.paths.clipboardFile, ctx.paths.home)}, which only you can read. `
+    setSubtitle(persist.row, `Saved only on this computer, in ${tildify(ctx.paths.clipboardFile, ctx.paths.home)}, which only you can read. `
       + 'Off: history starts fresh each time Slated starts.');
     concealed.set(settings.ignoreConcealed);
     syncExcluded();

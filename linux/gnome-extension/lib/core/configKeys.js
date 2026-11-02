@@ -7,7 +7,7 @@
 // A key is {file, components}: components are {key: 'island'} or {index: 2, name: ';sig'|null} for an
 // item of a list (named by its natural key when that's unique, else by index).
 
-import {decodeConfiguration} from './config.js';
+import {formatKeyCombo, parseKeyCombo} from './keys.js';
 import {encodeConfigurationFiles, CONFIG_FILE, SETTINGS_FILE} from './configFiles.js';
 import {formatJSON, parseJSON5, quoteJSON} from './json.js';
 
@@ -206,9 +206,19 @@ export const NOT_SHOWN = Object.freeze({
 
 // --- Items' keys -------------------------------------------------------------------------------------
 
+/** Keys as the encoder writes them ("hyper+a"), or "" for none or keys it can't read. */
+function keysText(keys) {
+  try {
+    const combo = typeof keys === 'string' ? parseKeyCombo(keys) : keys;
+    return combo?.key ? formatKeyCombo(combo) : '';
+  } catch {
+    return '';
+  }
+}
+
 /** The binding at `index`, named by its keys when unique; one behind a modal key goes by index. */
 export function bindingKey(configuration, index) {
-  const names = decodeConfiguration(configuration).bindings.map((b) => (b.modal ? '' : b.keys));
+  const names = configuration.bindings.map((b) => (b.modal ? '' : keysText(b.keys)));
   return itemKey(LISTS.bindings, index, itemName(names, index));
 }
 
