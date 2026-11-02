@@ -34,7 +34,7 @@ struct GeneralPane: View {
         HStack(spacing: 16) {
           VStack(alignment: .leading, spacing: 3) {
             Text("Show what just happened").font(.system(size: 13, weight: .medium))
-            if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.showActionHUD.display) }
+            if model.showsConfigKeys { ConfigKeyCaption(key: ConfigKeys.showActionHUD) }
             Text(
               "Names the action each time a shortcut runs — in the notch island, or a small HUD when the island is "
                 + "off. Handy while you learn your bindings."
@@ -98,7 +98,7 @@ struct GeneralPane: View {
     HStack(alignment: .firstTextBaseline, spacing: 12) {
       Text(label).foregroundStyle(.secondary)
       Spacer(minLength: 8)
-      Text(displayPath(url.path))
+      LinkedText(displayPath(url.path), link: FileLink(file))
         .font(.system(size: 12, design: .monospaced))
         .textSelection(.enabled)
         .lineLimit(1)

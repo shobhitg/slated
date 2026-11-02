@@ -1006,7 +1006,7 @@ let uiSymbolContractTests = Suite(
             "shift",
             "sparkles", "square.stack.3d.up.fill", "stop.circle.fill", "stop.fill", "timeline.selection", "timer",
             "trash", "wand.and.stars", "xmark.circle.fill", "arrow.down.to.line", "arrow.up.to.line", "bolt.fill",
-            "magnifyingglass",
+            "magnifyingglass", "questionmark.folder.fill",
           ])
           for name in names.sorted() {
             expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "missing SF Symbol “\(name)”")

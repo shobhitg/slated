@@ -37,9 +37,9 @@ struct Notice<Actions: View>: View {
         .foregroundStyle(style.color)
         .frame(width: 18)
       VStack(alignment: .leading, spacing: 4) {
-        Text(title).font(.system(size: 12.5, weight: .semibold))
+        LinkedText(title).font(.system(size: 12.5, weight: .semibold))
         if let message {
-          Text(message)
+          LinkedText(message)
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -89,7 +89,7 @@ struct EmptyStateView<Actions: View>: View {
       .frame(height: 96)
       VStack(spacing: 6) {
         Text(title).font(.system(size: 16, weight: .semibold))
-        Text(message)
+        LinkedText(message)
           .font(.system(size: 12.5))
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)

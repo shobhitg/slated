@@ -6,10 +6,24 @@ extension AppModel {
   /// Whether settings show their keys (`general.showConfigKeys`).
   var showsConfigKeys: Bool { configuration.general.showConfigKeys }
 
-  func openConfigFile(_ file: ConfigFile) {
+  func openConfigFile(_ file: ConfigFile) { openFileLink(FileLink(file)) }
+
+  /// Opens a file the window names: a key's file, a link in a sentence, an Open button. When it isn't
+  /// there, a toast says so rather than nothing happening.
+  func openFileLink(_ link: FileLink) {
     // A pending edit goes to disk first, so the editor shows what the window shows.
-    if hasUnsavedChanges { saveNow() }
-    services.openConfigFile(file)
+    if link.configFile != nil || link.isFolder, hasUnsavedChanges { saveNow() }
+    if services.openFile(link) == .missing {
+      showToast(link.missingMessage, symbol: "questionmark.folder.fill", style: .info)
+    }
+  }
+
+  /// The window's handler for links in its text: a `slated-file://` link opens its file here and is
+  /// handled; any other URL isn't (the caller lets the system open it).
+  func openLink(_ url: URL) -> Bool {
+    guard let link = FileLink(url: url) else { return false }
+    openFileLink(link)
+    return true
   }
 
   /// Copies the key's path in its file: `island.cheatSheetDelay`, `hotstrings[2].replacement`.

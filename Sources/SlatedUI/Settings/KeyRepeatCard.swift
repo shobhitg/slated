@@ -151,5 +151,6 @@ struct KeyRepeatStatusLine: View {
 enum KeyRepeatText {
   static let logoutTitle = "Saved. macOS uses the new key repeat after you log out and back in."
   static let logoutMessage =
+    // file link: Notice's message (LinkedText)
     "Your setting is safe in config.json. macOS only reads it at login, so log out (or restart) when it suits you."
 }

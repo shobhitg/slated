@@ -9,6 +9,8 @@ let suites: [Suite] = [
   configKeyTests,
   configReloadTests,
   configKeyCoverageTests,
+  fileLinkTests,
+  fileLinkCoverageTests,
   keyRepeatTests,
   macKeyRepeatTests,
   capsLockLockTests,

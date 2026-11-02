@@ -14,9 +14,9 @@ struct SlateCompatibilityPane: View {
       HStack(alignment: .center, spacing: 16) {
         IconTile(symbol: "square.and.arrow.down", tint: SettingsPane.slate.tint, size: 36)
         VStack(alignment: .leading, spacing: 4) {
-          Text(model.slateConfigPath.map { "Import \($0)" } ?? "No Slate config here")
+          LinkedText(model.slateConfigPath.map { "Import \($0)" } ?? "No Slate config here")
             .font(.system(size: 14, weight: .semibold))
-          Text(detail)
+          LinkedText(detail)
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -41,6 +41,7 @@ struct SlateCompatibilityPane: View {
 
   private var detail: String {
     guard model.slateConfigPath != nil else {
+      // file link: LinkedText(detail)
       return "Slated looks for ~/.slate.js, then ~/.slate, in your home folder."
     }
     return "Shortcuts on keys Slated already uses are left out, so you can import again any time."
