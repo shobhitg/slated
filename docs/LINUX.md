@@ -159,6 +159,28 @@ Instead it prints the lines to add to yours. To remove the file the installer wr
 there, then run `sudo keyd reload`. keyd keeps Caps Lock as Hyper until then, even with Slated or its
 Hyper key turned off.
 
+Once Caps Lock is the Hyper key, no key can turn the Caps Lock lock off. So when Hyper comes on
+(Slated starts with it on, you turn it on, or the installer sets up keyd), Slated turns a lock that's
+on off first, by tapping Caps Lock on its own virtual keyboard (`hyper.caps_lock_cleared` in the
+log), and again whenever the lock comes on while Hyper is active. keyd remaps the real keyboards
+below GNOME, so it doesn't see that tap. With GNOME's option already set, the keyboard layout has no
+Caps Lock key to tap; if the lock is on then (rare), the log says so (`hyper.caps_lock_clear_failed`):
+turn the Hyper key off, press Caps Lock, and turn Hyper on again.
+
+### Key repeat
+
+**Settings → Keyboard → Key Repeat** sets how long a held key waits before it repeats and how fast
+it repeats then, the same as GNOME Settings → Keyboard → Repeat Keys, but saved in `config.json`
+(`keyboard.keyRepeat`, in milliseconds) so every computer you use Slated on gets the same, a Mac
+too. The extension writes GNOME's `org.gnome.desktop.peripherals.keyboard` settings (`repeat`,
+`delay`, `repeat-interval`) when they differ, and GNOME uses them right away. Turning the switch off
+leaves GNOME's setting as it is; disabling Slated doesn't undo it either.
+
+The first time this version runs on a computer, it copies GNOME's current key repeat into
+`config.json` if `config.json` has none, once (`~/.local/state/slated/key-repeat.json` remembers it,
+so turning the switch off sticks). With Repeat Keys off in GNOME it copies nothing, since applying a
+setting turns repeating on. **Use this computer's current setting** copies it again any time.
+
 With the tap on, a hold longer than the cheat-sheet delay isn't a tap, as on the Mac: letting go
 sends nothing, so looking at the cheat sheet never sends Escape. The installer sets keyd's
 `overload_tap_timeout` (in a `[global]` section) to `island.cheatSheetDelay`, between 0.15 and 1
@@ -234,7 +256,7 @@ login); afterwards it opens on the Overview, never on the page you left it on.
 | Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
 | Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, whether screenshots go in (GNOME copies each one to the clipboard, so the switch is about those copies), privacy (secrets, excluded apps), and the picker's keys. Shows how many items are saved |
 | Automation | What runs now, your automations, eleven recipes (auto-click, hold a button or key, sprint and crouch toggles, spam a key, click N times, double-click, a walk-then-click macro), the safety settings, and what GNOME does differently |
-| Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh |
+| Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh; key repeat (delay and rate, with a field to try it) |
 | Layouts | Arrange several apps at once |
 | General | Turn Slated on or off, Show Slated in the top bar, the action banner, the island (on or off, the Caps Lock cheat sheet and its delay, explaining shortcuts that can't run), window behavior, **Files** (where things live, **Open Config File**, **Open Settings File**, **Import Slate Config into Slated…**), the log, and this build |
 | About | Version, credits, license, and debug information for bug reports |
@@ -322,6 +344,7 @@ first.
 | `~/.local/state/slated/status.json` | Extension | What's running, read by the settings window (format below) |
 | `~/.local/state/slated/slated.log` | Extension and settings | The event log: JSON Lines with the same events as on the Mac (`app.start`, `action.done`, `config.saved`, `ui.*`…) |
 | `~/.local/state/slated/snapshots.json` | Extension | Saved window snapshots |
+| `~/.local/state/slated/key-repeat.json` | Extension | This computer's key repeat was copied into `config.json` once ([Key repeat](#key-repeat)). Delete it to copy it again on the next start (with no `keyRepeat` in `config.json`) |
 | `~/.local/state/slated/settings-window.json` | Settings | The settings window's own state: `{"setupFinished": true}` once Get Started is done (the Mac keeps this in its user defaults). Until then the extension opens the window on Get Started after login. Delete it to see Get Started again |
 | `~/.local/share/applications/io.github.shobhitg.Slated.desktop`, `~/.local/share/icons/hicolor/scalable/apps/io.github.shobhitg.Slated.svg` | `linux/install.sh` | Slated in your apps: opens the settings window (`gnome-extensions prefs`) |
 | `~/.local/state/slated/clipboard.json` | Extension | Clipboard history, readable only by you (mode 0600), in the Mac app's format. Not written when `clipboard.persist` is off |
@@ -339,6 +362,7 @@ throwaway home.
 ```json
 {"session": "abcd1234", "version": "0.1.0", "running": true, "paused": false, "updatedAt": "2026-10-22T18:00:00.000Z",
  "hyper": {"wanted": true, "mode": "xkb", "active": true, "keyd": "none"},
+ "keyRepeat": {"state": "applied", "delay": 200, "interval": 17},
  "hotstrings": {"engine": "espanso", "espansoInstalled": true, "matchFile": "~/.config/espanso/match/slated.yml", "count": 3},
  "hotkeys": {"hyper+a": "active", "hyper+q": "failed: <reason>", "hyper+w": "duplicate", "hyper+z": "disabled"},
  "screens": [{"displayID": 1, "name": "Built-in display", "isMain": true, "scale": 1,
@@ -353,6 +377,8 @@ throwaway home.
 - `paused` is Pause Slated, from the top bar's menu. `hyper.keyd` says whether keyd has Caps Lock
   (`running`), is set up for it but doesn't run (`stopped`), isn't set up for it (`none`), or is
   still being asked (`checking`).
+- `keyRepeat` is `config.json`'s `keyboard.keyRepeat` as GNOME got it: `applied`, `failed`, or `off`
+  (none set: GNOME's own setting stays, and `delay` and `interval` are null).
 - The keys in `hotkeys` are config key strings. For modal bindings, the modal key and a space come
   first: `"ctrl+alt+f4 1"`.
 - `screens` is optional, in top-left global coordinates. When it's there, previews use your real
@@ -375,6 +401,8 @@ throwaway home.
 | Global shortcuts | Carbon hot keys | GNOME Shell key bindings. Shortcuts GNOME already uses can't be taken and show as failed |
 | Hyper key (Caps Lock → ⌃⌥⇧⌘) | Built in (key remapping and an event tap) | GNOME's `caps:hyper` option, or keyd for the full Ctrl+Alt+Shift+Super |
 | Caps Lock tapped alone → Escape | ✓ | With keyd |
+| Caps Lock's lock turned off when Hyper comes on | ✓ (IOKit) | ✓ (a tap on the virtual keyboard, before GNOME's option takes the key) |
+| Key repeat (`keyboard.keyRepeat`) | Global defaults in 1/60 s ticks, live through `hidutil` when macOS allows it (else after logging out and in) | GNOME's keyboard settings, live at once |
 | Hotstrings | Built in, with per-app filters | Through espanso, which Slated keeps in sync. No per-app filters |
 | `insert-text`, `keystroke`, `open-url`, `shell` actions | ✓ | ✓ |
 | `~/.slate.js`, `~/.slate` | Imported once into `config.json` (JavaScriptCore runs the script on pretend Macs) | The same, with the settings window's importer (run on pretend desktops) |
@@ -382,7 +410,7 @@ throwaway home.
 | Settings | SwiftUI window | libadwaita window |
 | Status at a glance | Overview in Slated's window | Settings → Overview |
 | Opening Slated | Dock icon, Spotlight, menu bar icon; the window opens on Get Started until setup is done | App grid and Activities search, the top-bar icon; the window opens on Get Started after login until setup is done |
-| Status icon and its menu (Open Slated, Caps Lock → Hyper Key, Pause Slated, Reload, Open Config and Settings File, Show Log) | Menu bar | Top bar (`general.showStatusIcon` hides it; the Mac's icon doesn't follow that setting yet) |
+| Status icon and its menu (Open Slated, Caps Lock → Hyper Key, Pause Slated, Reload, Open Config and Settings File, Show Log) | Menu bar (`general.showStatusIcon` hides it) | Top bar (the same setting) |
 | First-run setup (Get Started) | Accessibility permission, Hyper key, Slate config (imported) | No permission. Hyper key (keyd recommended), espanso for hotstrings, Slate config (imported) |
 | Start at login | Login item | Runs with your session while the extension is enabled |
 | Permissions | Accessibility, granted once | None needed |
