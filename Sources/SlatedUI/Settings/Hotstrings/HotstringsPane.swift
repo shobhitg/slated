@@ -81,7 +81,7 @@ private struct MasterSwitch: View {
         .controlSize(.small)
         .configKeyMenu(ConfigKeys.hotstringsEnabled)
       }
-      if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.hotstringsEnabled.path) }
+      if model.showsConfigKeys { ConfigKeyCaption(text: ConfigKeys.hotstringsEnabled.display) }
     }
     .help("Turn all text expansion on or off. Each hotstring keeps its own setting.")
     .configKeyMenu(ConfigKeys.hotstringsEnabled)

@@ -366,7 +366,7 @@ export function createHotstringsPane(ctx) {
   const masterText = box('vertical', 0);
   masterText.set_valign(Gtk.Align.CENTER);
   masterText.append(label('Expansion', {classes: ['dim-label']}));
-  masterText.append(itemCaption(() => CONFIG_KEYS.hotstringsEnabled, {pathOnly: true}).widget);
+  masterText.append(itemCaption(() => CONFIG_KEYS.hotstringsEnabled).widget);
   masterBox.append(masterText);
   masterBox.append(master);
   attachKey(masterBox, settingKey(CONFIG_KEYS.hotstringsEnabled), {kind: 'widget'});
