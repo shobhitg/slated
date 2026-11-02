@@ -41,6 +41,7 @@ public final class PreviewServices: AppServices {
     case .configured, .brokenConfig:
       var config = SlatedConfiguration()
       config.keyboard.capsLock = .hyper
+      config.keyboard.keyRepeat = KeyRepeat(delay: 200, interval: 17)
       config.general.launchAtLogin = true
       config.general.showActionHUD = true
       config.bindings = PreviewData.bindings
@@ -52,7 +53,7 @@ public final class PreviewServices: AppServices {
       status = RuntimeStatus(
         accessibilityGranted: true, hyperKeyActive: true, hotstringsActive: true,
         lastAction: "Left Half · Safari", lastError: "Couldn't resize “Calculator”: its window has a fixed size.",
-        screenshots: .watching(folder: "Desktop"))
+        screenshots: .watching(folder: "Desktop"), keyRepeat: .applied)
       clipboard = ClipboardHistory(items: PreviewData.clipboard())
     case .firstRun:
       // As a first run leaves it: the Slate config, imported.
@@ -88,6 +89,29 @@ public final class PreviewServices: AppServices {
   }
 
   public func runtimeStatus() -> RuntimeStatus { status }
+
+  /// The sample Mac's key repeat: the author's.
+  public var systemKeyRepeat: KeyRepeat? = KeyRepeat(delay: 200, interval: 17)
+
+  public func currentSystemKeyRepeat() -> KeyRepeat? { systemKeyRepeat }
+
+  public func dismissMenuBarNotice() {
+    status.menuBarNoticeDismissed = true
+    notify()
+  }
+
+  /// What applying key repeat did, as the engine would report it.
+  public func setKeyRepeatState(_ state: KeyRepeatState?) {
+    status.keyRepeat = state
+    notify()
+  }
+
+  /// Where the menu bar icon is, as the app would report it.
+  public func setMenuBarIcon(_ state: MenuBarIconState) {
+    status.menuBarIcon = state
+    if state != .behindNotch { status.menuBarNoticeDismissed = false }
+    notify()
+  }
   public func slateConfigPath() -> String? { slateConfig }
 
   /// Like the app: adds what the sample ~/.slate.js has that Slated doesn't.

@@ -1,14 +1,16 @@
 import SlatedCore
 import SwiftUI
 
-/// The Karabiner-Elements part: Caps Lock as a Hyper key.
+/// The Karabiner-Elements part: Caps Lock as a Hyper key, and key repeat.
 struct KeyboardPane: View {
   @Environment(AppModel.self) private var model
 
   var body: some View {
     @Bindable var model = model
     PaneScroll {
-      PaneHeader(pane: .keyboard, subtitle: "Turn Caps Lock into a Hyper key — no kernel extension or driver needed.")
+      PaneHeader(
+        pane: .keyboard,
+        subtitle: "Turn Caps Lock into a Hyper key, and make held keys repeat as fast as you like — no driver needed.")
       HyperCard()
       SettingsCard(title: "Options", symbol: "slider.horizontal.3") {
         ToggleRow(
@@ -30,6 +32,7 @@ struct KeyboardPane: View {
       }
       .disabled(!model.hyperKeyEnabled)
       .opacity(model.hyperKeyEnabled ? 1 : 0.55)
+      KeyRepeatCard()
       SettingsCard(title: "Good to Know", symbol: "lightbulb") {
         SettingRow(
           title: "Secure Input pauses the Hyper key",

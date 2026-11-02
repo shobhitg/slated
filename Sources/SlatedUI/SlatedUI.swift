@@ -112,6 +112,15 @@ public enum SlatedUI {
     .tint(Theme.accent)
     .background(Theme.cardBackground)
   }
+
+  /// Settings → Keyboard's Key Repeat card on its own (in the pane it's below the fold).
+  @_spi(Snapshots) public static func makeKeyRepeatCard(model: AppModel) -> some View {
+    KeyRepeatCard()
+      .padding(20)
+      .environment(model)
+      .tint(Theme.accent)
+      .background(Theme.paneBackground)
+  }
 }
 
 @_spi(Snapshots) extension AppModel {

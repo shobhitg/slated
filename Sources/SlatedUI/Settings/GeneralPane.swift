@@ -12,12 +12,21 @@ struct GeneralPane: View {
         pane: .general,
         subtitle: "These settings are in ~/.config/slated/settings.json; shortcuts, hotstrings and the Hyper key "
           + "are in config.json beside it.")
-      SettingsCard(title: "Startup", symbol: "power") {
+      SettingsCard(title: "Startup and Menu Bar", symbol: "power") {
         ToggleRow(
           title: "Launch at login",
           subtitle: "Start Slated in the background when you log in, so your shortcuts are always ready.",
           symbol: "power", tint: Color(hex: 0x30B85A),
           isOn: Binding(get: { model.configuration.general.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
+        CardDivider(inset: 54)
+        ToggleRow(
+          title: "Show Slated in the menu bar",
+          subtitle: "Click the icon to open Slated, right-click it for a short menu. Without it, the Dock icon "
+            + "opens Slated.",
+          symbol: "menubar.rectangle", tint: Color(hex: 0x2F7BF5), isOn: $model.configuration.general.showStatusIcon)
+      }
+      if model.showsMenuBarNotice {
+        MenuBarNoticeCard()
       }
       SettingsCard(title: "Feedback", symbol: "sparkle") {
         HStack(spacing: 16) {

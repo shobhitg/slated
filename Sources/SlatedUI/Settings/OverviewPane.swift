@@ -11,6 +11,12 @@ struct OverviewPane: View {
       if let report = model.slateImportNotice {
         SlateImportNoticeCard(report: report)
       }
+      if model.showsMenuBarNotice {
+        MenuBarNoticeCard()
+      }
+      if model.showsKeyRepeatLogoutNotice {
+        KeyRepeatLogoutNoticeCard()
+      }
       RunningAutomationsCard(hidesWhenIdle: true)
         .animation(Theme.spring, value: model.activeAutomations.isEmpty)
       VStack(alignment: .leading, spacing: 10) {

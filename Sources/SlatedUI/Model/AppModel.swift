@@ -86,6 +86,8 @@ public final class AppModel {
   var toast: Toast?
   /// What the last import from Get Started or Settings did, shown there until the window closes.
   var lastSlateImport: SlateImportReport?
+  /// The key repeat setting whose log-out notice was dismissed in Overview (for this run).
+  var keyRepeatNoticeDismissedFor: KeyRepeat?
 
   /// How long to wait after the last edit before saving.
   @ObservationIgnored public var saveDelay: Duration = .milliseconds(450)
@@ -305,7 +307,8 @@ public final class AppModel {
 
   /// Which file couldn't be read, for messages: "config.json", "settings.json" or "config.json".
   var unreadableFileName: String {
-    loadError?.contains(ConfigFile.settings.rawValue) == true ? ConfigFile.settings.rawValue : ConfigFile.config.rawValue
+    loadError?.contains(ConfigFile.settings.rawValue) == true
+      ? ConfigFile.settings.rawValue : ConfigFile.config.rawValue
   }
 
   /// Saves pending edits, then asks the app to reload config.json and settings.json.

@@ -115,6 +115,16 @@ var shots: [Shot] = [
   },
   settings("settings-overview-running", pane: .overview, services: running),
   settings("settings-keyboard", pane: .keyboard),
+  // Key repeat saved, but macOS applies it only after logging out and in.
+  settings("settings-keyboard-logout", pane: .keyboard, services: { $0.setKeyRepeatState(.afterLogout) }),
+  // The menu bar is full and macOS put the icon behind the notch; the key repeat change waits for a login.
+  settings(
+    "settings-overview-notices", pane: .overview,
+    services: { services in
+      services.setMenuBarIcon(.behindNotch)
+      services.setKeyRepeatState(.afterLogout)
+    }),
+  settings("settings-general-hidden-icon", pane: .general, services: { $0.setMenuBarIcon(.behindNotch) }),
   settings("settings-layouts", pane: .layouts) { model in model.selectedLayout = .slated(name: "Coding") },
   settings("settings-slate", pane: .slate),
   settings("settings-general", pane: .general),
@@ -198,6 +208,16 @@ for recipe in ["auto-click-left", "toggle-sprint"] {
   shots.append(
     Shot(name: "automation-recipe-\(recipe)", size: CGSize(width: 470, height: 0)) {
       AnyView(SlatedUI.makeRecipeSheet(model: AppModel(services: PreviewServices()), recipeID: recipe))
+    })
+}
+
+// The Key Repeat card on its own: applied, and waiting for a login.
+for (name, state) in [("applied", KeyRepeatState.applied), ("logout", .afterLogout)] {
+  shots.append(
+    Shot(name: "keyboard-key-repeat-\(name)", size: CGSize(width: 760, height: 0)) {
+      let services = PreviewServices()
+      services.setKeyRepeatState(state)
+      return AnyView(SlatedUI.makeKeyRepeatCard(model: AppModel(services: services)))
     })
 }
 
