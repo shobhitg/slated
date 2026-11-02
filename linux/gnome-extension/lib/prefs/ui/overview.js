@@ -16,14 +16,14 @@ import {plural, formatList, truncate, singleLine, tildify} from '../util.js';
 import {box, label, button, icon, keycaps, pill, group, triggerChip, launchFile} from './widgets.js';
 import {slatedMark} from './about.js';
 import {importSlateDialog} from './slateimport.js';
+import {linkForFile} from '../filelinks.js';
+import {setLinkedLabel, setLinkedRow} from './filelinks.js';
 
-/** "Open Config File" or "Open Settings File" (the Mac's menu items), and the file it opens. */
-export function openFileAction(ctx, file, parent) {
-  const settings = file === 'settings.json';
-  const path = settings ? ctx.paths.settingsFile : ctx.paths.configFile;
+/** "Open Config File" or "Open Settings File" (the Mac's menu items), and the file it opens (as its links do). */
+export function openFileAction(ctx, file) {
   return {
-    label: settings ? 'Open Settings File' : 'Open Config File',
-    run: () => launchFile(path, parent, {onError: e => ctx.toast(e.message)}),
+    label: file === 'settings.json' ? 'Open Settings File' : 'Open Config File',
+    run: () => ctx.openLink(linkForFile(file)),
   };
 }
 
@@ -192,14 +192,14 @@ export function createOverviewPane(ctx) {
     greet.set_label(greeting().toUpperCase());
     if (model.loadError) {
       const file = model.loadErrorFile ?? 'config.json';
-      headline.set_label(`${file} needs a fix`);
-      detail.set_label(`Slated can't read ${file}, so it keeps running what it last loaded. Edits here won't be saved until the file is fixed.\n${model.loadError}`);
-      const open = openFileAction(ctx, file, prefs);
+      setLinkedLabel(headline, `${file} needs a fix`);
+      setLinkedLabel(detail, `Slated can't read ${file}, so it keeps running what it last loaded. Edits here won't be saved until the file is fixed.\n${model.loadError}`);
+      const open = openFileAction(ctx, file);
       primaryAction = open.run;
       primary.set_label(open.label);
       primary.set_visible(true);
     } else {
-      headline.set_label(summary.title);
+      setLinkedLabel(headline, summary.title);
       let text = summary.detail;
       if (summary.level === 'ok') {
         const parts = [plural(counts.active, 'shortcut')];
@@ -207,7 +207,7 @@ export function createOverviewPane(ctx) {
         if (status.hyper.active) parts.push('the Hyper key');
         text = `${formatList(parts)} ${parts.length === 1 && counts.active === 1 ? 'is' : 'are'} live.`;
       }
-      detail.set_label(text ?? '');
+      setLinkedLabel(detail, text ?? '');
       const action = actions[summary.action];
       primary.set_visible(Boolean(action));
       if (action) {
@@ -227,8 +227,7 @@ export function createOverviewPane(ctx) {
     const notice = model.migrationNotice(tildify(ctx.paths.configFile, ctx.paths.home));
     noticeGroup.set_visible(Boolean(notice));
     if (notice) {
-      noticeRow.set_title(notice.text);
-      noticeRow.set_subtitle(notice.unconvertible ?? '');
+      setLinkedRow(noticeRow, {title: notice.text, subtitle: notice.unconvertible ?? ''});
     }
     const hyperOn = config.keyboard.capsLock === 'hyper';
 

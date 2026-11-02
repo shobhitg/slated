@@ -15,6 +15,8 @@ import {openFileAction} from './overview.js';
 import {importSlateDialog, IMPORT_TITLE} from './slateimport.js';
 import {CONFIG_KEYS} from '../../core/index.js';
 import {noKey, setSubtitle, settingKey} from './configkeys.js';
+import {linkForFile, linkMarkup} from '../filelinks.js';
+import {setLinkedDescription, setLinkedRow, wireLinks} from './filelinks.js';
 
 const REPEAT_ITEMS = [{id: 0.25, label: 'Short'}, {id: 0.4, label: 'Medium'}, {id: 0.7, label: 'Long'}];
 
@@ -139,7 +141,7 @@ export function createGeneralPane(ctx) {
   prefs.add(islandGroup);
 
   // Window behavior (Slate's own settings)
-  const behavior = group({title: 'Window Behavior', description: "Slate's window settings, kept in settings.json under \"windows\"."});
+  const behavior = setLinkedDescription(group({title: 'Window Behavior'}), "Slate's window settings, kept in settings.json under \"windows\".");
   const settings = () => model.configuration.windows;
   const leftToRight = switchRow({
     title: 'Number displays from left to right',
@@ -171,19 +173,19 @@ export function createGeneralPane(ctx) {
 
   // Files: what your keys do (config.json), how Slated behaves (settings.json), and the Slate import.
   const configDir = tildify(paths.configDir, home);
-  const filesGroup = group({title: 'Files',
-    description: `Shortcuts, hotstrings and the Hyper key are in ${tildify(paths.configFile, home)}; these settings are in settings.json, next to it.`,
-    suffix: button('', () => ctx.reload(), {icon: 'view-refresh-symbolic', classes: ['flat'], tooltip: 'Reload config.json and settings.json'})});
+  const filesGroup = setLinkedDescription(group({title: 'Files',
+    suffix: button('', () => ctx.reload(), {icon: 'view-refresh-symbolic', classes: ['flat'], tooltip: 'Reload config.json and settings.json'})}),
+  `Shortcuts, hotstrings and the Hyper key are in ${tildify(paths.configFile, home)}; these settings are in settings.json, next to it.`);
   const fileRow = (file, path) => {
-    const row = new Adw.ActionRow({use_markup: false, title: tildify(path, home), subtitle: '', subtitle_selectable: false});
+    // The path is a link to the file too, whatever folder it's in.
+    const row = new Adw.ActionRow({use_markup: false, title: '', subtitle: '', subtitle_selectable: false});
+    row.set_use_markup(true);
+    row.set_title(linkMarkup(tildify(path, home), linkForFile(file)));
     row.set_title_selectable(true);
     row.add_css_class('slated-mono-title');
-    const open = openFileAction(ctx, file, prefs);
-    row.add_suffix(button(`Open ${file}`, () => {
-      model.saveNow();
-      open.run();
-      model.log(file === 'settings.json' ? 'ui.open_settings' : 'ui.open_config');
-    }, {classes: ['flat']}));
+    wireLinks(row);
+    const open = openFileAction(ctx, file);
+    row.add_suffix(button(`Open ${file}`, () => open.run(), {classes: ['flat']}));
     filesGroup.add(row);
     return row;
   };
@@ -199,14 +201,15 @@ export function createGeneralPane(ctx) {
   filesGroup.add(showKeys.row);
   const configRow = fileRow('config.json', paths.configFile);
   const settingsRow = fileRow('settings.json', paths.settingsFile);
-  const folderRow = new Adw.ActionRow({use_markup: false, title: 'Configuration folder', subtitle: configDir});
+  const folderRow = setLinkedRow(new Adw.ActionRow({use_markup: false, title: 'Configuration folder', subtitle: ''}), {subtitle: configDir});
   folderRow.add_suffix(button('Show in Files', () => {
     launchFile(paths.configFile, prefs, {folder: true, onError: e => ctx.toast(e.message)});
     model.log('ui.reveal_config');
   }, {classes: ['flat']}));
   filesGroup.add(folderRow);
-  const importRow = new Adw.ActionRow({use_markup: false, title: 'Slate config',
-    subtitle: "Slated doesn't read ~/.slate.js or ~/.slate. Import one to turn its shortcuts into Slated's; shortcuts Slated already has are left alone."});
+  const importRow = new Adw.ActionRow({use_markup: false, title: 'Slate config', subtitle: ''});
+  const importText = "Slated doesn't read ~/.slate.js or ~/.slate. Import one to turn its shortcuts into Slated's; shortcuts Slated already has are left alone.";
+  setLinkedRow(importRow, {subtitle: importText});
   importRow.set_subtitle_lines(0);
   importRow.add_suffix(button(IMPORT_TITLE, () => importSlateDialog(ctx), {classes: ['flat']}));
   filesGroup.add(importRow);
@@ -275,8 +278,10 @@ export function createGeneralPane(ctx) {
     const fileState = file => (model.loadError
       ? (model.loadErrorFile === file ? `Can't be read: ${model.loadError}` : 'Saving paused')
       : model.firstRun ? 'Not created yet: your first change creates it.' : save.text);
-    configRow.set_subtitle(fileState('config.json'));
-    settingsRow.set_subtitle(fileState('settings.json'));
+    setLinkedRow(configRow, {subtitle: fileState('config.json')});
+    setLinkedRow(settingsRow, {subtitle: fileState('settings.json')});
+    // The Slate files are links while there's a Slate config to open.
+    setLinkedRow(importRow, {subtitle: importText});
     const build = model.build;
     versionRow.set_subtitle(build?.version ?? ctx.ext.metadata?.['version-name'] ?? String(ctx.ext.metadata?.version ?? 'Development build'));
     commitRow.set_subtitle(build?.commit ?? 'Unknown (not installed with linux/install.sh)');

@@ -11,6 +11,7 @@ import {matchingPreset} from '../presets.js';
 import {kindById, kindOf} from '../actions.js';
 import {escapeMarkup} from '../util.js';
 import {attachKey} from './configkeys.js';
+import {setLinkedLabel} from './filelinks.js';
 
 // --- Text and layout --------------------------------------------------------------------------------
 
@@ -120,8 +121,9 @@ export function notice({level = 'info', title, detail = null, iconName = null, a
   card.append(image);
   const texts = box('vertical', 4);
   texts.set_hexpand(true);
-  const titleLabel = label(title, {classes: ['heading'], wrap: true});
-  const detailLabel = label(detail ?? '', {wrap: true, selectable: true});
+  // File names in the title and detail open the file (filelinks.js).
+  const titleLabel = setLinkedLabel(label('', {classes: ['heading'], wrap: true}), title);
+  const detailLabel = setLinkedLabel(label('', {wrap: true, selectable: true}), detail ?? '');
   detailLabel.set_visible(Boolean(detail));
   texts.append(titleLabel);
   texts.append(detailLabel);
@@ -140,8 +142,8 @@ export function notice({level = 'info', title, detail = null, iconName = null, a
       for (const l of Object.keys(NOTICE_ICONS)) card.remove_css_class(l);
       card.add_css_class(newLevel);
       image.set_from_icon_name(iconName ?? NOTICE_ICONS[newLevel] ?? NOTICE_ICONS.info);
-      titleLabel.set_label(newTitle);
-      detailLabel.set_label(newDetail ?? '');
+      setLinkedLabel(titleLabel, newTitle);
+      setLinkedLabel(detailLabel, newDetail ?? '');
       detailLabel.set_visible(Boolean(newDetail));
     },
   };
