@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
   private var signalSources: [DispatchSourceSignal] = []
   private lazy var clipboardPanel = ClipboardPanel(services: LiveServices.forClipboardSwitcher(engine))
   private var modalActive = false
+  /// The icon's variant on screen, so it's redrawn only when it changes.
+  private var shownGlyph: StatusGlyph?
+  private var statusItemObservers: [NSObjectProtocol] = []
   /// Accessibility permission as last reported, to notice the moment it's switched on.
   private var accessibilityGranted = false
 
@@ -40,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     setUpStatusItem()
     accessibilityGranted = engine.status.accessibilityGranted
     engine.onChange { [weak self] in
+      self?.applyStatusIconVisibility()
       self?.refreshStatusIcon()
       self?.clipboardPanel.refresh()
       self?.noticeAccessibilityGrant()
@@ -176,21 +180,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
     item.button?.toolTip = "Slated: click to open, right-click for the menu"
     statusItem = item
+    // Where macOS puts the icon changes as other apps add or remove theirs (its window moves), and
+    // with the displays.
+    let center = NotificationCenter.default
+    if let window = item.button?.window {
+      for name in [NSWindow.didMoveNotification, NSWindow.didChangeOcclusionStateNotification] {
+        statusItemObservers.append(
+          center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkMenuBarIcon() }
+          })
+      }
+    }
+    statusItemObservers.append(
+      center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) {
+        [weak self] _ in
+        MainActor.assumeIsolated { self?.checkMenuBarIcon() }
+      })
+    applyStatusIconVisibility()
     refreshStatusIcon()
+    // The menu bar lays the icon out after launch; look again once it has.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.checkMenuBarIcon() }
+  }
+
+  /// `general.showStatusIcon`: without the icon, the Dock icon opens Slated.
+  private func applyStatusIconVisibility() {
+    guard let item = statusItem else { return }
+    let show = engine.configuration.general.showStatusIcon
+    if item.isVisible != show {
+      item.isVisible = show
+      Log.record("menubar.icon_visibility", ["shown": show])
+    }
+    checkMenuBarIcon()
+  }
+
+  /// Whether macOS put the icon behind the camera notch (a full menu bar), for the notice in Overview
+  /// and General. Public API only: the icon's window frame against the screen's unobscured areas.
+  private func checkMenuBarIcon() {
+    guard let item = statusItem, item.isVisible else {
+      engine.setMenuBarIcon(.off)
+      return
+    }
+    guard let window = item.button?.window else { return }
+    let frame = window.frame
+    guard let screen = window.screen ?? NSScreen.screens.first(where: { $0.frame.intersects(frame) }) else { return }
+    let behind = MenuBarPlacement.isBehindNotch(
+      itemFrame: Screens.topLeftRect(fromAppKit: frame), screenFrame: Screens.topLeftRect(fromAppKit: screen.frame),
+      topLeftArea: screen.auxiliaryTopLeftArea, topRightArea: screen.auxiliaryTopRightArea)
+    var details: [String: Any] = [
+      "x": Int(frame.minX - screen.frame.minX), "width": Int(frame.width), "screenWidth": Int(screen.frame.width),
+    ]
+    if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+      details["notch"] = "\(Int(left.width))-\(Int(screen.frame.width - right.width))"
+    }
+    engine.setMenuBarIcon(behind ? .behindNotch : .shown, details: details)
+  }
+
+  private var statusWarnings: [String] {
+    StatusGlyph.warnings(loadError: engine.store.loadError, hotkeys: engine.status.hotkeys, conflicts: engine.warnings)
   }
 
   private func refreshStatusIcon() {
-    let symbol: String
-    if engine.isPaused {
-      symbol = "pause.rectangle"
-    } else if modalActive {
-      symbol = "rectangle.split.2x2.fill"  // Slate showed modal mode in the menu bar; so do we.
-    } else {
-      symbol = "rectangle.split.2x2"
-    }
-    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Slated")
-    image?.isTemplate = true
-    statusItem?.button?.image = image
+    let glyph = StatusGlyph.variant(paused: engine.isPaused, modal: modalActive, warnings: statusWarnings)
+    guard glyph != shownGlyph else { return }
+    shownGlyph = glyph
+    statusItem?.button?.image = glyph.image()
   }
 
   /// Left click: the main window. Right click (or ⌃-click): a small classic menu.
@@ -208,12 +261,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
   private func showStatusMenu() {
     let status = engine.status
     let menu = NSMenu()
-    let header = NSMenuItem(
-      title: status.accessibilityGranted ? "Slated is running" : "Slated needs Accessibility access", action: nil,
-      keyEquivalent: "")
+    let title =
+      !status.accessibilityGranted
+      ? "Slated needs Accessibility access" : status.paused ? "Slated is paused" : "Slated is running"
+    let header = NSMenuItem(title: title, action: nil, keyEquivalent: "")
     header.isEnabled = false
     menu.addItem(header)
-    for warning in engine.warnings {
+    for warning in statusWarnings {
       let item = NSMenuItem(title: "⚠︎ \(warning)", action: nil, keyEquivalent: "")
       item.isEnabled = false
       menu.addItem(item)

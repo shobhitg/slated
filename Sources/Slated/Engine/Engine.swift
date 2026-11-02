@@ -37,6 +37,18 @@ final class Engine {
     LiveTriggers(store.configuration, paused: pausedByUser, recording: suspendedForRecording)
   }
   private var capsLockRemapped = false
+  /// The Caps Lock lock was checked since the Hyper key came on (it's turned off then: see
+  /// `CapsLockLock`).
+  private var capsLockCheckedForHyper = false
+  /// The real lock; a stand-in never touches the keyboard.
+  var capsLock = CapsLockLock.system
+  private var flagsMonitors: [Any] = []
+  /// Turning the lock off failed and was logged; not again until it works (every modifier key would).
+  private var capsLockClearFailed = false
+  /// The Mac's key repeat (`keyboard.keyRepeat`).
+  let keyRepeat = MacKeyRepeat()
+  /// The setting last applied, so only changes are applied; nil while Slated leaves it alone.
+  private var appliedKeyRepeat: KeyRepeat?
   private var observers: [NSObjectProtocol] = []
   /// Last logged keyboard state ("tap on, hyper on …"), so only changes are logged.
   private var loggedKeyboardState = ""
@@ -50,6 +62,7 @@ final class Engine {
   var mode = "app"
 
   func start() {
+    status.menuBarNoticeDismissed = UserDefaults.standard.bool(forKey: Self.menuBarNoticeDismissedKey)
     Diagnostics.checkPreviousRun()
     var startInfo = Diagnostics.build.merging(Diagnostics.system) { a, _ in a }
     startInfo["accessibility"] = Permissions.isAccessibilityTrusted
@@ -136,6 +149,8 @@ final class Engine {
       }
     }
     apply()
+    captureKeyRepeat()
+    watchCapsLock()
     // Permission can be granted or revoked at any time in System Settings; react within a second.
     permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.checkPermission() }
@@ -247,6 +262,7 @@ final class Engine {
     island.apply(config.island)
     refreshAutomationStatus()
     applyKeyboard()
+    applyKeyRepeat()
     warnings = Self.detectConflicts(hyperWanted: config.keyboard.capsLock == .hyper)
     if warnings != loggedWarnings {
       loggedWarnings = warnings
@@ -327,6 +343,13 @@ final class Engine {
     // Only remap Caps Lock while the tap is there to turn F18 into Hyper; otherwise the key
     // would go dead.
     let remap = wantsHyper && tapRunning
+    // A Caps Lock lock that's on would stay on once the key is F18: turn it off first.
+    if remap && !capsLockCheckedForHyper {
+      capsLockCheckedForHyper = true
+      clearCapsLock(reason: capsLockRemapped ? "hyper already on" : "hyper turned on")
+    } else if !remap {
+      capsLockCheckedForHyper = false
+    }
     var remapFailed = false
     if remap != capsLockRemapped {
       if HIDRemapper.setCapsLockRemapped(remap, record: SlatedPaths.capsLockRecordURL) {
@@ -374,6 +397,140 @@ final class Engine {
     status.hotstringsActive = wantsHotstrings && tapRunning
     status.hotstringsEnabled = config.general.hotstringsEnabled
     status.paused = pausedByUser
+  }
+
+  // MARK: Caps Lock under the Hyper key
+
+  /// Turns the Caps Lock lock off if it's on (see `CapsLockLock`).
+  private func clearCapsLock(reason: String) {
+    guard allowsKeyboardChanges else { return }
+    let outcome = capsLock.clearIfOn()
+    defer { capsLockClearFailed = outcome == .failed }
+    switch outcome {
+    case .wasOff: break
+    case .cleared: Log.record("hyper.caps_lock_cleared", level: .notice, ["reason": reason])
+    case .failed:
+      guard !capsLockClearFailed else { return }
+      Log.error(
+        "hyper.caps_lock_clear_failed", "Couldn't turn Caps Lock off",
+        ["reason": reason, "advice": "Turn the Hyper key off, press Caps Lock, then turn it on again"])
+    }
+  }
+
+  /// The lock coming on while the Hyper key is active: nothing physical can do that then (an app
+  /// might, or a keyboard reconnecting), and no key could turn it off again.
+  private func watchCapsLock() {
+    guard allowsKeyboardChanges, flagsMonitors.isEmpty else { return }
+    let handle: (NSEvent) -> Void = { [weak self] event in
+      guard event.modifierFlags.contains(.capsLock) else { return }
+      MainActor.assumeIsolated {
+        guard let self, self.capsLockRemapped else { return }
+        self.clearCapsLock(reason: "caps lock turned on")
+      }
+    }
+    if let global = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: handle) {
+      flagsMonitors.append(global)
+    }
+    if let local = NSEvent.addLocalMonitorForEvents(
+      matching: .flagsChanged,
+      handler: { event in
+        handle(event)
+        return event
+      })
+    {
+      flagsMonitors.append(local)
+    }
+  }
+
+  // MARK: Key repeat
+
+  /// Under Slated's own defaults: the Mac's key repeat was copied into config.json once.
+  static let keyRepeatCapturedKey = "keyRepeatCaptured"
+
+  /// The first launch of this version on this Mac: copies the Mac's key repeat into config.json when
+  /// it has none, so the setting travels with the file. Once per Mac, whether or not config.json had
+  /// one (copied from another computer), so turning the setting off later sticks. Never while
+  /// config.json can't be read: that would write over the user's file.
+  private func captureKeyRepeat() {
+    let defaults = UserDefaults.standard
+    guard allowsKeyboardChanges, store.loadError == nil, !defaults.bool(forKey: Self.keyRepeatCapturedKey) else {
+      return
+    }
+    var config = store.configuration
+    guard KeyRepeat.shouldCapture(configured: config.keyboard.keyRepeat, capturedBefore: false) else {
+      defaults.set(true, forKey: Self.keyRepeatCapturedKey)
+      return
+    }
+    guard let current = keyRepeat.current() else {
+      Log.record("keyboard.key_repeat_not_captured", level: .notice, ["reason": "couldn't read this Mac's setting"])
+      return
+    }
+    config.keyboard.keyRepeat = current
+    do {
+      try save(config)
+    } catch {
+      return  // logged by save; tried again next launch
+    }
+    defaults.set(true, forKey: Self.keyRepeatCapturedKey)
+    Log.record("keyboard.key_repeat_captured", level: .notice, ["delay": current.delay, "interval": current.interval])
+  }
+
+  /// Sets `keyboard.keyRepeat` on the Mac when it changed (`recheck`: also when it didn't, after
+  /// waking up). Absent, the Mac's setting is left alone, and nothing is undone.
+  private func applyKeyRepeat(recheck: Bool = false) {
+    guard allowsKeyboardChanges else { return }
+    guard let wanted = store.configuration.keyboard.keyRepeat else {
+      appliedKeyRepeat = nil
+      status.keyRepeat = nil
+      return
+    }
+    guard recheck || wanted != appliedKeyRepeat else { return }
+    let before = (appliedKeyRepeat, status.keyRepeat)
+    let result = keyRepeat.apply(wanted)
+    appliedKeyRepeat = wanted
+    status.keyRepeat = result.state
+    guard before.0 != wanted || before.1 != result.state else { return }
+    let data: [String: Any] = [
+      "delay": wanted.delay, "interval": wanted.interval, "live": result.state == .applied,
+      "changed": result.wroteDefaults || result.wroteLive,
+    ]
+    if case .failed(let message) = result.state {
+      Log.error("keyboard.key_repeat_failed", message, data)
+    } else {
+      Log.record("keyboard.key_repeat_applied", level: .notice, data)
+    }
+  }
+
+  /// This Mac's key repeat now (Settings' "Use this Mac's current setting").
+  func currentKeyRepeat() -> KeyRepeat? { keyRepeat.current() }
+
+  // MARK: Menu bar icon
+
+  static let menuBarNoticeDismissedKey = "menuBarNoticeDismissed"
+
+  /// Where the menu bar icon is (AppDelegate works it out). Logged once per change.
+  func setMenuBarIcon(_ state: MenuBarIconState, details: [String: Any] = [:]) {
+    guard state != status.menuBarIcon else { return }
+    let before = status.menuBarIcon
+    status.menuBarIcon = state
+    switch state {
+    case .behindNotch:
+      Log.record("menubar.icon_hidden", level: .notice, details)
+    case .shown:
+      if before == .behindNotch { Log.record("menubar.icon_visible", details) }
+      // Shown again: a later move behind the notch says so again.
+      UserDefaults.standard.removeObject(forKey: Self.menuBarNoticeDismissedKey)
+    case .off:
+      break
+    }
+    status.menuBarNoticeDismissed = UserDefaults.standard.bool(forKey: Self.menuBarNoticeDismissedKey)
+    notify()
+  }
+
+  func dismissMenuBarNotice() {
+    UserDefaults.standard.set(true, forKey: Self.menuBarNoticeDismissedKey)
+    status.menuBarNoticeDismissed = true
+    notify()
   }
 
   private func checkPermission() {
@@ -524,7 +681,9 @@ final class Engine {
         MainActor.assumeIsolated {
           Log.record("system.wake")
           self?.capsLockRemapped = false
+          self?.capsLockCheckedForHyper = false
           self?.applyKeyboard()
+          self?.applyKeyRepeat(recheck: true)
         }
       })
     observers.append(

@@ -48,11 +48,18 @@ public struct RuntimeStatus: Hashable, Sendable {
   public var lastError: String?
   /// Whether screenshots saved as files reach the clipboard history (`clipboard.screenshots`).
   public var screenshots: ScreenshotFolderStatus
+  /// What setting `keyboard.keyRepeat` did; nil while Slated leaves key repeat alone.
+  public var keyRepeat: KeyRepeatState?
+  /// Where Slated's menu bar icon is.
+  public var menuBarIcon: MenuBarIconState
+  /// The notice about an icon behind the notch was dismissed (until the icon shows again).
+  public var menuBarNoticeDismissed: Bool
 
   public init(
     accessibilityGranted: Bool = false, hyperKeyActive: Bool = false, hotstringsEnabled: Bool = true,
     hotstringsActive: Bool = false, paused: Bool = false, hotkeys: [String: HotkeyStatus] = [:],
-    lastAction: String? = nil, lastError: String? = nil, screenshots: ScreenshotFolderStatus = .off
+    lastAction: String? = nil, lastError: String? = nil, screenshots: ScreenshotFolderStatus = .off,
+    keyRepeat: KeyRepeatState? = nil, menuBarIcon: MenuBarIconState = .shown, menuBarNoticeDismissed: Bool = false
   ) {
     self.accessibilityGranted = accessibilityGranted
     self.hyperKeyActive = hyperKeyActive
@@ -63,7 +70,19 @@ public struct RuntimeStatus: Hashable, Sendable {
     self.lastAction = lastAction
     self.lastError = lastError
     self.screenshots = screenshots
+    self.keyRepeat = keyRepeat
+    self.menuBarIcon = menuBarIcon
+    self.menuBarNoticeDismissed = menuBarNoticeDismissed
   }
+}
+
+/// Slated's icon in the menu bar.
+public enum MenuBarIconState: Hashable, Sendable {
+  case shown
+  /// The menu bar is full and macOS put the icon behind the camera notch.
+  case behindNotch
+  /// Turned off (`general.showStatusIcon`).
+  case off
 }
 
 /// The screenshot folder clipboard history watches. `folder` is its name ("Desktop").
@@ -128,6 +147,11 @@ public protocol AppServices: AnyObject {
   /// The app keeps it across launches; reflected in `RuntimeStatus.hotstringsEnabled`.
   func setHotstringsEnabled(_ enabled: Bool)
   func setLaunchAtLogin(_ enabled: Bool) throws
+  /// This computer's key repeat right now, for "Use this Mac's current setting"; nil when it can't be
+  /// read.
+  func currentSystemKeyRepeat() -> KeyRepeat?
+  /// Hides the notice about the menu bar icon behind the notch until the icon shows again.
+  func dismissMenuBarNotice()
   /// Get Started was finished once. The app keeps it across launches; until then the main window
   /// opens on Get Started.
   var setupFinished: Bool { get set }
@@ -187,4 +211,6 @@ extension AppServices {
   /// Every copied file is still there by default (test doubles).
   public func clipboardFileMissing(_ path: String) -> Bool { false }
   public func openFilesAndFoldersSettings() {}
+  public func currentSystemKeyRepeat() -> KeyRepeat? { nil }
+  public func dismissMenuBarNotice() {}
 }

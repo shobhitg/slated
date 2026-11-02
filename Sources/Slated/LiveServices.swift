@@ -101,6 +101,18 @@ class LiveServices: AppServices {
 
   func setLaunchAtLogin(_ enabled: Bool) throws { try engine.setLaunchAtLogin(enabled) }
 
+  func currentSystemKeyRepeat() -> KeyRepeat? {
+    let current = engine.currentKeyRepeat()
+    // Only the numbers: they're a preference, not anything typed.
+    Log.record("ui.key_repeat_read", ["delay": current?.delay ?? -1, "interval": current?.interval ?? -1])
+    return current
+  }
+
+  func dismissMenuBarNotice() {
+    Log.record("ui.menubar_notice_dismissed")
+    engine.dismissMenuBarNotice()
+  }
+
   /// Under the key the old onboarding window used, so a Mac that finished it isn't asked again.
   static let setupFinishedKey = "onboardingCompleted"
 
