@@ -45,6 +45,28 @@ import {STEPS, parseWindowState, windowStateText, startingPane} from './getstart
 
 /** @typedef {{setTimeout: (fn: () => void, ms: number) => any, clearTimeout: (handle: any) => void}} Scheduler */
 
+/** Slated's two files, in the order messages name them. */
+const FILES = Object.freeze(['config.json', 'settings.json']);
+const SETTINGS_PARTS = Object.freeze(['general', 'windows', 'clipboard', 'automation', 'island']);
+/** How long "Updated from config.json" stays beside the save status. */
+const UPDATED_NOTICE_MS = 4000;
+
+const inFile = (key, file) => key !== 'version' && SETTINGS_PARTS.includes(key) === (file === 'settings.json');
+const extrasKey = file => (file === 'settings.json' ? 'settings' : 'config');
+
+/** The part of a configuration that `file` holds (config.json's unknown keys included). */
+function filePart(configuration, file) {
+  const out = {};
+  for (const key of Object.keys(configuration)) if (inFile(key, file)) out[key] = configuration[key];
+  return out;
+}
+
+/** Replaces `target`'s part for `file` with `source`'s (configuration.adopt in Swift). */
+function adoptFile(target, source, file) {
+  for (const key of Object.keys(target)) if (inFile(key, file) && !(key in source)) delete target[key];
+  for (const [key, value] of Object.entries(filePart(source, file))) target[key] = clone(value);
+}
+
 export class PrefsModel extends Emitter {
   /**
    * @param {object} options
@@ -72,6 +94,16 @@ export class PrefsModel extends Emitter {
     this.loadError = null;
     /** The file `loadError` is about: "config.json" or "settings.json". */
     this.loadErrorFile = null;
+    /**
+     * Files that changed on disk while the window had unsaved edits in them ("config.json",
+     * "settings.json"). A banner asks which version wins; saving waits until then.
+     */
+    this.conflict = [];
+    /** What the files said when the conflict arose: {configuration, extras, texts}. */
+    this._conflictDisk = null;
+    /** Files whose hand edits were just adopted, for a moment's "Updated from config.json". */
+    this.updatedFromDisk = [];
+    this._updatedTimer = null;
     /** True while the files don't exist (deleted, or creating them failed): the next save writes both. */
     this.firstRun = false;
     /** The files' texts as last read or written (null: none yet), and texts that failed to decode. */
@@ -183,6 +215,8 @@ export class PrefsModel extends Emitter {
     this._cancelTimer();
     if (this.loadError) {
       this.saveState = {kind: 'blocked'};
+    } else if (this.conflict.length) {
+      this.saveState = {kind: 'conflict', files: [...this.conflict]};
     } else {
       this.saveState = {kind: 'pending'};
       this._saveTimer = this.scheduler.setTimeout(() => {
@@ -210,6 +244,11 @@ export class PrefsModel extends Emitter {
     this._cancelTimer();
     if (this.loadError) {
       this.saveState = {kind: 'blocked'};
+      this.emit('save-state');
+      return;
+    }
+    if (this.conflict.length) {
+      this.saveState = {kind: 'conflict', files: [...this.conflict]};
       this.emit('save-state');
       return;
     }
@@ -264,11 +303,11 @@ export class PrefsModel extends Emitter {
   }
 
   /**
-   * Adopts config.json and settings.json when they changed on disk (hand edits, the extension), unless
-   * there are unsaved edits. A version 1 config.json that appears is migrated.
+   * Adopts hand edits to config.json and settings.json, file by file. A file the window has unsaved
+   * edits in isn't adopted or overwritten: `conflict` names it, and a banner asks which version wins.
+   * A version 1 config.json that appears is migrated.
    */
   syncFromDisk() {
-    if (this.hasUnsavedChanges) return;
     const texts = {config: null, settings: null};
     try {
       texts.config = this.io.readConfig() ?? null;
@@ -318,26 +357,109 @@ export class PrefsModel extends Emitter {
     }
     if (decoded.legacy) {
       // A version 1 config.json (an older Slated wrote it, or it was pasted in): migrate it now.
+      if (this.hasUnsavedChanges) this.saveNow();
       this._adopt(loadConfigFiles(this.io, {by: 'settings', makeId: this.makeId, log: this.log}));
       return;
     }
     const disk = decoded.configuration;
     this._diskTexts = texts;
     this._badTexts = null;
-    this.extras = decoded.extras;
     keepGeneratedIds(separateDuplicateIds(disk, this.makeId), this.saved, texts.config);
     const wasBlocked = this.loadError !== null;
     this.loadError = null;
     this.loadErrorFile = null;
     this.firstRun = false;
-    if (wasBlocked || !deepEqual(disk, this.saved)) {
+    if (wasBlocked) {
+      // Edits were refused meanwhile, so the fixed files are all there is.
+      this.extras = decoded.extras;
       this.saved = disk;
       this.draft = clone(disk);
       this._revalidate();
       this.saveState = {kind: 'saved'};
       this.emit('config');
       this.emit('save-state');
+      return;
     }
+    const diskExtras = decoded.extras ?? {config: {}, settings: {}};
+    const changed = FILES.filter(file => !deepEqual(filePart(disk, file), filePart(this.saved, file))
+      || !deepEqual(diskExtras[extrasKey(file)] ?? {}, this.extras[extrasKey(file)] ?? {}));
+    if (!changed.length) return;
+    // Unsaved edits are what the next save would write. Items held back for their errors (a new
+    // shortcut still waiting for its keys) aren't: the next save leaves them out either way.
+    const pending = savable(this.draft, this.saved, this.issues);
+    const conflicting = changed.filter(file => !deepEqual(filePart(pending, file), filePart(this.saved, file)));
+    const adopted = changed.filter(file => !conflicting.includes(file));
+    for (const file of adopted) {
+      adoptFile(this.draft, disk, file);
+      adoptFile(this.saved, disk, file);
+      this.extras = {...this.extras, [extrasKey(file)]: diskExtras[extrasKey(file)] ?? {}};
+    }
+    if (conflicting.length) {
+      this._cancelTimer();
+      this._conflictDisk = {configuration: disk, extras: diskExtras};
+      const fresh = conflicting.filter(file => !this.conflict.includes(file));
+      if (fresh.length) {
+        this.conflict = FILES.filter(file => this.conflict.includes(file) || fresh.includes(file));
+        this.log('ui.config_conflict', {files: fresh, choice: 'pending'});
+      }
+      this.saveState = {kind: 'conflict', files: [...this.conflict]};
+    }
+    if (adopted.length) {
+      this._revalidate();
+      if (!this.conflict.length && !this.hasUnsavedChanges && deepEqual(this.draft, this.saved)) this.saveState = {kind: 'saved'};
+      this._showUpdated(adopted);
+      this.log('ui.config_reloaded', {files: adopted, source: 'disk'});
+    }
+    this.emit('config');
+    this.emit('save-state');
+  }
+
+  /** "Updated from config.json" beside the save status, for a few seconds. */
+  _showUpdated(files) {
+    this.updatedFromDisk = files;
+    if (this._updatedTimer !== null) this.scheduler.clearTimeout(this._updatedTimer);
+    this._updatedTimer = this.scheduler.setTimeout(() => {
+      this._updatedTimer = null;
+      this.updatedFromDisk = [];
+      this.emit('save-state');
+    }, UPDATED_NOTICE_MS);
+  }
+
+  /** The conflict banner's "Reload from File": the files' versions replace the window's edits in them. */
+  reloadConflictingFiles() {
+    const disk = this._conflictDisk;
+    if (!disk || !this.conflict.length) return;
+    const files = [...this.conflict];
+    for (const file of files) adoptFile(this.draft, disk.configuration, file);
+    this.saved = clone(disk.configuration);
+    this.extras = disk.extras;
+    this.conflict = [];
+    this._conflictDisk = null;
+    this.log('ui.config_conflict', {files, choice: 'reload'});
+    this.log('ui.config_reloaded', {files, source: 'conflict'});
+    this._showUpdated(files);
+    if (!deepEqual(this.draft, this.saved)) {
+      this._draftChanged();
+    } else {
+      this._revalidate();
+      this.saveState = {kind: 'saved'};
+      this.emit('config');
+      this.emit('save-state');
+    }
+  }
+
+  /** The conflict banner's "Keep My Changes": the next save writes the window's version over the file's. */
+  keepMyChanges() {
+    const disk = this._conflictDisk;
+    if (!disk || !this.conflict.length) return;
+    const files = [...this.conflict];
+    // What's on disk now is what the save replaces.
+    this.saved = clone(disk.configuration);
+    this.extras = disk.extras;
+    this.conflict = [];
+    this._conflictDisk = null;
+    this.log('ui.config_conflict', {files, choice: 'keep'});
+    this._draftChanged();
   }
 
   /** Saves pending edits, then re-reads both files and what there is to import. */

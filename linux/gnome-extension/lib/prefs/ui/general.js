@@ -29,8 +29,14 @@ export function saveStateText(state) {
   case 'partial': return {text: state.count === 1 ? '1 item has errors and isn\'t saved' : `${state.count} items have errors and aren't saved`, style: 'warning'};
   case 'failed': return {text: `Couldn't save: ${state.message}`, style: 'error'};
   case 'blocked': return {text: `Saving paused until ${state.file ?? 'the configuration'} can be read`, style: 'warning'};
+  case 'conflict': return {text: `Not saved: ${(state.files ?? []).join(' and ')} changed on disk`, style: 'warning'};
   default: return {text: '', style: 'dim'};
   }
+}
+
+/** "Updated from config.json", "Updated from config.json and settings.json"; empty for none. */
+export function updatedText(files) {
+  return files?.length ? `Updated from ${files.join(' and ')}` : '';
 }
 
 /**

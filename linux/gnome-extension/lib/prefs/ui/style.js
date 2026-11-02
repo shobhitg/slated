@@ -62,7 +62,11 @@ const CSS = `
 .slated-textview { padding: 8px; border-radius: 10px; }
 .slated-textview text { background-color: transparent; }
 
-.slated-sidebar-status { padding: 10px 16px; font-size: 0.85em; }
+.slated-sidebar-status { padding: 10px 8px 10px 16px; font-size: 0.85em; }
+.slated-conflict { margin: 12px 12px 0 12px; padding: 12px 14px; }
+
+/* A setting's key in the files, under its label (subtitle markup does the rest). */
+.slated-config-key { font-family: monospace; font-size: 0.82em; opacity: 0.7; }
 
 .slated-step-icon { color: @accent_color; }
 .slated-done-badge { min-width: 76px; min-height: 76px; border-radius: 99px; color: @accent_fg_color;

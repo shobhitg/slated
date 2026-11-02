@@ -146,12 +146,73 @@ export default suite('Preferences model', [
     disk[CONFIG] = v2({keyboard: {capsLock: 'hyper'}});
     model.syncFromDisk();
     expectEqual([model.configuration.keyboard.capsLock, model.configuration.general.showActionHUD], ['hyper', true], 'config.json');
+    // An unsaved edit to settings.json doesn't hold back a hand edit to config.json.
     model.update(config => {
       config.general.showActionHUD = false;
     });
     disk[CONFIG] = v2({keyboard: {capsLock: 'off'}});
     model.syncFromDisk();
-    expectEqual(model.configuration.keyboard.capsLock, 'hyper', 'pending edits win');
+    expectEqual(model.configuration.keyboard.capsLock, 'off', 'the other file is adopted');
+    expectEqual(model.configuration.general.showActionHUD, false, 'the unsaved edit stays');
+    expectEqual([model.conflict, model.updatedFromDisk, model.saveState.kind], [[], ['config.json'], 'pending']);
+  }],
+  ['a hand edit to a file with unsaved edits asks first; Reload from File takes the file', () => {
+    const {model, disk, allWrites, logged, tick} = harness({[CONFIG]: v2({keyboard: {capsLock: 'hyper'}})});
+    model.load();
+    model.update(config => {
+      config.keyboard.capsLockAlone = 'escape';
+    });
+    disk[CONFIG] = v2({keyboard: {capsLock: 'off'}});
+    model.syncFromDisk();
+    expectEqual(model.conflict, ['config.json']);
+    expectEqual(model.saveState, {kind: 'conflict', files: ['config.json']});
+    expectEqual(model.configuration.keyboard.capsLockAlone, 'escape', 'the window keeps its version meanwhile');
+    // Nothing is written while the banner waits, whatever else changes.
+    model.update(config => {
+      config.general.showActionHUD = true;
+    });
+    tick();
+    model.saveNow();
+    expectEqual(allWrites, [], 'nothing written');
+    model.reloadConflictingFiles();
+    expectEqual(model.conflict, []);
+    expectEqual([model.configuration.keyboard.capsLock, model.configuration.keyboard.capsLockAlone], ['off', 'nothing'], 'the file');
+    expectEqual(model.configuration.general.showActionHUD, true, 'the edit to the other file stays');
+    expectEqual(model.updatedFromDisk, ['config.json']);
+    tick();
+    expectEqual(onDisk(disk).general.showActionHUD, true, 'and is saved');
+    expectEqual(onDisk(disk).keyboard.capsLock, 'off');
+    expectEqual(logged.filter(e => e.event.startsWith('ui.config_')).map(e => [e.event, e.data]), [
+      ['ui.config_conflict', {files: ['config.json'], choice: 'pending'}],
+      ['ui.config_conflict', {files: ['config.json'], choice: 'reload'}],
+      ['ui.config_reloaded', {files: ['config.json'], source: 'conflict'}],
+    ]);
+  }],
+  ['Keep My Changes saves the window\'s version over the file\'s', () => {
+    const {model, disk, tick} = harness({[CONFIG]: v2({keyboard: {capsLock: 'hyper'}})});
+    model.load();
+    model.update(config => {
+      config.keyboard.capsLockAlone = 'escape';
+    });
+    disk[CONFIG] = v2({keyboard: {capsLock: 'off'}, hotstrings: []});
+    model.syncFromDisk();
+    expectEqual(model.conflict, ['config.json']);
+    model.keepMyChanges();
+    expectEqual([model.conflict, model.saveState.kind], [[], 'pending']);
+    tick();
+    const saved = onDisk(disk);
+    expectEqual([saved.keyboard.capsLock, saved.keyboard.capsLockAlone], ['hyper', 'escape'], "the window's version");
+    expectEqual(model.saveState, {kind: 'saved'});
+  }],
+  ['"Updated from" fades after a few seconds', () => {
+    const {model, disk, tick, timers} = harness({[CONFIG]: EMPTY});
+    model.load();
+    disk[SETTINGS] = '{"version": 2, "island": {"enabled": false}}';
+    model.syncFromDisk();
+    expectEqual(model.updatedFromDisk, ['settings.json']);
+    expectEqual([...timers.values()].map(t => t.ms), [4000]);
+    tick();
+    expectEqual(model.updatedFromDisk, []);
   }],
   ['a broken config.json pauses saving until it is fixed', () => {
     const {model, disk, writes, tick} = harness({[CONFIG]: '{ "bindings": [ }'});

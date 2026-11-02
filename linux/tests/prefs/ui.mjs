@@ -1268,13 +1268,53 @@ async function run(mode) {
     const config = JSON.parse(fs.readFileSync(files.configFile, 'utf8'));
     config.keyboard.capsLockAlone = 'escape';
     fs.writeFileSync(files.configFile, JSON.stringify(config));
-    world.touch(files.configFile);
-    await settle();
+    model.syncFromDisk();
     check(model.configuration.keyboard.capsLockAlone === 'escape', 'and one to config.json');
+    check(prop(world, settings.updatedLabel, 'label') === 'Updated from config.json', `the footer says so: ${prop(world, settings.updatedLabel, 'label')}`);
+    await settle();
     fs.writeFileSync(files.statusFile, JSON.stringify({running: false}));
     world.touch(files.statusFile);
     await settle();
     check(!model.status.running, 'status change adopted');
+  });
+
+  await step('a hand edit to a file with unsaved edits in the window asks which version wins', async () => {
+    await settle();
+    model.update(config => {
+      config.keyboard.capsLockAlone = 'nothing';
+    });
+    const config = JSON.parse(fs.readFileSync(files.configFile, 'utf8'));
+    config.keyboard.hyperModifiers = ['ctrl', 'alt', 'cmd'];
+    fs.writeFileSync(files.configFile, JSON.stringify(config));
+    model.syncFromDisk();
+    const banner = settings.conflictBanner.widget;
+    check(prop(world, banner, 'visible'), 'the banner shows');
+    check(findAll(world, banner, 'Gtk.Label', (w, s) => s.props.get('label') === 'config.json changed on disk').length === 1, 'and names the file');
+    check(prop(world, settings.saveLabel, 'label') === 'Not saved: config.json changed on disk', `the footer: ${prop(world, settings.saveLabel, 'label')}`);
+    await settle();
+    check(JSON.parse(fs.readFileSync(files.configFile, 'utf8')).keyboard.capsLockAlone === 'escape', 'nothing is saved meanwhile');
+    click(buttons(banner, 'Keep My Changes')[0]);
+    await settle();
+    check(!prop(world, banner, 'visible'), 'the banner goes');
+    const saved = JSON.parse(fs.readFileSync(files.configFile, 'utf8'));
+    check(saved.keyboard.capsLockAlone === 'nothing' && saved.keyboard.hyperModifiers.length === 4, "the window's version is saved");
+    // And Reload from File, the other way.
+    model.update(config => {
+      config.keyboard.capsLockAlone = 'escape';
+    });
+    saved.keyboard.hyperModifiers = ['ctrl', 'alt'];
+    fs.writeFileSync(files.configFile, JSON.stringify(saved));
+    model.syncFromDisk();
+    check(model.conflict.length === 1, 'asked again');
+    click(buttons(banner, 'Reload from File')[0]);
+    check(prop(world, settings.updatedLabel, 'label') === 'Updated from config.json', 'the footer says where it came from');
+    await settle();
+    const keyboard = model.configuration.keyboard;
+    check(keyboard.hyperModifiers.length === 2 && keyboard.capsLockAlone === 'nothing', `the file is shown: ${JSON.stringify(keyboard)}`);
+    model.update(config => {
+      config.keyboard.hyperModifiers = ['ctrl', 'alt', 'shift', 'cmd'];
+    });
+    await settle();
   });
 
   await step('reloading never says it worked while config.json can\'t be read', async () => {

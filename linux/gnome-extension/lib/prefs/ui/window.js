@@ -20,9 +20,9 @@ import {sessionId} from '../util.js';
 import {readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter} from '../io.js';
 import {getExtensionInfo, getUserExtensionsEnabled, setUserExtensionsEnabled, setExtensionEnabled, requestLogout, espansoRunning} from '../shell.js';
 import {installStyles} from './style.js';
-import {box, label, icon, badge as badgeLabel, emptyState} from './widgets.js';
+import {box, label, icon, button, badge as badgeLabel, emptyState} from './widgets.js';
 import {stopAllRecording} from './recorder.js';
-import {saveStateText} from './general.js';
+import {saveStateText, updatedText} from './general.js';
 import {createGetStartedPane} from './getstarted.js';
 import {createOverviewPane} from './overview.js';
 import {createWindowsPane} from './windows.js';
@@ -246,11 +246,21 @@ export class SlatedSettings {
     });
     this.windowTitle = new Adw.WindowTitle({title: 'Slated', subtitle: ''});
     const sidebarHeader = new Adw.HeaderBar({title_widget: this.windowTitle});
+    // "All changes saved" (there's no Save button to look for), a moment's "Updated from config.json"
+    // when a hand edit is picked up, and Reload.
     this.saveIcon = icon('object-select-symbolic');
+    this.saveIcon.set_valign(Gtk.Align.START);
     this.saveLabel = label('', {classes: ['caption'], ellipsize: true});
+    this.updatedLabel = label('', {classes: ['caption', 'accent'], ellipsize: true});
+    this.updatedLabel.set_visible(false);
+    const statusTexts = box('vertical', 2);
+    statusTexts.set_hexpand(true);
+    statusTexts.append(this.saveLabel);
+    statusTexts.append(this.updatedLabel);
     const footer = box('horizontal', 6, ['slated-sidebar-status']);
     footer.append(this.saveIcon);
-    footer.append(this.saveLabel);
+    footer.append(statusTexts);
+    footer.append(button('', () => this.reload(), {icon: 'view-refresh-symbolic', classes: ['flat', 'circular'], tooltip: 'Reload config.json and settings.json'}));
     const sidebarView = new Adw.ToolbarView({
       content: new Gtk.ScrolledWindow({child: this.sidebarList, hscrollbar_policy: Gtk.PolicyType.NEVER, vexpand: true}),
     });
@@ -259,8 +269,17 @@ export class SlatedSettings {
     this.split.set_sidebar(new Adw.NavigationPage({title: 'Slated', tag: 'sidebar', child: sidebarView}));
 
     // Content: one navigation view per section, in a stack.
-    this.contentStack = new Gtk.Stack({transition_type: Gtk.StackTransitionType.CROSSFADE, transition_duration: 120});
-    this.contentPage = new Adw.NavigationPage({title: 'Overview', tag: 'content', child: this.contentStack});
+    this.contentStack = new Gtk.Stack({transition_type: Gtk.StackTransitionType.CROSSFADE, transition_duration: 120, vexpand: true});
+    // Above every section: a file changed on disk while the window had unsaved edits in it. The user
+    // picks the version, never Slated.
+    this.conflictBanner = conflictBanner({
+      reload: () => this.model.reloadConflictingFiles(),
+      keep: () => this.model.keepMyChanges(),
+    });
+    const content = box('vertical', 0);
+    content.append(this.conflictBanner.widget);
+    content.append(this.contentStack);
+    this.contentPage = new Adw.NavigationPage({title: 'Overview', tag: 'content', child: content});
     // Collapsed, the sidebar replaces the content: a recording there would swallow the keys that
     // move through the sidebar.
     this.contentPage.connect('hidden', () => stopAllRecording());
@@ -363,6 +382,11 @@ export class SlatedSettings {
     this.windowTitle.set_subtitle(this.model.loadError ? 'config.json needs a fix' : summary.running ? 'Running' : summary.title);
     const save = saveStateText({...this.model.saveState, file: this.model.loadErrorFile});
     this.saveLabel.set_label(save.text);
+    this.saveLabel.set_tooltip_text(save.text);
+    const updated = updatedText(this.model.updatedFromDisk);
+    this.updatedLabel.set_label(updated);
+    this.updatedLabel.set_visible(Boolean(updated));
+    this.conflictBanner.update(this.model.conflict);
     this.saveIcon.set_from_icon_name(SAVE_ICONS[save.style] ?? SAVE_ICONS.dim);
     this.saveIcon.set_css_classes(save.style === 'success' ? ['success'] : save.style === 'warning' ? ['warning'] : save.style === 'error' ? ['error'] : ['dim-label']);
     this._syncGetStartedRow();
@@ -389,4 +413,28 @@ export class SlatedSettings {
     if (this.poll) GLib.source_remove(this.poll);
     this.poll = 0;
   }
+}
+
+/**
+ * "config.json changed on disk", with Reload from File and Keep My Changes (the Mac's ConflictBanner).
+ * Adw.Banner has room for one button, so it's a card. Returns {widget, update(files)}.
+ */
+function conflictBanner({reload, keep}) {
+  const card = box('vertical', 6, ['card', 'slated-notice', 'warning', 'slated-conflict']);
+  const title = label('', {classes: ['heading'], wrap: true});
+  const detail = label("You have changes here that aren't saved yet. Reload from File shows the file and drops your changes to it; Keep My Changes saves your version over the file's.", {wrap: true});
+  const buttons = box('horizontal', 6);
+  buttons.append(button('Reload from File', reload, {classes: ['pill']}));
+  buttons.append(button('Keep My Changes', keep, {classes: ['pill']}));
+  card.append(title);
+  card.append(detail);
+  card.append(buttons);
+  card.set_visible(false);
+  return {
+    widget: card,
+    update(files) {
+      card.set_visible(files.length > 0);
+      if (files.length) title.set_label(`${files.join(' and ')} changed on disk`);
+    },
+  };
 }
