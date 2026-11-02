@@ -70,6 +70,8 @@ export {targetFrame, targetOrigin, resolveScreen, screenContaining, orderedLeftT
  * readSettings(settings) → Slate's global settings with typed values and Slate's defaults
  *   (defaultToCurrentScreen, repeatOnHoldOps, secondsBeforeRepeat, undoMaxStackSize, …).
  * randomUUID() → a new binding/hotstring id in Swift's uppercase form (ids must be UUIDs to decode).
+ * clampKeyRepeat({delay, interval}) → keyboard.keyRepeat as config.json holds it: whole milliseconds
+ *   clamped into KEY_REPEAT_RANGES ({delay: [100, 2000], interval: [15, 500]}), like Swift's KeyRepeat.
  */
 export {
   decodeConfiguration,
@@ -80,6 +82,8 @@ export {
   isAutomation,
   readSettings,
   randomUUID,
+  clampKeyRepeat,
+  KEY_REPEAT_RANGES,
 } from './config.js';
 
 // --- The two files (config.json and settings.json) -------------------------------------------------

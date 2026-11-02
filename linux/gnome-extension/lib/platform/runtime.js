@@ -19,6 +19,7 @@ import * as Core from '../core/index.js';
 import {ActionRunner, errorMessage} from './actions.js';
 import {AutomationEngine, OWN_APPS, automationShortcuts, sendsKeys, whileHeldRepeat} from './automation.js';
 import {ClipboardService} from './clipboard.js';
+import {CAPS_LOCK_KEYSYM, CapsLockGuard} from './capsLock.js';
 import {bindingKey, comboOf, modalOf} from './combos.js';
 import {ConfigStore, emptyConfiguration} from './configStore.js';
 import {DebugService} from './debug.js';
@@ -32,6 +33,7 @@ import {HyperHoldWatcher, hyperMasks} from './hyperHold.js';
 import {AutomationIndicator} from './indicator.js';
 import {IslandPresenter, islandSettings} from './island.js';
 import {InputInjector} from './input.js';
+import {KeyRepeatManager} from './keyRepeat.js';
 import {KeybindingManager, MutterGrabber, readKeyboardRepeat, releaseTiming} from './keybindings.js';
 import {EventLog, LogFile, journalMirror} from './log.js';
 import {OverlayController} from './overlays.js';
@@ -42,7 +44,7 @@ import {SleepWatcher} from './sleep.js';
 import {SnapshotStore} from './snapshots.js';
 import {StatusFile, buildStatus} from './status.js';
 import {StatusIcon, statusWarnings} from './statusIcon.js';
-import {InputSynthesizer} from './synth.js';
+import {InputSynthesizer, seatKeymap} from './synth.js';
 import {openURL} from './system.js';
 import {Debouncer, Timers} from './timers.js';
 import {appMatchesAny, conditionMatches, defaultEntry, resolutionOf, shortcutLabel, truthyText} from './util.js';
@@ -139,6 +141,8 @@ export class SlatedRuntime {
     this._lastAction = null;
     this._lastError = null;
     this._hyper = {wanted: false, mode: 'off', active: false, hyperIsSuper: false};
+    /** keyboard.keyRepeat as applied: status.json's keyRepeat. */
+    this._keyRepeat = {state: 'off', delay: null, interval: null};
     this._hotstrings = {engine: 'none', espansoInstalled: false, matchFile: null, count: 0};
     this._statusIdle = 0;
     this._applyIdle = 0;
@@ -299,6 +303,19 @@ export class SlatedRuntime {
       this._rememberApp(this._focusedApp);
       this._keybindings?.setFocusedApp(this._focusedApp);
     });
+    this._step('caps lock', () => {
+      this._capsLock = new CapsLockGuard({
+        keymap: seatKeymap(),
+        tap: () => this._synth?.tap(CAPS_LOCK_KEYSYM) ?? {ok: false, error: 'no virtual keyboard'},
+        timers: this._timers,
+        log: this._log,
+        hyperActive: () => this._hyper.active,
+      }).start();
+    });
+    this._step('key repeat', () => {
+      this._keyRepeatManager = new KeyRepeatManager({log: this._log, markerPath: Paths.keyRepeatStatePath()});
+      this._captureKeyRepeat();
+    });
     this._step('hyper key', () => {
       this._hyperManager = new HyperManager({
         log: this._log,
@@ -347,6 +364,8 @@ export class SlatedRuntime {
       this._island?.destroy();
     });
     this._step('sleep', () => this._sleepWatcher?.destroy());
+    // Key repeat stays as set: it's your preference, not a temporary mapping.
+    this._step('caps lock', () => this._capsLock?.destroy());
     this._step('top bar', () => {
       this._statusIcon?.destroy();
       if (this._startupSignal) Main.layoutManager.disconnect(this._startupSignal);
@@ -383,6 +402,7 @@ export class SlatedRuntime {
     this._debugService = this._monitors = this._screensChanged = this._store = null;
     this._keybindings = this._overlays = this._hud = null;
     this._input = this._platform = this._snapshots = this._runner = this._hyperManager = this._espanso = null;
+    this._capsLock = this._keyRepeatManager = null;
     this._automation = this._synth = this._indicator = this._clipboard = this._focusTracker = this._sleepWatcher = null;
     this._island = this._hyperHold = null;
     this._shortcutEntries = [];
@@ -419,14 +439,31 @@ export class SlatedRuntime {
       this._runner.setLayouts(config.layouts ?? []);
     }
 
+    // Before the shortcuts: GNOME's keyboard repeat timing goes into their hold timing.
+    this._step('key repeat', () => {
+      if (this._keyRepeatManager) this._keyRepeat = this._keyRepeatManager.apply(config.keyboard?.keyRepeat ?? null);
+    });
+
+    const wantsHyper = config.keyboard?.capsLock === 'hyper' && !this.paused;
+    // A Caps Lock that's on stays on once it's the Hyper key: turn it off first, while the keymap still
+    // has a Caps_Lock key to tap (GNOME's caps:hyper option takes it away). With the option already
+    // set, the step after the Hyper key tries again once the mode has changed (to keyd, say).
+    this._step('caps lock', () => {
+      if (wantsHyper && !this._hyperManager?.capsHyperSet()) this._capsLock?.clear(this._hyper.active ? 'caps lock on' : 'hyper turned on');
+    });
+    const modeBefore = this._hyper.mode;
+
     this._step('hyper key', () => {
       if (this._hyperManager) {
         this._hyper = this._hyperManager.apply({
           // Paused: Caps Lock is a plain Caps Lock again (keyd, a system service, keeps its mapping).
-          wanted: config.keyboard?.capsLock === 'hyper' && !this.paused,
+          wanted: wantsHyper,
           capsLockAlone: config.keyboard?.capsLockAlone,
         });
       }
+    });
+    this._step('caps lock', () => {
+      if (wantsHyper && this._hyper.mode !== modeBefore) this._capsLock?.clearSoon('hyper mode changed');
     });
 
     this._step('shortcuts', () => {
@@ -480,6 +517,34 @@ export class SlatedRuntime {
   }
 
   // --- Pause, the top bar and the settings window --------------------------------------------------
+
+  /**
+   * The first run of this version: copies GNOME's key repeat into config.json when it has none, once
+   * per computer (keyRepeat.js), so the setting travels with config.json. Never while config.json
+   * can't be read: Slated mustn't write over a file it couldn't read.
+   */
+  _captureKeyRepeat() {
+    const manager = this._keyRepeatManager;
+    const store = this._store;
+    if (!manager || !store?.configuration || store.loadError || manager.captured) return;
+    if (store.configuration.keyboard?.keyRepeat) {
+      // Copied from another computer: it's applied here, and turning it off later sticks.
+      manager.markCaptured();
+      return;
+    }
+    const raw = manager.read();
+    if (!raw) return; // GNOME's setting can't be read; try again next time
+    if (!raw.enabled) {
+      // Applying a keyRepeat turns repeating on; that's for you to choose in Settings.
+      manager.markCaptured();
+      this._log?.record('keyboard.key_repeat_not_captured', {reason: 'key repeat is off in GNOME'});
+      return;
+    }
+    const current = Core.clampKeyRepeat(raw);
+    if (store.update((config) => ({...config, keyboard: {...config.keyboard, keyRepeat: current}}))) store.load();
+    manager.markCaptured(current);
+    this._log?.record('keyboard.key_repeat_captured', {delay: current.delay, interval: current.interval});
+  }
 
   /** "Pause Slated": no shortcuts, Hyper key or hotstrings until resumed (Engine.setPaused on the Mac). */
   get paused() {
@@ -871,6 +936,7 @@ export class SlatedRuntime {
       running,
       paused: running && this.paused,
       hyper: this._hyper,
+      keyRepeat: this._keyRepeat,
       hotstrings: this._hotstrings,
       hotkeys: this._keybindings?.statuses ?? {},
       automation: {

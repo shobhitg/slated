@@ -23,6 +23,7 @@ const ADDITIONS = [
   'isMouseButton', 'keysymName', 'keyDisplayName', 'parseSyntheticInput', 'formatSyntheticInput', 'RepeatSchedule',
   'ClipboardHistory', 'referenceSeconds', 'referenceToMilliseconds', 'foldedContains', 'fileDisplayName',
   'decodeConfigurationFiles', 'encodeConfigurationFiles', 'isLegacyLayout', 'legacySlateOptions', 'parseConfigText',
+  'clampKeyRepeat',
 ];
 
 const MODULES = [
@@ -47,6 +48,16 @@ export function registerUnitTests({root, readText}) {
     const error = new core.SlatedError('invalidSyntax', 'x');
     expect(error instanceof Error && error.kind === 'invalidSyntax' && error.message === 'x', 'SlatedError(kind, message)');
     expect(new core.HotstringMatcher([]).feed('a', null) === null, 'HotstringMatcher is constructible');
+  });
+
+  test('clampKeyRepeat: whole milliseconds within KeyRepeat’s ranges, like Swift', () => {
+    expectEqual(core.clampKeyRepeat({delay: 200, interval: 17}), {delay: 200, interval: 17});
+    expectEqual(core.clampKeyRepeat({delay: 0, interval: 1}), {delay: 100, interval: 15});
+    expectEqual(core.clampKeyRepeat({delay: 99999, interval: 600.4}), {delay: 2000, interval: 500});
+    expectEqual(core.clampKeyRepeat({delay: 250.6, interval: 29.5}), {delay: 251, interval: 30});
+    expectEqual(core.clampKeyRepeat({delay: 200}), null);
+    expectEqual(core.clampKeyRepeat({delay: NaN, interval: 30}), null);
+    expectEqual(core.KEY_REPEAT_RANGES, {delay: [100, 2000], interval: [15, 500]});
   });
 
   test('purity: the engine imports only its own modules and no platform APIs', () => {

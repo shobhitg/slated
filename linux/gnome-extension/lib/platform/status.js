@@ -5,6 +5,7 @@
 //
 //   {"session":"abcd1234","version":"0.1.0","running":true,"paused":false,"updatedAt":"<ISO>",
 //    "hyper":{"wanted":true,"mode":"xkb|keyd|off","active":true,"keyd":"running|stopped|none|checking"},
+//    "keyRepeat":{"state":"applied|failed|off","delay":200,"interval":17},
 //    "hotstrings":{"engine":"espanso|none","espansoInstalled":true,"matchFile":"<path>","count":3},
 //    "hotkeys":{"hyper+a":"active","hyper+q":"failed: <reason>","hyper+w":"duplicate","hyper+z":"disabled"},
 //    "automation":{"running":["Repeat click left every 100 ms"],"shortcuts":["f6"],"stopShortcut":"hyper+esc",
@@ -24,6 +25,9 @@
 // paused is "Pause Slated" from the top bar: no shortcuts, Hyper key or hotstrings until resumed.
 // hyper.keyd says whether keyd has Caps Lock ("running"), is set up for it but doesn't run ("stopped"),
 // isn't set up for it ("none"), or is still being asked ("checking").
+// keyRepeat is config.json's keyboard.keyRepeat as GNOME got it: "applied" (GNOME repeats keys this
+// way now), "failed" (GSettings refused it) or "off" (no keyRepeat: GNOME's own setting is left alone,
+// and delay and interval are null).
 // recentApps are the apps focused lately (newest first): the ids "Only in…" app lists offer, including
 // games without a desktop file, which are known by their window's WM_CLASS.
 
@@ -36,6 +40,12 @@ export function hotkeyStatusText(status) {
   if (typeof status === 'string') return status;
   if (status && typeof status === 'object' && 'failed' in status) return `failed: ${status.failed}`;
   return 'active';
+}
+
+function keyRepeatStatus(value) {
+  const state = ['applied', 'failed'].includes(value?.state) ? value.state : 'off';
+  if (state === 'off' || !Number.isFinite(value?.delay) || !Number.isFinite(value?.interval)) return {state: 'off', delay: null, interval: null};
+  return {state, delay: value.delay, interval: value.interval};
 }
 
 /** The status document, with keys in the schema's order. */
@@ -55,6 +65,7 @@ export function buildStatus(state) {
       active: !!state.hyper?.active,
       keyd: ['running', 'stopped', 'checking'].includes(state.hyper?.keyd) ? state.hyper.keyd : 'none',
     },
+    keyRepeat: keyRepeatStatus(state.keyRepeat),
     hotstrings: {
       engine: state.hotstrings?.engine ?? 'none',
       espansoInstalled: !!state.hotstrings?.espansoInstalled,

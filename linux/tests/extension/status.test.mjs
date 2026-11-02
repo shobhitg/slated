@@ -10,6 +10,7 @@ const state = {
   paused: true,
   now: new Date('2026-10-22T10:00:00.000Z'),
   hyper: {wanted: true, mode: 'xkb', active: true, keyd: 'stopped'},
+  keyRepeat: {state: 'applied', delay: 200, interval: 17},
   hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
   hotkeys: {'hyper+z': 'disabled', 'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate'},
   automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
@@ -28,6 +29,7 @@ test('status.json has exactly the schema the preferences app reads', () => {
     'paused',
     'updatedAt',
     'hyper',
+    'keyRepeat',
     'hotstrings',
     'hotkeys',
     'automation',
@@ -43,6 +45,7 @@ test('status.json has exactly the schema the preferences app reads', () => {
     paused: true,
     updatedAt: '2026-10-22T10:00:00.000Z',
     hyper: {wanted: true, mode: 'xkb', active: true, keyd: 'stopped'},
+    keyRepeat: {state: 'applied', delay: 200, interval: 17},
     hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
     hotkeys: {'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate', 'hyper+z': 'disabled'},
     automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
@@ -57,6 +60,7 @@ test('missing parts get safe defaults', () => {
   const status = buildStatus({session: 's', version: '0.1.0', running: false});
   assert.equal(status.paused, false);
   assert.deepEqual(status.hyper, {wanted: false, mode: 'off', active: false, keyd: 'none'});
+  assert.deepEqual(status.keyRepeat, {state: 'off', delay: null, interval: null});
   assert.deepEqual(status.hotstrings, {engine: 'none', espansoInstalled: false, matchFile: null, count: 0});
   assert.deepEqual(status.hotkeys, {});
   assert.deepEqual(status.automation, {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'});
@@ -78,6 +82,13 @@ test('automation.whileHeld is "key-repeat" or "toggle"; clipboard items are a co
   assert.equal(buildStatus({automation: {whileHeld: 'bogus'}}).automation.whileHeld, 'key-repeat');
   assert.deepEqual(buildStatus({clipboard: {enabled: false, items: NaN}}).clipboard, {enabled: false, items: 0});
   assert.deepEqual(buildStatus({recentApps: [{id: 'a'}, {name: 'no id'}]}).recentApps, [{id: 'a', name: 'a'}]);
+});
+
+test('keyRepeat is applied, failed or off, with its numbers only when set', () => {
+  assert.deepEqual(buildStatus({keyRepeat: {state: 'failed', delay: 500, interval: 30}}).keyRepeat, {state: 'failed', delay: 500, interval: 30});
+  assert.deepEqual(buildStatus({keyRepeat: {state: 'off', delay: 500, interval: 30}}).keyRepeat, {state: 'off', delay: null, interval: null});
+  assert.deepEqual(buildStatus({keyRepeat: {state: 'bogus', delay: 500, interval: 30}}).keyRepeat, {state: 'off', delay: null, interval: null});
+  assert.deepEqual(buildStatus({keyRepeat: {state: 'applied', delay: '500'}}).keyRepeat, {state: 'off', delay: null, interval: null});
 });
 
 test('hotkey statuses are plain strings', () => {

@@ -356,6 +356,20 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   // D-Bus signals on the system bus, by "interface.member" (Gio.DBusConnection.signal_subscribe), and
   // method calls, recorded in `state.dbusCalls` and answered on the next main-loop turn.
   const systemBusSignals = new Signals();
+  // Clutter's keymap (seat.get_keymap()): the Caps Lock lock, toggled by a Caps_Lock press on the virtual
+  // keyboard unless the layout has no Caps_Lock (GNOME's caps:hyper option), as Mutter does.
+  const keymapSignals = new Signals();
+  const keymap = {
+    get_caps_lock_state: () => !!state.capsLock,
+    connect: (signal, callback) => keymapSignals.connect(signal, (_signals, ...args) => callback(keymap, ...args)),
+    disconnect: (id) => keymapSignals.disconnect(id),
+  };
+  const capsLockInKeymap = () => !(state.settings['org.gnome.desktop.input-sources:xkb-options'] ?? []).includes('caps:hyper');
+  const setCapsLock = (on) => {
+    if (!!state.capsLock === on) return;
+    state.capsLock = on;
+    loop.add(0, () => keymapSignals.emit('state-changed'));
+  };
   const systemBus = {
     signal_subscribe(sender, iface, member, path, _arg0, _flags, callback) {
       return systemBusSignals.connect(`${iface}.${member}`, (_signals, parameters) => callback(systemBus, sender, path, iface, member, parameters));
@@ -581,6 +595,19 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
         const value = state.settings[`${this.schema}:${key}`];
         if (value === undefined) throw new Error(`no uint ${this.schema}:${key} in the fake`);
         return value;
+      }
+      set_boolean(key, value) {
+        if (state.settingsReadOnly) throw new Error(`${this.schema} is not writable in the fake`);
+        state.settingsWrites.push([`${this.schema}:${key}`, value]);
+        state.settings[`${this.schema}:${key}`] = !!value;
+        return true;
+      }
+      set_uint(key, value) {
+        if (state.settingsReadOnly) throw new Error(`${this.schema} is not writable in the fake`);
+        if (!Number.isInteger(value) || value < 0) throw new Error(`set_uint(${key}, ${value}): not a uint`);
+        state.settingsWrites.push([`${this.schema}:${key}`, value]);
+        state.settings[`${this.schema}:${key}`] = value;
+        return true;
       }
     },
     SettingsSchemaSource: {get_default: () => ({lookup: () => null})},
@@ -808,6 +835,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
     ModifierType: {SHIFT_MASK: 1, CONTROL_MASK: 4, MOD1_MASK: 8, MOD4_MASK: 64, SUPER_MASK: 1 << 26, HYPER_MASK: 1 << 27, META_MASK: 1 << 28},
     get_default_backend: () => ({
       get_default_seat: () => ({
+        get_keymap: () => keymap,
         create_virtual_device: (type) =>
           type === 0
             ? {
@@ -817,7 +845,10 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
                 },
               }
             : {
-                notify_keyval: (time, keysym, keyState) => state.typed.push({keysym, pressed: keyState === 1}),
+                notify_keyval: (time, keysym, keyState) => {
+                  state.typed.push({keysym, pressed: keyState === 1});
+                  if (keysym === 0xffe5 && keyState === 1 && capsLockInKeymap()) setCapsLock(!state.capsLock);
+                },
                 notify_key: (time, code, keyState) => state.typed.push({code, pressed: keyState === 1}),
                 run_dispose() {
                   state.disposed.push('keyboard');
@@ -929,6 +960,9 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
   state.dbusCalls = [];
   state.modal = [];
   state.typed = [];
+  state.capsLock = false;
+  state.settingsWrites = [];
+  state.settingsReadOnly = false;
   state.buttons = [];
   state.disposed = [];
   state.clipboard = null;
@@ -1038,6 +1072,14 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       state.overview = visible;
       overviewSignals.emit(visible ? 'showing' : 'hidden');
     },
+
+    /** The Caps Lock lock turns on or off (a real keyboard, or another app), as Mutter reports it. */
+    capsLock(on) {
+      setCapsLock(on);
+    },
+
+    /** Handlers on the keymap's 'state-changed' (to check that disable() disconnects). */
+    keymapHandlers: () => keymapSignals.count('state-changed'),
 
     /** A signal on the system bus ("interface.member") with these values (a GLib.Variant's deep_unpack). */
     systemSignal(name, values) {

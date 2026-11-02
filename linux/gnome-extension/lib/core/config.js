@@ -556,6 +556,15 @@ function keyRepeat(v, path) {
   return {delay: clampInt(delay, KEY_REPEAT_RANGES.delay), interval: clampInt(interval, KEY_REPEAT_RANGES.interval)};
 }
 
+/**
+ * Milliseconds from anywhere (GNOME's settings, a slider) as config.json holds them: whole numbers
+ * clamped into KEY_REPEAT_RANGES, as KeyRepeat(delay:interval:) does. Null when either isn't a number.
+ */
+export function clampKeyRepeat({delay, interval} = {}) {
+  if (!Number.isFinite(delay) || !Number.isFinite(interval)) return null;
+  return {delay: clampInt(Math.round(delay), KEY_REPEAT_RANGES.delay), interval: clampInt(Math.round(interval), KEY_REPEAT_RANGES.interval)};
+}
+
 function keyboard(v, path) {
   const c = new Keyed(v, path);
   let mask = 15;

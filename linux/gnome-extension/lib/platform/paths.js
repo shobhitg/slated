@@ -7,6 +7,7 @@
 //   ~/.local/state/slated/status.json     live status for the preferences app
 //   ~/.local/state/slated/snapshots.json  saved window snapshots
 //   ~/.local/state/slated/hyper.json      what Slated changed in the keyboard options, to undo it
+//   ~/.local/state/slated/key-repeat.json this computer's key repeat was copied into config.json (once)
 //   ~/.local/state/slated/clipboard.json  clipboard history (mode 0600), when clipboard.persist is on
 //   ~/.local/state/slated/config-migration.json  what the move to two files imported, for the settings window
 //   ~/.local/state/slated/settings-window.json   the settings window's own state (Get Started finished)
@@ -78,6 +79,11 @@ export function snapshotsPath() {
 
 export function hyperStatePath() {
   return `${stateDir()}/hyper.json`;
+}
+
+/** Marks that this computer's key repeat went into config.json once (keyRepeat.js). */
+export function keyRepeatStatePath() {
+  return `${stateDir()}/key-repeat.json`;
 }
 
 /** Clipboard history, readable only by you (0600), in the Mac app's clipboard.json format. */

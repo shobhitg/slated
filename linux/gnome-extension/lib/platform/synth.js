@@ -75,6 +75,11 @@ function defaultSeat() {
   return backend.get_default_seat();
 }
 
+/** The seat's keymap: Caps Lock's lock state and its 'state-changed' signal (capsLock.js). */
+export function seatKeymap() {
+  return defaultSeat().get_keymap();
+}
+
 export class InputSynthesizer {
   constructor({log = null} = {}) {
     this._log = log;
@@ -127,6 +132,17 @@ export class InputSynthesizer {
     let mask = 0;
     for (const id of this._down.keys()) if (id.startsWith('keysym:')) mask |= modifierBits(Number(id.slice('keysym:'.length)));
     return mask;
+  }
+
+  /**
+   * Presses and releases one key by keysym, at once (Caps_Lock, to clear a lock stuck on under the
+   * Hyper key: capsLock.js). Mutter drops it when the keyboard layout has no key for the keysym.
+   */
+  tap(keysym) {
+    const keyboard = this._device('keyboard');
+    keyboard.notify_keyval(this._time(), keysym, Clutter.KeyState.PRESSED);
+    keyboard.notify_keyval(this._time(), keysym, Clutter.KeyState.RELEASED);
+    return {ok: true};
   }
 
   /** Lets go of everything Slated still holds down. */

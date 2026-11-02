@@ -279,6 +279,18 @@ export class HyperManager {
     }
   }
 
+  /**
+   * GNOME's caps:hyper option is set (by Slated or by you): the keymap then has no Caps_Lock key, so a
+   * stuck lock can't be tapped off (capsLock.js).
+   */
+  capsHyperSet() {
+    try {
+      return this._inputSources().get_strv('xkb-options').includes(CAPS_HYPER);
+    } catch {
+      return false;
+    }
+  }
+
   /** Stops watching and restores the keyboard options; returns `restore()`'s answer. */
   destroy() {
     this._cancellable.cancel();
