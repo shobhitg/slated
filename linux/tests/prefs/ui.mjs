@@ -139,6 +139,8 @@ async function run(mode) {
     api, home: files.home, mode,
     // Where linux/install.sh --hyper-keyd puts Slated's keyd configuration (/etc/keyd/slated.conf).
     env: {vars: {SLATED_KEYD_CONF: files.keydConfig},
+      // GNOME Settings → Keyboard: what "Use this computer's current setting" reads.
+      gnomeKeyboard: {repeat: true, delay: 250, 'repeat-interval': 25},
       apps: [{id: 'org.mozilla.firefox', name: 'Firefox'}, {id: 'org.gnome.TextEditor', name: 'Text Editor'},
       {id: 'org.keepassxc.KeePassXC', name: 'KeePassXC'}],
       keyNames: {97: {name: 'a', char: 'a'}, 65307: {name: 'Escape'}, 65288: {name: 'BackSpace'}, 65505: {name: 'Shift_L'}, 49: {name: '1', char: '1'},
@@ -784,6 +786,36 @@ async function run(mode) {
     withHyperMode('xkb');
     hyperOff();
     check(!/Caps Lock/.test(offText()), `nothing of Slated's on Caps Lock: ${offText()}`);
+    model.setStatusText(statusText);
+
+    // Key repeat: the switch takes this computer's setting, the sliders and fields edit milliseconds,
+    // and the status line follows status.json.
+    const repeatSwitch = titled(visible('keyboard'), 'Adw.SwitchRow', 'Set key repeat with Slated')[0];
+    const delayRow = titled(visible('keyboard'), 'Adw.ActionRow', 'Delay until repeat')[0];
+    const rateRow = titled(visible('keyboard'), 'Adw.ActionRow', 'Repeat rate')[0];
+    const scaleOf = row => findAll(world, row, 'Gtk.Scale')[0];
+    const spinOf = row => findAll(world, row, 'Gtk.SpinButton')[0];
+    check(prop(world, repeatSwitch, 'active') === false && prop(world, delayRow, 'sensitive') === false, 'off: GNOME\'s own setting, sliders disabled');
+    check(prop(world, delayRow, 'subtitle') === '250 ms', `shows this computer's delay: ${prop(world, delayRow, 'subtitle')}`);
+    repeatSwitch.set_active(true);
+    check(JSON.stringify(model.configuration.keyboard.keyRepeat) === '{"delay":250,"interval":25}', `the switch takes this computer's setting: ${JSON.stringify(model.configuration.keyboard.keyRepeat)}`);
+    scaleOf(delayRow).set_value(200);
+    check(model.configuration.keyboard.keyRepeat.delay === 200 && prop(world, delayRow, 'subtitle') === '200 ms', 'the delay slider');
+    scaleOf(rateRow).set_value(59);
+    check(model.configuration.keyboard.keyRepeat.interval === 17, `the rate slider runs in repeats per second: ${model.configuration.keyboard.keyRepeat.interval}`);
+    check(prop(world, rateRow, 'subtitle') === '59 per second (17 ms)', `rate label: ${prop(world, rateRow, 'subtitle')}`);
+    spinOf(rateRow).set_value(30);
+    check(model.configuration.keyboard.keyRepeat.interval === 30, 'the interval field');
+    check(pills('Applying') === 1, 'running, status.json not caught up yet');
+    model.setStatusText(JSON.stringify({...JSON.parse(statusText), keyRepeat: {state: 'applied', delay: 200, interval: 30}}));
+    check(pills('Applied') === 1, 'status.json says GNOME has it');
+    click(findAll(world, titled(visible('keyboard'), 'Adw.ActionRow', 'Use this computer’s current setting')[0], 'Gtk.Button')[0]);
+    check(JSON.stringify(model.configuration.keyboard.keyRepeat) === '{"delay":250,"interval":25}', 'Use takes this computer\'s setting again');
+    check(titled(visible('keyboard'), 'Adw.EntryRow', 'Try it here: hold a key').length === 1, 'a field to try it in');
+    await settle();
+    check(JSON.stringify(JSON.parse(fs.readFileSync(files.configFile, 'utf8')).keyboard.keyRepeat) === '{"delay":250,"interval":25}', 'saved in config.json');
+    repeatSwitch.set_active(false);
+    check(!('keyRepeat' in model.configuration.keyboard) && pills('Off') >= 1, 'off removes it');
     model.setStatusText(statusText);
     titled(visible('keyboard'), 'Adw.SwitchRow', 'Use Caps Lock as Hyper')[0].set_active(false);
     check(model.configuration.keyboard.capsLock === 'off', 'Caps Lock as Hyper off');

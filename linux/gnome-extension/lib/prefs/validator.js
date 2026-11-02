@@ -498,7 +498,8 @@ export function configChanges(oldConfig, newConfig) {
   if (!deepEqual(oldConfig.keyboard, newConfig.keyboard)) {
     const k = newConfig.keyboard ?? {};
     const mods = (k.hyperModifiers ?? []).map(m => MOD_SYMBOLS[m] ?? m).join('+');
-    changes.push(`keyboard: capsLock ${k.capsLock}, alone ${k.capsLockAlone}, modifiers ${mods}`);
+    const repeat = k.keyRepeat ? `${k.keyRepeat.delay}/${k.keyRepeat.interval} ms` : 'system';
+    changes.push(`keyboard: capsLock ${k.capsLock}, alone ${k.capsLockAlone}, modifiers ${mods}, keyRepeat ${repeat}`);
   }
   if (!deepEqual(oldConfig.general, newConfig.general)) {
     const g = newConfig.general ?? {};

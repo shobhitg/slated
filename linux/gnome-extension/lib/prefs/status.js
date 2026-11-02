@@ -22,6 +22,8 @@ export function emptyStatus() {
     // keyd: "running", "stopped" (set up for Caps Lock but not running), "none", "checking", or null
     // from an extension that doesn't say.
     hyper: {wanted: false, mode: 'off', active: false, keyd: null},
+    // keyboard.keyRepeat as GNOME got it: "applied", "failed" or "off" (GNOME's own setting).
+    keyRepeat: {state: 'off', delay: null, interval: null},
     hotstrings: {engine: 'none', espansoInstalled: false, matchFile: null, count: 0},
     hotkeys: {},
     screens: null,
@@ -96,6 +98,12 @@ export function parseStatus(text) {
       active: bool(raw.hyper.active),
       keyd: ['running', 'stopped', 'none', 'checking'].includes(raw.hyper.keyd) ? raw.hyper.keyd : null,
     };
+  }
+  if (isObject(raw.keyRepeat)) {
+    const k = raw.keyRepeat;
+    const state = ['applied', 'failed'].includes(k.state) ? k.state : 'off';
+    const numbers = Number.isFinite(k.delay) && Number.isFinite(k.interval);
+    status.keyRepeat = state !== 'off' && numbers ? {state, delay: k.delay, interval: k.interval} : {state: 'off', delay: null, interval: null};
   }
   if (isObject(raw.hotstrings)) {
     status.hotstrings = {

@@ -20,6 +20,7 @@ import automation from './automation.test.mjs';
 import getStarted from './getstarted.test.mjs';
 import island from './island.test.mjs';
 import migration from './migration.test.mjs';
+import keyRepeat from './keyrepeat.test.mjs';
 
-const failed = await run([keys, config, actions, validator, status, importer, model, misc, automation, getStarted, island, migration], (await commandLineArgs())[0] ?? '');
+const failed = await run([keys, config, actions, validator, status, importer, model, misc, automation, getStarted, island, migration, keyRepeat], (await commandLineArgs())[0] ?? '');
 await exit(failed ? 1 : 0);

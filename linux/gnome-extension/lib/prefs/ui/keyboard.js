@@ -11,11 +11,74 @@
 // keyd's configuration is a root-owned file, so the extension can't change it: the installer writes
 // it from config.json's capsLockAlone and hyperModifiers, and this page says to run it again after
 // changing either. GNOME's option always sends Hyper and can't tell a tap from a hold.
+//
+// Key repeat (config.json's keyboard.keyRepeat, lib/prefs/keyRepeat.js) is on this page too, as on
+// the Mac: the extension applies it to GNOME's own setting, and copying config.json to another
+// computer (a Mac too) takes it along.
 
 import Adw from 'gi://Adw';
+import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 
+import {
+  GNOME_DEFAULT_KEY_REPEAT, KEY_REPEAT_RANGES, RATE_RANGE, delayLabel, intervalForRate, keyRepeatStatusLine, rateLabel,
+  repeatsPerSecond, withKeyRepeat,
+} from '../keyRepeat.js';
+import {clampKeyRepeat} from '../../core/index.js';
 import {box, label, group, switchRow, comboRow, pill, commandRow} from './widgets.js';
+
+/** This computer's key repeat (GNOME Settings → Keyboard), clamped as config.json holds it; null if unreadable. */
+function computerKeyRepeat() {
+  try {
+    const settings = new Gio.Settings({schema_id: 'org.gnome.desktop.peripherals.keyboard'});
+    return clampKeyRepeat({delay: settings.get_uint('delay'), interval: settings.get_uint('repeat-interval')});
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A slider with a number field beside it, both in milliseconds as far as `onChange` knows: the slider
+ * may run in other units (`toScale`/`fromScale`). Returns {row, set(ms)}.
+ */
+function sliderRow({title, scale: [min, max], marks, spin: [spinMin, spinMax], toScale = v => v, fromScale = v => v, onChange}) {
+  const row = new Adw.ActionRow({use_markup: false, title});
+  const scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, min, max, 1);
+  scale.set_draw_value(false);
+  scale.set_hexpand(true);
+  scale.set_size_request(220, -1);
+  scale.set_valign(Gtk.Align.CENTER);
+  for (const [value, text] of marks) scale.add_mark(value, Gtk.PositionType.BOTTOM, text);
+  const spin = Gtk.SpinButton.new_with_range(spinMin, spinMax, 1);
+  spin.set_valign(Gtk.Align.CENTER);
+  spin.set_tooltip_text('Milliseconds');
+  row.add_suffix(scale);
+  row.add_suffix(spin);
+  let quiet = false;
+  const set = ms => {
+    quiet = true;
+    scale.set_value(toScale(ms));
+    spin.set_value(ms);
+    quiet = false;
+  };
+  scale.connect('value-changed', () => {
+    if (quiet) return;
+    const ms = fromScale(Math.round(scale.get_value()));
+    quiet = true;
+    spin.set_value(ms);
+    quiet = false;
+    onChange(ms);
+  });
+  spin.connect('value-changed', () => {
+    if (quiet) return;
+    const ms = Math.round(spin.get_value());
+    quiet = true;
+    scale.set_value(toScale(ms));
+    quiet = false;
+    onChange(ms);
+  });
+  return {row, set};
+}
 
 const MODIFIER_ITEMS = [
   {id: 'hyper', label: 'Hyper: Ctrl Alt Shift Super'},
@@ -131,6 +194,57 @@ export function createKeyboardPane(ctx) {
   options.add(modifiers.row);
   prefs.add(options);
 
+  // Key repeat
+  const repeat = group({title: 'Key Repeat',
+    description: 'How long a held key waits before it repeats, and how fast it repeats then. Saved in config.json, so every computer you use Slated on gets the same, a Mac too. GNOME uses a change right away.'});
+  const setKeyRepeat = value => model.update(config => {
+    config.keyboard = withKeyRepeat(config, value).keyboard;
+  });
+  const current = () => model.configuration.keyboard.keyRepeat ?? null;
+  const repeatSwitch = switchRow({
+    title: 'Set key repeat with Slated', subtitle: 'Off leaves GNOME’s own setting as it is.',
+    active: !!current(),
+    onChange: on => setKeyRepeat(on ? (current() ?? computerKeyRepeat() ?? GNOME_DEFAULT_KEY_REPEAT) : null),
+  });
+  repeat.add(repeatSwitch.row);
+  const delay = sliderRow({
+    title: 'Delay until repeat', scale: KEY_REPEAT_RANGES.delay, spin: KEY_REPEAT_RANGES.delay,
+    marks: [[KEY_REPEAT_RANGES.delay[0], 'Short'], [KEY_REPEAT_RANGES.delay[1], 'Long']],
+    onChange: ms => setKeyRepeat({...(current() ?? GNOME_DEFAULT_KEY_REPEAT), delay: ms}),
+  });
+  repeat.add(delay.row);
+  // The slider runs in repeats per second, faster to the right; the field is the interval in ms.
+  const rate = sliderRow({
+    title: 'Repeat rate', scale: RATE_RANGE, spin: KEY_REPEAT_RANGES.interval,
+    marks: [[RATE_RANGE[0], 'Slow'], [RATE_RANGE[1], 'Fast']],
+    toScale: repeatsPerSecond, fromScale: intervalForRate,
+    onChange: ms => setKeyRepeat({...(current() ?? GNOME_DEFAULT_KEY_REPEAT), interval: ms}),
+  });
+  repeat.add(rate.row);
+  const useComputer = new Adw.ActionRow({use_markup: false, title: 'Use this computer’s current setting'});
+  useComputer.set_subtitle_lines(0);
+  const useButton = new Gtk.Button({label: 'Use', valign: Gtk.Align.CENTER});
+  useButton.connect('clicked', () => {
+    const value = computerKeyRepeat();
+    if (!value) {
+      ctx.toast?.('Couldn’t read GNOME’s key repeat setting.');
+      return;
+    }
+    setKeyRepeat(value);
+    ctx.toast?.(`Key repeat set to ${delayLabel(value.delay)}, ${rateLabel(value.interval)}.`);
+  });
+  useComputer.add_suffix(useButton);
+  repeat.add(useComputer);
+  // A place to hold a key down; nothing typed here is kept or logged.
+  const tryIt = new Adw.EntryRow({use_markup: false, title: 'Try it here: hold a key'});
+  repeat.add(tryIt);
+  const repeatStatus = new Adw.ActionRow({use_markup: false, title: 'Status'});
+  const repeatPill = box('horizontal', 0);
+  repeatPill.set_valign(Gtk.Align.CENTER);
+  repeatStatus.add_suffix(repeatPill);
+  repeat.add(repeatStatus);
+  prefs.add(repeat);
+
   // Good to know
   const know = group({title: 'Good to Know'});
   const karabiner = new Adw.ActionRow({
@@ -190,6 +304,23 @@ export function createKeyboardPane(ctx) {
     modifiers.row.set_subtitle(xkb
       ? "GNOME's keyboard option always sends the Hyper modifier; this applies with keyd and on the Mac."
       : keyd ? `${choice} ${rerun}` : choice);
+
+    const keyRepeat = keyboard.keyRepeat ?? null;
+    const shown = keyRepeat ?? computerKeyRepeat() ?? GNOME_DEFAULT_KEY_REPEAT;
+    repeatSwitch.set(!!keyRepeat);
+    delay.set(shown.delay);
+    rate.set(shown.interval);
+    delay.row.set_subtitle(delayLabel(shown.delay));
+    rate.row.set_subtitle(rateLabel(shown.interval));
+    delay.row.set_sensitive(!!keyRepeat);
+    rate.row.set_sensitive(!!keyRepeat);
+    const computer = computerKeyRepeat();
+    useComputer.set_subtitle(computer ? `GNOME has ${delayLabel(computer.delay)}, ${rateLabel(computer.interval)}.` : 'GNOME’s setting can’t be read.');
+    useButton.set_sensitive(!!computer);
+    repeatPill.get_first_child() && repeatPill.remove(repeatPill.get_first_child());
+    const line = keyRepeatStatusLine(keyRepeat, {running: model.running, keyRepeat: model.status.keyRepeat});
+    repeatPill.append(pill(line));
+    repeatStatus.set_subtitle(line.detail);
   };
   model.on('config', sync);
   model.on('status', sync);

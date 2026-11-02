@@ -466,6 +466,19 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
       state.props.set('value', value);
       if (before !== value) emit(object, 'value-changed');
     },
+    'Gtk.Scale.new_with_range': (_o, _s, [_orientation, min, max]) => {
+      const scale = instantiate('Gtk.Scale', {}, {internal: true});
+      stateOf(scale).range = [min, max];
+      return scale;
+    },
+    'Gtk.Range.set_value': (object, state, [value]) => {
+      const [min, max] = state.range ?? [-Infinity, Infinity];
+      const next = Math.min(Math.max(value, min), max);
+      const before = state.rangeValue;
+      state.rangeValue = next;
+      if (before !== next) emit(object, 'value-changed');
+    },
+    'Gtk.Range.get_value': (_o, state) => state.rangeValue ?? 0,
     'Adw.SpinRow.new_with_range': (_o, _s, [min, max]) => {
       const row = instantiate('Adw.SpinRow', {}, {internal: true});
       stateOf(row).range = [min, max];
@@ -990,6 +1003,21 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
           }, 0, 'idle');
         },
       },
+    },
+    // GSettings: only GNOME's keyboard repeat, which Settings → Keyboard → Key Repeat reads.
+    Settings: class {
+      constructor({schema_id: schema}) {
+        if (schema !== 'org.gnome.desktop.peripherals.keyboard') throw new MockError(`GSettings schema ${schema} isn't mocked`);
+        if (!env.gnomeKeyboard) throw new Error(`Settings schema '${schema}' is not installed`);
+      }
+      get_uint(key) {
+        if (!['delay', 'repeat-interval'].includes(key)) throw new MockError(`no uint key ${key}`);
+        return env.gnomeKeyboard[key];
+      }
+      get_boolean(key) {
+        if (key !== 'repeat') throw new MockError(`no boolean key ${key}`);
+        return env.gnomeKeyboard.repeat;
+      }
     },
     AppInfo: {
       get_all: () => (env.apps ?? []).map(app => ({

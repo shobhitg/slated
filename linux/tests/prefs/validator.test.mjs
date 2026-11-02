@@ -301,7 +301,7 @@ export default suite('Validation', [
     expect(changes.includes('binding changed: Left (hyper+s)'), changes.join(' | '));
     expect(changes.some(c => c.startsWith('binding added: ') && c.endsWith('(hyper+b)')), 'added binding');
     expect(changes.includes('hotstring changed: ;sig'), 'hotstring by trigger');
-    expect(changes.includes('keyboard: capsLock hyper, alone nothing, modifiers Ctrl+Alt+Shift+Super'));
+    expect(changes.includes('keyboard: capsLock hyper, alone nothing, modifiers Ctrl+Alt+Shift+Super, keyRepeat system'));
     expect(changes.includes('setting undoMaxStackSize: 20'));
     expect(!changes.join(' ').includes('secret'), 'replacements stay out of the log');
     // Settings → Hotstrings' Expansion switch, named as on the Mac (ConfigDiff.swift).
