@@ -278,7 +278,7 @@ export function registerUnitTests({root, readText}) {
     expectEqual(Object.keys(settingsFile).sort(), ['automation', 'clipboard', 'fromSettings', 'general', 'island', 'version', 'windows']);
     expectEqual([configFile.version, settingsFile.version], [2, 2]);
     expectEqual(settingsFile.windows, {undoMaxStackSize: 5});
-    expectEqual(settingsFile.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: false, showStatusIcon: true}, 'no Slate keys');
+    expectEqual(settingsFile.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: false, showStatusIcon: true, showConfigKeys: true}, 'no Slate keys');
     // Reading the two files back gives the same configuration, and unknown keys stay in their file.
     const back = core.decodeConfigurationFiles(files.config, files.settings);
     expectEqual(back.configuration, config);
@@ -295,7 +295,7 @@ export function registerUnitTests({root, readText}) {
     const alone = core.decodeConfigurationFiles(v1, null);
     expect(alone.legacy, 'version 1 is legacy');
     expectEqual(alone.configuration.version, 2);
-    expectEqual(alone.configuration.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: true, showStatusIcon: true});
+    expectEqual(alone.configuration.general, {hotstringsEnabled: true, launchAtLogin: false, showActionHUD: true, showStatusIcon: true, showConfigKeys: true});
     expectEqual(alone.configuration.windows, {secondsBeforeRepeat: 0.2}, '`settings` reads as `windows`');
     expectEqual(alone.configuration.island.enabled, false);
     expect(!('settings' in alone.configuration), 'no `settings` in memory');

@@ -17,6 +17,15 @@
       "search": 183,
       "sessions": 19
     },
+    "config-keys.json": {
+      "actions": 33,
+      "examples": 35,
+      "fields": 4,
+      "items": 8,
+      "notShown": 4,
+      "settings": 31,
+      "values": 34
+    },
     "config.json": {
       "decode": 649,
       "files": 16
@@ -87,11 +96,12 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 18394,
+  "totalVectors": 18543,
   "vectors": {
     "automation.json": 103,
     "cheatsheet.json": 144,
     "clipboard.json": 265,
+    "config-keys.json": 149,
     "config.json": 665,
     "expressions.json": 876,
     "frames.json": 9978,

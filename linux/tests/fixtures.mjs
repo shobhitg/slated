@@ -684,6 +684,82 @@ checkers['cheatsheet.json'] = (data) => ({
   },
 });
 
+/** A key from a copied path ("layouts[0].apps[0].options.ignoreFail"), items unnamed. */
+function keyFromPath(file, path) {
+  let key = core.configKey(file);
+  for (const part of path.split('.')) {
+    const [name, ...indices] = part.split('[');
+    if (name) key = core.appendKey(key, name);
+    for (const index of indices) key = core.itemKey(key, Number(index.slice(0, -1)));
+  }
+  return key;
+}
+
+checkers['config-keys.json'] = (data) => {
+  const {configuration, extras} = core.decodeConfigurationFiles(data.input.config, data.input.settings);
+  return {
+    settings() {
+      expectEqual(core.CONFIG_SETTINGS.length, data.settings.length, 'registry size');
+      for (const [i, c] of data.settings.entries()) {
+        countCheck();
+        const s = core.CONFIG_SETTINGS[i];
+        expectEqual({id: s?.id, file: s?.key.file, path: s && core.keyPath(s.key), display: s && core.keyDisplay(s.key), platforms: s && [...s.platforms].sort()},
+          {id: c.id, file: c.file, path: c.path, display: c.display, platforms: c.platforms}, c.id);
+      }
+    },
+    fields() {
+      for (const c of data.fields) {
+        countCheck();
+        expectEqual(core.CONFIG_FIELDS[c.item], c.fields, c.item);
+      }
+    },
+    actions() {
+      expectEqual(Object.keys(core.ACTION_PARAMETERS).sort(), data.actions.map((c) => c.op), 'operations');
+      for (const c of data.actions) {
+        countCheck();
+        expectEqual(core.ACTION_PARAMETERS[c.op], c.parameters, c.op);
+      }
+    },
+    examples() {
+      for (const c of data.examples) {
+        countCheck();
+        const binding = {id: '11111111-1111-4111-8111-111111111111', keys: 'hyper+a', action: JSON.parse(c.example)};
+        const written = JSON.parse(core.encodeConfigurationFiles(core.decodeConfiguration({bindings: [binding]})).config).bindings[0].action;
+        expectEqual(Object.keys(written).sort(), c.written, c.example);
+      }
+    },
+    items() {
+      for (const c of data.items) {
+        countCheck();
+        let key;
+        if (c.list === 'bindings' || c.list === 'nested') key = core.bindingKey(configuration, c.index);
+        else if (c.list === 'hotstrings') key = core.hotstringKey(configuration, c.index);
+        else if (c.list === 'layouts') key = core.layoutKey(configuration, c.index);
+        else key = core.layoutAppKey(configuration.layouts[0], c.index, core.layoutKey(configuration, 0));
+        const child = c.list === 'nested'
+          ? core.appendKey(core.itemKey(core.appendKey(key, 'action.operations'), 1), 'x')
+          : core.appendKey(key, c.field);
+        expectEqual({path: core.keyPath(key), display: core.keyDisplay(key), fieldPath: core.keyPath(child), fieldDisplay: core.keyDisplay(child), relative: core.relativeDisplay(child, key)},
+          {path: c.path, display: c.display, fieldPath: c.fieldPath, fieldDisplay: c.fieldDisplay, relative: c.relative}, `${c.list} ${c.index}`);
+      }
+    },
+    values() {
+      for (const c of data.values) {
+        countCheck();
+        const key = core.CONFIG_KEYS[c.id] ?? keyFromPath(c.file, c.path);
+        expectEqual(core.valueText(configuration, key, extras), c.text, c.id);
+      }
+    },
+    notShown() {
+      expectEqual(Object.keys(core.CONFIG_NOT_SHOWN).sort(), data.notShown.map((c) => c.key), 'keys');
+      for (const c of data.notShown) {
+        countCheck();
+        expectEqual(core.CONFIG_NOT_SHOWN[c.key], c.reason, c.key);
+      }
+    },
+  };
+};
+
 /** Registers one test per fixture section, plus a manifest check, reading files with `readText`. */
 export function registerFixtureTests(fixturesDir, readText) {
   const manifest = JSON.parse(readText(`${fixturesDir}/manifest.json`));

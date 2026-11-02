@@ -742,6 +742,7 @@ private func randomConfigJSON(_ rng: inout FuzzRNG) -> String {
     if rng.chance(0.5) { g.append("\"hotstringsEnabled\": \(rng.pick(["true", "false"]))") }
     if rng.chance(0.5) { g.append("\"showActionHUD\": \(rng.pick(["true", "false"]))") }
     if rng.chance(0.3) { g.append("\"showStatusIcon\": \(rng.pick(["true", "false"]))") }
+    if rng.chance(0.3) { g.append("\"showConfigKeys\": \(rng.pick(["true", "false"]))") }
     top.append("\"general\": {\(g.joined(separator: ", "))}")
   }
   if rng.chance(0.4) {

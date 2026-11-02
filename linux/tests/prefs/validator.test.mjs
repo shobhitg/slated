@@ -308,7 +308,7 @@ export default suite('Validation', [
     const off = JSON.parse(JSON.stringify(before));
     off.general.hotstringsEnabled = false;
     expectEqual(configChanges(before, off),
-      ['general: launchAtLogin false, showActionHUD false, hotstringsEnabled false, showStatusIcon true']);
+      ['general: launchAtLogin false, showActionHUD false, hotstringsEnabled false, showStatusIcon true, showConfigKeys true']);
   }],
   ['clipboard and automation settings changes are logged, app ids only counted', () => {
     const before = decodeConfiguration('{}');

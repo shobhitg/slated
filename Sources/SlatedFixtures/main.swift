@@ -73,6 +73,7 @@ let files: [FixtureFile] =
     clipboardFixtures(),
     placementFixtures(),
     cheatSheetFixtures(),
+    configKeyFixtures(),
   ]
 
 do {

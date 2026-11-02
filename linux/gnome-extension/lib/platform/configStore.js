@@ -21,7 +21,7 @@ import {Debouncer} from './timers.js';
 export function emptyConfiguration() {
   return {
     version: 2,
-    general: {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true},
+    general: {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true, showConfigKeys: true},
     windows: {},
     keyboard: {capsLock: 'off', capsLockAlone: 'nothing', hyperModifiers: ['ctrl', 'alt', 'shift', 'cmd']},
     bindings: [],

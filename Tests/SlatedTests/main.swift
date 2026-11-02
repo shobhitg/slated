@@ -6,6 +6,7 @@ setvbuf(stdout, nil, _IOLBF, 0)
 // Add new suites here.
 let suites: [Suite] = [
   configurationTests,
+  configKeyTests,
   keyRepeatTests,
   macKeyRepeatTests,
   capsLockLockTests,

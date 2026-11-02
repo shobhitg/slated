@@ -131,6 +131,37 @@ extension SlatedConfiguration {
     unknownSettings = other.unknownSettings
   }
 
+  /// Takes config.json's sections from `other`, keeping settings.json's.
+  public mutating func adoptConfig(of other: SlatedConfiguration) {
+    keyboard = other.keyboard
+    bindings = other.bindings
+    layouts = other.layouts
+    defaults = other.defaults
+    hotstrings = other.hotstrings
+    unknownSections = other.unknownSections
+  }
+
+  /// Takes `file`'s sections from `other`.
+  public mutating func adopt(_ file: ConfigFile, of other: SlatedConfiguration) {
+    switch file {
+    case .config: adoptConfig(of: other)
+    case .settings: adoptSettings(of: other)
+    }
+  }
+
+  /// Whether `file` would be written differently for `other`: what a hand edit to one file changed,
+  /// and whether the window has unsaved edits in it.
+  public func differs(from other: SlatedConfiguration, in file: ConfigFile) -> Bool {
+    switch file {
+    case .config:
+      return keyboard != other.keyboard || bindings != other.bindings || layouts != other.layouts
+        || defaults != other.defaults || hotstrings != other.hotstrings || unknownSections != other.unknownSections
+    case .settings:
+      return general != other.general || windows != other.windows || clipboard != other.clipboard
+        || automation != other.automation || island != other.island || unknownSettings != other.unknownSettings
+    }
+  }
+
   private static var encoder: JSONEncoder {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

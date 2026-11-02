@@ -8,7 +8,7 @@ import {isObject, stableStringify} from './util.js';
 import {newId} from './ids.js';
 
 export function defaultGeneral() {
-  return {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true};
+  return {launchAtLogin: false, showActionHUD: false, hotstringsEnabled: true, showStatusIcon: true, showConfigKeys: true};
 }
 
 export function defaultKeyboard() {

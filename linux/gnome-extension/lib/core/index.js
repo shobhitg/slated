@@ -184,3 +184,32 @@ export {hyperCheatSheet, modalCheatSheet, cheatSheetGroup, cheatSheetItems, CHEA
  * expandTemplate("{date:yyyy-MM-dd}", {now?, clipboard?, locale?, timeZone?}) → expanded text.
  */
 export {HotstringMatcher, expandTemplate} from './hotstrings.js';
+
+// --- Config keys ------------------------------------------------------------------------------------
+/**
+ * Where each setting lives in the files, for the key the settings window shows under it:
+ * CONFIG_KEYS.islandEnabled → {file: 'settings.json', components}; keyDisplay(key) →
+ * "settings.json › island.enabled"; keyPath(key) → "island.enabled"; valueText(configuration, key) →
+ * the value as the file has it. Items: hotstringKey(configuration, 1) → `config.json › hotstrings › ";sig"`.
+ */
+export {
+  configKey,
+  appendKey,
+  itemKey,
+  keyPath,
+  keyDisplay,
+  relativeDisplay,
+  itemName,
+  valueAt,
+  valueText,
+  SETTINGS as CONFIG_SETTINGS,
+  CONFIG_KEYS,
+  LISTS as CONFIG_LISTS,
+  FIELDS as CONFIG_FIELDS,
+  ACTION_PARAMETERS,
+  NOT_SHOWN as CONFIG_NOT_SHOWN,
+  bindingKey,
+  hotstringKey,
+  layoutKey,
+  layoutAppKey,
+} from './configKeys.js';

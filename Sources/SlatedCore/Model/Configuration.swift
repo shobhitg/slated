@@ -73,21 +73,26 @@ public struct GeneralSettings: Hashable, Sendable {
   /// Slated's icon in the Mac's menu bar and GNOME's top bar. Without it, the Dock icon (on GNOME, the
   /// app grid) opens Slated.
   public var showStatusIcon: Bool
+  /// The settings window shows each setting's key in the files (`settings.json › island.enabled`)
+  /// under its label. A per-machine UI preference: the files are the product's interface, and the
+  /// keys say where to find a setting when editing them by hand.
+  public var showConfigKeys: Bool
 
   public init(
     launchAtLogin: Bool = false, showActionHUD: Bool = false, hotstringsEnabled: Bool = true,
-    showStatusIcon: Bool = true
+    showStatusIcon: Bool = true, showConfigKeys: Bool = true
   ) {
     self.launchAtLogin = launchAtLogin
     self.showActionHUD = showActionHUD
     self.hotstringsEnabled = hotstringsEnabled
     self.showStatusIcon = showStatusIcon
+    self.showConfigKeys = showConfigKeys
   }
 }
 
 extension GeneralSettings: Codable {
   private enum Key: String, CodingKey {
-    case launchAtLogin, showActionHUD, hotstringsEnabled, showStatusIcon
+    case launchAtLogin, showActionHUD, hotstringsEnabled, showStatusIcon, showConfigKeys
   }
 
   public init(from decoder: Decoder) throws {
@@ -97,7 +102,8 @@ extension GeneralSettings: Codable {
       launchAtLogin: try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin,
       showActionHUD: try c.decodeIfPresent(Bool.self, forKey: .showActionHUD) ?? d.showActionHUD,
       hotstringsEnabled: try c.decodeIfPresent(Bool.self, forKey: .hotstringsEnabled) ?? d.hotstringsEnabled,
-      showStatusIcon: try c.decodeIfPresent(Bool.self, forKey: .showStatusIcon) ?? d.showStatusIcon)
+      showStatusIcon: try c.decodeIfPresent(Bool.self, forKey: .showStatusIcon) ?? d.showStatusIcon,
+      showConfigKeys: try c.decodeIfPresent(Bool.self, forKey: .showConfigKeys) ?? d.showConfigKeys)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -106,6 +112,7 @@ extension GeneralSettings: Codable {
     try c.encode(showActionHUD, forKey: .showActionHUD)
     try c.encode(hotstringsEnabled, forKey: .hotstringsEnabled)
     try c.encode(showStatusIcon, forKey: .showStatusIcon)
+    try c.encode(showConfigKeys, forKey: .showConfigKeys)
   }
 }
 
