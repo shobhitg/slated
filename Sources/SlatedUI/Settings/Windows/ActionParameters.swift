@@ -140,12 +140,11 @@ struct ActionParameters: View {
       VStack(alignment: .leading, spacing: 14) {
         FieldGroup("Button") { MouseButtonPicker(button: field(\.mouseButton)) }
         FieldGroup("Clicks") {
-          Picker("Clicks", selection: field(\.clickCount)) {
+          FittingPicker("Clicks", selection: field(\.clickCount)) {
             Text("Single").tag(1)
             Text("Double").tag(2)
             Text("Triple").tag(3)
           }
-          .labelsHidden().pickerStyle(.segmented).fixedSize()
         }
         Hint("Clicks where the pointer is, without moving it.")
       }
@@ -290,15 +289,12 @@ struct DirectionPicker: View {
   @Binding var direction: Direction
 
   var body: some View {
-    Picker("Edge", selection: $direction) {
+    FittingPicker("Edge", selection: $direction) {
       Label("Left", systemImage: "arrow.left.to.line").tag(Direction.left)
       Label("Right", systemImage: "arrow.right.to.line").tag(Direction.right)
       Label("Top", systemImage: "arrow.up.to.line").tag(Direction.up)
       Label("Bottom", systemImage: "arrow.down.to.line").tag(Direction.down)
     }
-    .labelsHidden()
-    .pickerStyle(.segmented)
-    .fixedSize()
   }
 }
 
@@ -306,16 +302,13 @@ struct FocusDirectionPicker: View {
   @Binding var direction: FocusDirection
 
   var body: some View {
-    Picker("Direction", selection: $direction) {
+    FittingPicker("Direction", selection: $direction) {
       Label("Left", systemImage: "arrow.left").tag(FocusDirection.left)
       Label("Right", systemImage: "arrow.right").tag(FocusDirection.right)
       Label("Up", systemImage: "arrow.up").tag(FocusDirection.up)
       Label("Down", systemImage: "arrow.down").tag(FocusDirection.down)
       Text("Behind").tag(FocusDirection.behind)
     }
-    .labelsHidden()
-    .pickerStyle(.segmented)
-    .fixedSize()
   }
 }
 
@@ -323,15 +316,12 @@ struct CornerPicker: View {
   @Binding var corner: Corner
 
   var body: some View {
-    Picker("Corner", selection: $corner) {
+    FittingPicker("Corner", selection: $corner) {
       Label("Top Left", systemImage: "arrow.up.left").tag(Corner.topLeft)
       Label("Top Right", systemImage: "arrow.up.right").tag(Corner.topRight)
       Label("Bottom Left", systemImage: "arrow.down.left").tag(Corner.bottomLeft)
       Label("Bottom Right", systemImage: "arrow.down.right").tag(Corner.bottomRight)
     }
-    .labelsHidden()
-    .pickerStyle(.segmented)
-    .fixedSize()
   }
 }
 
@@ -361,15 +351,12 @@ struct PushStylePicker: View {
   }
 
   var body: some View {
-    Picker("Size", selection: tag) {
+    FittingPicker("Size", selection: tag) {
       Text("Keep").tag("none")
       Text("Centered").tag("center")
       Text("Fill Edge").tag("bar")
       Text("Fill & Resize").tag("bar-resize")
     }
-    .labelsHidden()
-    .pickerStyle(.segmented)
-    .fixedSize()
   }
 }
 
@@ -378,14 +365,11 @@ struct InsertMethodPicker: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Picker("Insert by", selection: $method) {
+      FittingPicker("Insert by", selection: $method) {
         Text("Automatic").tag(InsertMethod.auto)
         Text("Typing").tag(InsertMethod.type)
         Text("Pasting").tag(InsertMethod.paste)
       }
-      .labelsHidden()
-      .pickerStyle(.segmented)
-      .fixedSize()
       Hint(method.explanation)
     }
   }
@@ -528,15 +512,12 @@ struct AppSelectorEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Picker("Apps", selection: mode) {
+      FittingPicker("Apps", selection: mode) {
         Text("Current App").tag("current")
         Text("All Apps").tag("all")
         Text("All But…").tag("allBut")
         Text("These Apps").tag("apps")
       }
-      .labelsHidden()
-      .pickerStyle(.segmented)
-      .fixedSize()
       switch selector {
       case .allBut(let app):
         LabeledField("Except", labelWidth: 56) {

@@ -114,13 +114,10 @@ struct HotstringEditor: View {
           }
         }
         LabeledField("Expand", labelWidth: 60) {
-          Picker("Expand", selection: $hotstring.fire) {
+          FittingPicker("Expand", selection: $hotstring.fire) {
             Text("Right away").tag(Hotstring.Fire.immediately)
             Text("After a space or punctuation").tag(Hotstring.Fire.afterDelimiter)
           }
-          .labelsHidden()
-          .pickerStyle(.segmented)
-          .fixedSize()
         }
         VStack(alignment: .leading, spacing: 8) {
           Toggle("Match case exactly", isOn: $hotstring.caseSensitive)
@@ -193,14 +190,11 @@ struct HotstringEditor: View {
   private var appsCard: some View {
     SettingsCard(title: "Where It Works", symbol: "macwindow") {
       VStack(alignment: .leading, spacing: 12) {
-        Picker("Where", selection: scope) {
+        FittingPicker("Where", selection: scope) {
           Text("Everywhere").tag(Scope.everywhere)
           Text("Only in…").tag(Scope.only)
           Text("Everywhere except…").tag(Scope.except)
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .fixedSize()
         switch scope.wrappedValue {
         case .everywhere:
           Hint("Expands in every app. Slated never expands in password fields.")

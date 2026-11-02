@@ -140,7 +140,7 @@ private struct IslandCard: View {
         subtitle: "How long to hold before the shortcuts appear. Quick taps never show them.",
         symbol: "timer", tint: Color(hex: 0x2F7BF5)
       ) {
-        Picker("Cheat sheet delay", selection: $model.configuration.island.cheatSheetDelay) {
+        FittingPicker("Cheat sheet delay", selection: $model.configuration.island.cheatSheetDelay) {
           Text("Short").tag(0.3)
           Text("Medium").tag(0.5)
           Text("Long").tag(0.8)
@@ -148,9 +148,6 @@ private struct IslandCard: View {
             Text(String(format: "%.2g s", island.cheatSheetDelay)).tag(island.cheatSheetDelay)
           }
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .fixedSize()
       }
       .disabled(!island.enabled || !island.cheatSheet)
       CardDivider(inset: 54)
@@ -183,14 +180,11 @@ private struct WindowBehaviorCard: View {
         subtitle: "How long to hold a shortcut before it repeats, for operations that repeat.",
         symbol: "repeat", tint: Color(hex: 0x7A5AF8)
       ) {
-        Picker("Repeat delay", selection: number("secondsBeforeRepeat", default: 0.4)) {
+        FittingPicker("Repeat delay", selection: number("secondsBeforeRepeat", default: 0.4)) {
           Text("Short").tag(0.25)
           Text("Medium").tag(0.4)
           Text("Long").tag(0.7)
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .fixedSize()
       }
       CardDivider(inset: 54)
       SettingRow(

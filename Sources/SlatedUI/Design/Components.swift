@@ -63,13 +63,38 @@ struct StatusDot: View {
   }
 }
 
-/// The title block at the top of each settings pane.
+/// The title block at the top of each settings pane. In a compact pane the subtitle gets its own
+/// line under the title row, so the accessory (buttons, switches) never squeezes or clips it.
 struct PaneHeader<Accessory: View>: View {
   let pane: SettingsPane
   let subtitle: String
   @ViewBuilder var accessory: Accessory
+  @Environment(\.compactPane) private var compact
 
   var body: some View {
+    if compact {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .center, spacing: 12) {
+          IconTile(symbol: pane.symbol, tint: pane.tint, size: 32, gradient: pane == .overview)
+          Text(pane.title)
+            .font(.system(size: 20, weight: .bold))
+            .tracking(-0.3)
+            .lineLimit(1)
+            .layoutPriority(1)
+          Spacer(minLength: 8)
+          accessory
+        }
+        Text(subtitle)
+          .font(.system(size: 12.5))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    } else {
+      wide
+    }
+  }
+
+  private var wide: some View {
     HStack(alignment: .center, spacing: 14) {
       IconTile(symbol: pane.symbol, tint: pane.tint, size: 38, gradient: pane == .overview)
       VStack(alignment: .leading, spacing: 2) {
@@ -174,7 +199,9 @@ struct SettingRow<Trailing: View>: View {
         }
       }
       Spacer(minLength: 16)
-      trailing
+      // The control keeps its natural width and the text wraps beside it: an even split of the row left
+      // wide controls (shortcut recorders) narrower than they can be, pushing the card past its column.
+      trailing.fixedSize(horizontal: true, vertical: false)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 11)

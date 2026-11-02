@@ -30,6 +30,8 @@ struct ClipboardPane: View {
 
 private struct ClipboardHero: View {
   @Environment(AppModel.self) private var model
+  /// In a narrow pane the picture gives its room to the text and buttons.
+  @Environment(\.compactPane) private var compact
 
   var body: some View {
     let settings = model.configuration.clipboard
@@ -95,9 +97,11 @@ private struct ClipboardHero: View {
         .padding(.top, 2)
       }
       Spacer(minLength: 8)
-      ClipboardStackArt(items: model.clipboardItems)
-        .frame(width: 210, height: 96)
-        .padding(.trailing, 4)
+      if !compact {
+        ClipboardStackArt(items: model.clipboardItems)
+          .frame(width: 210, height: 96)
+          .padding(.trailing, 4)
+      }
     }
   }
 

@@ -5,6 +5,8 @@ import SwiftUI
 struct WindowsPane: View {
   @Environment(AppModel.self) private var model
   @State private var search = ""
+  /// The shortcut the back button left, so the list comes back scrolled to it.
+  @State private var returnTo: BindingSelection?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -15,14 +17,23 @@ struct WindowsPane: View {
       .padding(.top, 22)
       .padding(.bottom, 16)
       Rectangle().fill(Theme.hairline).frame(height: 0.5)
-      HStack(spacing: 0) {
-        BindingList(search: $search)
-          .frame(width: 330)
-        Rectangle().fill(Theme.hairline).frame(width: 0.5)
+      ListDetail(
+        listWidth: 330, hasSelection: hasSelection, backTitle: "All Shortcuts",
+        back: {
+          returnTo = model.selectedBinding
+          model.selectedBinding = nil
+        }
+      ) {
+        BindingList(search: $search, returnTo: returnTo)
+      } detail: {
         detail
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+  }
+
+  private var hasSelection: Bool {
+    guard case .slated(let id) = model.selectedBinding else { return false }
+    return model.configuration.bindings.contains { $0.id == id }
   }
 
   @ViewBuilder private var detail: some View {
@@ -92,13 +103,8 @@ private struct NewBindingButton: View {
       .menuStyle(.borderlessButton)
       .fixedSize()
       .foregroundStyle(.secondary)
-      Button {
-        model.addBinding()
-      } label: {
-        Label("New Shortcut", systemImage: "plus")
-      }
-      .buttonStyle(.gradient)
-      .keyboardShortcut("n", modifiers: .command)
+      NewItemButton(title: "New Shortcut") { model.addBinding() }
+        .keyboardShortcut("n", modifiers: .command)
     }
   }
 }
@@ -107,6 +113,7 @@ private struct NewBindingButton: View {
 
 private struct BindingList: View {
   @Binding var search: String
+  var returnTo: BindingSelection?
   @Environment(AppModel.self) private var model
 
   var body: some View {
@@ -117,8 +124,9 @@ private struct BindingList: View {
         .padding(.bottom, 6)
       ScrollViewReader { proxy in
         list
-          .onChange(of: model.selectedBinding, initial: true) { _, selection in
-            // Bring programmatic selections (new, copied, opened from Overview) into view.
+          .onChange(of: model.selectedBinding ?? returnTo, initial: true) { _, selection in
+            // Bring programmatic selections (new, copied, opened from Overview) into view, and the
+            // shortcut you came back from when the list and editor take turns.
             if let selection { proxy.scrollTo(selection) }
           }
       }

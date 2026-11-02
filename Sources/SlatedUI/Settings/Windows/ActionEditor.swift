@@ -157,17 +157,21 @@ struct PresetGallery: View {
       Text("Presets").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.secondary)
       VStack(alignment: .leading, spacing: 6) {
         ForEach(WindowPreset.Group.allCases) { group in
-          HStack(spacing: 6) {
+          HStack(alignment: .top, spacing: 6) {
             Text(group.rawValue)
               .font(.system(size: 11))
               .foregroundStyle(.tertiary)
-              .frame(width: 84, alignment: .leading)
-            ForEach(WindowPresets.all.filter { $0.group == group }) { preset in
-              PresetTile(preset: preset, isSelected: preset.matches(action)) {
-                withAnimation(Theme.spring) { action = preset.action }
+              // As tall as a row of tiles, so the name lines up with the first row.
+              .frame(width: 84, height: 27, alignment: .leading)
+            // Tiles wrap onto a second line in a narrow editor rather than widening it.
+            FlowLayout(spacing: 6) {
+              ForEach(WindowPresets.all.filter { $0.group == group }) { preset in
+                PresetTile(preset: preset, isSelected: preset.matches(action)) {
+                  withAnimation(Theme.spring) { action = preset.action }
+                }
               }
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
           }
         }
       }

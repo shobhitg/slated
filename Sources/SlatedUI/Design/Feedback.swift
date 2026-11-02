@@ -147,6 +147,9 @@ struct GradientButtonStyle: ButtonStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
+      // A squeezed row wraps or truncates the text beside the button, never the button's title.
+      .lineLimit(1)
+      .fixedSize(horizontal: true, vertical: false)
       .font(.system(size: large ? 14 : (compact ? 12 : 12.5), weight: .semibold))
       .foregroundStyle(.white)
       .padding(.horizontal, large ? 22 : (compact ? 10 : 14))
@@ -179,6 +182,8 @@ struct SoftButtonStyle: ButtonStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
+      .lineLimit(1)
+      .fixedSize(horizontal: true, vertical: false)
       .font(.system(size: large ? 14 : 12.5, weight: .medium))
       .padding(.horizontal, large ? 20 : 12)
       .frame(height: large ? 38 : 28)

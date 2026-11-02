@@ -8,12 +8,7 @@ struct LayoutsPane: View {
   var body: some View {
     VStack(spacing: 0) {
       PaneHeader(pane: .layouts, subtitle: "Arrange several apps at once — one shortcut sets up a whole workspace.") {
-        Button {
-          model.addLayout()
-        } label: {
-          Label("New Layout", systemImage: "plus")
-        }
-        .buttonStyle(.gradient)
+        NewItemButton(title: "New Layout") { model.addLayout() }
       }
       .padding(.horizontal, Theme.paneHorizontalPadding)
       .padding(.top, 22)
@@ -30,12 +25,13 @@ struct LayoutsPane: View {
         }
         .frame(maxHeight: .infinity)
       } else {
-        HStack(spacing: 0) {
+        ListDetail(
+          listWidth: 280, hasSelection: model.selectedLayoutIndex != nil, backTitle: "All Layouts",
+          back: { model.selectedLayout = nil }
+        ) {
           LayoutList()
-            .frame(width: 280)
-          Rectangle().fill(Theme.hairline).frame(width: 0.5)
+        } detail: {
           detail
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
       }
     }

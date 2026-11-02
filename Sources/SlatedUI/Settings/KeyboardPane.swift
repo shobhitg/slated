@@ -21,13 +21,10 @@ struct KeyboardPane: View {
         SettingRow(
           title: "Hyper key sends", subtitle: modifierExplanation, symbol: "command", tint: SettingsPane.keyboard.tint
         ) {
-          Picker("Hyper key sends", selection: $model.configuration.keyboard.hyperModifiers) {
+          FittingPicker("Hyper key sends", selection: $model.configuration.keyboard.hyperModifiers) {
             Text("Hyper ⌃⌥⇧⌘").tag(Modifiers.hyper)
             Text("Meh ⌃⌥⇧").tag(Modifiers.meh)
           }
-          .labelsHidden()
-          .pickerStyle(.segmented)
-          .fixedSize()
         }
       }
       .disabled(!model.hyperKeyEnabled)

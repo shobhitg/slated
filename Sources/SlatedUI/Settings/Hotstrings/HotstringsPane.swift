@@ -5,19 +5,16 @@ import SwiftUI
 struct HotstringsPane: View {
   @Environment(AppModel.self) private var model
   @State private var search = ""
+  /// The hotstring the back button left, so the list comes back scrolled to it.
+  @State private var returnTo: UUID?
 
   var body: some View {
     VStack(spacing: 0) {
       PaneHeader(pane: .hotstrings, subtitle: "Type a short trigger anywhere and Slated replaces it with your text.") {
         HStack(spacing: 14) {
           MasterSwitch()
-          Button {
-            model.addHotstring()
-          } label: {
-            Label("New Hotstring", systemImage: "plus")
-          }
-          .buttonStyle(.gradient)
-          .keyboardShortcut("n", modifiers: .command)
+          NewItemButton(title: "New Hotstring") { model.addHotstring() }
+            .keyboardShortcut("n", modifiers: .command)
         }
       }
       .padding(.horizontal, Theme.paneHorizontalPadding)
@@ -35,12 +32,17 @@ struct HotstringsPane: View {
         }
         .frame(maxHeight: .infinity)
       } else {
-        HStack(spacing: 0) {
-          HotstringList(search: $search)
-            .frame(width: 310)
-          Rectangle().fill(Theme.hairline).frame(width: 0.5)
+        ListDetail(
+          listWidth: 310, hasSelection: model.selectedHotstringID.flatMap(model.hotstring) != nil,
+          backTitle: "All Hotstrings",
+          back: {
+            returnTo = model.selectedHotstringID
+            model.selectedHotstringID = nil
+          }
+        ) {
+          HotstringList(search: $search, returnTo: returnTo)
+        } detail: {
           detail
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
       }
     }
@@ -83,6 +85,7 @@ private struct MasterSwitch: View {
 
 private struct HotstringList: View {
   @Binding var search: String
+  var returnTo: UUID?
   @Environment(AppModel.self) private var model
 
   var body: some View {
@@ -116,7 +119,7 @@ private struct HotstringList: View {
         .onDeleteCommand {
           if let id = model.selectedHotstringID { model.deleteHotstring(id) }
         }
-        .onChange(of: model.selectedHotstringID, initial: true) { _, id in
+        .onChange(of: model.selectedHotstringID ?? returnTo, initial: true) { _, id in
           if let id { proxy.scrollTo(id) }
         }
       }

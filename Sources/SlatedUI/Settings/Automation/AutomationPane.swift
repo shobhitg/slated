@@ -9,12 +9,7 @@ struct AutomationPane: View {
   var body: some View {
     PaneScroll {
       PaneHeader(pane: .automation, subtitle: "Auto-clickers, held keys and macros for games and repetitive work.") {
-        Button {
-          model.newAutomation()
-        } label: {
-          Label("New Automation", systemImage: "plus")
-        }
-        .buttonStyle(.gradient)
+        NewItemButton(title: "New Automation") { model.newAutomation() }
       }
       AutomationHero()
       Notice(

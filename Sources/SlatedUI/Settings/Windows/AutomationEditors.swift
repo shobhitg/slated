@@ -288,13 +288,10 @@ struct RepeatLimitField: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 10) {
-        Picker("Stop", selection: limited) {
+        FittingPicker("Stop", selection: limited) {
           Text("When stopped").tag(false)
           Text("After a number of runs").tag(true)
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .fixedSize()
         if let current = times {
           HStack(spacing: 6) {
             TextField("50", value: Binding(get: { current }, set: { times = max(1, $0) }), format: .number)
@@ -401,13 +398,12 @@ struct RepeatedActionEditor: View {
       case .click(let button, let count):
         HStack(spacing: 14) {
           MouseButtonPicker(button: Binding(get: { button }, set: { action = .click($0, count: count) }))
-          Picker("Clicks", selection: Binding(get: { min(count, 2) }, set: { action = .click(button, count: $0) })) {
+          FittingPicker(
+            "Clicks", selection: Binding(get: { min(count, 2) }, set: { action = .click(button, count: $0) })
+          ) {
             Text("Single").tag(1)
             Text("Double").tag(2)
           }
-          .labelsHidden()
-          .pickerStyle(.segmented)
-          .fixedSize()
         }
       case .keystroke(let combo):
         KeyChooser(combo: Binding(get: { combo }, set: { action = .keystroke($0) }), allowsModifierKeys: false)
@@ -473,13 +469,10 @@ struct PressPhasePicker: View {
   @Binding var phase: PressPhase
 
   var body: some View {
-    Picker("Press or release", selection: $phase) {
+    FittingPicker("Press or release", selection: $phase) {
       Label("Press Down", systemImage: "arrow.down.to.line").tag(PressPhase.down)
       Label("Release", systemImage: "arrow.up.to.line").tag(PressPhase.up)
     }
-    .labelsHidden()
-    .pickerStyle(.segmented)
-    .fixedSize()
   }
 }
 

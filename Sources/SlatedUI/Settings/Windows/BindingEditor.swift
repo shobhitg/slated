@@ -126,14 +126,11 @@ struct BindingEditor: View {
         DisclosureGroup(isExpanded: $showAdvanced) {
           VStack(alignment: .leading, spacing: 14) {
             LabeledField("Repeat") {
-              Picker("Repeat while held", selection: $binding.repeats) {
+              FittingPicker("Repeat while held", selection: $binding.repeats) {
                 Text("Default").tag(Bool?.none)
                 Text("While held").tag(Bool?.some(true))
                 Text("Never").tag(Bool?.some(false))
               }
-              .labelsHidden()
-              .pickerStyle(.segmented)
-              .fixedSize()
             }
             LabeledField("Modal key") {
               ModalKeyEditor(modal: $binding.modal)
@@ -174,13 +171,10 @@ struct AppScopeEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Picker("Works in", selection: limited) {
+      FittingPicker("Works in", selection: limited) {
         Text("Everywhere").tag(false)
         Text("Only in…").tag(true)
       }
-      .labelsHidden()
-      .pickerStyle(.segmented)
-      .fixedSize()
       if limited.wrappedValue {
         BundleChips(
           ids: $apps,
