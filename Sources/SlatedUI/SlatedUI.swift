@@ -21,11 +21,14 @@ import SwiftUI
 @MainActor
 public enum SlatedUI {
   public static let mainWindowSize = CGSize(width: 1080, height: 720)
+  /// The smallest size the main window's panes are designed for (half of a 1280-pt screen). A frame
+  /// set by macOS tiling or through Accessibility can be smaller still; the content then scrolls.
+  public static let mainWindowMinimumSize = MainWindowLayout.minimumSize
 
   // MARK: Views
 
   /// The main window's content: a sidebar of panes (Get Started first during setup) and the selected
-  /// pane. Size it at least 940 × 620.
+  /// pane. It adapts to any width from `mainWindowMinimumSize` up and scrolls below it.
   public static func makeMainView(model: AppModel) -> some View {
     SettingsView(model: model)
   }
@@ -37,7 +40,9 @@ public enum SlatedUI {
   /// reference and show it again.
   public static func makeMainWindow(model: AppModel) -> NSWindow {
     let controller = NSHostingController(rootView: makeMainView(model: model))
-    controller.sizingOptions = [.minSize]
+    // The content accepts any size (it scrolls below the minimum), so the window's minimum is set
+    // here rather than taken from the view.
+    controller.sizingOptions = []
     // The window's title and toolbar stay as set here: no SwiftUI toolbar takes over the title bar.
     controller.sceneBridgingOptions = []
     let window = NSWindow(contentViewController: controller)
@@ -47,6 +52,7 @@ public enum SlatedUI {
     window.titleVisibility = .hidden
     window.toolbarStyle = .unified
     window.isReleasedWhenClosed = false
+    window.contentMinSize = mainWindowMinimumSize
     window.setContentSize(mainWindowSize)
     window.center()
     window.setFrameAutosaveName("SlatedSettingsWindow")

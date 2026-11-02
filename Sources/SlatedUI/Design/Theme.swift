@@ -26,6 +26,8 @@ enum Theme {
 
   static let paneBackground = Color.adaptive(light: 0xF6F6F8, dark: 0x1B1B1E)
   static let sidebarBackground = Color.adaptive(light: 0xEDEDF0, dark: 0x232326)
+  /// A count pinned to an icon in the narrow sidebar: opaque, so it reads over the icon.
+  static let railBadge = Color.adaptive(light: 0xD6D6DC, dark: 0x4A4A51)
   static let cardBackground = Color.adaptive(light: 0xFFFFFF, dark: 0x25252A)
   static let cardStroke = Color.adaptive(light: 0x000000, lightAlpha: 0.07, dark: 0xFFFFFF, darkAlpha: 0.07)
   /// Wells inside cards: input backgrounds, preview stages, inactive chips.

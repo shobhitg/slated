@@ -10,16 +10,20 @@ struct SettingsView: View {
   @Bindable var model: AppModel
 
   var body: some View {
-    HStack(spacing: 0) {
-      SettingsSidebar()
-        .frame(width: 224)
-        .background(Theme.sidebarBackground)
-      Rectangle().fill(Theme.hairline).frame(width: 0.5)
-      detail
+    // Any width works: macOS tiling and Accessibility frames ignore the window's minimum size.
+    MinimumSizeScroller { size in
+      let rail = MainWindowLayout.showsRail(windowWidth: size.width)
+      HStack(spacing: 0) {
+        SettingsSidebar(rail: rail)
+          .frame(width: MainWindowLayout.sidebarWidth(windowWidth: size.width))
+          .background(Theme.sidebarBackground)
+        Rectangle().fill(Theme.hairline).frame(width: 0.5)
+        detail
+          .environment(\.paneWidth, MainWindowLayout.paneWidth(windowWidth: size.width))
+      }
     }
     .environment(model)
     .tint(Theme.accent)
-    .frame(minWidth: 940, minHeight: 620)
   }
 
   private var detail: some View {

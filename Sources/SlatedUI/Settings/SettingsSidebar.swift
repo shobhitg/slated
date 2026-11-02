@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// The settings sidebar: brand header, panes with live counts and warnings, and a save status line.
+/// In a narrow window (`rail`) it's a column of icons: names in tooltips, counts as small numbers.
 struct SettingsSidebar: View {
+  var rail = false
   @Environment(AppModel.self) private var model
 
   var body: some View {
     List(selection: selection) {
-      SidebarHeader()
+      SidebarHeader(rail: rail)
         .listRowSeparator(.hidden)
         .selectionDisabled()
       ForEach(Self.sections(showingGetStarted: model.showsGetStarted), id: \.self) { panes in
@@ -17,7 +19,7 @@ struct SettingsSidebar: View {
     }
     .listStyle(.sidebar)
     .safeAreaInset(edge: .bottom, spacing: 0) {
-      SaveStatusFooter()
+      SaveStatusFooter(rail: rail)
     }
     .withoutScrollEdgeEffect()
   }
@@ -33,40 +35,107 @@ struct SettingsSidebar: View {
     Binding(get: { model.selectedPane }, set: { if let pane = $0 { model.selectedPane = pane } })
   }
 
-  private func row(_ pane: SettingsPane) -> some View {
-    HStack(spacing: 9) {
-      IconTile(symbol: pane.symbol, tint: pane.tint, size: 22, gradient: pane == .overview)
-      Text(pane.title)
-        .font(.system(size: 13))
-        .lineLimit(1)
-      Spacer(minLength: 4)
-      badge(for: pane)
+  @ViewBuilder private func row(_ pane: SettingsPane) -> some View {
+    let badge = badge(for: pane)
+    if rail {
+      IconTile(symbol: pane.symbol, tint: pane.tint, size: 24, gradient: pane == .overview)
+        .overlay(alignment: .topTrailing) {
+          if let badge { RailBadge(badge: badge).offset(x: 9, y: -6) }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .tag(pane)
+        .help(badge.map { "\(pane.title): \($0.spoken)" } ?? pane.title)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(pane.title)
+        .accessibilityValue(badge?.spoken ?? "")
+    } else {
+      HStack(spacing: 9) {
+        IconTile(symbol: pane.symbol, tint: pane.tint, size: 22, gradient: pane == .overview)
+        Text(pane.title)
+          .font(.system(size: 13))
+          .lineLimit(1)
+        Spacer(minLength: 4)
+        if let badge { FullBadge(badge: badge) }
+      }
+      .padding(.vertical, 1)
+      .tag(pane)
+      .accessibilityLabel(pane.title)
     }
-    .padding(.vertical, 1)
-    .tag(pane)
-    .accessibilityLabel(pane.title)
   }
 
-  @ViewBuilder private func badge(for pane: SettingsPane) -> some View {
+  private func badge(for pane: SettingsPane) -> SidebarBadge? {
     switch pane {
     case .getStarted where !model.runtimeStatus.accessibilityGranted:
-      Image(systemName: "exclamationmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.caution)
+      return .attention("Needs permission")
     case .getStarted where !model.setupFinished:
-      SidebarBadge(text: "\(model.getStartedStep.rawValue + 1) of \(GetStartedStep.allCases.count)")
+      let step = model.getStartedStep.rawValue + 1
+      let total = GetStartedStep.allCases.count
+      return .text("\(step) of \(total)", short: "\(step)/\(total)", spoken: "Step \(step) of \(total)")
     case .windows where model.problemBindingCount > 0:
-      SidebarBadge(text: "\(model.problemBindingCount)", color: Theme.caution)
+      let count = model.problemBindingCount
+      return .text("\(count)", color: Theme.caution, spoken: count == 1 ? "1 problem" : "\(count) problems")
     case .windows:
-      SidebarBadge(text: "\(model.configuration.bindings.count)")
+      return .count(model.configuration.bindings.count, noun: "shortcut")
     case .hotstrings:
-      SidebarBadge(text: "\(model.configuration.hotstrings.count)")
+      return .count(model.configuration.hotstrings.count, noun: "hotstring")
     case .clipboard where !model.configuration.clipboard.enabled:
-      SidebarBadge(text: "Off")
+      return .text("Off", spoken: "Off")
     case .clipboard where !model.clipboardItems.isEmpty:
-      SidebarBadge(text: "\(model.clipboardItems.count)")
+      return .count(model.clipboardItems.count, noun: "item")
     case .automation where !model.activeAutomations.isEmpty:
+      return .live(model.activeAutomations.count)
+    case .automation where !model.automationBindings.isEmpty:
+      return .count(model.automationBindings.count, noun: "automation")
+    case .layouts:
+      return .count(model.configuration.layouts.count, noun: "layout")
+    case .overview where !model.runtimeStatus.accessibilityGranted:
+      return .attention("Needs permission")
+    default:
+      return nil
+    }
+  }
+}
+
+/// What a sidebar row shows after its name: a count, a warning, or automations running.
+private enum SidebarBadge {
+  case attention(String)
+  case text(String, short: String? = nil, color: Color? = nil, spoken: String)
+  case live(Int)
+
+  static func count(_ count: Int, noun: String) -> SidebarBadge {
+    .text("\(count)", spoken: count == 1 ? "1 \(noun)" : "\(count) \(noun)s")
+  }
+
+  /// For tooltips and VoiceOver.
+  var spoken: String {
+    switch self {
+    case .attention(let text): return text
+    case .text(_, _, _, let spoken): return spoken
+    case .live(let count): return count == 1 ? "1 automation running" : "\(count) automations running"
+    }
+  }
+}
+
+private struct FullBadge: View {
+  let badge: SidebarBadge
+
+  var body: some View {
+    switch badge {
+    case .attention:
+      Image(systemName: "exclamationmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.caution)
+    case .text(let text, _, let color, _):
+      Text(text)
+        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+        .foregroundStyle(color ?? .secondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 1.5)
+        .background((color ?? Color.primary).opacity(color == nil ? 0.07 : 0.14), in: Capsule())
+    case .live(let count):
       HStack(spacing: 4) {
         LiveDot(size: 5)
-        Text("\(model.activeAutomations.count)")
+        Text("\(count)")
           .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
           .foregroundStyle(Theme.critical)
       }
@@ -74,15 +143,43 @@ struct SettingsSidebar: View {
       .padding(.vertical, 1.5)
       .background(Theme.critical.opacity(0.12), in: Capsule())
       .help("Automations running now")
-    case .automation where !model.automationBindings.isEmpty:
-      SidebarBadge(text: "\(model.automationBindings.count)")
-    case .layouts:
-      SidebarBadge(text: "\(model.configuration.layouts.count)")
-    case .overview where !model.runtimeStatus.accessibilityGranted:
-      Image(systemName: "exclamationmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.caution)
-    default:
-      EmptyView()
     }
+  }
+}
+
+/// A badge pinned to a rail icon's corner: small, opaque and ringed in the sidebar's color so it reads
+/// over the icon.
+private struct RailBadge: View {
+  let badge: SidebarBadge
+
+  var body: some View {
+    Group {
+      switch badge {
+      case .attention:
+        Image(systemName: "exclamationmark.circle.fill")
+          .font(.system(size: 11))
+          .foregroundStyle(.white, Theme.caution)
+      case .text(let text, let short, let color, _):
+        Text(short ?? text)
+          .font(.system(size: 9, weight: .bold).monospacedDigit())
+          .foregroundStyle(color == nil ? Color.primary.opacity(0.75) : .white)
+          .padding(.horizontal, 4)
+          .frame(minWidth: 15, minHeight: 14)
+          .background(color ?? Theme.railBadge, in: Capsule())
+      case .live(let count):
+        HStack(spacing: 2) {
+          Circle().fill(.white).frame(width: 4, height: 4)
+          Text("\(count)").font(.system(size: 9, weight: .bold).monospacedDigit())
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 4)
+        .frame(minHeight: 14)
+        .background(Theme.critical, in: Capsule())
+      }
+    }
+    .padding(1.5)
+    .background(Theme.sidebarBackground, in: Capsule())
+    .fixedSize()
   }
 }
 
@@ -99,25 +196,31 @@ extension View {
   }
 }
 
-private struct SidebarBadge: View {
-  let text: String
-  var color: Color?
-
-  var body: some View {
-    Text(text)
-      .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-      .foregroundStyle(color ?? .secondary)
-      .padding(.horizontal, 6)
-      .padding(.vertical, 1.5)
-      .background((color ?? Color.primary).opacity(color == nil ? 0.07 : 0.14), in: Capsule())
-  }
-}
-
 /// The app's mark, name and overall state at the top of the sidebar.
 private struct SidebarHeader: View {
+  var rail = false
   @Environment(AppModel.self) private var model
 
   var body: some View {
+    if rail {
+      SlatedMark(size: 30)
+        .overlay(alignment: .bottomTrailing) {
+          Circle().fill(state.color).frame(width: 8, height: 8)
+            .padding(1.5)
+            .background(Theme.sidebarBackground, in: Circle())
+            .offset(x: 3, y: 3)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .help("Slated: \(state.text)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Slated: \(state.text)")
+    } else {
+      full
+    }
+  }
+
+  private var full: some View {
     HStack(spacing: 10) {
       SlatedMark(size: 32)
       VStack(alignment: .leading, spacing: 2) {
@@ -142,17 +245,22 @@ private struct SidebarHeader: View {
 
 /// "All changes saved" and friends, so it's clear there's no Save button to look for.
 private struct SaveStatusFooter: View {
+  var rail = false
   @Environment(AppModel.self) private var model
 
   var body: some View {
     HStack(spacing: 6) {
-      Image(systemName: symbol).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(color)
-      Text(text).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-      Spacer(minLength: 0)
+      Image(systemName: symbol).font(.system(size: rail ? 12 : 10.5, weight: .semibold)).foregroundStyle(color)
+      if !rail {
+        Text(text).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+        Spacer(minLength: 0)
+      }
     }
-    .padding(.horizontal, 18)
+    .frame(maxWidth: rail ? .infinity : nil)
+    .padding(.horizontal, rail ? 0 : 18)
     .padding(.vertical, 12)
-    .help(help)
+    .help(rail && help != text ? "\(text). \(help)" : help)
+    .accessibilityElement(children: .combine)
     .animation(Theme.snappy, value: model.saveState)
   }
 
