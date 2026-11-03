@@ -78,8 +78,15 @@ public struct ClipboardSettings: Hashable, Sendable {
   public var persist: Bool
   /// Unpinned items older than this are forgotten. 0 keeps them until `maxItems` pushes them out.
   public var retentionDays: Int
-  /// Skip what password managers mark as concealed or transient (nspasteboard.org conventions).
-  public var ignoreConcealed: Bool
+  /// What happens to a copy that's a secret (`ClipboardSecrets`): kept masked, in memory only, or not
+  /// recorded at all.
+  public var secrets: ClipboardSecretHandling
+  /// Secrets are forgotten this many minutes after they were copied (and whenever Slated quits). 0
+  /// keeps them until Slated quits.
+  public var secretMinutes: Int
+  /// Text that looks like a secret (an API token, a private key, a card number, a random password)
+  /// counts as one, not only what apps mark secret and what password managers copy.
+  public var secretPatterns: Bool
   /// Never record copies made in these apps (bundle identifiers).
   public var excludedApps: [String]
   /// After picking an item, paste it into the app you were in (otherwise just put it on the clipboard).
@@ -88,14 +95,20 @@ public struct ClipboardSettings: Hashable, Sendable {
   /// copies screenshots to the clipboard itself).
   public var screenshots: Bool
 
-  public static let defaultExcludedApps = [
+  /// None: password managers' copies are kept, masked, like every secret.
+  public static let defaultExcludedApps: [String] = []
+
+  /// What `excludedApps` was by default while secrets were skipped (`ignoreConcealed`, before 2026-11):
+  /// password managers. A file from then has them taken out, so their copies are kept, masked.
+  public static let legacyExcludedApps = [
     "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop",
     "com.apple.keychainaccess", "com.apple.Passwords", "com.lastpass.LastPass", "com.dashlane.dashlanephonefinal",
   ]
 
   public init(
     enabled: Bool = true, shortcut: KeyCombo? = KeyCombo(string: "cmd+shift+v"), maxItems: Int = 200,
-    persist: Bool = true, retentionDays: Int = 30, ignoreConcealed: Bool = true,
+    persist: Bool = true, retentionDays: Int = 30, secrets: ClipboardSecretHandling = .masked,
+    secretMinutes: Int = 60, secretPatterns: Bool = true,
     excludedApps: [String] = ClipboardSettings.defaultExcludedApps, pasteAfterSelecting: Bool = true,
     screenshots: Bool = true
   ) {
@@ -104,7 +117,9 @@ public struct ClipboardSettings: Hashable, Sendable {
     self.maxItems = maxItems
     self.persist = persist
     self.retentionDays = retentionDays
-    self.ignoreConcealed = ignoreConcealed
+    self.secrets = secrets
+    self.secretMinutes = secretMinutes
+    self.secretPatterns = secretPatterns
     self.excludedApps = excludedApps
     self.pasteAfterSelecting = pasteAfterSelecting
     self.screenshots = screenshots
@@ -113,8 +128,10 @@ public struct ClipboardSettings: Hashable, Sendable {
 
 extension ClipboardSettings: Codable {
   private enum Key: String, CodingKey {
-    case enabled, shortcut, maxItems, persist, retentionDays, ignoreConcealed, excludedApps, pasteAfterSelecting
-    case screenshots
+    case enabled, shortcut, maxItems, persist, retentionDays, secrets, secretMinutes, secretPatterns, excludedApps
+    case pasteAfterSelecting, screenshots
+    /// Before `secrets`: true skipped what apps marked secret. Read only to update the file.
+    case ignoreConcealed
   }
 
   public init(from decoder: Decoder) throws {
@@ -123,14 +140,23 @@ extension ClipboardSettings: Codable {
     // `"shortcut": null` turns the shortcut off; a missing key keeps the default.
     let shortcut: KeyCombo? =
       c.contains(.shortcut) ? try c.decodeIfPresent(KeyCombo.self, forKey: .shortcut) : d.shortcut
+    var excludedApps = try c.decodeIfPresent([String].self, forKey: .excludedApps) ?? d.excludedApps
+    // A file from before secrets were kept: `ignoreConcealed` either way becomes masked (false kept
+    // everything already; true was the default, and the default is masked now), and the password
+    // managers excluded by default then are taken out, so their copies are kept, masked.
+    if c.contains(.ignoreConcealed), !c.contains(.secrets) {
+      excludedApps.removeAll(where: Self.legacyExcludedApps.contains)
+    }
     self.init(
       enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled,
       shortcut: shortcut,
       maxItems: try c.decodeIfPresent(Int.self, forKey: .maxItems) ?? d.maxItems,
       persist: try c.decodeIfPresent(Bool.self, forKey: .persist) ?? d.persist,
       retentionDays: try c.decodeIfPresent(Int.self, forKey: .retentionDays) ?? d.retentionDays,
-      ignoreConcealed: try c.decodeIfPresent(Bool.self, forKey: .ignoreConcealed) ?? d.ignoreConcealed,
-      excludedApps: try c.decodeIfPresent([String].self, forKey: .excludedApps) ?? d.excludedApps,
+      secrets: try c.decodeIfPresent(ClipboardSecretHandling.self, forKey: .secrets) ?? d.secrets,
+      secretMinutes: try c.decodeIfPresent(Int.self, forKey: .secretMinutes) ?? d.secretMinutes,
+      secretPatterns: try c.decodeIfPresent(Bool.self, forKey: .secretPatterns) ?? d.secretPatterns,
+      excludedApps: excludedApps,
       pasteAfterSelecting: try c.decodeIfPresent(Bool.self, forKey: .pasteAfterSelecting) ?? d.pasteAfterSelecting,
       screenshots: try c.decodeIfPresent(Bool.self, forKey: .screenshots) ?? d.screenshots)
   }
@@ -142,7 +168,9 @@ extension ClipboardSettings: Codable {
     try c.encode(maxItems, forKey: .maxItems)
     try c.encode(persist, forKey: .persist)
     try c.encode(retentionDays, forKey: .retentionDays)
-    try c.encode(ignoreConcealed, forKey: .ignoreConcealed)
+    try c.encode(secrets, forKey: .secrets)
+    try c.encode(secretMinutes, forKey: .secretMinutes)
+    try c.encode(secretPatterns, forKey: .secretPatterns)
     try c.encode(excludedApps, forKey: .excludedApps)
     try c.encode(pasteAfterSelecting, forKey: .pasteAfterSelecting)
     try c.encode(screenshots, forKey: .screenshots)

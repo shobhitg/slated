@@ -14,7 +14,10 @@
 import {Emitter, clone, deepEqual} from './util.js';
 import {newId} from './ids.js';
 import {decodeConfiguration, describeError} from './engine.js';
-import {decodeConfigurationFiles} from '../core/index.js';
+import {
+  decodeConfigurationFiles, forgetSecret, giveOwnSecret, hotstringSecret, hotstringText, isMissingSecret, makeNotSensitive, makeSensitive,
+  setSecretText,
+} from '../core/index.js';
 import {keysString, statusKey} from './keys.js';
 import {validate, savable, configChanges, target, LAYOUT_NAME_MISSING, LAYOUT_NAME_TAKEN} from './validator.js';
 import {parseStatus, emptyStatus, extensionState, bindingState, runningSummary} from './status.js';
@@ -23,7 +26,7 @@ import {bindingTitle, layoutNames, renameLayout} from './actions.js';
 import {builtInShortcut, recipeBindingName, sharesApps} from './automation.js';
 import {
   loadConfigFiles, writeConfigFiles, changedFiles, findSlateFiles, importSlateFiles, importSummary, parseRecord,
-  recordText, migrationNotice,
+  recordText, migrationNotice, redactedError,
 } from './migration.js';
 import {newBinding, newHotstring} from './config.js';
 import {STEPS, parseWindowState, windowStateText, startingPane} from './getstarted.js';
@@ -41,23 +44,42 @@ import {STEPS, parseWindowState, windowStateText, startingPane} from './getstart
  * @property {(text: string) => void} [writeRecord] writes it
  * @property {() => string|null} [readWindowState] the settings window's own state (settings-window.json)
  * @property {(text: string) => void} [writeWindowState] writes it
+ * @property {() => string|null} [readSecrets] secrets.json's text (sensitive hotstrings' text), or null when it doesn't exist
+ * @property {(text: string) => void} [writeSecrets] writes secrets.json (atomically, readable only by you)
  */
 
 /** @typedef {{setTimeout: (fn: () => void, ms: number) => any, clearTimeout: (handle: any) => void}} Scheduler */
 
-/** Slated's two files, in the order messages name them. */
-const FILES = Object.freeze(['config.json', 'settings.json']);
+/** Slated's files, in the order messages name them. secrets.json holds sensitive hotstrings' text, beside the configuration. */
+const FILES = Object.freeze(['config.json', 'settings.json', 'secrets.json']);
 const SETTINGS_PARTS = Object.freeze(['general', 'windows', 'clipboard', 'automation', 'island']);
 /** How long "Updated from config.json" stays beside the save status. */
 const UPDATED_NOTICE_MS = 4000;
 
-const inFile = (key, file) => key !== 'version' && SETTINGS_PARTS.includes(key) === (file === 'settings.json');
+// secrets.json holds none of the configuration's keys: its secrets are kept beside it (`secrets`).
+const inFile = (key, file) => file !== 'secrets.json' && key !== 'version' && SETTINGS_PARTS.includes(key) === (file === 'settings.json');
 const extrasKey = file => (file === 'settings.json' ? 'settings' : 'config');
 
 /** The part of a configuration that `file` holds (config.json's unknown keys included). */
 function filePart(configuration, file) {
   const out = {};
   for (const key of Object.keys(configuration)) if (inFile(key, file)) out[key] = configuration[key];
+  return out;
+}
+
+/**
+ * The secrets a save writes: the window's, plus those a hotstring held back for an error (its saved
+ * version is what's written) still refers to, which the window let go: its text stays on disk until the
+ * hotstring can be saved too.
+ */
+export function savableSecrets(output, secrets, savedSecrets) {
+  const out = {...(secrets ?? {})};
+  for (const h of output?.hotstrings ?? []) {
+    const name = hotstringSecret(h);
+    if (name !== null && !Object.prototype.hasOwnProperty.call(out, name) && Object.prototype.hasOwnProperty.call(savedSecrets ?? {}, name)) {
+      out[name] = savedSecrets[name];
+    }
+  }
   return out;
 }
 
@@ -87,6 +109,12 @@ export class PrefsModel extends Emitter {
 
     this.draft = decodeConfiguration('{}');
     this.saved = clone(this.draft);
+    /**
+     * Sensitive hotstrings' text by name (secrets.json), edited beside the draft: never inside the
+     * configuration, so it can't reach config.json, a copied value or the log. `savedSecrets` is the file's.
+     */
+    this.secrets = {};
+    this.savedSecrets = {};
     /** Keys the files have that Slated doesn't know, written back as they were (decodeConfigurationFiles). */
     this.extras = {config: {}, settings: {}};
     this.issues = [];
@@ -107,7 +135,7 @@ export class PrefsModel extends Emitter {
     /** True while the files don't exist (deleted, or creating them failed): the next save writes both. */
     this.firstRun = false;
     /** The files' texts as last read or written (null: none yet), and texts that failed to decode. */
-    this._diskTexts = {config: null, settings: null};
+    this._diskTexts = {config: null, settings: null, secrets: null};
     this._badTexts = null;
     /** What the last migration or first run imported (config-migration.json), or null. */
     this.record = null;
@@ -142,14 +170,16 @@ export class PrefsModel extends Emitter {
   _adopt(result) {
     this._readRecord(result.record);
     if (result.error) {
-      this._badTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
+      this._badTexts = {config: result.configText ?? null, settings: result.settingsText ?? null, secrets: result.secretsText ?? null};
       this._blocked(describeError(result.error), result.error.file ?? 'config.json');
       return;
     }
     this.draft = separateDuplicateIds(result.configuration, this.makeId);
     this.saved = clone(this.draft);
+    this.secrets = {...(result.secrets ?? {})};
+    this.savedSecrets = {...this.secrets};
     this.extras = result.extras ?? {config: {}, settings: {}};
-    this._diskTexts = {config: result.configText ?? null, settings: result.settingsText ?? null};
+    this._diskTexts = {config: result.configText ?? null, settings: result.settingsText ?? null, secrets: result.secretsText ?? null};
     this._badTexts = null;
     this.loadError = null;
     this.loadErrorFile = null;
@@ -182,7 +212,8 @@ export class PrefsModel extends Emitter {
   }
 
   _blocked(message, file = 'config.json') {
-    this.loadError = message;
+    // secrets.json's errors quote nothing from it.
+    this.loadError = redactedError(message, file);
     this.loadErrorFile = file;
     this.saveState = {kind: 'blocked'};
     this.emit('config');
@@ -207,7 +238,7 @@ export class PrefsModel extends Emitter {
   }
 
   _revalidate() {
-    this.issues = validate(this.draft, {knownLayouts: this.knownLayoutNames()});
+    this.issues = validate(this.draft, {knownLayouts: this.knownLayoutNames(), secrets: this.secrets});
   }
 
   _draftChanged() {
@@ -253,36 +284,44 @@ export class PrefsModel extends Emitter {
       return;
     }
     const output = savable(this.draft, this.saved, this.issues);
+    const secrets = {before: this.savedSecrets, after: savableSecrets(output, this.secrets, this.savedSecrets)};
     let changed;
     try {
-      changed = changedFiles(this.saved, output, this.extras);
+      changed = changedFiles(this.saved, output, this.extras, secrets);
     } catch (error) {
       this._saveFailed(error);
       return;
     }
-    const which = {config: changed.config || this.firstRun, settings: changed.settings || this.firstRun};
-    if (which.config || which.settings) {
+    const which = {config: changed.config || this.firstRun, settings: changed.settings || this.firstRun, secrets: changed.secrets};
+    if (which.config || which.settings || which.secrets) {
       try {
-        writeConfigFiles(this.io, output, this.extras, which);
+        // secrets.json first when it gains a name, last otherwise (writeConfigFiles).
+        writeConfigFiles(this.io, output, this.extras, which, secrets);
       } catch (error) {
         this._saveFailed(error);
         return;
       }
       const changes = configChanges(this.saved, output);
-      const files = [which.config && 'config.json', which.settings && 'settings.json'].filter(Boolean);
+      // How many secrets there are now: never a name or a text.
+      if (which.secrets) changes.push(`secrets: ${Object.keys(secrets.after).length}`);
+      const files = [which.config && 'config.json', which.settings && 'settings.json', which.secrets && 'secrets.json'].filter(Boolean);
       if (changes.length) this.log('config.saved', {changes, files, source: 'prefs'});
       // Re-read so `saved` matches what the files decode to (normalized values).
       let reread = output;
+      let rereadSecrets = secrets.after;
       try {
-        const texts = {config: this.io.readConfig() ?? null, settings: this.io.readSettings() ?? null};
+        const texts = {config: this.io.readConfig() ?? null, settings: this.io.readSettings() ?? null, secrets: this.io.readSecrets?.() ?? null};
         if (texts.config !== null) {
-          reread = decodeConfigurationFiles(texts.config, texts.settings).configuration;
+          const decoded = decodeConfigurationFiles(texts.config, texts.settings, texts.secrets);
+          reread = decoded.configuration;
+          rereadSecrets = decoded.secrets;
           this._diskTexts = texts;
         }
       } catch {
         reread = output;
       }
       this.saved = reread;
+      this.savedSecrets = {...rereadSecrets};
       this.firstRun = false;
     }
     // A brand-new shortcut still waiting for its keys isn't an error worth counting.
@@ -303,12 +342,12 @@ export class PrefsModel extends Emitter {
   }
 
   /**
-   * Adopts hand edits to config.json and settings.json, file by file. A file the window has unsaved
-   * edits in isn't adopted or overwritten: `conflict` names it, and a banner asks which version wins.
-   * A version 1 config.json that appears is migrated.
+   * Adopts hand edits to config.json, settings.json and secrets.json, file by file. A file the window has
+   * unsaved edits in isn't adopted or overwritten: `conflict` names it, and a banner asks which version
+   * wins. A version 1 config.json that appears is migrated.
    */
   syncFromDisk() {
-    const texts = {config: null, settings: null};
+    const texts = {config: null, settings: null, secrets: null};
     try {
       texts.config = this.io.readConfig() ?? null;
     } catch (error) {
@@ -319,6 +358,12 @@ export class PrefsModel extends Emitter {
       texts.settings = this.io.readSettings() ?? null;
     } catch (error) {
       this._blocked(`Couldn't read settings.json: ${describeError(error)}`, 'settings.json');
+      return;
+    }
+    try {
+      texts.secrets = this.io.readSecrets?.() ?? null;
+    } catch (error) {
+      this._blocked(`Couldn't read secrets.json: ${describeError(error)}`, 'secrets.json');
       return;
     }
     if (texts.config === null) {
@@ -334,7 +379,7 @@ export class PrefsModel extends Emitter {
         this._diskTexts = texts;
         this.firstRun = true;
         this.saveState = {kind: 'saved'};
-        if (!deepEqual(this.draft, this.saved)) {
+        if (this._unsaved()) {
           this._draftChanged();
         } else {
           this._revalidate();
@@ -345,11 +390,11 @@ export class PrefsModel extends Emitter {
       return;
     }
     // The same texts again (a file monitor event, the reload nudge): nothing to adopt.
-    const same = other => Boolean(other) && other.config === texts.config && other.settings === texts.settings;
+    const same = other => Boolean(other) && other.config === texts.config && other.settings === texts.settings && (other.secrets ?? null) === texts.secrets;
     if (this.loadError ? same(this._badTexts) : same(this._diskTexts)) return;
     let decoded;
     try {
-      decoded = decodeConfigurationFiles(texts.config, texts.settings);
+      decoded = decodeConfigurationFiles(texts.config, texts.settings, texts.secrets);
     } catch (error) {
       this._badTexts = texts;
       this._blocked(describeError(error), error.file ?? 'config.json');
@@ -362,6 +407,7 @@ export class PrefsModel extends Emitter {
       return;
     }
     const disk = decoded.configuration;
+    const diskSecrets = decoded.secrets ?? {};
     this._diskTexts = texts;
     this._badTexts = null;
     keepGeneratedIds(separateDuplicateIds(disk, this.makeId), this.saved, texts.config);
@@ -374,6 +420,8 @@ export class PrefsModel extends Emitter {
       this.extras = decoded.extras;
       this.saved = disk;
       this.draft = clone(disk);
+      this.secrets = {...diskSecrets};
+      this.savedSecrets = {...diskSecrets};
       this._revalidate();
       this.saveState = {kind: 'saved'};
       this.emit('config');
@@ -381,22 +429,32 @@ export class PrefsModel extends Emitter {
       return;
     }
     const diskExtras = decoded.extras ?? {config: {}, settings: {}};
-    const changed = FILES.filter(file => !deepEqual(filePart(disk, file), filePart(this.saved, file))
-      || !deepEqual(diskExtras[extrasKey(file)] ?? {}, this.extras[extrasKey(file)] ?? {}));
+    const differs = file => (file === 'secrets.json'
+      ? !deepEqual(diskSecrets, this.savedSecrets)
+      : !deepEqual(filePart(disk, file), filePart(this.saved, file)) || !deepEqual(diskExtras[extrasKey(file)] ?? {}, this.extras[extrasKey(file)] ?? {}));
+    const changed = FILES.filter(differs);
     if (!changed.length) return;
     // Unsaved edits are what the next save would write. Items held back for their errors (a new
     // shortcut still waiting for its keys) aren't: the next save leaves them out either way.
     const pending = savable(this.draft, this.saved, this.issues);
-    const conflicting = changed.filter(file => !deepEqual(filePart(pending, file), filePart(this.saved, file)));
+    const pendingSecrets = savableSecrets(pending, this.secrets, this.savedSecrets);
+    const conflicting = changed.filter(file => (file === 'secrets.json'
+      ? !deepEqual(pendingSecrets, this.savedSecrets)
+      : !deepEqual(filePart(pending, file), filePart(this.saved, file))));
     const adopted = changed.filter(file => !conflicting.includes(file));
     for (const file of adopted) {
+      if (file === 'secrets.json') {
+        this.secrets = {...diskSecrets};
+        this.savedSecrets = {...diskSecrets};
+        continue;
+      }
       adoptFile(this.draft, disk, file);
       adoptFile(this.saved, disk, file);
       this.extras = {...this.extras, [extrasKey(file)]: diskExtras[extrasKey(file)] ?? {}};
     }
     if (conflicting.length) {
       this._cancelTimer();
-      this._conflictDisk = {configuration: disk, extras: diskExtras};
+      this._conflictDisk = {configuration: disk, extras: diskExtras, secrets: diskSecrets};
       const fresh = conflicting.filter(file => !this.conflict.includes(file));
       if (fresh.length) {
         this.conflict = FILES.filter(file => this.conflict.includes(file) || fresh.includes(file));
@@ -406,7 +464,7 @@ export class PrefsModel extends Emitter {
     }
     if (adopted.length) {
       this._revalidate();
-      if (!this.conflict.length && !this.hasUnsavedChanges && deepEqual(this.draft, this.saved)) this.saveState = {kind: 'saved'};
+      if (!this.conflict.length && !this.hasUnsavedChanges && !this._unsaved()) this.saveState = {kind: 'saved'};
       this._showUpdated(adopted);
       this.log('ui.config_reloaded', {files: adopted, source: 'disk'});
     }
@@ -431,14 +489,16 @@ export class PrefsModel extends Emitter {
     if (!disk || !this.conflict.length) return;
     const files = [...this.conflict];
     for (const file of files) adoptFile(this.draft, disk.configuration, file);
+    if (files.includes('secrets.json')) this.secrets = {...(disk.secrets ?? {})};
     this.saved = clone(disk.configuration);
+    this.savedSecrets = {...(disk.secrets ?? {})};
     this.extras = disk.extras;
     this.conflict = [];
     this._conflictDisk = null;
     this.log('ui.config_conflict', {files, choice: 'reload'});
     this.log('ui.config_reloaded', {files, source: 'conflict'});
     this._showUpdated(files);
-    if (!deepEqual(this.draft, this.saved)) {
+    if (this._unsaved()) {
       this._draftChanged();
     } else {
       this._revalidate();
@@ -455,11 +515,17 @@ export class PrefsModel extends Emitter {
     const files = [...this.conflict];
     // What's on disk now is what the save replaces.
     this.saved = clone(disk.configuration);
+    this.savedSecrets = {...(disk.secrets ?? {})};
     this.extras = disk.extras;
     this.conflict = [];
     this._conflictDisk = null;
     this.log('ui.config_conflict', {files, choice: 'keep'});
     this._draftChanged();
+  }
+
+  /** Whether the draft or its secrets differ from what's on disk. */
+  _unsaved() {
+    return !deepEqual(this.draft, this.saved) || !deepEqual(this.secrets, this.savedSecrets);
   }
 
   /** Saves pending edits, then re-reads both files and what there is to import. */
@@ -572,7 +638,7 @@ export class PrefsModel extends Emitter {
 
   /** The Overview headline: see status.runningSummary. */
   summary() {
-    return runningSummary({status: this.status, shell: this.shell, build: this.build, runningCommit: this.runningCommit});
+    return runningSummary({status: this.status, shell: this.shell, build: this.build, runningCommit: this.runningCommit, missingSecrets: this.missingSecretCount});
   }
 
   get running() {
@@ -748,6 +814,52 @@ export class PrefsModel extends Emitter {
     return this.draft.hotstrings.find(h => h.id === id) ?? null;
   }
 
+  /** The text a hotstring types: its secret's for a sensitive one (null while it's missing), else its replacement. */
+  hotstringText(id) {
+    const h = this.hotstring(id);
+    return h ? hotstringText(h, this.secrets) : null;
+  }
+
+  /** A sensitive hotstring whose text isn't on this computer yet. */
+  isMissingSecret(id) {
+    const h = this.hotstring(id);
+    return Boolean(h) && isMissingSecret(h, this.secrets);
+  }
+
+  /** How many sensitive hotstrings wait for their text: Overview counts them as problems. */
+  get missingSecretCount() {
+    return this.draft.hotstrings.filter(h => isMissingSecret(h, this.secrets)).length;
+  }
+
+  /**
+   * The Sensitive switch: on, the text moves to secrets.json under a name from the trigger and
+   * config.json refers to it; off, it moves back. The log says which way, never the text or the name.
+   */
+  setHotstringSensitive(id, on) {
+    const index = this.draft.hotstrings.findIndex(h => h.id === id);
+    if (index < 0 || (hotstringSecret(this.draft.hotstrings[index]) !== null) === Boolean(on)) return;
+    const result = (on ? makeSensitive : makeNotSensitive)(this.draft.hotstrings, this.secrets, index);
+    this._changeSecrets(result.hotstrings, result.secrets);
+    this.log('ui.hotstring_sensitive', {sensitive: Boolean(on)});
+  }
+
+  /** A sensitive hotstring's text, typed in its masked field (or "isn't on this computer yet"): into secrets.json. */
+  setHotstringSecretText(id, text) {
+    const index = this.draft.hotstrings.findIndex(h => h.id === id);
+    if (index < 0 || hotstringSecret(this.draft.hotstrings[index]) === null) return;
+    this._changeSecrets(this.draft.hotstrings, setSecretText(this.draft.hotstrings, this.secrets, index, text));
+  }
+
+  /** Replaces the hotstrings and the secrets together, then validates and saves as any edit does. */
+  _changeSecrets(hotstrings, secrets) {
+    const draft = clone(this.draft);
+    draft.hotstrings = hotstrings;
+    if (deepEqual(draft, this.draft) && deepEqual(secrets, this.secrets)) return;
+    this.draft = draft;
+    this.secrets = {...secrets};
+    this._draftChanged();
+  }
+
   addHotstring(fields = {}) {
     const hotstring = newHotstring(fields, this.makeId);
     this.update(config => {
@@ -766,9 +878,10 @@ export class PrefsModel extends Emitter {
   deleteHotstring(id) {
     const h = this.hotstring(id);
     if (!h) return null;
-    this.update(config => {
-      config.hotstrings = config.hotstrings.filter(x => x.id !== id);
-    });
+    const hotstrings = this.draft.hotstrings.filter(x => x.id !== id);
+    const name = hotstringSecret(h);
+    // Its secret goes too, unless another hotstring uses it.
+    this._changeSecrets(hotstrings, name === null ? this.secrets : forgetSecret(hotstrings, this.secrets, name));
     return h.trigger;
   }
 
@@ -777,9 +890,11 @@ export class PrefsModel extends Emitter {
     if (index < 0) return null;
     const copy = {...clone(this.draft.hotstrings[index]), id: this.makeId()};
     copy.trigger += '2';
-    this.update(config => {
-      config.hotstrings.splice(index + 1, 0, copy);
-    });
+    const hotstrings = [...this.draft.hotstrings];
+    hotstrings.splice(index + 1, 0, copy);
+    // A sensitive copy gets a secret of its own with the same text: editing one leaves the other alone.
+    const result = hotstringSecret(copy) === null ? {hotstrings, secrets: this.secrets} : giveOwnSecret(hotstrings, this.secrets, index + 1);
+    this._changeSecrets(result.hotstrings, result.secrets);
     return copy.id;
   }
 

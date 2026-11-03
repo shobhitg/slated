@@ -30,6 +30,9 @@ public struct SlatedConfiguration: Hashable, Sendable {
   public var unknownSections: [String: JSONValue]
   /// The same for settings.json.
   public var unknownSettings: [String: JSONValue]
+  /// Sensitive hotstrings' text by name (`Hotstring.secret`): secrets.json, which only you can read.
+  /// Never logged; the window shows it masked.
+  public var secrets: [String: String]
 
   public init(
     version: Int = SlatedConfiguration.currentVersion,
@@ -44,8 +47,10 @@ public struct SlatedConfiguration: Hashable, Sendable {
     automation: AutomationSettings = .init(),
     island: IslandSettings = .init(),
     unknownSections: [String: JSONValue] = [:],
-    unknownSettings: [String: JSONValue] = [:]
+    unknownSettings: [String: JSONValue] = [:],
+    secrets: [String: String] = [:]
   ) {
+    self.secrets = secrets
     self.version = version
     self.general = general
     self.windows = windows
@@ -444,7 +449,12 @@ public struct Hotstring: Hashable, Sendable, Identifiable {
 
   public var id: UUID
   public var trigger: String
+  /// The text it types. Empty for a sensitive hotstring (`secret`), whose text is in secrets.json.
   public var replacement: String
+  /// A sensitive hotstring's secret: the name its text has in secrets.json (`SlatedConfiguration.secrets`).
+  /// config.json then says `"replacement": {"secret": "<name>"}`. Such a hotstring is masked in the
+  /// window, and always typed, never pasted, so its text doesn't pass through the clipboard.
+  public var secret: String?
   /// Run an action instead of (or after) inserting `replacement`.
   public var action: Action?
   public var enabled: Bool
@@ -463,11 +473,12 @@ public struct Hotstring: Hashable, Sendable, Identifiable {
     id: UUID = UUID(), trigger: String, replacement: String, action: Action? = nil,
     enabled: Bool = true, caseSensitive: Bool = true, fire: Fire = .immediately,
     wordBoundary: Bool = false, method: InsertMethod = .auto, onlyInApps: [String] = [],
-    exceptInApps: [String] = [], notes: String? = nil
+    exceptInApps: [String] = [], notes: String? = nil, secret: String? = nil
   ) {
     self.id = id
     self.trigger = trigger
     self.replacement = replacement
+    self.secret = secret
     self.action = action
     self.enabled = enabled
     self.caseSensitive = caseSensitive
@@ -486,13 +497,30 @@ extension Hotstring: Codable {
     case onlyInApps, exceptInApps, notes
   }
 
+  /// A sensitive hotstring's replacement: `{"secret": "<name>"}`.
+  private enum SecretKey: String, CodingKey { case secret }
+
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: Key.self)
     let d = Hotstring(trigger: "", replacement: "")
+    var replacement = ""
+    var secret: String?
+    if let reference = try? c.nestedContainer(keyedBy: SecretKey.self, forKey: .replacement) {
+      let name = try reference.decode(String.self, forKey: .secret)
+      guard !name.isEmpty else {
+        throw DecodingError.dataCorrupted(
+          .init(
+            codingPath: reference.codingPath + [SecretKey.secret],
+            debugDescription: "A secret's name can't be empty. Name the text's entry in secrets.json."))
+      }
+      secret = name
+    } else {
+      replacement = try c.decodeIfPresent(String.self, forKey: .replacement) ?? ""
+    }
     self.init(
       id: try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
       trigger: try c.decode(String.self, forKey: .trigger),
-      replacement: try c.decodeIfPresent(String.self, forKey: .replacement) ?? "",
+      replacement: replacement,
       action: try c.decodeIfPresent(Action.self, forKey: .action),
       enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled,
       caseSensitive: try c.decodeIfPresent(Bool.self, forKey: .caseSensitive) ?? d.caseSensitive,
@@ -501,6 +529,31 @@ extension Hotstring: Codable {
       method: try c.decodeIfPresent(InsertMethod.self, forKey: .method) ?? d.method,
       onlyInApps: try c.decodeIfPresent([String].self, forKey: .onlyInApps) ?? [],
       exceptInApps: try c.decodeIfPresent([String].self, forKey: .exceptInApps) ?? [],
-      notes: try c.decodeIfPresent(String.self, forKey: .notes))
+      notes: try c.decodeIfPresent(String.self, forKey: .notes),
+      secret: secret)
   }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: Key.self)
+    try c.encode(id, forKey: .id)
+    try c.encode(trigger, forKey: .trigger)
+    if let secret {
+      var reference = c.nestedContainer(keyedBy: SecretKey.self, forKey: .replacement)
+      try reference.encode(secret, forKey: .secret)
+    } else {
+      try c.encode(replacement, forKey: .replacement)
+    }
+    try c.encodeIfPresent(action, forKey: .action)
+    try c.encode(enabled, forKey: .enabled)
+    try c.encode(caseSensitive, forKey: .caseSensitive)
+    try c.encode(fire, forKey: .fire)
+    try c.encode(wordBoundary, forKey: .wordBoundary)
+    try c.encode(method, forKey: .method)
+    try c.encode(onlyInApps, forKey: .onlyInApps)
+    try c.encode(exceptInApps, forKey: .exceptInApps)
+    try c.encodeIfPresent(notes, forKey: .notes)
+  }
+
+  /// Sensitive: its text is a secret in secrets.json.
+  public var isSensitive: Bool { secret != nil }
 }

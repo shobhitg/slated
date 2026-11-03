@@ -1,10 +1,11 @@
-// In-memory files for the settings model and the migration: config.json, settings.json, the
+// In-memory files for the settings model and the migration: config.json, settings.json, secrets.json, the
 // config.v1.json backup, config-migration.json, settings-window.json and any Slate file, keyed by
 // path in a plain object. `disk.__failWrites` makes every write throw.
 
 export const HOME = '/home/me';
 export const CONFIG = `${HOME}/.config/slated/config.json`;
 export const SETTINGS = `${HOME}/.config/slated/settings.json`;
+export const SECRETS = `${HOME}/.config/slated/secrets.json`;
 export const BACKUP = `${HOME}/.config/slated/config.v1.json`;
 export const RECORD = `${HOME}/.local/state/slated/config-migration.json`;
 export const WINDOW = `${HOME}/.local/state/slated/settings-window.json`;
@@ -28,6 +29,8 @@ export function memoryIO(disk, writes = []) {
     writeConfig: write(CONFIG),
     readSettings: () => read(SETTINGS),
     writeSettings: write(SETTINGS),
+    readSecrets: () => read(SECRETS),
+    writeSecrets: write(SECRETS),
     backupConfig: text => {
       if (read(BACKUP) !== null) return false;
       write(BACKUP)(text);

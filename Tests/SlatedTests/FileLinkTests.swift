@@ -36,6 +36,10 @@ let fileLinkTests = Suite(
         expectEqual(links(in: "Open ~/.config/slated/ in Finder"), ["~/.config/slated=folder"])
         expectEqual(links(in: "a copy at config.v1.json, beside it"), ["config.v1.json=backup"])
         expectEqual(
+          links(in: "Its text is in secrets.json (~/.config/slated/secrets.json)."),
+          ["secrets.json=secrets", "~/.config/slated/secrets.json=secrets"])
+        expectEqual(links(in: "mysecrets.json, secrets.json.bak"), [])
+        expectEqual(
           links(in: "Slated looks for ~/.slate.js, then ~/.slate."), ["~/.slate.js=slate-js", "~/.slate=slate"])
         expectEqual(links(in: "No ~/.slate or ~/.slate.js here"), ["~/.slate=slate", "~/.slate.js=slate-js"])
         // Not names of Slated's files.
@@ -74,6 +78,8 @@ let fileLinkTests = Suite(
         }
         expectEqual(FileLink(.config), .config)
         expectEqual(FileLink(.settings), .settings)
+        expectEqual(FileLink(.secrets), .secrets)
+        expectEqual(FileLink.secrets.url.absoluteString, "slated-file://secrets")
       }
     ),
     (
@@ -86,13 +92,14 @@ let fileLinkTests = Suite(
         expectEqual(
           paths,
           [
-            "/u/.config/slated/config.json", "/u/.config/slated/settings.json", "/u/.config/slated/config.v1.json",
+            "/u/.config/slated/config.json", "/u/.config/slated/settings.json", "/u/.config/slated/secrets.json",
+            "/u/.config/slated/config.v1.json",
             "/u/.config/slated", "/u/.slate.js", "/u/.slate",
           ])
         expectEqual(
           FileLink.allCases.map(\.logName),
-          ["config.json", "settings.json", "config.v1.json", "folder", ".slate.js", ".slate"])
-        expectEqual(FileLink.allCases.compactMap(\.configFile), [.config, .settings])
+          ["config.json", "settings.json", "secrets.json", "config.v1.json", "folder", ".slate.js", ".slate"])
+        expectEqual(FileLink.allCases.compactMap(\.configFile), [.config, .settings, .secrets])
       }
     ),
     (

@@ -47,6 +47,13 @@ public final class ClipboardPickerModel {
   @ObservationIgnored private var appNames: [String: String] = [:]
   /// Copied files no longer where they were copied from, by item: checked when the picker opens.
   private(set) var missingFiles: [UUID: Set<String>] = [:]
+  /// Secrets shown with their eye button, until the picker closes.
+  private(set) var revealed: Set<UUID> = []
+  /// ⌥ is held: the selected row shows its secret while it is. The panel reports it.
+  public var optionHeld = false
+  /// The eye buttons' frames in the picker (top-left origin), so the panel can tell a click on one from
+  /// a click that pastes the row.
+  @ObservationIgnored private(set) var eyeFrames: [UUID: CGRect] = [:]
   /// Picking files that are all gone: the alert sound (tests stay quiet).
   @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
   private let services: any AppServices
@@ -75,14 +82,40 @@ public final class ClipboardPickerModel {
     return files.allSatisfy(gone.contains)
   }
 
-  /// Call each time the picker opens, with the pointer's location.
-  public func resetForShowing(pointer: CGPoint? = nil) {
+  /// Call each time the picker opens, with the pointer's location and whether ⌥ is down already.
+  public func resetForShowing(pointer: CGPoint? = nil, optionHeld: Bool = false) {
     query = ""
+    revealed = []
+    self.optionHeld = optionHeld
     reload()
     selectedID = results.first?.id
     restingPointer = pointer
     listHeight = Self.listHeight(for: results)
     openings += 1
+  }
+
+  // MARK: Secrets
+
+  /// Whether the row shows dots instead of the item's text: a secret, unless its eye was clicked or ⌥
+  /// is held while it's selected.
+  public func isMasked(_ item: ClipboardItem) -> Bool {
+    item.isSecret && !revealed.contains(item.id) && !(optionHeld && item.id == selectedID)
+  }
+
+  /// The eye button: shows the secret until the picker closes, or hides it again.
+  public func toggleReveal(_ id: UUID) {
+    if revealed.contains(id) { revealed.remove(id) } else { revealed.insert(id) }
+  }
+
+  /// Whether any result is a secret, for the hint about ⌥.
+  var hasSecrets: Bool { results.contains(where: \.isSecret) }
+
+  func eyeMoved(_ id: UUID, to frame: CGRect?) { eyeFrames[id] = frame }
+
+  /// The secret whose eye button is at `point` (top-left origin, in the picker), in the list's visible part.
+  func eye(at point: CGPoint) -> UUID? {
+    guard point.y > Self.filterHeight, point.y < size.height else { return nil }
+    return results.first { $0.isSecret && eyeFrames[$0.id]?.insetBy(dx: -3, dy: -3).contains(point) == true }?.id
   }
 
   /// The picker's size for the history it opened with.
@@ -175,9 +208,11 @@ public final class ClipboardPickerModel {
   }
 
   private func refilter(selectFirst: Bool) {
-    results = ClipboardHistory(items: items).search(query)
+    // A secret matches only by its app's name, never its text.
+    results = ClipboardHistory(items: items).search(query, appName: appName)
     let shown = Set(results.map(\.id))
     rowFrames = rowFrames.filter { shown.contains($0.key) }
+    eyeFrames = eyeFrames.filter { shown.contains($0.key) }
     if selectFirst || !results.contains(where: { $0.id == selectedID }) { selectedID = results.first?.id }
   }
 }
@@ -211,7 +246,7 @@ struct ClipboardPickerView: View {
         .textFieldStyle(.plain)
         .font(.system(size: 13))
         .focused($filterFocused)
-      Text("⌘1–9 · esc")
+      Text(model.hasSecrets ? "⌥ show · ⌘1–9 · esc" : "⌘1–9 · esc")
         .font(.system(size: 10.5))
         .foregroundStyle(.tertiary)
         .accessibilityHidden(true)
@@ -228,7 +263,8 @@ struct ClipboardPickerView: View {
             PickerRow(
               item: item, number: model.number(at: index), selected: item.id == model.selectedID,
               imageURL: item.image.flatMap(model.imageURL), unavailable: model.isUnavailable(item),
-              appName: model.appName
+              masked: model.isMasked(item), appName: model.appName,
+              eyeMoved: { model.eyeMoved(item.id, to: $0) }
             )
             .id(item.id)
             .contentShape(Rectangle())
@@ -284,7 +320,11 @@ private struct PickerRow: View {
   let imageURL: URL?
   /// Files that were all moved or deleted: dimmed, and said so.
   let unavailable: Bool
+  /// A secret showing dots (`ClipboardPickerModel.isMasked`).
+  let masked: Bool
   let appName: (String) -> String
+  /// Where the eye button is (top-left origin, in the picker), so the panel can route its clicks.
+  let eyeMoved: (CGRect?) -> Void
 
   var body: some View {
     HStack(spacing: 8) {
@@ -315,11 +355,41 @@ private struct PickerRow: View {
             .lineLimit(1)
             .fixedSize()
         }
+      } else if item.isSecret {
+        ClipSourceIcon(item: item, size: 16)
+        if masked {
+          MaskedLine(fontSize: 13, inverted: selected)
+          // Dots alone don't say which secret it is: the app it came from does.
+          if let app = item.sourceApp {
+            Text(appName(app))
+              .font(.system(size: 11.5))
+              .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.75)) : AnyShapeStyle(.secondary))
+              .lineLimit(1)
+          }
+        } else {
+          ClipPreviewLine(item: item, fontSize: 13, inverted: selected, revealed: true)
+        }
       } else {
         ClipSourceIcon(item: item, size: 16)
         ClipPreviewLine(item: item, fontSize: 13, inverted: selected)
       }
       Spacer(minLength: 4)
+      if item.isSecret {
+        // Clicks reach it through the panel (`ClipboardPickerModel.eye(at:)`), which handles the rows'.
+        Image(systemName: masked ? "eye" : "eye.slash")
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
+          .frame(width: 18, height: 18)
+          .contentShape(Rectangle())
+          .onGeometryChange(for: CGRect.self) {
+            $0.frame(in: .global)
+          } action: {
+            eyeMoved($0)
+          }
+          .onDisappear { eyeMoved(nil) }
+          .help(masked ? "Show (or hold ⌥)" : "Hide")
+          .accessibilityLabel(masked ? "Show" : "Hide")
+      }
       if item.pinned {
         Image(systemName: "pin.fill")
           .font(.system(size: 9, weight: .bold))

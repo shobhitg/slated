@@ -94,13 +94,31 @@ public final class TextInjector: @unchecked Sendable {
   }
 
   private func unicode(_ string: String) {
-    let utf16 = Array(string.utf16)
-    for down in [true, false] {
-      guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down) else { continue }
-      event.flags = []
-      event.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
-      post(event)
+    for utf16 in Self.unicodeChunks(string) {
+      for down in [true, false] {
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down) else { continue }
+        event.flags = []
+        event.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+        post(event)
+      }
     }
+  }
+
+  /// A key event carries at most 20 UTF-16 units of text (macOS ignores the rest), so a longer character
+  /// (a family emoji, a flag with tags) is typed in pieces, split between scalars: any text types whole.
+  static func unicodeChunks(_ string: String, limit: Int = 20) -> [[UInt16]] {
+    var chunks: [[UInt16]] = []
+    var current: [UInt16] = []
+    for scalar in string.unicodeScalars {
+      let units = Array(String(scalar).utf16)
+      if current.count + units.count > limit, !current.isEmpty {
+        chunks.append(current)
+        current = []
+      }
+      current += units
+    }
+    if !current.isEmpty { chunks.append(current) }
+    return chunks
   }
 
   private func post(_ event: CGEvent) {

@@ -130,8 +130,10 @@ private let configMarkdownClipboard = #"""
     "maxItems": 200,
     "persist": true,                // kept across restarts, readable only by you
     "retentionDays": 30,            // pinned items are kept regardless
-    "ignoreConcealed": true,        // skip what password managers mark as secret
-    "excludedApps": ["com.1password.1password", "com.bitwarden.desktop"],
+    "secrets": "masked",            // passwords and keys: "masked" (kept as dots, in memory only) or "skip"
+    "secretMinutes": 60,            // secrets are forgotten after this long, and when Slated quits (0: only then)
+    "secretPatterns": true,         // text that looks like a key, token or card number counts as a secret
+    "excludedApps": ["com.tinyspeck.slackmacgap"],
     "pasteAfterSelecting": true,
     "screenshots": true             // add screenshots saved as files
   }
@@ -216,6 +218,51 @@ private let decodeCases: [(String, String)] = [
     #"{"clipboard": {"maxItems": -1, "retentionDays": -7}, "automation": {"maxRunMinutes": -2}}"#
   ),
   ("clipboard shortcut as a number", #"{"clipboard": {"shortcut": 5}}"#),
+  // Secrets: masked or skipped, how long they're kept, and whether their look counts.
+  ("clipboard secrets settings", #"{"clipboard": {"secrets": "skip", "secretMinutes": 5, "secretPatterns": false}}"#),
+  ("clipboard secrets kept until quitting", #"{"clipboard": {"secrets": "masked", "secretMinutes": 0}}"#),
+  ("clipboard secrets unknown choice", #"{"clipboard": {"secrets": "hidden"}}"#),
+  ("clipboard secrets null", #"{"clipboard": {"secrets": null, "secretMinutes": null, "secretPatterns": null}}"#),
+  ("clipboard secretMinutes as text", #"{"clipboard": {"secretMinutes": "1h"}}"#),
+  ("clipboard secretMinutes fraction", #"{"clipboard": {"secretMinutes": 2.5}}"#),
+  ("clipboard secretPatterns not a bool", #"{"clipboard": {"secretPatterns": 1}}"#),
+  // Before secrets were kept: `ignoreConcealed` either way means masked, and the password managers it
+  // excluded by default are taken out of excludedApps (the user's own apps stay).
+  (
+    "clipboard ignoreConcealed false with the old default exclusions and an app of the user's",
+    #"{"clipboard": {"ignoreConcealed": false, "excludedApps": ["com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop", "com.apple.keychainaccess", "com.apple.Passwords", "com.lastpass.LastPass", "com.dashlane.dashlanephonefinal", "com.tinyspeck.slackmacgap"]}}"#
+  ),
+  ("clipboard ignoreConcealed true, the old default", #"{"clipboard": {"ignoreConcealed": true}}"#),
+  ("clipboard ignoreConcealed not a bool is ignored", #"{"clipboard": {"ignoreConcealed": "yes"}}"#),
+  (
+    "clipboard ignoreConcealed beside secrets: a current file keeps its exclusions",
+    #"{"clipboard": {"ignoreConcealed": true, "secrets": "masked", "excludedApps": ["com.1password.1password"]}}"#
+  ),
+  (
+    "clipboard old default exclusions without ignoreConcealed are the user's",
+    #"{"clipboard": {"excludedApps": ["com.bitwarden.desktop", "COM.1PASSWORD.1PASSWORD"]}}"#
+  ),
+  (
+    "clipboard ignoreConcealed with the old exclusions in another case",
+    #"{"clipboard": {"ignoreConcealed": true, "excludedApps": ["COM.1PASSWORD.1PASSWORD", "com.bitwarden.desktop"]}}"#
+  ),
+  // Sensitive hotstrings: the replacement is a reference to secrets.json.
+  (
+    "a sensitive hotstring",
+    #"{"hotstrings": [{"id": "D0000000-0000-4000-8000-000000000001", "trigger": ";pw", "replacement": {"secret": "pw"}, "method": "paste"}]}"#
+  ),
+  (
+    "a sensitive hotstring's reference with more keys",
+    #"{"hotstrings": [{"id": "D0000000-0000-4000-8000-000000000001", "trigger": ";pw", "replacement": {"secret": "pw", "note": 1}}]}"#
+  ),
+  ("a secret with an empty name", #"{"hotstrings": [{"trigger": ";pw", "replacement": {"secret": ""}}]}"#),
+  ("a secret named by a number", #"{"hotstrings": [{"trigger": ";pw", "replacement": {"secret": 5}}]}"#),
+  ("a reference without a secret", #"{"hotstrings": [{"trigger": ";pw", "replacement": {}}]}"#),
+  ("a replacement that's a list", #"{"hotstrings": [{"trigger": ";pw", "replacement": ["x"]}]}"#),
+  (
+    "a replacement that's null",
+    #"{"hotstrings": [{"id": "D0000000-0000-4000-8000-000000000002", "trigger": ";pw", "replacement": null}]}"#
+  ),
   ("automation is not an object", #"{"automation": []}"#),
   ("full configuration", fullConfig),
   ("docs/CONFIG.md example (JSON with comments)", configMarkdownExample),
@@ -645,14 +692,16 @@ private let fileCases: [(String, String, String?)] = [
   ("broken legacy section, no settings.json: an error in config.json", #"{"general": {"launchAtLogin": "yes"}}"#, nil),
 ]
 
-/// `SlatedConfiguration.decodeFiles` on config.json `input` (and settings.json `settingsInput`), then
-/// both files as Swift writes them.
-func configFilesJ(_ name: String, _ input: String, _ settingsInput: String?) -> J {
+/// `SlatedConfiguration.decodeFiles` on config.json `input` (and settings.json `settingsInput`, secrets.json
+/// `secretsInput`), then both files as Swift writes them, and secrets.json too when it was given.
+func configFilesJ(_ name: String, _ input: String, _ settingsInput: String?, secrets secretsInput: String? = nil) -> J {
   var item: [String: J] = ["name": .string(name), "input": .string(input)]
   if let settingsInput { item["settingsInput"] = .string(settingsInput) }
+  if let secretsInput { item["secretsInput"] = .string(secretsInput) }
   do {
     let files = try SlatedConfiguration.decodeFiles(
-      config: Data(input.utf8), settings: settingsInput.map { Data($0.utf8) })
+      config: Data(input.utf8), settings: settingsInput.map { Data($0.utf8) },
+      secrets: secretsInput.map { Data($0.utf8) })
     if let legacy = files.legacy {
       item["legacy"] = [
         "loadSlateConfigs": .bool(legacy.loadSlateConfigs),
@@ -670,10 +719,14 @@ func configFilesJ(_ name: String, _ input: String, _ settingsInput: String?) -> 
       let settingsText = String(decoding: try config.encodedSettingsFile(), as: UTF8.self)
       item["config"] = .string(maskRandomUUIDs(configText, input: known))
       item["settings"] = .string(maskRandomUUIDs(settingsText, input: known))
+      if secretsInput != nil {
+        item["secrets"] = .string(String(decoding: try config.encodedSecretsFile(), as: UTF8.self))
+      }
       // Whether reading what Swift wrote gives the same configuration back (fn in hyperModifiers isn't
       // written, so it doesn't).
       let again = try SlatedConfiguration.decodeFiles(
-        config: config.encodedConfigFile(), settings: config.encodedSettingsFile()
+        config: config.encodedConfigFile(), settings: config.encodedSettingsFile(),
+        secrets: config.encodedSecretsFile()
       ).configuration
       item["roundTrips"] = .bool(again == config)
     } catch {
@@ -689,15 +742,48 @@ func configFilesJ(_ name: String, _ input: String, _ settingsInput: String?) -> 
   return .object(item)
 }
 
+/// config.json, settings.json and secrets.json: sensitive hotstrings' text.
+/// `(name, config.json, settings.json, secrets.json)`.
+private let secretFileCases: [(String, String, String?, String)] = [
+  (
+    "secrets.json beside config.json",
+    #"{"version": 2, "hotstrings": [{"id": "D0000000-0000-4000-8000-000000000011", "trigger": ";pw", "replacement": {"secret": "pw"}}]}"#,
+    nil, #"{"version": 1, "secrets": {"pw": "hunter2"}}"#
+  ),
+  (
+    "secrets.json with comments, a trailing comma, keys it doesn't know, escapes and Unicode",
+    #"{"version": 2}"#, nil,
+    "// only I can read this\n{\"secrets\": {\"z\": \"tab\\there \\\"quoted\\\" ✓ 👍🏽\", \"a/b\": \"line\\nbreak\", \"empty\": \"\",},\n \"version\": 1, \"later\": [1]}"
+  ),
+  ("secrets.json without secrets", #"{"version": 2}"#, nil, "{}"),
+  ("secrets.json from a newer Slated", #"{"version": 2}"#, nil, #"{"version": 7, "secrets": {"x": "y"}}"#),
+  ("secrets.json that isn't an object", #"{"version": 2}"#, nil, "[]"),
+  ("secrets.json with a text that isn't text", #"{"version": 2}"#, nil, #"{"secrets": {"pw": 5}}"#),
+  ("secrets.json whose secrets aren't an object", #"{"version": 2}"#, nil, #"{"secrets": ["hunter2"]}"#),
+  ("secrets.json with a version that isn't a number", #"{"version": 2}"#, nil, #"{"version": "1", "secrets": {}}"#),
+  ("secrets.json with a syntax error", #"{"version": 2}"#, nil, #"{"secrets": {"pw": "hunter2""#),
+  (
+    "a broken config.json is reported before secrets.json",
+    #"{"hotstrings": 5}"#, nil, #"{"secrets": 5}"#
+  ),
+  (
+    "secrets.json and settings.json both broken: settings.json first",
+    #"{"version": 2}"#, #"{"general": 5}"#, #"{"secrets": 5}"#
+  ),
+]
+
 func configurationFixtures() -> FixtureFile {
   let decode = (decodeCases + numberTokenCases).map { configFilesJ($0.0, $0.1, nil) }
-  let files = fileCases.map { configFilesJ($0.0, $0.1, $0.2) }
+  let files =
+    fileCases.map { configFilesJ($0.0, $0.1, $0.2) }
+    + secretFileCases.map { configFilesJ($0.0, $0.1, $0.2, secrets: $0.3) }
   return FixtureFile(
     name: "config.json",
     description:
-      "SlatedConfiguration.decodeFiles(config:settings:) (JSON5 allowed) on config.json `input` and settings.json "
-      + "`settingsInput` (missing: no settings.json), then encodedConfigFile() and encodedSettingsFile(): `config` and "
-      + "`settings` are the exact texts Swift writes (pretty, sorted keys). A version 1 config.json (or one with "
+      "SlatedConfiguration.decodeFiles(config:settings:secrets:) (JSON5 allowed) on config.json `input`, settings.json "
+      + "`settingsInput` (missing: no settings.json) and secrets.json `secretsInput` (missing: none), then "
+      + "encodedConfigFile(), encodedSettingsFile() and, when secretsInput is given, encodedSecretsFile(): `config`, "
+      + "`settings` and `secrets` are the exact texts Swift writes (pretty, sorted keys). A version 1 config.json (or one with "
       + "general/settings/clipboard/automation/island) is `legacy`: its settings sections become settings.json's "
       + "(`settings` as `windows`) unless settingsInput is given, which wins; `legacy` is what it said about Slate files. "
       + "`error` and `errorFile` when a file can't be read; `encodeError` when the value decodes but JSON can't hold it. "

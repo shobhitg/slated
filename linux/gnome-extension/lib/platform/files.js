@@ -53,6 +53,24 @@ export function writePrivateTextAtomic(path, text) {
   file.set_attribute_uint32('unix::mode', 0o600, Gio.FileQueryInfoFlags.NONE, null);
 }
 
+/**
+ * Makes a file readable and writable only by its owner when others could read or write it (a
+ * secrets.json made or copied by hand), following a symbolic link to its file. Returns whether it
+ * changed the mode.
+ */
+export function makePrivate(path) {
+  try {
+    const file = Gio.File.new_for_path(path);
+    const info = file.query_info('unix::mode', Gio.FileQueryInfoFlags.NONE, null);
+    const mode = info.get_attribute_uint32('unix::mode');
+    if ((mode & 0o077) === 0) return false;
+    file.set_attribute_uint32('unix::mode', 0o600, Gio.FileQueryInfoFlags.NONE, null);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Deletes a file; returns false when it wasn't there. */
 export function remove(path) {
   try {

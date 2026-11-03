@@ -9,7 +9,12 @@
 //   ↑↓ select · ↩ or a click: paste into the window you were in · Ctrl+1–9 paste that item · Esc close
 //
 // GNOME only: Ctrl+P pins, Ctrl+Backspace (or Delete) deletes and Ctrl+Shift+Backspace clears all but
-// pinned items, since Settings → Clipboard on GNOME can't reach the history the extension holds.
+// pinned items, and Ctrl+H hides or shows an item's contents, since Settings → Clipboard on GNOME can't
+// reach the history the extension holds.
+//
+// A secret (an item with `secret`, kept in memory only) shows as `••••••••` (always eight dots, never its
+// length) with a lock and its app's name; its eye button shows it until the picker closes, and holding
+// Alt shows the selected one. Search matches a secret by its app's name only, never its text.
 //
 // `PickerModel`, `pickerKey` and the layout helpers are pure (tested in Node); `ClipboardPicker` is
 // the St view. Sizes are the Mac's, in logical pixels; the view scales them by GNOME's UI scale.
@@ -56,6 +61,9 @@ export const MISSING = 'Moved or deleted';
 
 /** The hint in the filter field, the picker's only one. */
 export const HINT = 'Ctrl+1–9 · esc';
+
+/** What a masked secret shows instead of its text: always eight dots, whatever its length (as on the Mac). */
+export const MASK = '••••••••';
 
 /** PopupPlacement's gaps (below the caret, beside the picker), in logical pixels like the sizes. */
 const GAP_BELOW = 4;
@@ -184,7 +192,14 @@ const KEYSYM_NAMES = {
   0xffff: 'Delete', 0xff9f: 'Delete',
 };
 const DIGIT_KEYCODES = {10: '1', 11: '2', 12: '3', 13: '4', 14: '5', 15: '6', 16: '7', 17: '8', 18: '9'};
-const LETTER_KEYCODES = {33: 'p'};
+const LETTER_KEYCODES = {33: 'p', 43: 'h'};
+/** Alt_L, Alt_R, Meta_L, Meta_R: holding one shows the selected secret. */
+const ALT_KEYSYMS = new Set([0xffe9, 0xffea, 0xffe7, 0xffe8]);
+
+/** Whether a key event is Alt itself (pressed or let go). */
+export function isAltKey(keysym) {
+  return ALT_KEYSYMS.has(keysym);
+}
 
 /**
  * What a key press means to the picker: {name, ctrl, shift}. `name` is "Up", "Return", "Escape",
@@ -197,7 +212,7 @@ export function pickerKey(keysym, keycode, state, masks) {
   let name = KEYSYM_NAMES[keysym] ?? null;
   if (name === null && keysym >= 0xffb1 && keysym <= 0xffb9) name = String(keysym - 0xffb0); // keypad digits
   if (name === null && keysym >= 0x20 && keysym < 0x7f) name = String.fromCharCode(keysym).toLowerCase();
-  if (ctrl && (name === null || !/^[1-9p]$/.test(name))) name = DIGIT_KEYCODES[keycode] ?? LETTER_KEYCODES[keycode] ?? name;
+  if (ctrl && (name === null || !/^[1-9ph]$/.test(name))) name = DIGIT_KEYCODES[keycode] ?? LETTER_KEYCODES[keycode] ?? name;
   return {name, ctrl, shift};
 }
 
@@ -207,15 +222,21 @@ const samePoint = (a, b) => a !== null && b !== null && a[0] === b[0] && a[1] ==
 
 /**
  * The picker's state: the filter, its results (pinned first, then newest first) and the selection.
- * `actions` carries out what you pick: paste(id), togglePin(id), delete(id), clear(), close().
+ * `actions` carries out what you pick: paste(id), togglePin(id), delete(id), clear(), hide(id),
+ * unhide(id), close(). `appName` gives an app's name from its id: a secret matches a search by it.
  */
 export class PickerModel {
-  constructor({history, actions}) {
+  constructor({history, actions, appName = (id) => id}) {
     this._history = history;
     this._actions = actions;
+    this._appName = appName;
     this.query = '';
     this.selectedId = null;
     this.results = [];
+    /** Secrets whose eye button was clicked: shown until the picker closes. */
+    this.revealed = new Set();
+    /** Alt is held: the selected secret shows while it is. */
+    this.altHeld = false;
     /** The list's height, set when the picker opens so it doesn't resize as you type. */
     this.listHeight = PICKER.textRowHeight;
     /**
@@ -262,9 +283,11 @@ export class PickerModel {
     return null;
   }
 
-  /** Call each time the picker opens, with the pointer's location ([x, y]). */
-  reset(pointer = null) {
+  /** Call each time the picker opens, with the pointer's location ([x, y]) and whether Alt is down. */
+  reset(pointer = null, {altHeld = false} = {}) {
     this.query = '';
+    this.revealed = new Set();
+    this.altHeld = Boolean(altHeld);
     this._refilter(true);
     this._restingPointer = pointer;
     this.listHeight = listHeight(this.results);
@@ -288,8 +311,10 @@ export class PickerModel {
 
   select(id) {
     if (this.selectedId === id) return;
+    // With Alt held, the secret shown follows the selection: those rows change, not just the highlight.
+    const redraw = this.altHeld && (this.selectedItem?.secret || this.results.find((i) => i.id === id)?.secret);
     this.selectedId = id;
-    this.onChange?.('selection');
+    this.onChange?.(redraw ? 'results' : 'selection');
   }
 
   move(delta, pointer = null) {
@@ -330,6 +355,40 @@ export class PickerModel {
     if (id) this._changeHistory(() => this._actions.togglePin(id));
   }
 
+  // --- Secrets -----------------------------------------------------------------------------------
+
+  /** Whether a row shows its text: not a secret, or a secret its eye showed, or the selected one while Alt is held. */
+  shows(item) {
+    if (!item?.secret) return true;
+    return this.revealed.has(item.id) || (this.altHeld && item.id === this.selectedId);
+  }
+
+  /** The eye button: shows a secret until the picker closes, or hides it again. */
+  toggleReveal(id) {
+    if (!id) return;
+    if (this.revealed.has(id)) this.revealed.delete(id);
+    else this.revealed.add(id);
+    this.onChange?.('results');
+  }
+
+  /** Alt pressed or let go: the selected secret shows while it's held. */
+  setAltHeld(held) {
+    const next = Boolean(held);
+    if (next === this.altHeld) return;
+    this.altHeld = next;
+    if (this.selectedItem?.secret) this.onChange?.('results');
+  }
+
+  /**
+   * Ctrl+H: "Hide Contents" on a text item, "Show Contents" on a secret found by its look or hidden by
+   * hand. One its app marked or a password manager copied stays hidden.
+   */
+  toggleHidden(id = this.selectedId) {
+    const item = this.results.find((i) => i.id === id);
+    if (!item || item.image || item.files) return;
+    this._changeHistory(() => (item.secret ? this._actions.unhide?.(id) : this._actions.hide?.(id)));
+  }
+
   delete(id = this.selectedId) {
     if (!id) return;
     const index = Math.max(this.results.findIndex((item) => item.id === id), 0);
@@ -361,6 +420,10 @@ export class PickerModel {
       this.togglePin();
       return true;
     }
+    if (name === 'h') {
+      this.toggleHidden();
+      return true;
+    }
     if (/^[1-9]$/.test(name ?? '')) {
       this.pick(Number(name));
       return true;
@@ -378,7 +441,8 @@ export class PickerModel {
   }
 
   _refilter(selectFirst) {
-    this.results = this._history().search(this.query, {maxCharacters: SEARCH_LIMIT});
+    // A secret matches by its app's name, never its text.
+    this.results = this._history().search(this.query, {maxCharacters: SEARCH_LIMIT, appName: this._appName});
     if (selectFirst || !this.results.some((item) => item.id === this.selectedId)) this.selectedId = this.results[0]?.id ?? null;
   }
 }
@@ -393,6 +457,21 @@ function lookupApp(id) {
     return app ? {name: app.get_name(), icon: app.get_icon?.() ?? null} : null;
   } catch {
     return null;
+  }
+}
+
+/** An app's name from its id (its desktop file's), else the id: what a secret's search matches. */
+export function appDisplayName(id) {
+  return lookupApp(id)?.name ?? id;
+}
+
+/** Whether Alt is held on the keyboard right now (Clutter's MOD1 in the pointer's modifiers). */
+function altIsDown() {
+  try {
+    const [, , mods] = global.get_pointer();
+    return Boolean((mods ?? 0) & Clutter.ModifierType.MOD1_MASK);
+  } catch {
+    return false;
   }
 }
 
@@ -469,7 +548,7 @@ export class ClipboardPicker {
     this._scale = uiScale();
     this._apps.clear();
     this._fileStates.clear();
-    this._model.reset(this._pointer());
+    this._model.reset(this._pointer(), {altHeld: altIsDown()});
     this._build();
     this._place(anchor);
     this._grab = Main.pushModal(this._root, {actionMode: Shell.ActionMode.SYSTEM_MODAL});
@@ -552,8 +631,18 @@ export class ClipboardPicker {
     const text = this._entry.clutter_text;
     text.connect('text-changed', () => this._model.setQuery(this._entry.get_text()));
     text.connect('key-press-event', (_actor, event) => {
-      const key = pickerKey(event.get_key_symbol(), event.get_key_code(), event.get_state(), Clutter.ModifierType);
+      const keysym = event.get_key_symbol();
+      if (isAltKey(keysym)) {
+        this._model.setAltHeld(true);
+        return Clutter.EVENT_PROPAGATE;
+      }
+      const key = pickerKey(keysym, event.get_key_code(), event.get_state(), Clutter.ModifierType);
       return this._model.handleKey(key, this._pointer()) ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
+    });
+    // Holding Alt shows the selected secret; letting go hides it again.
+    text.connect('key-release-event', (_actor, event) => {
+      if (isAltKey(event.get_key_symbol())) this._model.setAltHeld(false);
+      return Clutter.EVENT_PROPAGATE;
     });
   }
 
@@ -660,7 +749,8 @@ export class ClipboardPicker {
         ? new St.Icon({gicon: app.icon, style_class: 'slated-clipboard-app-icon', y_align: Clutter.ActorAlign.CENTER})
         : new St.Icon({icon_name: 'edit-paste-symbolic', style_class: 'slated-clipboard-kind-icon', y_align: Clutter.ActorAlign.CENTER});
       box.add_child(icon);
-      box.add_child(new St.Label({style_class: 'slated-clipboard-text', text: itemPreview(item.text), x_expand: true, y_align: Clutter.ActorAlign.CENTER}));
+      if (item.secret) this._secretLine(box, item, app);
+      else box.add_child(new St.Label({style_class: 'slated-clipboard-text', text: itemPreview(item.text), x_expand: true, y_align: Clutter.ActorAlign.CENTER}));
     }
     if (item.pinned) box.add_child(new St.Icon({icon_name: 'view-pin-symbolic', style_class: 'slated-clipboard-pin', y_align: Clutter.ActorAlign.CENTER}));
     const number = this._model.number(index);
@@ -671,6 +761,29 @@ export class ClipboardPicker {
       if (row.hover) this._model.hover(item.id, this._pointer());
     });
     return row;
+  }
+
+  /**
+   * A secret's line: `••••••••` (or its text while shown), a lock, the app it came from, and the eye
+   * button that shows it until the picker closes. The text is never in the row while it's masked.
+   */
+  _secretLine(box, item, app) {
+    const shown = this._model.shows(item);
+    box.add_child(new St.Label({
+      style_class: `slated-clipboard-text${shown ? '' : ' slated-clipboard-masked'}`, text: shown ? itemPreview(item.text) : MASK,
+      x_expand: true, y_align: Clutter.ActorAlign.CENTER,
+    }));
+    box.add_child(new St.Icon({icon_name: 'changes-prevent-symbolic', style_class: 'slated-clipboard-lock', y_align: Clutter.ActorAlign.CENTER}));
+    const name = app?.name ?? item.sourceApp;
+    if (name) box.add_child(new St.Label({style_class: 'slated-clipboard-secret-app', text: name, y_align: Clutter.ActorAlign.CENTER}));
+    const eye = new St.Button({
+      style_class: 'slated-clipboard-eye', can_focus: false, y_align: Clutter.ActorAlign.CENTER,
+      accessible_name: shown ? 'Hide' : 'Show',
+      child: new St.Icon({icon_name: shown ? 'view-conceal-symbolic' : 'view-reveal-symbolic', style_class: 'slated-clipboard-eye-icon'}),
+    });
+    // St.Button stops the press and release it handles, so the row underneath doesn't paste.
+    eye.connect('clicked', () => this._model.toggleReveal(item.id));
+    box.add_child(eye);
   }
 
   /**

@@ -71,6 +71,34 @@ export function writeTextAtomic(path, text) {
 }
 
 /**
+ * Writes a file so only you can read it (secrets.json): a new file is created 0600, an existing one is
+ * replaced atomically (through a symbolic link, to its file) and made 0600. Throws on failure.
+ */
+export function writePrivateTextAtomic(path, text) {
+  ensureParent(path, 0o700);
+  const file = Gio.File.new_for_path(path);
+  file.replace_contents(encoder.encode(text), null, false, Gio.FileCreateFlags.PRIVATE, null);
+  // A file that existed before keeps its old mode through a replace: make sure it's private.
+  file.set_attribute_uint32('unix::mode', 0o600, Gio.FileQueryInfoFlags.NONE, null);
+}
+
+/**
+ * Makes a file readable only by its owner when others could read or write it (a secrets.json made or
+ * copied by hand). Returns whether it changed the mode; false when it isn't there.
+ */
+export function makePrivate(path) {
+  try {
+    const file = Gio.File.new_for_path(path);
+    const mode = file.query_info('unix::mode', Gio.FileQueryInfoFlags.NONE, null).get_attribute_uint32('unix::mode');
+    if ((mode & 0o077) === 0) return false;
+    file.set_attribute_uint32('unix::mode', 0o600, Gio.FileQueryInfoFlags.NONE, null);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Writes a file only if it doesn't exist yet (config.v1.json, the copy a migration keeps): true when
  * it wrote it. Two Slated processes migrating at once would write the same text.
  */

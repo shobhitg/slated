@@ -488,6 +488,29 @@ expect_true "the log never names a file, and its clipboard events hold no path" 
   '! grep -qE "SECRET-NAME|Screenshot 2026" <<<"$1" && ! grep "\"event\":\"clipboard\." <<<"$1" | grep -qF "$2"' \
   _ "$(log_of "$home")" "$home"
 
+# 11d. Secrets: a fake token (found by its look), a password manager's copy and one an app marked concealed are
+#      kept masked and in memory only. clipboard.json, written at once, has the ordinary copy and none of them; a
+#      transient copy isn't recorded; one picked goes back marked concealed; an hour later they're gone. The log
+#      says a secret was copied and why, never what or how long. A sensitive hotstring's text goes to
+#      secrets.json (mode 600), never config.json or the log.
+home=$(new_home)
+out=$(SLATED_SMOKE_STEPS="clipboard-secrets sensitive-hotstring" smoke "$home")
+expect_output "the token, the password manager's copy and the marked one are masked; the transient one isn't kept" \
+  "$out" "clipboard secrets: 3 masked (app,marked,pattern), 1 ordinary"
+expect_output "clipboard.json never has a secret" "$out" "clipboard.json: has the ordinary copy, no secret"
+expect_output "a secret goes back on the clipboard marked concealed" "$out" \
+  "secret put back: the same text, marked concealed"
+expect_output "secrets expire after clipboard.secretMinutes" "$out" "after 61 minutes: 0 secrets, 1 items"
+expect_true "clipboard.json on disk has no secret" bash -c \
+  '! grep -qE "SMOKE|ghp_" "$1"' _ "$home/Library/Application Support/Slated/clipboard.json"
+expect_true "the log notes each secret and why, with no text and no length" bash -c \
+  'grep -q "\"sensitive\":true" <<<"$1" && grep -q "\"reason\":\"pattern\"" <<<"$1" && grep -q "clipboard.secrets_expired" <<<"$1" && ! grep -qE "SMOKE|ghp_" <<<"$1" && ! grep "\"sensitive\":true" <<<"$1" | grep -q "\"chars\""' \
+  _ "$(log_of "$home")"
+expect_output "a sensitive hotstring's text goes to secrets.json, readable only by you" "$out" \
+  "sensitive hotstring: secrets.json mode 600, has the text, config.json has the reference only"
+expect_true "the log has the save, never the hotstring's text" bash -c \
+  'grep -q "secrets: 1" <<<"$1" && ! grep -q "SMOKE-hotstring" <<<"$1"' _ "$(log_of "$home")"
+
 # 12. Saved snapshots (`snapshot … save`) keep a SHA-256 of each window title, never the title. A file
 #     saved before that, with titles, is read and rewritten at launch.
 home=$(new_home)

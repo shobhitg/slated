@@ -84,12 +84,14 @@ export {
   randomUUID,
   clampKeyRepeat,
   KEY_REPEAT_RANGES,
+  defaultClipboard,
+  LEGACY_EXCLUDED_APPS,
 } from './config.js';
 
 // --- The two files (config.json and settings.json) -------------------------------------------------
 /**
- * decodeConfigurationFiles(configText|null, settingsText|null) → {configuration, extras, legacy,
- *   configObject, settingsObject}: both files as one configuration; settings.json wins over version 1's
+ * decodeConfigurationFiles(configText|null, settingsText|null, secretsText|null) → {configuration, extras, legacy,
+ *   configObject, settingsObject, secrets}: both files as one configuration, and secrets.json as {name: text}; settings.json wins over version 1's
  *   settings sections in config.json. Errors name the file (`error.file`).
  * encodeConfigurationFiles(configuration, extras) → {config, settings}: the two files' texts.
  * isLegacyLayout(parsed config.json) → version 1's single file, to migrate; legacyConfig(parsed) → what it
@@ -110,7 +112,43 @@ export {
   CONFIG_FILE,
   SETTINGS_FILE,
   BACKUP_FILE,
+  SECRETS_FILE,
+  SECRETS_VERSION,
+  decodeSecretsText,
+  encodeSecretsText,
 } from './configFiles.js';
+
+// --- Secrets --------------------------------------------------------------------------------------
+/**
+ * Clipboard secrets: secretPattern(text) → 'private-key'|'token'|'jwt'|'url-password'|'card-number'|
+ *   'generated-password'|'random'|null; secretReason({text, concealed, app, patterns}) → 'marked'|'app'|'pattern'|null;
+ *   isPasswordManager(appId); strongerReason(a, b); isLockedReason(reason) (marked and app can't be shown for good).
+ * Sensitive hotstrings (`replacement: {secret: name}`, text in secrets.json): hotstringSecret(h), secretName(trigger,
+ *   taken), secretNamesInUse(hotstrings, secrets), hotstringText(h, secrets) (null while missing), isMissingSecret,
+ *   and the Sensitive switch: makeSensitive / makeNotSensitive / giveOwnSecret(hotstrings, secrets, index) →
+ *   {hotstrings, secrets}, setSecretText(hotstrings, secrets, index, text) and forgetSecret(hotstrings, secrets, name) →
+ *   secrets. Inputs are left alone.
+ */
+export {
+  secretPattern,
+  secretReason,
+  isPasswordManager,
+  strongerReason,
+  isLockedReason,
+  PASSWORD_MANAGERS,
+  SECRET_REASONS,
+  hotstringSecret,
+  secretName,
+  secretNamesInUse,
+  hotstringText,
+  isMissingSecret,
+  makeSensitive,
+  makeNotSensitive,
+  setSecretText,
+  giveOwnSecret,
+  forgetSecret,
+  secretInternals,
+} from './secrets.js';
 
 // --- Keys -----------------------------------------------------------------------------------------
 /**
@@ -212,4 +250,5 @@ export {
   hotstringKey,
   layoutKey,
   layoutAppKey,
+  secretKey,
 } from './configKeys.js';

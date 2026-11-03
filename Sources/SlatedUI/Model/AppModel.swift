@@ -401,10 +401,12 @@ public final class AppModel {
     slateImportNotice = nil
   }
 
-  /// Which file couldn't be read, for messages: "config.json", "settings.json" or "config.json".
+  /// Which file couldn't be read, for messages: "settings.json", "secrets.json", else "config.json".
   var unreadableFileName: String {
-    loadError?.contains(ConfigFile.settings.rawValue) == true
-      ? ConfigFile.settings.rawValue : ConfigFile.config.rawValue
+    for file in [ConfigFile.settings, .secrets] where loadError?.contains(file.rawValue) == true {
+      return file.rawValue
+    }
+    return ConfigFile.config.rawValue
   }
 
   /// Saves pending edits, then asks the app to reload config.json and settings.json. While a conflict

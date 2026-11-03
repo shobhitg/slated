@@ -21,6 +21,8 @@ enum BindingState: Equatable {
 /// The state of one hotstring, for its editor.
 enum HotstringState: Equatable {
   case notSaved
+  /// Sensitive, and its text isn't on this computer: it doesn't expand until it's entered.
+  case missingText
   case off
   /// The master switch is off.
   case expansionOff
@@ -191,7 +193,11 @@ extension AppModel {
   func deleteHotstring(_ id: UUID) {
     guard let index = configuration.hotstrings.firstIndex(where: { $0.id == id }) else { return }
     let trigger = configuration.hotstrings[index].trigger
-    configuration.hotstrings.remove(at: index)
+    // A sensitive one's text goes with it, unless another hotstring uses the same secret.
+    var config = configuration
+    let secret = config.hotstrings.remove(at: index).secret
+    if let secret { config.forgetSecret(secret) }
+    configuration = config
     if selectedHotstringID == id {
       let remaining = configuration.hotstrings
       selectedHotstringID = remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
@@ -204,8 +210,49 @@ extension AppModel {
     var copy = configuration.hotstrings[index]
     copy.id = UUID()
     copy.trigger += "2"
-    configuration.hotstrings.insert(copy, at: index + 1)
+    var config = configuration
+    config.hotstrings.insert(copy, at: index + 1)
+    // A sensitive copy gets its own secret, so editing one doesn't change the other.
+    config.giveOwnSecret(toHotstringAt: index + 1)
+    configuration = config
     selectedHotstringID = copy.id
+  }
+
+  // MARK: Sensitive hotstrings
+
+  /// The Sensitive switch: the text moves into secrets.json (only you can read it) under a name from the
+  /// trigger, and back into config.json when it's turned off.
+  func setSensitive(_ sensitive: Bool, hotstring id: UUID) {
+    guard let index = configuration.hotstrings.firstIndex(where: { $0.id == id }),
+      configuration.hotstrings[index].isSensitive != sensitive
+    else { return }
+    var config = configuration
+    if sensitive { config.makeSensitive(hotstringAt: index) } else { config.makeNotSensitive(hotstringAt: index) }
+    configuration = config
+    guard loadError == nil else { return }
+    showToast(
+      sensitive ? "Its text moved to secrets.json" : "Its text is back in config.json",
+      symbol: sensitive ? "lock.fill" : "lock.open.fill")
+  }
+
+  /// A sensitive hotstring's text, from secrets.json; nil while it isn't on this computer.
+  func secretText(of id: UUID) -> String? { hotstring(id).flatMap { configuration.text(of: $0) } }
+
+  /// A sensitive hotstring's new text, into secrets.json.
+  func setSecretText(_ text: String, hotstring id: UUID) {
+    guard let index = configuration.hotstrings.firstIndex(where: { $0.id == id }) else { return }
+    var config = configuration
+    config.setSecretText(text, forHotstringAt: index)
+    configuration = config
+  }
+
+  /// Sensitive hotstrings whose text isn't on this computer: they don't expand until it's entered.
+  var missingSecretCount: Int { configuration.hotstringsMissingSecrets.count }
+
+  /// Overview's "Review Hotstrings": the first hotstring waiting for its text, open in its editor.
+  func reviewMissingSecrets() {
+    selectedPane = .hotstrings
+    if let first = configuration.hotstringsMissingSecrets.first { selectedHotstringID = first.id }
   }
 
   var enabledHotstringCount: Int { configuration.hotstrings.filter(\.enabled).count }
@@ -213,6 +260,7 @@ extension AppModel {
   /// What a hotstring's editor says about it: the draft, validation and the engine combined.
   func state(for hotstring: Hotstring) -> HotstringState {
     if issues(for: .hotstring(hotstring.id)).contains(where: { $0.severity == .error }) { return .notSaved }
+    if configuration.isMissingSecret(hotstring) { return .missingText }
     if !hotstring.enabled { return .off }
     if !runtimeStatus.hotstringsEnabled { return .expansionOff }
     if runtimeStatus.paused { return .paused }

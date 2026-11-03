@@ -169,6 +169,11 @@ public protocol AppServices: AnyObject {
   func copyClipboardItem(id: UUID)
   func deleteClipboardItem(id: UUID)
   func togglePinClipboardItem(id: UUID)
+  /// "Hide Contents": the item becomes a secret (masked, in memory only, out of clipboard.json at once).
+  func hideClipboardItem(id: UUID)
+  /// "Show Contents": a secret found by its look or hidden by hand becomes an ordinary item again; one an
+  /// app marked or a password manager copied stays hidden.
+  func unhideClipboardItem(id: UUID)
   /// Removes everything except pinned items.
   func clearClipboardHistory()
   /// Opens the clipboard picker.
@@ -251,6 +256,9 @@ extension AppServices {
   public func clipboardImageURL(_ image: ClipboardImage) -> URL? { nil }
   /// Every copied file is still there by default (test doubles).
   public func clipboardFileMissing(_ path: String) -> Bool { false }
+  /// Test doubles keep their items as they are.
+  public func hideClipboardItem(id: UUID) {}
+  public func unhideClipboardItem(id: UUID) {}
   public func openFilesAndFoldersSettings() {}
   public func currentSystemKeyRepeat() -> KeyRepeat? { nil }
   public func dismissMenuBarNotice() {}

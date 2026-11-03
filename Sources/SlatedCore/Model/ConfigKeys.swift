@@ -53,7 +53,9 @@ public enum ConfigKeys {
   public static let clipboardRetentionDays = ConfigKey(.settings, "clipboard.retentionDays")
   public static let clipboardPersist = ConfigKey(.settings, "clipboard.persist")
   public static let clipboardScreenshots = ConfigKey(.settings, "clipboard.screenshots")
-  public static let clipboardIgnoreConcealed = ConfigKey(.settings, "clipboard.ignoreConcealed")
+  public static let clipboardSecrets = ConfigKey(.settings, "clipboard.secrets")
+  public static let clipboardSecretMinutes = ConfigKey(.settings, "clipboard.secretMinutes")
+  public static let clipboardSecretPatterns = ConfigKey(.settings, "clipboard.secretPatterns")
   public static let clipboardExcludedApps = ConfigKey(.settings, "clipboard.excludedApps")
 
   public static let automationStopShortcut = ConfigKey(.settings, "automation.stopShortcut")
@@ -74,6 +76,16 @@ public enum ConfigKeys {
   public static let bindings = ConfigKey(.config, "bindings")
   public static let hotstrings = ConfigKey(.config, "hotstrings")
   public static let layouts = ConfigKey(.config, "layouts")
+
+  // MARK: secrets.json
+
+  /// The secrets, by name.
+  public static let secrets = ConfigKey(.secrets, "secrets")
+
+  /// A sensitive hotstring's text: `secrets.json › pw`. Copy Value never copies it (`valueText`).
+  public static func secret(named name: String) -> ConfigKey {
+    ConfigKey(file: .secrets, components: [.key("secrets"), .key(name)])
+  }
 
   /// Every setting with a fixed key, in the order the window shows them.
   public static let settings: [Setting] = [
@@ -96,7 +108,9 @@ public enum ConfigKeys {
     Setting("clipboardRetentionDays", clipboardRetentionDays),
     Setting("clipboardPersist", clipboardPersist),
     Setting("clipboardScreenshots", clipboardScreenshots),
-    Setting("clipboardIgnoreConcealed", clipboardIgnoreConcealed),
+    Setting("clipboardSecrets", clipboardSecrets),
+    Setting("clipboardSecretMinutes", clipboardSecretMinutes),
+    Setting("clipboardSecretPatterns", clipboardSecretPatterns),
     Setting("clipboardExcludedApps", clipboardExcludedApps),
     Setting("automationStopShortcut", automationStopShortcut),
     Setting("automationStopOnAppSwitch", automationStopOnAppSwitch),
@@ -117,6 +131,9 @@ public enum ConfigKeys {
     "settings.json › windows":
       "Slate's own settings: the window shows the three people tune; the rest are for hand edits.",
     "config.json › defaults": "Slate's default layouts per display arrangement: imported from Slate, edited by hand.",
+    "secrets.json › version": "The format's version, written by Slated.",
+    "secrets.json › secrets":
+      "Sensitive hotstrings' text: each one's editor shows it masked, under the key secrets.json › its name.",
   ]
 
   // MARK: Items' fields, relative to the item

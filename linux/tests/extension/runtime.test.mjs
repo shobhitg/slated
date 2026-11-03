@@ -3,7 +3,7 @@
 // settings.json; first runs and the move from a version 1 config.json; and disable() undoing everything.
 
 import assert from 'node:assert/strict';
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {after, afterEach, beforeEach, test} from 'node:test';
@@ -374,6 +374,43 @@ test('hotstrings are written for espanso and kept only while the screen is locke
   runtime.stop();
   assert.ok(!existsSync(matchFile), 'removed when Slated is turned off');
   assert.equal(status().hotstrings.count, 0, 'and status.json says none are left');
+});
+
+test('sensitive hotstrings: secrets.json is read and watched, made private, its errors quote nothing, and espanso types the text', () => {
+  mkdirSync(join(home, '.config/espanso'), {recursive: true});
+  writeConfig({hotstrings: [{trigger: ';pw', replacement: {secret: 'pw'}}, {trigger: ';hi', replacement: 'hello'}]});
+  const secrets = join(home, '.config/slated/secrets.json');
+  const matchFile = join(home, '.config/espanso/match/slated.yml');
+  writeFileSync(secrets, '{"version": 1, "secrets": {"pw": "hunter2-text"}}', {mode: 0o644});
+  const runtime = startRuntime();
+  assert.equal(statSync(secrets).mode & 0o777, 0o600, 'made readable only by you');
+  assert.equal(events('config.secrets_made_private').length, 1);
+  const yaml = readFileSync(matchFile, 'utf8');
+  assert.match(yaml, /trigger: ";pw"\n {4}replace: "hunter2-text"\n {4}force_mode: keys/, 'typed, never pasted');
+  assert.equal(statSync(matchFile).mode & 0o777, 0o600, 'espanso’s file holds the text: private');
+  assert.equal(events('config.loaded').at(-1).data.secrets, 1, 'a count in the log');
+  // A hand edit to secrets.json is picked up.
+  writeFileSync(secrets, '{"version": 1, "secrets": {"pw": "changed-text"}}');
+  gnome.fileChanged(secrets);
+  gnome.loop.advance(300);
+  assert.match(readFileSync(matchFile, 'utf8'), /replace: "changed-text"/);
+  assert.equal(events('config.changed_on_disk').at(-1).data.file, 'secrets.json');
+  // Broken: reported by name, quoting nothing from it; the last good text stays.
+  writeFileSync(secrets, "{'secrets': {'pw': hunter2-broken}}");
+  gnome.fileChanged(secrets);
+  gnome.loop.advance(300);
+  assert.match(status().lastError, /^Couldn't read secrets\.json/);
+  assert.match(readFileSync(matchFile, 'utf8'), /replace: "changed-text"/, 'the last good text stays');
+  // Gone: the sensitive hotstring isn't expanded until its text is back.
+  rmSync(secrets);
+  gnome.fileChanged(secrets);
+  gnome.loop.advance(300);
+  assert.ok(!readFileSync(matchFile, 'utf8').includes('changed-text'));
+  assert.match(readFileSync(matchFile, 'utf8'), /trigger: ";hi"/, 'the others still expand');
+  const log = readFileSync(statePath('slated.log'), 'utf8');
+  for (const text of ['hunter2', 'changed-text']) assert.ok(!log.includes(text), `${text} never reaches the log`);
+  assert.ok(!readFileSync(statePath('status.json'), 'utf8').includes('hunter2'), 'nor status.json');
+  runtime.stop();
 });
 
 test('with SLATED_DEBUG=1 the debug interface runs actions and reports windows without titles', () => {

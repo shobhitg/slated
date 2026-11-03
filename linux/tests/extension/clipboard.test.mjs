@@ -18,7 +18,7 @@ globalThis.__slatedGnomeFakes = gnome.modules;
 globalThis.global = gnome.global;
 const {ClipboardService, lineCount, looksLikePassword} = await import('../../gnome-extension/lib/platform/clipboard.js');
 const Picker = await import('../../gnome-extension/lib/platform/clipboardPicker.js');
-const {ClipboardPicker, PickerModel, PICKER, HINT, itemPreview, imageTitle, imageDetails, formatBytes, pickerKey} = Picker;
+const {ClipboardPicker, PickerModel, PICKER, HINT, MASK, itemPreview, imageTitle, imageDetails, formatBytes, pickerKey, isAltKey} = Picker;
 const {ClipboardImageStore, MAX_IMAGE_BYTES, isImageFile, pngSize} = await import('../../gnome-extension/lib/platform/clipboardImages.js');
 const {CaretTracker} = await import('../../gnome-extension/lib/platform/caret.js');
 const {InputInjector} = await import('../../gnome-extension/lib/platform/input.js');
@@ -126,60 +126,199 @@ const imageOf = (s, bytes) => s.history.items.find((i) => i.image?.file === `${s
 
 test('copies are recorded newest first with their app; the log has counts, never text', () => {
   const s = service();
-  gnome.copy('first secret line');
+  gnome.copy('first private line');
   world.app = appIdentity('firefox');
   world.now += 1000;
   gnome.copy('second\nmultiline\ncopy');
-  assert.deepEqual(texts(s), ['second\nmultiline\ncopy', 'first secret line']);
+  assert.deepEqual(texts(s), ['second\nmultiline\ncopy', 'first private line']);
   assert.deepEqual(s.history.items.map((i) => i.sourceApp), ['firefox', 'org.gnome.TextEditor']);
   assert.equal(s.history.items[0].copiedAt, Core.referenceSeconds(NOW + 1000));
   const captured = world.log.named('clipboard.captured');
   assert.deepEqual(captured[1].data, {chars: 21, lines: 3, app: 'firefox', items: 2});
-  assert.ok(!JSON.stringify(world.log.events).includes('secret'), 'no clipboard text in the log');
+  assert.ok(!JSON.stringify(world.log.events).includes('private'), 'no clipboard text in the log');
   gnome.copy('   ');
   assert.equal(s.count, 2, 'whitespace isn’t kept');
-  gnome.copy('first secret line');
-  assert.deepEqual(texts(s), ['first secret line', 'second\nmultiline\ncopy'], 'a copy again moves to the top');
+  gnome.copy('first private line');
+  assert.deepEqual(texts(s), ['first private line', 'second\nmultiline\ncopy'], 'a copy again moves to the top');
   s.stop();
 });
 
-test('password managers’ concealed copies and excluded apps are skipped before reading', () => {
-  const s = service();
-  gnome.copy('hunter2', ['text/plain;charset=utf-8', 'x-kde-passwordManagerHint']);
-  assert.equal(s.count, 0);
-  assert.equal(world.log.named('clipboard.skipped')[0].data.reason, 'concealed');
+const SECRET_MIME = ['text/plain;charset=utf-8', 'x-kde-passwordManagerHint'];
+const TOKEN = 'gh§p_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5'.split('§').join('');
+const secrets = (s) => s.history.items.map((i) => [i.text, i.secret ?? null]);
+
+test('secrets are kept, hidden, in memory only: marked by the app, from a password manager, or looking like a key', () => {
+  const s = service({excludedApps: []});
+  gnome.copy('hunter2-marked', SECRET_MIME);
   world.app = appIdentity('org.keepassxc.KeePassXC', ['keepassxc']);
   gnome.copy('from the vault');
   world.app = appIdentity('window:3', ['com.bitwarden.desktop']);
-  gnome.copy('also secret');
-  assert.equal(s.count, 0);
-  assert.deepEqual(world.log.named('clipboard.skipped').map((e) => e.data.reason), ['concealed', 'excluded app', 'excluded app']);
-  s.apply({ignoreConcealed: false, excludedApps: []});
-  gnome.copy('hunter2', ['text/plain;charset=utf-8', 'x-kde-passwordManagerHint']);
-  assert.deepEqual(texts(s), ['hunter2'], 'kept once ignoreConcealed is off');
+  gnome.copy('also from a vault');
+  world.app = appIdentity('org.gnome.TextEditor');
+  gnome.copy(`export TOKEN=${TOKEN}`);
+  gnome.copy('4111 1111 1111 1111');
+  gnome.copy('an ordinary note');
+  assert.deepEqual(secrets(s), [
+    ['an ordinary note', null], ['4111 1111 1111 1111', 'pattern'], [`export TOKEN=${TOKEN}`, 'pattern'],
+    ['also from a vault', 'app'], ['from the vault', 'app'], ['hunter2-marked', 'marked'],
+  ]);
+  assert.equal(s.secretCount, 5);
+  // The log: that each was a secret and why, never its text or length.
+  const captured = world.log.named('clipboard.captured').map((e) => e.data);
+  assert.deepEqual(captured[0], {sensitive: true, reason: 'marked', app: 'org.gnome.TextEditor', items: 1});
+  assert.deepEqual(captured[1], {sensitive: true, reason: 'app', app: 'org.keepassxc.KeePassXC', items: 2});
+  assert.ok(captured.slice(0, 5).every((d) => d.chars === undefined && d.lines === undefined), 'no lengths');
+  assert.deepEqual(captured[5], {chars: 16, lines: 1, app: 'org.gnome.TextEditor', items: 6});
+  // clipboard.json: written a second after the last change, with the ordinary item only.
+  gnome.loop.advance(1000);
+  const saved = readFileSync(world.path, 'utf8');
+  assert.deepEqual(JSON.parse(saved).items.map((i) => i.text), ['an ordinary note']);
+  const logged = JSON.stringify(world.log.events);
+  for (const secret of ['hunter2-marked', 'from the vault', 'also from a vault', TOKEN, '4111']) {
+    assert.ok(!saved.includes(secret), `${secret} isn’t on disk`);
+    assert.ok(!logged.includes(secret), `${secret} isn’t in the log`);
+  }
+  assert.ok(!saved.includes('secret'), 'an item’s reason isn’t written either');
+  s.stop();
+  assert.deepEqual(world.log.named('clipboard.secrets_forgotten').map((e) => e.data), [{count: 5, reason: 'stopped'}]);
+  const again = service();
+  assert.deepEqual(texts(again), ['an ordinary note'], 'secrets don’t outlive the extension');
+  again.stop();
+});
+
+test('a copy that becomes a secret leaves clipboard.json at once, not a second later', () => {
+  const s = service();
+  gnome.copy('was ordinary');
+  gnome.loop.advance(1000);
+  assert.ok(readFileSync(world.path, 'utf8').includes('was ordinary'));
+  gnome.copy('was ordinary', SECRET_MIME);
+  assert.deepEqual(secrets(s), [['was ordinary', 'marked']], 'one item, now a secret');
+  assert.ok(!readFileSync(world.path, 'utf8').includes('was ordinary'), 'off disk right away');
+  gnome.copy('was ordinary');
+  assert.deepEqual(secrets(s), [['was ordinary', 'marked']], 'a plain copy of a secret stays one');
   s.stop();
 });
 
-test('a password-like copy from Chrome is skipped: Chromium doesn’t mark passwords on Linux', () => {
+test('with secrets "skip", none is recorded, and one known before reading isn’t even read', () => {
+  const s = service({secrets: 'skip', excludedApps: []});
+  gnome.copy('hunter2-marked', SECRET_MIME);
+  world.app = appIdentity('org.keepassxc.KeePassXC');
+  gnome.copyContent({'image/png': png(4, 4)});
+  assert.deepEqual(gnome.state.clipboardReads, [], 'nothing read: a password manager’s image isn’t kept either');
+  world.app = appIdentity('org.gnome.TextEditor');
+  gnome.copy(TOKEN);
+  gnome.copy('kept');
+  assert.deepEqual(texts(s), ['kept']);
+  assert.deepEqual(world.log.named('clipboard.skipped').map((e) => [e.data.reason, e.data.secret]),
+    [['secret', 'marked'], ['secret', 'app'], ['secret', 'pattern']]);
+  assert.ok(!JSON.stringify(world.log.events).includes('hunter2'), 'the log never has the text');
+  s.stop();
+});
+
+test('turning on "skip" forgets the secrets kept until then; turning patterns off keeps text that only looks like one', () => {
+  const s = service();
+  gnome.copy('hunter2-marked', SECRET_MIME);
+  gnome.copy(TOKEN);
+  assert.equal(s.secretCount, 2);
+  s.apply({secrets: 'skip'});
+  assert.equal(s.secretCount, 0);
+  assert.deepEqual(world.log.named('clipboard.secrets_forgotten').map((e) => e.data), [{count: 2, reason: 'secrets are skipped'}]);
+  s.apply({secrets: 'masked', secretPatterns: false});
+  gnome.copy(TOKEN);
+  gnome.copy('hunter2-marked', SECRET_MIME);
+  assert.deepEqual(secrets(s), [['hunter2-marked', 'marked'], [TOKEN, null]], 'what the app says still counts');
+  s.stop();
+});
+
+test('a password-like copy from Chrome is a secret: Chromium doesn’t mark passwords on Linux', () => {
   const s = service();
   world.app = appIdentity('google-chrome', ['google-chrome']);
   gnome.copy('8VXdsiXkqQ5D3P9');
   gnome.copy('Rt7!kw-Pq2');
-  assert.equal(s.count, 0, 'generated passwords stay out of the history');
-  assert.deepEqual(world.log.named('clipboard.skipped').map((e) => e.data.reason), ['looks like a password', 'looks like a password']);
+  assert.deepEqual(secrets(s), [['Rt7!kw-Pq2', 'pattern'], ['8VXdsiXkqQ5D3P9', 'pattern']], 'kept, hidden');
   assert.ok(!JSON.stringify(world.log.events).includes('8VXdsiXkqQ5D3P9'), 'the log never has the text');
   gnome.copy('Meet at 5pm in Room B2');
   gnome.copy('https://example.com/Docs?Page=2');
   gnome.copy('factorio-2.0.32');
-  assert.deepEqual(
-    texts(s), ['factorio-2.0.32', 'https://example.com/Docs?Page=2', 'Meet at 5pm in Room B2'], 'everything else is kept');
+  assert.deepEqual(secrets(s).slice(0, 3),
+    [['factorio-2.0.32', null], ['https://example.com/Docs?Page=2', null], ['Meet at 5pm in Room B2', null]], 'everything else is ordinary');
   world.app = appIdentity('org.gnome.TextEditor', ['org.gnome.texteditor']);
-  gnome.copy('8VXdsiXkqQ5D3P9');
-  assert.equal(texts(s)[0], '8VXdsiXkqQ5D3P9', 'other apps aren’t second-guessed');
+  gnome.copy('Zq9vLm4TxB2wK7');
+  assert.deepEqual(secrets(s)[0], ['Zq9vLm4TxB2wK7', null], 'other apps aren’t second-guessed (too short to look random)');
   world.app = appIdentity('window:7', ['com.brave.Browser']);
-  s.apply({ignoreConcealed: false, excludedApps: []});
+  s.apply({secretPatterns: false, excludedApps: []});
   gnome.copy('Zq9vLm4TxB2w');
-  assert.equal(texts(s)[0], 'Zq9vLm4TxB2w', 'kept once ignoreConcealed is off');
+  assert.deepEqual(secrets(s)[0], ['Zq9vLm4TxB2w', null], 'with patterns off, an ordinary item');
+  s.stop();
+});
+
+test('excluded apps are skipped before anything is read, secret or not', () => {
+  const s = service();
+  world.app = appIdentity('window:3', ['com.bitwarden.desktop']);
+  gnome.copy('also secret');
+  gnome.copy('hunter2', SECRET_MIME);
+  assert.equal(s.count, 0);
+  assert.deepEqual(world.log.named('clipboard.skipped').map((e) => e.data.reason), ['excluded app', 'excluded app']);
+  s.stop();
+});
+
+test('secrets expire after secretMinutes, pinned or not, with a count in the log; 0 keeps them until Slated stops', () => {
+  const s = service({secretMinutes: 1});
+  gnome.copy('hunter2-marked', SECRET_MIME);
+  s.togglePin(s.history.items[0].id);
+  world.now += 30_000;
+  gnome.copy(TOKEN);
+  gnome.copy('ordinary');
+  world.now += 31_000;
+  gnome.loop.advance(31_000);
+  assert.deepEqual(texts(s), ['ordinary', TOKEN], 'the first secret went after a minute, pinned and all');
+  assert.deepEqual(world.log.named('clipboard.secrets_expired').map((e) => e.data), [{count: 1, minutes: 1}]);
+  world.now += 30_000;
+  gnome.loop.advance(30_000);
+  assert.deepEqual(texts(s), ['ordinary']);
+  s.apply({secretMinutes: 0});
+  gnome.copy('hunter2-marked', SECRET_MIME);
+  world.now += 24 * 3_600_000;
+  gnome.loop.advance(24 * 3_600_000);
+  assert.equal(s.secretCount, 1, 'kept until Slated stops');
+  s.apply({secretMinutes: 5});
+  assert.equal(s.secretCount, 0, 'a shorter limit applies at once');
+  s.stop();
+});
+
+test('Hide Contents and Show Contents: by hand, and what the app or a password manager marked stays hidden', () => {
+  const s = service({excludedApps: []});
+  gnome.copy('note to hide');
+  gnome.copy(TOKEN);
+  gnome.copy('hunter2-marked', SECRET_MIME);
+  gnome.loop.advance(1000);
+  const id = (t) => s.history.items.find((i) => i.text === t).id;
+  assert.ok(readFileSync(world.path, 'utf8').includes('note to hide'));
+  assert.equal(s.hide(id('note to hide')), true);
+  assert.ok(!readFileSync(world.path, 'utf8').includes('note to hide'), 'hidden: off disk at once');
+  assert.equal(s.hide(id('note to hide')), false, 'already hidden');
+  assert.equal(s.unhide(id('hunter2-marked')), false, 'what the app marked stays hidden');
+  assert.equal(s.unhide(id(TOKEN)), true, 'what only looked like one can be shown');
+  assert.equal(s.unhide(id('note to hide')), true);
+  gnome.loop.advance(1000);
+  const saved = JSON.parse(readFileSync(world.path, 'utf8')).items.map((i) => i.text);
+  assert.deepEqual(saved.sort(), [TOKEN, 'note to hide'].sort(), 'shown items are saved from then on');
+  assert.deepEqual(world.log.named('clipboard.hidden').map((e) => e.data), [{reason: 'manual'}]);
+  assert.deepEqual(world.log.named('clipboard.unhidden').map((e) => e.data), [{reason: 'pattern'}, {reason: 'manual'}]);
+  s.stop();
+});
+
+test('picking a secret pastes the real text and keeps it hidden; the log says only that it was one', () => {
+  const s = service();
+  gnome.copy('hunter2-marked', SECRET_MIME);
+  gnome.copy('later');
+  s.showSwitcher();
+  s.paste(s.history.items.find((i) => i.secret).id);
+  assert.equal(gnome.state.clipboard, 'hunter2-marked', 'the real text');
+  assert.deepEqual(secrets(s)[0], ['hunter2-marked', 'marked'], 'moved up, still a secret');
+  assert.deepEqual(world.log.named('clipboard.pasted').at(-1).data, {sensitive: true, app: 'org.gnome.TextEditor'});
+  gnome.loop.advance(1000);
+  assert.ok(!readFileSync(world.path, 'utf8').includes('hunter2'));
   s.stop();
 });
 
@@ -1095,5 +1234,165 @@ test('the St picker shows files with their thumbnail or icon, dims them when gon
   assert.equal(panel._preview, null, 'nothing to preview when the files are gone');
   key(0xff0d);
   assert.equal(world.log.named('clipboard.paste_skipped').at(-1).data.reason, 'files missing');
+  s.stop();
+});
+
+/** A picker model over a history with secrets: [text, secret reason or null, app]. */
+function secretModel(entries) {
+  const history = new Core.ClipboardHistory();
+  for (const [i, [text, secret, app]] of entries.entries()) history.add(text, {at: i, limit: 100, secret, app: app ?? null});
+  const calls = [];
+  const names = {'org.keepassxc.KeePassXC': 'KeePassXC', 'org.gnome.TextEditor': 'Text Editor'};
+  const model = new PickerModel({
+    history: () => history,
+    appName: (id) => names[id] ?? id,
+    actions: {
+      paste: (id) => calls.push(['paste', history.items.find((i) => i.id === id).text]),
+      togglePin: (id) => history.togglePin(id),
+      delete: (id) => history.remove(id),
+      clear: () => history.clear(),
+      hide: (id) => history.hide(id),
+      unhide: (id) => history.unhide(id),
+      close: () => calls.push(['close']),
+    },
+  });
+  const id = (text) => history.items.find((i) => i.text === text).id;
+  return {history, model, calls, id};
+}
+
+test('the picker model: a secret shows only by its eye or while Alt is held on it; search finds it by its app only', () => {
+  const {model, id, calls} = secretModel([
+    ['hunter2', 'app', 'org.keepassxc.KeePassXC'], ['Zq9vLm4TxB2wKp7R', 'pattern', null], ['hunter2 is my password', null, 'org.gnome.TextEditor'],
+  ]);
+  const changes = [];
+  model.onChange = (what) => changes.push(what);
+  model.reset();
+  const item = (text) => model.results.find((i) => i.text === text);
+  assert.equal(model.shows(item('hunter2 is my password')), true, 'an ordinary item shows');
+  assert.equal(model.shows(item('hunter2')), false, 'a secret is masked');
+  model.toggleReveal(id('hunter2'));
+  assert.equal(model.shows(item('hunter2')), true, 'its eye shows it');
+  assert.equal(changes.at(-1), 'results', 'the row is redrawn');
+  model.toggleReveal(id('hunter2'));
+  assert.equal(model.shows(item('hunter2')), false, 'and hides it again');
+  // Alt shows the selected secret, and follows the selection while held.
+  model.select(id('Zq9vLm4TxB2wKp7R'));
+  model.setAltHeld(true);
+  assert.equal(model.shows(item('Zq9vLm4TxB2wKp7R')), true);
+  assert.equal(model.shows(item('hunter2')), false, 'only the selected one');
+  changes.length = 0;
+  model.move(1);
+  assert.equal(model.shows(item('hunter2')), true, 'Alt still held: the newly selected secret shows');
+  assert.equal(model.shows(item('Zq9vLm4TxB2wKp7R')), false);
+  assert.deepEqual(changes, ['results'], 'secret rows redraw when the selection moves under Alt');
+  model.setAltHeld(false);
+  assert.equal(model.shows(item('hunter2')), false, 'let go: masked again');
+  // A reveal lasts until the picker closes.
+  model.toggleReveal(id('hunter2'));
+  model.reset();
+  assert.equal(model.shows(model.results.find((i) => i.text === 'hunter2')), false, 'reopened: masked');
+  model.reset(null, {altHeld: true});
+  assert.equal(model.altHeld, true, 'Alt already down when the picker opens');
+  // Search: never a secret's text; its app's name.
+  model.setQuery('hunter');
+  assert.deepEqual(model.results.map((i) => i.text), ['hunter2 is my password'], 'typing part of a password finds nothing');
+  model.setQuery('Zq9v');
+  assert.deepEqual(model.results, []);
+  model.setQuery('keepass');
+  assert.deepEqual(model.results.map((i) => i.text), ['hunter2'], 'found by its app’s name');
+  model.setQuery('text editor');
+  assert.deepEqual(model.results, [], 'an ordinary item matches by its text only');
+  model.setQuery('');
+  model.paste(id('hunter2'));
+  assert.deepEqual(calls.at(-1), ['paste', 'hunter2'], 'picking a secret pastes its real text');
+});
+
+test('Ctrl+H hides an item’s contents, and shows them again unless the app or a password manager marked it', () => {
+  const {model, history, id} = secretModel([['a note', null], ['Zq9vLm4TxB2wKp7R', 'pattern'], ['vault entry', 'app', 'org.keepassxc.KeePassXC']]);
+  model.reset();
+  model.select(id('a note'));
+  assert.equal(model.handleKey({name: 'h', ctrl: true}), true);
+  assert.equal(history.items.find((i) => i.text === 'a note').secret, 'manual', 'hidden by hand');
+  model.handleKey({name: 'h', ctrl: true});
+  assert.equal(history.items.find((i) => i.text === 'a note').secret, undefined, 'shown again');
+  model.select(id('Zq9vLm4TxB2wKp7R'));
+  model.handleKey({name: 'h', ctrl: true});
+  assert.equal(history.items.find((i) => i.text === 'Zq9vLm4TxB2wKp7R').secret, undefined, 'what only looked like one is shown');
+  model.select(id('vault entry'));
+  model.handleKey({name: 'h', ctrl: true});
+  assert.equal(history.items.find((i) => i.text === 'vault entry').secret, 'app', 'a password manager’s copy stays hidden');
+  assert.equal(model.handleKey({name: 'h'}), false, 'h without Ctrl is typing');
+  const masks = {CONTROL_MASK: 4, SHIFT_MASK: 1};
+  assert.deepEqual(pickerKey(0x68, 43, 4, masks), {name: 'h', ctrl: true, shift: false});
+  assert.deepEqual(pickerKey(0x6f0, 43, 4, masks), {name: 'h', ctrl: true, shift: false}, 'Ctrl+H on another script, by keycode');
+  for (const keysym of [0xffe9, 0xffea]) assert.equal(isAltKey(keysym), true);
+  assert.equal(isAltKey(0x61), false);
+  // Images and files aren't text: Ctrl+H leaves them alone.
+  const images = new Core.ClipboardHistory();
+  images.addImage({file: 'a.png', width: 2, height: 2, bytes: 9}, {at: 0, limit: 10});
+  const calls = [];
+  const imageModel = new PickerModel({history: () => images, actions: {hide: (i) => calls.push(i), unhide: (i) => calls.push(i)}});
+  imageModel.reset();
+  imageModel.handleKey({name: 'h', ctrl: true});
+  assert.deepEqual(calls, []);
+});
+
+test('the St picker masks a secret with eight dots, a lock and its app; the eye and Alt show it; the text is never in the row while masked', () => {
+  const s = service({excludedApps: []}, {
+    makeSwitcher: (model, svc) => (world.panel = new ClipboardPicker({model, imagePath: (i) => svc.imagePath(i), onClosed: () => svc.pickerClosed()})),
+  });
+  gnome.addWindow({id: 'vault', app: {id: 'org.keepassxc.KeePassXC', name: 'KeePassXC'}, frame: {x: 0, y: 32, width: 800, height: 600}});
+  world.app = appIdentity('org.keepassxc.KeePassXC');
+  gnome.copy('correct horse battery staple');
+  world.app = appIdentity('org.gnome.TextEditor');
+  gnome.copy('a plain note');
+  gnome.state.modifiers = 0;
+  s.showSwitcher();
+  const panel = world.panel;
+  const rows = () => panel._list.children;
+  const texts = (row) => row.find((a) => String(a.style_class ?? '').split(' ').includes('slated-clipboard-text')).map((l) => l.text);
+  const secretRow = () => rows().find((r) => r.find((a) => a.style_class === 'slated-clipboard-lock').length);
+  const everything = () => JSON.stringify(rows().map((r) => r.find(() => true).map((a) => a.text ?? '')));
+  assert.deepEqual(texts(secretRow()), [MASK], 'always eight dots');
+  assert.equal(MASK, '••••••••');
+  assert.ok(!everything().includes('correct horse'), 'the text is nowhere in the rows');
+  assert.deepEqual(secretRow().find((a) => a.style_class === 'slated-clipboard-secret-app').map((l) => l.text), ['KeePassXC'], 'its app, by name');
+  assert.deepEqual(texts(rows()[0]), ['a plain note']);
+  // The eye shows it until the picker closes; it doesn't paste.
+  const eye = () => secretRow().find((a) => a.style_class === 'slated-clipboard-eye')[0];
+  eye().emit('clicked');
+  assert.deepEqual(texts(secretRow()), ['correct horse battery staple']);
+  assert.equal(panel.isOpen, true, 'the eye doesn’t paste');
+  eye().emit('clicked');
+  assert.deepEqual(texts(secretRow()), [MASK], 'clicked again: hidden');
+  // Alt: down shows the selected secret, up hides it.
+  const key = (name, keysym, state = 0, keycode = 0) =>
+    panel._entry.clutter_text.emit(name, {...fakeEvent({keysym}), get_key_code: () => keycode, get_state: () => state});
+  key('key-press-event', 0xff54); // Down: the secret is selected
+  key('key-press-event', 0xffe9); // Alt_L
+  assert.deepEqual(texts(secretRow()), ['correct horse battery staple'], 'held: shown');
+  key('key-release-event', 0xffe9);
+  assert.deepEqual(texts(secretRow()), [MASK], 'let go: masked');
+  // Search: typing part of it finds nothing; its app's name finds it.
+  panel._entry.set_text('horse');
+  assert.deepEqual(panel._list.children.map((a) => a.text), ['No matches']);
+  panel._entry.set_text('keepass');
+  assert.equal(rows().length, 1);
+  assert.deepEqual(texts(rows()[0]), [MASK]);
+  panel._entry.set_text('');
+  panel.close();
+  // Opened with Alt already down, the selected secret shows at once.
+  gnome.state.modifiers = 8;
+  s.showSwitcher();
+  key('key-press-event', 0xff54);
+  assert.deepEqual(texts(secretRow()), ['correct horse battery staple']);
+  gnome.state.modifiers = 0;
+  key('key-release-event', 0xffea);
+  // Ctrl+H on the plain note hides it.
+  key('key-press-event', 0xff52); // Up
+  key('key-press-event', 0x68, 4, 43);
+  assert.equal(s.history.items.find((i) => i.text === 'a plain note').secret, 'manual');
+  assert.equal(rows().filter((r) => r.find((a) => a.style_class === 'slated-clipboard-lock').length).length, 2, 'both masked now');
+  panel.close();
   s.stop();
 });

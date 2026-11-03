@@ -13,6 +13,7 @@ import {SlatedError} from './errors.js';
 import {randomUUID} from './config.js';
 import {asDouble, asInt, isNumberValue} from './json.js';
 import {splitCharacters} from './model.js';
+import {isLockedReason, strongerReason} from './secrets.js';
 import {graphemes, isWhitespace, stringEquals, trimWhitespaceAndNewlines} from './text.js';
 
 /** Seconds from 1970-01-01 to 2001-01-01, where Swift's dates count from. */
@@ -45,6 +46,7 @@ export class ClipboardHistory {
       pinned: !!item.pinned,
       ...(item.image ? {image: copyImage(item.image)} : {}),
       ...(item.files ? {files: [...item.files]} : {}),
+      ...(item.secret ? {secret: item.secret} : {}),
     }));
     this._newId = newId;
   }
@@ -57,18 +59,24 @@ export class ClipboardHistory {
   /**
    * Records a copy. Returns false when there's nothing worth keeping (empty or whitespace only).
    * Copying something already in the history moves it to the top with a new id, keeping its pin.
+   * `secret` says why it's a secret (secrets.js reasons); a copy of a secret already there stays one,
+   * for the more certain reason.
    * @param {string} text
-   * @param {{app?: string|null, at: number, limit: number}} options  `at` in Swift's Date encoding.
+   * @param {{app?: string|null, at: number, limit: number, secret?: string|null}} options  `at` in Swift's Date encoding.
    */
-  add(text, {app = null, at, limit}) {
+  add(text, {app = null, at, limit, secret = null}) {
     if (trimWhitespaceAndNewlines(text) === '') return false;
     let pinned = false;
+    let reason = secret ?? null;
     const existing = this._items.findIndex((item) => isText(item) && stringEquals(item.text, text));
     if (existing >= 0) {
       pinned = this._items[existing].pinned;
+      reason = strongerReason(reason, this._items[existing].secret ?? null);
       this._items.splice(existing, 1);
     }
-    this._items.unshift({id: this._newId(), text, copiedAt: at, sourceApp: app ?? null, pinned});
+    const item = {id: this._newId(), text, copiedAt: at, sourceApp: app ?? null, pinned};
+    if (reason) item.secret = reason;
+    this._items.unshift(item);
     this.enforce(limit);
     return true;
   }
@@ -152,6 +160,50 @@ export class ClipboardHistory {
     this._items = keepPinned ? this._items.filter((item) => item.pinned) : [];
   }
 
+  // --- Secrets (Swift's hide, unhide, expireSecrets, nextSecretExpiry, forgetSecrets) ---------------
+
+  /** "Hide Contents": a text item becomes a secret, by hand. Returns whether it changed. */
+  hide(id) {
+    const item = this._items.find((i) => i.id === id);
+    if (!item || !isText(item) || item.secret) return false;
+    item.secret = 'manual';
+    return true;
+  }
+
+  /**
+   * "Show Contents": a secret found by its look or hidden by hand becomes an ordinary item. One its app
+   * marked or a password manager copied stays hidden (false, as for an item that isn't a secret).
+   */
+  unhide(id) {
+    const item = this._items.find((i) => i.id === id);
+    if (!item?.secret || isLockedReason(item.secret)) return false;
+    delete item.secret;
+    return true;
+  }
+
+  /** Forgets secrets copied more than `minutes` minutes before `now`, pinned or not (0 or less: none). Returns how many. */
+  expireSecrets(minutes, now) {
+    if (!(minutes > 0)) return 0;
+    const cutoff = now + -minutes * 60;
+    const before = this._items.length;
+    this._items = this._items.filter((item) => !(item.secret && item.copiedAt < cutoff));
+    return before - this._items.length;
+  }
+
+  /** When the next secret expires (Swift's Date encoding), or null. */
+  nextSecretExpiry(minutes) {
+    if (!(minutes > 0)) return null;
+    const times = this._items.filter((item) => item.secret).map((item) => item.copiedAt);
+    return times.length === 0 ? null : Math.min(...times) + minutes * 60;
+  }
+
+  /** Forgets every secret (Slated stops). Returns how many. */
+  forgetSecrets() {
+    const before = this._items.length;
+    this._items = this._items.filter((item) => !item.secret);
+    return before - this._items.length;
+  }
+
   /**
    * Items matching every word of `query` (case- and diacritic-insensitive, like Foundation's
    * `range(of:options: [.caseInsensitive, .diacriticInsensitive])`), pinned items first, newest first.
@@ -160,21 +212,32 @@ export class ClipboardHistory {
    * `maxCharacters` limits how much of each item is searched (the whole text by default, as on the
    * Mac). A switcher that searches as you type inside GNOME Shell passes a limit, so a huge copy
    * can't stall the desktop. Folded items are cached, so typing doesn't refold them.
+   *
+   * A secret matches by the name of the app it came from (`appName`, given the app's id), never by its
+   * text: typing part of a password finds nothing.
    */
-  search(query, {maxCharacters = Infinity} = {}) {
+  search(query, {maxCharacters = Infinity, appName = (id) => id} = {}) {
     const words = splitCharacters(String(query), isWhitespace);
     const patterns = words.map(foldPattern);
+    const folded = (item) =>
+      item.secret ? graphemes(item.sourceApp ? String(appName(item.sourceApp)) : '').map(foldCharacter) : foldedItem(item, maxCharacters);
     const matches =
       words.length === 0
         ? this._items
-        : this._items.filter((item) => patterns.every((pattern) => containsFolded(foldedItem(item, maxCharacters), pattern)));
+        : this._items.filter((item) => {
+          const characters = folded(item);
+          return patterns.every((pattern) => containsFolded(characters, pattern));
+        });
     return [...matches.filter((item) => item.pinned), ...matches.filter((item) => !item.pinned)];
   }
 
-  /** The Codable form the Mac app writes to clipboard.json: {"items": [{id, text, copiedAt, sourceApp?, pinned, image?, files?}]}. */
+  /**
+   * The Codable form the Mac app writes to clipboard.json: {"items": [{id, text, copiedAt, sourceApp?, pinned, image?, files?}]}.
+   * Secrets aren't in it: they stay in memory.
+   */
   toJSON() {
     return {
-      items: this._items.map((item) => {
+      items: this._items.filter((item) => !item.secret).map((item) => {
         const out = {id: item.id, text: item.text, copiedAt: item.copiedAt};
         if (item.sourceApp !== null && item.sourceApp !== undefined) out.sourceApp = item.sourceApp;
         out.pinned = item.pinned;

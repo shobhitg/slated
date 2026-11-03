@@ -106,7 +106,7 @@ test('the stop and clipboard shortcuts are registered, and status.json reports a
   const s = status();
   assert.deepEqual(s.hotkeys, {'hyper+esc': 'active', 'hyper+f': 'active', 'shift+cmd+v': 'active'});
   assert.deepEqual(s.automation, {running: [], shortcuts: [], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'});
-  assert.deepEqual(s.clipboard, {enabled: true, items: 0});
+  assert.deepEqual(s.clipboard, {enabled: true, items: 0, secrets: 0});
 });
 
 test('a repeat binding clicks until the stop shortcut; with the island off, the pill and status follow', () => {
@@ -535,14 +535,16 @@ test('copies land in clipboard history, saved privately; the shortcut opens the 
   gnome.addWindow({id: 1, app: {id: 'org.gnome.TextEditor', name: 'Text Editor'}, frame: {x: 0, y: 0, width: 800, height: 600}});
   gnome.copy('copied text');
   gnome.copy('a secret', ['text/plain', 'x-kde-passwordManagerHint']);
-  assert.deepEqual(status().clipboard, {enabled: true, items: 1});
+  assert.deepEqual(status().clipboard, {enabled: true, items: 2, secrets: 1}, 'a secret is kept, hidden: status.json counts it');
   gnome.loop.advance(1000);
   assert.equal(statSync(statePath('clipboard.json')).mode & 0o777, 0o600);
-  assert.equal(JSON.parse(readFileSync(statePath('clipboard.json'), 'utf8')).items[0].text, 'copied text');
-  assert.ok(!readFileSync(statePath('slated.log'), 'utf8').includes('copied text'), 'the log never has clipboard text');
+  assert.deepEqual(JSON.parse(readFileSync(statePath('clipboard.json'), 'utf8')).items.map((i) => i.text), ['copied text'], 'never the secret');
+  const log = readFileSync(statePath('slated.log'), 'utf8');
+  assert.ok(!log.includes('copied text') && !log.includes('a secret'), 'the log never has clipboard text');
+  assert.ok(!readFileSync(statePath('status.json'), 'utf8').includes('a secret'), 'nor status.json');
 
   gnome.press('<Control><Alt>v');
   gnome.loop.run();
   assert.equal(gnome.state.modal.length, 1, 'the switcher is open');
-  assert.equal(events('clipboard.switcher_opened')[0].data.items, 1);
+  assert.equal(events('clipboard.switcher_opened')[0].data.items, 2, 'the secret is listed too, masked');
 });

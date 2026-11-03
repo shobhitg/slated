@@ -71,6 +71,7 @@ let files: [FixtureFile] =
     hotstringFixtures(),
     automationFixtures(),
     clipboardFixtures(),
+    secretFixtures(),
     placementFixtures(),
     cheatSheetFixtures(),
     configKeyFixtures(),

@@ -178,9 +178,17 @@ Hotstrings and the Hyper key work by watching keystrokes system-wide.
 - It never logs, stores or sends what you type.
 - Like every such tool, it can't see keystrokes while macOS Secure Input is on (password fields).
 - Clipboard history stays on your Mac in a file only you can read
-  (`~/Library/Application Support/Slated/clipboard.json`). It skips what password managers and
-  browsers mark as secret, and the log notes only what kind of copy it was and how big, never its
-  text, image or file names.
+  (`~/Library/Application Support/Slated/clipboard.json`), and the log notes only what kind of copy
+  it was and how big, never its text, image or file names.
+- **Passwords and other secrets** you copy are kept but hidden: what password managers copy, what
+  apps mark secret, and text that looks like an API key, a private key or a card number. They show
+  as `••••••••` until you click the eye (or hold ⌥ in the picker), a search never matches their
+  text, they live in memory only (never in clipboard.json), and they're forgotten after an hour
+  (`clipboard.secretMinutes`) and whenever Slated quits. Settings → Clipboard can skip them instead.
+  The log says only that a secret was copied and why, never its length.
+- The clipboard picker asks macOS to keep it out of screen sharing and screenshots.
+- **Sensitive hotstrings** keep their text in `~/.config/slated/secrets.json`, readable only by you,
+  masked in the window and typed rather than pasted, so it never goes through the clipboard.
 
 ## Development
 

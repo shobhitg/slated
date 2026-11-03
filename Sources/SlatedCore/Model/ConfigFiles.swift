@@ -1,11 +1,14 @@
 import Foundation
 
-/// Slated's two files in `~/.config/slated`.
+/// Slated's files in `~/.config/slated`.
 public enum ConfigFile: String, Sendable, CaseIterable, Hashable {
   /// What your keys do: keyboard (the Hyper key), bindings, hotstrings, layouts, display defaults.
   case config = "config.json"
   /// How Slated behaves: general, windows, clipboard, automation, island.
   case settings = "settings.json"
+  /// Sensitive hotstrings' text (`SlatedConfiguration.secrets`), readable only by you (mode 0600). Written
+  /// only once there's a secret to keep.
+  case secrets = "secrets.json"
 }
 
 /// A file that couldn't be read, and why. `error` is usually a `DecodingError`.
@@ -74,8 +77,10 @@ extension SlatedConfiguration {
   /// when settings.json is there it wins, and they're dropped. Either way the result is version 2 (or
   /// later, when a newer Slated wrote it), as saving it writes both files.
   ///
+  /// `secrets` is secrets.json's text, nil when there's none (no secrets).
+  ///
   /// Throws `ConfigFileError`, which names the file.
-  public static func decodeFiles(config: Data, settings: Data?) throws -> Files {
+  public static func decodeFiles(config: Data, settings: Data?, secrets: Data? = nil) throws -> Files {
     let configFile = try decode(ConfigFileCoding.self, from: config, file: .config)
     var result = configFile.configuration
     var legacy = configFile.legacy
@@ -89,8 +94,14 @@ extension SlatedConfiguration {
       result.adoptSettings(of: moved.configuration)
       legacy?.settingsMoved = true
     }
+    if let secrets {
+      result.secrets = try decode(SecretsFileCoding.self, from: secrets, file: .secrets).secrets
+    }
     return Files(configuration: result, legacy: legacy)
   }
+
+  /// secrets.json's version.
+  public static let secretsVersion = 1
 
   /// One document with every section, as a version 1 config.json: `decodeFiles(config: data,
   /// settings: nil)`. For tests and tools; the app reads both files.
@@ -113,11 +124,17 @@ extension SlatedConfiguration {
     try Self.encoder.encode(SettingsFileCoding(configuration: self))
   }
 
+  /// secrets.json's text: `{"secrets": {"<name>": "<text>"}, "version": 1}`, written the same way.
+  public func encodedSecretsFile() throws -> Data {
+    try Self.encoder.encode(SecretsFileCoding(secrets: secrets))
+  }
+
   /// The text of `file`.
   public func encoded(_ file: ConfigFile) throws -> Data {
     switch file {
     case .config: return try encodedConfigFile()
     case .settings: return try encodedSettingsFile()
+    case .secrets: return try encodedSecretsFile()
     }
   }
 
@@ -146,6 +163,7 @@ extension SlatedConfiguration {
     switch file {
     case .config: adoptConfig(of: other)
     case .settings: adoptSettings(of: other)
+    case .secrets: secrets = other.secrets
     }
   }
 
@@ -159,6 +177,8 @@ extension SlatedConfiguration {
     case .settings:
       return general != other.general || windows != other.windows || clipboard != other.clipboard
         || automation != other.automation || island != other.island || unknownSettings != other.unknownSettings
+    case .secrets:
+      return secrets != other.secrets
     }
   }
 
@@ -271,6 +291,27 @@ private struct SettingsFileCoding: Codable {
     for (key, value) in configuration.unknownSettings where !SlatedConfiguration.settingsSections.contains(key) {
       try c.encode(value, forKey: AnyKey(key))
     }
+  }
+}
+
+/// secrets.json: `{ "version": 1, "secrets": { "<name>": "<text>" } }`. Keys besides these two aren't kept.
+private struct SecretsFileCoding: Codable {
+  var secrets: [String: String]
+
+  init(secrets: [String: String]) {
+    self.secrets = secrets
+  }
+
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: AnyKey.self)
+    _ = try c.decodeIfPresent(Int.self, forKey: AnyKey("version"))
+    secrets = try c.decodeIfPresent([String: String].self, forKey: AnyKey("secrets")) ?? [:]
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: AnyKey.self)
+    try c.encode(SlatedConfiguration.secretsVersion, forKey: AnyKey("version"))
+    try c.encode(secrets, forKey: AnyKey("secrets"))
   }
 }
 

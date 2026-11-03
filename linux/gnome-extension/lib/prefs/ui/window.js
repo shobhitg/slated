@@ -17,7 +17,10 @@ import {PrefsModel} from '../model.js';
 import {slatedPaths} from '../paths.js';
 import {lastStart} from '../eventlog.js';
 import {sessionId} from '../util.js';
-import {readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter, fileExists} from '../io.js';
+import {
+  readText, readTail, writeTextAtomic, writeTextIfMissing, readBuildInfo, watchFile, glibScheduler, EventLogWriter, fileExists,
+  makePrivate, writePrivateTextAtomic,
+} from '../io.js';
 import {linkForFile, openFileLink} from '../filelinks.js';
 import {getExtensionInfo, getUserExtensionsEnabled, setUserExtensionsEnabled, setExtensionEnabled, requestLogout, espansoRunning} from '../shell.js';
 import {installStyles} from './style.js';
@@ -75,6 +78,12 @@ export class SlatedSettings {
         writeConfig: text => writeTextAtomic(this.paths.configFile, text),
         readSettings: () => readText(this.paths.settingsFile),
         writeSettings: text => writeTextAtomic(this.paths.settingsFile, text),
+        // Sensitive hotstrings' text: readable only by you, made so when it was copied in by hand.
+        readSecrets: () => {
+          if (makePrivate(this.paths.secretsFile)) this.logger.record('config.secrets_made_private', {path: this.paths.secretsFile}, 'notice');
+          return readText(this.paths.secretsFile);
+        },
+        writeSecrets: text => writePrivateTextAtomic(this.paths.secretsFile, text),
         backupConfig: text => writeTextIfMissing(this.paths.backupFile, text),
         readRecord: () => readText(this.paths.migrationFile),
         writeRecord: text => writeTextAtomic(this.paths.migrationFile, text),
@@ -110,6 +119,7 @@ export class SlatedSettings {
     this.watchers = [
       watchFile(this.paths.configFile, () => this.model.syncFromDisk(), 250),
       watchFile(this.paths.settingsFile, () => this.model.syncFromDisk(), 250),
+      watchFile(this.paths.secretsFile, () => this.model.syncFromDisk(), 250),
       watchFile(this.paths.statusFile, () => this._readStatus(), 150),
     ];
     // GNOME Shell doesn't announce extension state changes to other processes; ask now and then.

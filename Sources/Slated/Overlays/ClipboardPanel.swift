@@ -24,7 +24,7 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
   /// Opens the picker below `anchor` (above it when there's no room), on that anchor's screen.
   /// `anchor` is in top-left-origin global coordinates; an empty rect for the pointer.
   func show(at anchor: CGRect) {
-    model.resetForShowing(pointer: NSEvent.mouseLocation)
+    model.resetForShowing(pointer: NSEvent.mouseLocation, optionHeld: NSEvent.modifierFlags.contains(.option))
     let panel = self.panel ?? makePanel()
     self.panel = panel
     let size = model.size
@@ -86,15 +86,15 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
 
   /// A panel that never takes focus or clicks: the picker keeps the keyboard and the mouse.
   private func makePreview() -> NSPanel {
-    let panel = NSPanel(
-      contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-    panel.contentView = NSHostingView(rootView: SlatedUI.makeClipboardImagePreview(model: model))
+    let panel = SlatedUI.makeClipboardPreviewPanel(model: model)
     configure(panel)
-    panel.ignoresMouseEvents = true
     return panel
   }
 
   private func configure(_ panel: NSPanel) {
+    // Kept out of screen sharing and screenshots: the history can hold anything you copied. macOS 15+
+    // may still show it to some ScreenCaptureKit captures (see the manual check in docs/TESTING.md).
+    panel.sharingType = .none
     panel.isOpaque = false
     panel.backgroundColor = .clear
     panel.hasShadow = true

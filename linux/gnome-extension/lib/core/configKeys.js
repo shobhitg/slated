@@ -8,7 +8,7 @@
 // item of a list (named by its natural key when that's unique, else by index).
 
 import {formatKeyCombo, parseKeyCombo} from './keys.js';
-import {encodeConfigurationFiles, CONFIG_FILE, SETTINGS_FILE} from './configFiles.js';
+import {encodeConfigurationFiles, CONFIG_FILE, SECRETS_FILE, SETTINGS_FILE} from './configFiles.js';
 import {formatJSON, parseJSON5, quoteJSON} from './json.js';
 
 const keys = (dotted) => dotted.split('.').filter(Boolean).map((key) => ({key}));
@@ -56,9 +56,18 @@ function describe(components) {
   return out;
 }
 
-/** What the window shows: `settings.json › island.cheatSheetDelay`, `config.json › hotstrings › ";sig"`. */
+/**
+ * What the window shows: `settings.json › island.cheatSheetDelay`, `config.json › hotstrings › ";sig"`.
+ * secrets.json has one section, so a secret shows its name alone: `secrets.json › pw`.
+ */
 export function keyDisplay(key) {
-  return `${key.file} › ${describe(key.components)}`;
+  const isSecret = key.file === SECRETS_FILE && key.components.length > 1 && key.components[0].key === 'secrets';
+  return `${key.file} › ${describe(isSecret ? key.components.slice(1) : key.components)}`;
+}
+
+/** A sensitive hotstring's text: `secrets.json › pw` (path `secrets.pw`). Copy Value never copies it. */
+export function secretKey(name) {
+  return Object.freeze({file: SECRETS_FILE, components: Object.freeze([{key: 'secrets'}, {key: String(name)}])});
 }
 
 /** The part after `base` (an item), as a field of its editor shows it: `replacement`, `action.direction`. */
@@ -81,6 +90,8 @@ export function itemName(names, index) {
  * JSONNumber), or undefined when the file doesn't have it. `extras` are the files' unknown keys.
  */
 export function valueAt(configuration, key, extras = {}) {
+  // Never a secret's text.
+  if (key.file === SECRETS_FILE) return undefined;
   let node;
   try {
     const texts = encodeConfigurationFiles(configuration, extras);
@@ -100,8 +111,12 @@ export function valueAt(configuration, key, extras = {}) {
   return node;
 }
 
-/** What Copy Value as JSON copies: the value as the file has it, pretty-printed; null when it's not there. */
+/**
+ * What Copy Value as JSON copies: the value as the file has it, pretty-printed; null when it's not there.
+ * Never anything from secrets.json: a sensitive hotstring's Copy Value copies its reference in config.json.
+ */
 export function valueText(configuration, key, extras = {}) {
+  if (key.file === SECRETS_FILE) return null;
   const value = valueAt(configuration, key, extras);
   return value === undefined ? null : formatJSON(value);
 }
@@ -133,7 +148,9 @@ export const SETTINGS = Object.freeze([
   ['clipboardRetentionDays', S, 'clipboard.retentionDays'],
   ['clipboardPersist', S, 'clipboard.persist'],
   ['clipboardScreenshots', S, 'clipboard.screenshots'],
-  ['clipboardIgnoreConcealed', S, 'clipboard.ignoreConcealed'],
+  ['clipboardSecrets', S, 'clipboard.secrets'],
+  ['clipboardSecretMinutes', S, 'clipboard.secretMinutes'],
+  ['clipboardSecretPatterns', S, 'clipboard.secretPatterns'],
   ['clipboardExcludedApps', S, 'clipboard.excludedApps'],
   ['automationStopShortcut', S, 'automation.stopShortcut'],
   ['automationStopOnAppSwitch', S, 'automation.stopOnAppSwitch'],
@@ -202,6 +219,8 @@ export const NOT_SHOWN = Object.freeze({
   'config.json › version': 'The format\'s version, written by Slated.',
   'settings.json › windows': 'Slate\'s own settings: the window shows the three people tune; the rest are for hand edits.',
   'config.json › defaults': 'Slate\'s default layouts per display arrangement: imported from Slate, edited by hand.',
+  'secrets.json › version': 'The format\'s version, written by Slated.',
+  'secrets.json › secrets': 'Sensitive hotstrings\' text: each one\'s editor shows it masked, under the key secrets.json › its name.',
 });
 
 // --- Items' keys -------------------------------------------------------------------------------------

@@ -207,6 +207,16 @@ app you're typing in on GNOME, so app filters only work on the Mac. A hotstring 
 everywhere. Hotstrings that run Slated actions don't work through espanso. Slated logs once which
 hotstrings it couldn't pass on.
 
+**Sensitive hotstrings** (the editor's Sensitive switch: `"replacement": {"secret": "<name>"}` in
+`config.json`, the text in `~/.config/slated/secrets.json`) go to espanso too, because espanso has
+to have the text to type it: **`slated.yml` then contains it.** Slated writes that file readable only
+by you (mode 0600), and each sensitive match with `force_mode: keys`, so espanso types it key by key
+and never pastes it through the clipboard. The text goes in exactly as written: no placeholders, and
+text with `{{` in it passes through an `echo` variable espanso doesn't interpret. A sensitive
+hotstring whose text isn't on this computer yet (a `config.json` copied without `secrets.json`) isn't
+written: it doesn't expand until you type its text in its editor. As on the Mac, espanso can't expand
+in password fields that hide typing from other apps.
+
 ## The island
 
 Like the Mac's notch island, a black shape at the top center of the monitor you're working on shows
@@ -253,8 +263,8 @@ login); afterwards it opens on the Overview, never on the page you left it on.
 | Get Started | First-run setup, as on the Mac: welcome, the Hyper key, hotstrings, your Slate config, done. Where the Mac asks for Accessibility access, the welcome step leads with whatever keeps Slated from running, and the button that fixes it: GNOME's Extensions switch off (**Turn On Extensions**), Slated turned off (**Turn On Slated**), a login still needed (**Log Out…**) or an error. GNOME needs no permission, so instead the Hyper key step recommends keyd (with the `linux/install.sh --hyper-keyd` command until it's set up) and the hotstrings step checks espanso, with "Skip for Now" until it's in sync. The Slate config step says what was imported from your Slate config (and what couldn't be converted), offers **Import…** when one is there but wasn't imported, or the starter shortcuts when there's none. Done lists what works and a shortcut to try. It leads the sidebar until you finish it (the badge says which step you're on); Overview → What's Next → **Get Started** opens it again |
 | Overview | Whether Slated is running (from GNOME Shell and `status.json`) and what to do if it isn't, with a status row each for Slated, the Hyper key, hotstrings and shortcuts. A row never just waits: it says what's missing and offers the fix, such as GNOME's Extensions switch being off, Slated turned off or not loaded yet, an error, Pause Slated, keyd set up but stopped, or espanso stopped or missing (**Copy Command** copies what starts it). Then the last action and error, tips from your own shortcuts, and what to do next. After the move to two files imported your Slate config, it says so once, until you dismiss it. A file that can't be read is named, with **Open Config File** or **Open Settings File** |
 | Windows | Your shortcuts, searchable, with keycaps and status (imported Slate shortcuts are ordinary ones). Automations get their own group. The editor records shortcuts (✦ for Hyper), offers every action and the Mac presets, previews where the window will land, and limits a shortcut to some apps (**Works In**) |
-| Hotstrings | Triggers, replacements, a try-it field, espanso's status, and app filters (Mac only) |
-| Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, whether screenshots go in (GNOME copies each one to the clipboard, so the switch is about those copies), privacy (secrets, excluded apps), and the picker's keys. Shows how many items are saved |
+| Hotstrings | Triggers, replacements (Sensitive ones masked, their text in `secrets.json`), a try-it field, espanso's status, and app filters (Mac only) |
+| Clipboard | Clipboard history on or off, its shortcut, paste after picking, how much to keep and for how long, whether screenshots go in (GNOME copies each one to the clipboard, so the switch is about those copies), privacy (passwords and other secrets: kept hidden or not recorded, for how long, whether their look counts; excluded apps), and the picker's keys. Shows how many items are saved, and how many of them are hidden |
 | Automation | What runs now, your automations, eleven recipes (auto-click, hold a button or key, sprint and crouch toggles, spam a key, click N times, double-click, a walk-then-click macro), the safety settings, and what GNOME does differently |
 | Keyboard | Caps Lock as Hyper, which method is active, tap for Escape, Hyper or Meh; key repeat (delay and rate, with a field to try it) |
 | Layouts | Arrange several apps at once |
@@ -339,6 +349,7 @@ first.
 |---|---|---|
 | `~/.config/slated/config.json` | Settings (and you) | What your keys do: the Hyper key, shortcuts, hotstrings, layouts and display defaults. Shared with the Mac app (see [CONFIG.md](CONFIG.md)). The extension watches it and applies changes |
 | `~/.config/slated/settings.json` | Settings (and you) | How Slated behaves: `general`, `windows` (Slate's window settings), `clipboard`, `automation`, `island`. Watched like `config.json` |
+| `~/.config/slated/secrets.json` | Settings (and you) | Sensitive hotstrings' text, `{"version": 1, "secrets": {"<name>": "<text>"}}`, readable only by you (mode 0600, made so when it was copied in with looser permissions). Written only once a hotstring is sensitive, before `config.json` refers to a new name. Watched like `config.json`; the extension only reads it (espanso needs the text) and never logs it |
 | `~/.config/slated/config.v1.json` | The migration | The version 1 `config.json`, as it was before the move to two files. Never overwritten |
 | `~/.local/state/slated/config-migration.json` | The migration | What a first run or the migration imported from your Slate config, for Get Started and the Overview's notice (`noticeDismissed` once you dismiss it) |
 | `~/.local/state/slated/status.json` | Extension | What's running, read by the settings window (format below) |
@@ -347,7 +358,7 @@ first.
 | `~/.local/state/slated/key-repeat.json` | Extension | This computer's key repeat was copied into `config.json` once ([Key repeat](#key-repeat)). Delete it to copy it again on the next start (with no `keyRepeat` in `config.json`) |
 | `~/.local/state/slated/settings-window.json` | Settings | The settings window's own state: `{"setupFinished": true}` once Get Started is done (the Mac keeps this in its user defaults). Until then the extension opens the window on Get Started after login. Delete it to see Get Started again |
 | `~/.local/share/applications/io.github.shobhitg.Slated.desktop`, `~/.local/share/icons/hicolor/scalable/apps/io.github.shobhitg.Slated.svg` | `linux/install.sh` | Slated in your apps: opens the settings window (`gnome-extensions prefs`) |
-| `~/.local/state/slated/clipboard.json` | Extension | Clipboard history, readable only by you (mode 0600), in the Mac app's format. Not written when `clipboard.persist` is off |
+| `~/.local/state/slated/clipboard.json` | Extension | Clipboard history, readable only by you (mode 0600), in the Mac app's format. Never holds a secret (those stay in memory). Not written when `clipboard.persist` is off |
 | `~/.local/state/slated/clipboard-images/` | Extension | Copied images, one PNG per image named by its SHA-256, readable only by you (folder 0700, files 0600). A file goes when its item does; with `clipboard.persist` off, they're all removed when Slated stops. Copied files aren't copied here: the history keeps their paths |
 | `~/.config/espanso/match/slated.yml` | Extension | Your hotstrings, for espanso |
 | `~/.local/share/gnome-shell/extensions/<uuid>/build-info.json` | `linux/install.sh` | `{"version", "commit", "builtAt", "build"}` of the installed build |
@@ -369,7 +380,7 @@ throwaway home.
               "frame": {"x": 0, "y": 0, "width": 1920, "height": 1080},
               "visibleFrame": {"x": 0, "y": 32, "width": 1920, "height": 1048}}],
  "automation": {"running": ["Repeat click left every 100 ms"], "shortcuts": ["f6"], "stopShortcut": "hyper+esc", "whileHeld": "key-repeat"},
- "clipboard": {"enabled": true, "items": 12},
+ "clipboard": {"enabled": true, "items": 12, "secrets": 1},
  "recentApps": [{"id": "steam_app_1086940", "name": "steam_app_1086940"}, {"id": "firefox", "name": "Firefox"}],
  "lastAction": "Left half · firefox", "lastError": null}
 ```
@@ -421,8 +432,10 @@ throwaway home.
 | Mouse buttons 3–5 as shortcuts | ✓ | Not possible in GNOME. Map them to F13–F20 with keyd |
 | Shortcuts only in some apps (`onlyInApps`) | Bundle ids | Desktop ids or WM_CLASS. Grabbed only while the app has focus |
 | Automation safety: stop shortcut, stop on app switch, time limit, the "running" indicator | ✓ | ✓ The overview counts as leaving the app, and while it's open, shortcuts that would start an automation are ignored (stopping one still works). A macro waiting on a `wait` counts as running even when it holds nothing. Disabling, locking the screen, going to sleep (logind's PrepareForSleep) and config reloads release everything |
-| Clipboard history and its picker | ✓ Text, images, screenshots saved as files and files copied in Finder, in a small picker at the text caret | ✓ Text, PNG images (screenshots included: GNOME copies them) and files copied in Files, in the same picker (Ctrl for ⌘: Ctrl+1–9 · esc), below the text cursor when the app reports it to the input method (Wayland text-input or IBus), else at the pointer. File rows show GNOME's thumbnail or the file's icon, not a QuickLook thumbnail. Ctrl+P, Ctrl+Backspace and Ctrl+Shift+Backspace pin, delete and clear there. Rows show plain text: the Mac's color swatches, link hosts and monospaced code aren't drawn yet |
-| Settings → Clipboard | Every item, searchable, with pin, copy and delete | Settings only, and how many items are saved. Pin, delete and clear in the picker |
+| Clipboard history and its picker | ✓ Text, images, screenshots saved as files and files copied in Finder, in a small picker at the text caret | ✓ Text, PNG images (screenshots included: GNOME copies them) and files copied in Files, in the same picker (Ctrl for ⌘: Ctrl+1–9 · esc), below the text cursor when the app reports it to the input method (Wayland text-input or IBus), else at the pointer. File rows show GNOME's thumbnail or the file's icon, not a QuickLook thumbnail. Ctrl+P, Ctrl+Backspace and Ctrl+Shift+Backspace pin, delete and clear there. Secrets are masked the same way (eye, Alt); Ctrl+H hides or shows contents there. Rows show plain text: the Mac's color swatches, link hosts and monospaced code aren't drawn yet |
+| Settings → Clipboard | Every item, searchable, with pin, copy and delete; secrets masked with an eye, and Hide/Show Contents | Settings only, and how many items are saved and hidden. Pin, delete, clear and Hide/Show Contents (Ctrl+H) in the picker |
+| The picker out of screen sharing and screenshots | ✓ Asked for (`sharingType = .none`; see the manual check in TESTING.md) | ✗ GNOME Shell has no public way for an extension's windows; secrets stay masked |
+| Sensitive hotstrings | ✓ Text in `secrets.json` (0600), masked in the window, always typed by Slated | ✓ The same files and window; espanso types them (`force_mode: keys`), so its match file holds their text (0600) |
 | Settings → Automation | Running Now with Stop All | Lists what runs. Stop it with the stop shortcut |
 | Notch island (automation status, Hyper cheat sheet, feedback) | ✓ | ✓ At the top center, hanging from the top bar. The cheat sheet comes from the same engine code, pinned to the Mac's by golden vectors. Caps Lock's hold is read from the modifier state ([The island](#the-island)) |
 
@@ -489,6 +502,22 @@ throwaway home.
   it is: GTK and Qt apps, Firefox and terminals built on VTE through Wayland's text-input, and X11
   apps through IBus. GNOME Shell can't ask an app on demand, so elsewhere (Chromium and Electron
   without Wayland IME, games) it opens at the pointer.
+- **Secrets in clipboard history** are found as on the Mac: a copy marked with KDE's
+  `x-kde-passwordManagerHint` (KeePassXC, Firefox and other password managers add it), one copied
+  from a password manager (by app id: KeePassXC, Bitwarden, 1Password, Proton Pass, GNOME's Secrets and
+  Passwords and Keys, and the Mac's by bundle id), and, with `clipboard.secretPatterns` on, text that
+  looks like a key, token, card number or random password. Chrome and other Chromium browsers don't
+  mark copied passwords on Linux, so from them anything that looks like a password counts too. Slated
+  only sees that the hint is there, not its value. A secret is kept in memory only (never in
+  `clipboard.json`), shown in the picker as `••••••••` with a lock and its app; its eye shows it until
+  the picker closes, holding Alt shows the selected one, and **Ctrl+H** hides or shows an item's
+  contents (the settings window can't list the items: they live in the extension). Secrets are
+  forgotten after `clipboard.secretMinutes` and whenever the extension stops: logging out, and locking
+  the screen, since GNOME stops extensions then. Picking one pastes the real text, as plain text:
+  GNOME Shell can put only one type on the clipboard, so it can't be marked secret for other apps.
+- **GNOME has no way to keep the picker out of screen sharing or screenshots.** The Mac asks for that
+  (`sharingType = .none`); GNOME Shell has no public equivalent for an extension's windows, so a
+  shared screen or a screenshot shows the picker as it is. Secrets in it are masked either way.
 
 ## Development
 
@@ -563,7 +592,7 @@ journalctl --user -f -o cat                  # everything in your session, inclu
 | An automation shortcut does nothing in the overview | By design: an auto-clicker started there would click into it. Close the overview first. `scripts/logs.py --grep automation.start_ignored` lists the presses Slated ignored. |
 | The stop or clipboard shortcut says "Couldn't register" | GNOME or another extension uses those keys (`cmd` is Super, so the clipboard's `cmd+shift+v` is Super+Shift+V). With Caps Lock as Hyper through GNOME's own option, `hyper+esc` can collide with GNOME's Super+Esc. Set `automation.stopShortcut` or `clipboard.shortcut` to other keys, such as `ctrl+alt+esc` or `ctrl+alt+v`. |
 | An `onlyInApps` shortcut never works | It's grabbed only while that app has focus. Use the id from `recentApps` in `status.json` (desktop id, or WM_CLASS for games without a desktop file). |
-| Clipboard history stays empty | `clipboard.enabled` must be on. Copies from `excludedApps` and secrets marked by password managers are skipped by design, of images only PNGs up to 20 MB are kept, and screenshots only with `clipboard.screenshots` on. `scripts/logs.py --grep clipboard` shows what was skipped and why. |
+| Clipboard history stays empty | `clipboard.enabled` must be on. Copies from `excludedApps` are skipped by design, and secrets too with `clipboard.secrets` "skip" (by default they're kept, hidden, in memory only); of images only PNGs up to 20 MB are kept, and screenshots only with `clipboard.screenshots` on. `scripts/logs.py --grep clipboard` shows what was skipped and why. |
 | Pasting copied files does nothing | The app reads only `text/uri-list` or text, not the `x-special/gnome-copied-files` Slated puts back (see [Limitations](#limitations)); paste into Files, or drag the files. The log says `clipboard.paste_skipped` with `"files missing"` when they were all moved or deleted. |
 | The clipboard picker opens at the pointer, not the text cursor | The app didn't report its cursor: `scripts/logs.py --grep switcher_opened` says `"anchor":"pointer"`. Chrome and Electron apps report it with `--enable-wayland-ime` (or under XWayland with IBus); apps that handle typing themselves (games, some terminals) never do. |
 | GNOME's Extensions switch is off (`gnome-extensions info` says `Enabled: No`) | No extension runs, Slated included. Run `linux/install.sh` (it asks to turn the switch on), use **Turn On Extensions** in Settings, or turn it on in the Extensions app. Turning it on also starts the other extensions you had turned on. |

@@ -79,6 +79,9 @@ Dependency rules: `SlatedCore` imports nothing above it. `SlatedUI` and `SlatedS
   - scratch probes of macOS APIs become contract tests;
   - one-off runs become smoke tests (`Tests/Smoke`);
   - behaviors only a real Mac can show go on the manual checklist.
+- **Sample secrets** (API keys, tokens, private keys) in tests, fixtures and previews are written with a `§`
+  inside the provider prefix (`gh§p_…`, `PRIVATE§ KEY`) and read through `SampleSecrets.unmark` (JS:
+  `.split('§').join('')`). A complete token anywhere in the history makes GitHub refuse the push.
 - Concurrency: UI and app code is `@MainActor` (default isolation in `Slated` and `SlatedUI`). The
   event tap runs on its own thread; hand work to the main actor explicitly.
 - **Logging:** use `Log.record("area.event", [...])` (`Sources/Slated/Logging/EventLog.swift`). It

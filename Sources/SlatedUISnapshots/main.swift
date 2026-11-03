@@ -97,6 +97,18 @@ func selectBinding(named name: String) -> @MainActor (AppModel) -> Void {
   }
 }
 
+/// Opens the hotstring with this trigger in its editor.
+func selectHotstring(_ trigger: String) -> @MainActor (AppModel) -> Void {
+  { model in model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == trigger }?.id }
+}
+
+/// A sensitive hotstring copied from another computer without its secrets.json.
+@MainActor func missingSecret(_ services: PreviewServices) {
+  var config = services.configuration
+  config.hotstrings.append(Hotstring(trigger: ";bank", replacement: "", secret: "bank"))
+  try? services.saveConfiguration(config)
+}
+
 var shots: [Shot] = [
   settings("settings-overview", pane: .overview),
   settings("settings-windows", pane: .windows, configure: selectBinding(named: "Left Half")),
@@ -107,6 +119,12 @@ var shots: [Shot] = [
   settings("settings-hotstrings", pane: .hotstrings) { model in
     model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
   },
+  // A sensitive hotstring (masked, its key in secrets.json), and one whose text isn't on this computer.
+  settings("settings-hotstrings-sensitive", pane: .hotstrings, configure: selectHotstring(";wifi")),
+  settings(
+    "settings-hotstrings-missing-secret", pane: .hotstrings, configure: selectHotstring(";bank"),
+    services: missingSecret),
+  settings("settings-overview-missing-secret", pane: .overview, services: missingSecret),
   settings("settings-clipboard", pane: .clipboard),
   settings(
     "settings-clipboard-off", pane: .clipboard,
@@ -219,6 +237,7 @@ func narrowShots(width: CGFloat) -> [Shot] {
     shot("hotstrings", pane: .hotstrings) { model in
       model.selectedHotstringID = model.configuration.hotstrings.first { $0.trigger == ";sig" }?.id
     },
+    shot("hotstrings-sensitive", pane: .hotstrings, configure: selectHotstring(";wifi")),
     shot("clipboard", pane: .clipboard),
     shot("automation", pane: .automation),
     shot("keyboard", pane: .keyboard),
@@ -281,6 +300,13 @@ shots += [
   },
   picker("clipboard-picker-filter") { model in model.query = "git" },
   picker("clipboard-picker-nomatch") { model in model.query = "invoice" },
+  // Holding ⌥ shows the selected secret; the others stay dots.
+  picker("clipboard-picker-secret-shown") { model in
+    model.selectedID = model.items.first(where: \.isSecret)?.id
+    model.optionHeld = true
+  },
+  // A secret matches only by its app's name.
+  picker("clipboard-picker-secret-search") { model in model.query = "1pass" },
   picker("clipboard-picker-empty", scenario: .empty),
 ]
 

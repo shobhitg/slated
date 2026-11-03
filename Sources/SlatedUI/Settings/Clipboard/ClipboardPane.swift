@@ -118,7 +118,7 @@ private struct ClipboardHero: View {
     let settings = model.configuration.clipboard
     guard settings.enabled else {
       return
-        "Turn it on and Slated remembers the last \(settings.maxItems) things you copy (text, images and files) ready to paste again. Passwords are never recorded."
+        "Turn it on and Slated remembers the last \(settings.maxItems) things you copy (text, images and files) ready to paste again. Passwords and keys stay hidden, in memory only."
     }
     let paste =
       settings.pasteAfterSelecting
@@ -133,7 +133,9 @@ private struct ClipboardHero: View {
     let count = model.clipboardItems.count
     let pinned = model.pinnedClipboardCount
     guard count > 0 else { return "Nothing saved yet" }
+    let hidden = model.secretClipboardCount
     return "\(count) item\(count == 1 ? "" : "s")" + (pinned > 0 ? " · \(pinned) pinned" : "")
+      + (hidden > 0 ? " · \(hidden) hidden" : "")
   }
 }
 
@@ -306,16 +308,46 @@ private struct PrivacyCard: View {
 
   var body: some View {
     @Bindable var model = model
+    let masked = model.configuration.clipboard.secrets == .masked
     SettingsCard(
       title: "Privacy", symbol: "lock.shield",
-      footer: "Clipboard history never leaves this Mac. Slated's log notes that something was copied, never what."
+      footer:
+        "Clipboard history never leaves this Mac. Secrets are never saved to disk, and Slated's log notes that something was copied, never what."
     ) {
+      SettingRow(
+        title: "Passwords and other secrets",
+        subtitle: masked
+          ? "What password managers copy, what apps mark secret and what looks like a key. Kept as dots until you click the eye, in memory only."
+          : "What password managers copy, what apps mark secret and what looks like a key stays out of your history.",
+        symbol: "key.fill", tint: Color(hex: 0x30B85A), configKey: ConfigKeys.clipboardSecrets
+      ) {
+        Picker("Passwords and other secrets", selection: $model.configuration.clipboard.secrets) {
+          Text("Keep Hidden").tag(ClipboardSecretHandling.masked)
+          Text("Don't Record").tag(ClipboardSecretHandling.skip)
+        }
+        .labelsHidden()
+        .fixedSize()
+      }
+      CardDivider(inset: 54)
+      SettingRow(
+        title: "Forget secrets after", subtitle: "And always when Slated quits.",
+        symbol: "timer", tint: Color(hex: 0xF08A24), configKey: ConfigKeys.clipboardSecretMinutes
+      ) {
+        Picker("Forget secrets after", selection: $model.configuration.clipboard.secretMinutes) {
+          ForEach(secretMinuteChoices, id: \.self) { Text(ClipboardOptions.secretMinutesTitle($0)).tag($0) }
+        }
+        .labelsHidden()
+        .fixedSize()
+      }
+      .disabled(!masked)
+      .opacity(masked ? 1 : 0.55)
+      CardDivider(inset: 54)
       ToggleRow(
-        title: "Ignore passwords and other concealed items",
+        title: "Spot secrets by how they look",
         subtitle:
-          "Password managers mark what they copy as concealed or temporary. Slated skips those, so passwords never land in your history.",
-        symbol: "key.fill", tint: Color(hex: 0x30B85A), isOn: $model.configuration.clipboard.ignoreConcealed,
-        configKey: ConfigKeys.clipboardIgnoreConcealed)
+          "API keys, tokens, private keys, card numbers and random passwords count as secrets, even when no app says so.",
+        symbol: "text.magnifyingglass", tint: Color(hex: 0x7A5AF8),
+        isOn: $model.configuration.clipboard.secretPatterns, configKey: ConfigKeys.clipboardSecretPatterns)
       CardDivider(inset: 54)
       VStack(alignment: .leading, spacing: 10) {
         HStack(spacing: 12) {
@@ -323,16 +355,10 @@ private struct PrivacyCard: View {
           VStack(alignment: .leading, spacing: 2) {
             Text("Never record copies from").font(.system(size: 13, weight: .medium))
             if model.showsConfigKeys { ConfigKeyCaption(key: ConfigKeys.clipboardExcludedApps) }
-            Text("Anything copied in these apps stays out of your history.")
+            Text("Anything copied in these apps stays out of your history, hidden or not.")
               .font(.system(size: 11.5)).foregroundStyle(.secondary)
           }
           Spacer(minLength: 8)
-          if !model.missingDefaultExclusions.isEmpty {
-            Button("Restore Defaults") { model.restoreDefaultExclusions() }
-              .buttonStyle(.link)
-              .font(.system(size: 12))
-              .help("Add back the password managers Slated excludes by default")
-          }
         }
         BundleChips(
           ids: $model.configuration.clipboard.excludedApps,
@@ -347,11 +373,19 @@ private struct PrivacyCard: View {
     }
   }
 
+  /// Minutes, with "when Slated quits" (0) last, and a hand-edited value as its own choice.
+  private var secretMinuteChoices: [Int] {
+    let current = model.configuration.clipboard.secretMinutes
+    let minutes = ClipboardOptions.secretMinutes.filter { $0 > 0 }
+    let withCurrent = current > 0 && !minutes.contains(current) ? (minutes + [current]).sorted() : minutes
+    return withCurrent + [current < 0 ? current : 0]
+  }
+
   private var exclusionSections: [AppChoiceSection] {
     let candidates = model.excludableApps
     return [
-      AppChoiceSection(title: "Password Managers", apps: candidates.filter(\.isDefault)),
-      AppChoiceSection(title: "Running Apps", apps: candidates.filter { !$0.isDefault }),
+      AppChoiceSection(title: "Password Managers", apps: candidates.filter(\.isPasswordManager)),
+      AppChoiceSection(title: "Running Apps", apps: candidates.filter { !$0.isPasswordManager }),
     ]
   }
 }
@@ -369,7 +403,7 @@ private struct RecentItems: View {
   var body: some View {
     let items = model.clipboardItems
     // A search lists every match, pinned first; without one, the newest few until "Show All".
-    let matches = search.isEmpty ? items : ClipboardHistory(items: items).search(search)
+    let matches = search.isEmpty ? items : model.searchClipboard(search)
     let shown = search.isEmpty && !showAll ? Array(items.prefix(limit)) : matches
     VStack(alignment: .leading, spacing: 10) {
       SectionHeader(title: "Items", symbol: "clock") {
@@ -406,11 +440,13 @@ private struct RecentItems: View {
             CardDivider(inset: 0)
           }
           if shown.isEmpty {
-            Text("Nothing matches “\(search)”. Text and file names are searched, images aren't.")
-              .font(.system(size: 12))
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity)
-              .padding(.vertical, 18)
+            Text(
+              "Nothing matches “\(search)”. Text and file names are searched; hidden items only by their app, images not at all."
+            )
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
           }
           LazyVStack(spacing: 0) {
             ForEach(Array(shown.enumerated()), id: \.element.id) { index, item in
@@ -450,11 +486,14 @@ private struct RecentItems: View {
   }
 }
 
-/// One item: source app (an image's or a file's thumbnail), preview, age, and pin, copy and delete.
+/// One item: source app (an image's or a file's thumbnail), preview, age, and pin, copy and delete. A
+/// secret shows dots and an eye that shows it until the pane goes; right-click hides or shows contents.
 private struct RecentClipRow: View {
   let item: ClipboardItem
   @Environment(AppModel.self) private var model
   @State private var hovering = false
+  /// The eye was clicked: the secret shows.
+  @State private var revealed = false
 
   var body: some View {
     let missing = model.missingClipboardFiles(item)
@@ -471,7 +510,7 @@ private struct RecentClipRow: View {
         ClipSourceIcon(item: item, size: 26)
       }
       VStack(alignment: .leading, spacing: 2) {
-        ClipPreviewLine(item: item, fontSize: 12.5)
+        ClipPreviewLine(item: item, fontSize: 12.5, revealed: revealed)
           .opacity(gone ? 0.55 : 1)
         HStack(spacing: 5) {
           if item.pinned {
@@ -483,6 +522,9 @@ private struct RecentClipRow: View {
       }
       Spacer(minLength: 8)
       HStack(spacing: 2) {
+        if item.isSecret {
+          iconButton(revealed ? "eye.slash" : "eye", help: revealed ? "Hide" : "Show") { revealed.toggle() }
+        }
         iconButton(
           item.pinned ? "pin.slash" : "pin", help: item.pinned ? "Unpin" : "Pin",
           tint: item.pinned ? SettingsPane.clipboard.tint : nil
@@ -505,6 +547,14 @@ private struct RecentClipRow: View {
     .contextMenu {
       Button("Copy") { model.copyClipboardItem(item.id) }.disabled(gone)
       Button(item.pinned ? "Unpin" : "Pin") { model.togglePinClipboardItem(item.id) }
+      if item.isText {
+        if let reason = item.secret {
+          // What its app marked secret or a password manager copied stays hidden.
+          Button("Show Contents") { model.unhideClipboardItem(item.id) }.disabled(reason.isLocked)
+        } else {
+          Button("Hide Contents") { model.hideClipboardItem(item.id) }
+        }
+      }
       Divider()
       Button("Delete", role: .destructive) { model.deleteClipboardItem(item.id) }
     }
@@ -527,6 +577,11 @@ private struct RecentClipRow: View {
         parts.append(files.count == 1 ? "File" : "\(files.count) files")
         if gone > 0 { parts.append("\(gone) moved or deleted") }
       }
+      return parts.joined(separator: " · ")
+    }
+    // A secret says why it's hidden, never what kind of text it is or how long.
+    if let reason = item.secret {
+      parts.append(ClipboardOptions.secretReason(reason))
       return parts.joined(separator: " · ")
     }
     let kind = ClipboardContent.kind(of: item.text)

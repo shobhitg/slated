@@ -388,7 +388,10 @@ final class Engine {
         return KeyboardTap.MouseHotkey(button: n, modifiers: combo.modifiers.subtracting(.function))
       })
     tap.update(
-      options: options, hotstrings: config.hotstrings, hyperHotkeys: remap && live.shortcuts ? hyperCodes : [],
+      // A sensitive hotstring whose text isn't on this computer doesn't expand until it's entered. The tap
+      // gets triggers and rules only: a secret's text is looked up when it fires.
+      options: options, hotstrings: config.hotstrings.filter { !config.isMissingSecret($0) },
+      hyperHotkeys: remap && live.shortcuts ? hyperCodes : [],
       mouseHotkeys: mouseHotkeys)
     tap.setFrontmostApp(bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
 
@@ -545,16 +548,30 @@ final class Engine {
 
   private func expand(_ match: HotstringMatch) {
     let hotstring = match.hotstring
-    let text = HotstringTemplate.expand(hotstring.replacement, clipboard: NSPasteboard.general.string(forType: .string))
-    TextInjector.shared.replace(
-      deleting: match.deleteCount, with: text, method: hotstring.method, suffix: match.delimiter)
-    Log.record(
-      "hotstring.expanded",
-      [
-        "trigger": hotstring.trigger, "app": NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown",
-        "method": hotstring.method.rawValue, "fire": hotstring.fire.rawValue, "chars": text.count,
-        "deleted": match.deleteCount,
-      ])
+    let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown"
+    let text: String
+    let method: InsertMethod
+    if hotstring.isSensitive {
+      // Typed as it is, never pasted: a secret doesn't go through the clipboard, and its braces aren't
+      // placeholders. Its text is looked up now, so the tap never holds it.
+      guard let secret = store.configuration.text(of: hotstring) else {
+        Log.record("hotstring.skipped", level: .notice, ["reason": "its text isn't on this computer", "app": app])
+        return
+      }
+      text = secret
+      method = .type
+    } else {
+      text = HotstringTemplate.expand(hotstring.replacement, clipboard: NSPasteboard.general.string(forType: .string))
+      method = hotstring.method
+    }
+    TextInjector.shared.replace(deleting: match.deleteCount, with: text, method: method, suffix: match.delimiter)
+    // A sensitive hotstring's length isn't logged either.
+    var data: [String: Any] = [
+      "trigger": hotstring.trigger, "app": app, "method": method.rawValue, "fire": hotstring.fire.rawValue,
+      "deleted": match.deleteCount,
+    ]
+    if hotstring.isSensitive { data["sensitive"] = true } else { data["chars"] = text.count }
+    Log.record("hotstring.expanded", data)
     if let action = hotstring.action {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
         self?.runner.run(action, trigger: "hotstring \(hotstring.trigger)", source: "Slated")

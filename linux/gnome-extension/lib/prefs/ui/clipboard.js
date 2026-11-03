@@ -12,7 +12,7 @@ import {tildify} from '../util.js';
 import {keysString, comboLabel} from '../keys.js';
 import {
   clipboardSettings, defaultClipboardSettings, MAX_ITEMS, RETENTION_DAYS, retentionTitle, withCurrent, appDisplayName,
-  normalizeAppId, passwordManagerApps,
+  normalizeAppId, passwordManagerApps, SECRET_MINUTES, secretMinutesTitle,
 } from '../automation.js';
 import {box, label, button, keycaps, pill, group, comboRow, switchRow} from './widgets.js';
 import {ShortcutRecorder} from './recorder.js';
@@ -123,21 +123,40 @@ export function createClipboardPane(ctx) {
   history.add(screenshots.row);
   prefs.add(history);
 
-  // Privacy
+  // Privacy: secrets kept hidden (or not recorded), for how long, and whether their look counts.
   const privacy = group({title: 'Privacy',
-    description: "Clipboard history never leaves this computer. Slated's log notes how long a copy was, never what it said."});
-  const concealed = switchRow({
-    title: 'Ignore passwords and other secrets', key: settingKey(CONFIG_KEYS.clipboardIgnoreConcealed),
-    subtitle: 'Password managers such as KeePassXC, and Firefox, mark what they copy as secret, and Slated skips those. Chrome and other Chromium browsers don’t, so what you copy there that looks like a password is skipped too.',
-    active: settings0.ignoreConcealed,
-    onChange: on => setClipboard(c => {
-      c.ignoreConcealed = on;
+    description: "Clipboard history never leaves this computer. Secrets are never saved to disk, and Slated's log notes that something was copied, never what."});
+  const secretChoices = [{id: 'masked', label: 'Keep Hidden'}, {id: 'skip', label: "Don't Record"}];
+  const secrets = comboRow({
+    title: 'Passwords and other secrets', key: settingKey(CONFIG_KEYS.clipboardSecrets), subtitle: '',
+    items: secretChoices, selected: settings0.secrets,
+    onChange: choice => setClipboard(c => {
+      c.secrets = choice;
     }),
   });
-  privacy.add(concealed.row);
+  privacy.add(secrets.row);
+  const minuteChoices = m => withCurrent(SECRET_MINUTES, m).map(v => ({id: v, label: secretMinutesTitle(v)}));
+  const secretMinutes = comboRow({
+    title: 'Forget secrets after', subtitle: 'And always when Slated stops (logging out, locking the screen).',
+    key: settingKey(CONFIG_KEYS.clipboardSecretMinutes), items: minuteChoices(settings0.secretMinutes), selected: settings0.secretMinutes,
+    onChange: m => setClipboard(c => {
+      c.secretMinutes = m;
+    }),
+  });
+  privacy.add(secretMinutes.row);
+  const secretPatterns = switchRow({
+    title: 'Spot secrets by how they look', key: settingKey(CONFIG_KEYS.clipboardSecretPatterns),
+    subtitle: 'API keys, tokens, private keys, card numbers and random passwords count as secrets, even when no app says so. '
+      + 'Chrome and other Chromium browsers don’t mark copied passwords on Linux, so what looks like one there counts too.',
+    active: settings0.secretPatterns,
+    onChange: on => setClipboard(c => {
+      c.secretPatterns = on;
+    }),
+  });
+  privacy.add(secretPatterns.row);
   prefs.add(privacy);
   const excluded = group({title: 'Never Record Copies From'});
-  groupKey(excluded, settingKey(CONFIG_KEYS.clipboardExcludedApps), 'Anything copied in these apps stays out of your history.');
+  groupKey(excluded, settingKey(CONFIG_KEYS.clipboardExcludedApps), 'Anything copied in these apps stays out of your history, hidden or not.');
   const excludedApps = () => clipboardSettings(model.configuration).excludedApps ?? [];
   const isExcluded = id => excludedApps().some(a => normalizeAppId(a) === normalizeAppId(id));
   const exclude = id => {
@@ -177,6 +196,8 @@ export function createClipboardPane(ctx) {
   keyRow('Pin or unpin', 'Ctrl P');
   keyRow('Delete', 'Ctrl Backspace');
   keyRow('Clear everything but pinned items', 'Ctrl Shift Backspace');
+  keyRow('Show the selected secret while held', 'Alt');
+  keyRow('Hide or show contents', 'Ctrl H');
   keyRow('Close', 'Esc');
   const note = new Adw.ActionRow({use_markup: false, title: 'Text, images and files',
     subtitle: 'The picker opens below the text cursor (else at the pointer). Images copied as PNG are kept too, '
@@ -233,11 +254,13 @@ export function createClipboardPane(ctx) {
       ? 'Type to search, then press Return to paste into the app you were in.'
       : 'Type to search, then press Return to copy it, ready to paste yourself.');
     const items = model.status.clipboard?.items ?? 0;
+    const hidden = model.status.clipboard?.secrets ?? 0;
     statsRow.set_subtitle(!settings.enabled
-      ? `Turn it on and Slated remembers the last ${settings.maxItems} things you copy, ready to search and paste again. Passwords are never recorded.`
+      ? `Turn it on and Slated remembers the last ${settings.maxItems} things you copy, ready to search and paste again. Passwords stay hidden.`
       : !model.running
         ? "Slated isn't running, so nothing is being recorded right now."
-        : items ? `${items} item${items === 1 ? '' : 's'}` : 'Nothing saved yet. Copy some text in any app.');
+        : items ? `${items} item${items === 1 ? '' : 's'}${hidden ? ` · ${hidden} hidden, in memory only (Ctrl+H in the picker shows or hides contents)` : ''}`
+          : 'Nothing saved yet. Copy some text in any app.');
     for (const g of [shortcut, history, privacy, excluded]) g.set_sensitive(settings.enabled);
 
     recorder.set(settings.shortcut ?? '');
@@ -264,7 +287,14 @@ export function createClipboardPane(ctx) {
     screenshots.set(settings.screenshots);
     setSubtitle(persist.row, `Saved only on this computer, in ${tildify(ctx.paths.clipboardFile, ctx.paths.home)}, which only you can read. `
       + 'Off: history starts fresh each time Slated starts.');
-    concealed.set(settings.ignoreConcealed);
+    const masked = settings.secrets !== 'skip';
+    secrets.setItems(secretChoices, settings.secrets);
+    setSubtitle(secrets.row, masked
+      ? 'What password managers copy, what apps mark secret and what looks like a key. Kept as dots until you show it in the picker, in memory only.'
+      : 'What password managers copy, what apps mark secret and what looks like a key stays out of your history.');
+    secretMinutes.setItems(minuteChoices(settings.secretMinutes), settings.secretMinutes);
+    secretMinutes.row.set_sensitive(masked);
+    secretPatterns.set(settings.secretPatterns);
     syncExcluded();
   }
 

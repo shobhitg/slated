@@ -21,6 +21,10 @@ import {asInt, formatJSON, isNumberValue, JSONNumber, parseJSON5} from './json.j
 
 export const CONFIG_FILE = 'config.json';
 export const SETTINGS_FILE = 'settings.json';
+/** Sensitive hotstrings' text, readable only by you (mode 0600): `{"version": 1, "secrets": {"<name>": "<text>"}}`. */
+export const SECRETS_FILE = 'secrets.json';
+/** secrets.json's version. */
+export const SECRETS_VERSION = 1;
 /** Where a migration keeps version 1's config.json, beside it. Never overwritten. */
 export const BACKUP_FILE = 'config.v1.json';
 
@@ -124,9 +128,10 @@ function jsonValues(object, keys, file) {
 }
 
 /**
- * Reads the two files into one configuration. `configText` null: config.json doesn't exist (all
- * defaults); `settingsText` null: settings.json doesn't exist (a legacy config.json's settings
- * sections count then, else every setting is at its default). The result is version 2, or later
+ * Reads the two files into one configuration, and secrets.json into `secrets` ({name: text}).
+ * `configText` null: config.json doesn't exist (all defaults); `settingsText` null: settings.json doesn't
+ * exist (a legacy config.json's settings sections count then, else every setting is at its default);
+ * `secretsText` null: no secrets. The result is version 2, or later
  * when a newer Slated wrote either file.
  *
  * Throws SlatedError("invalidConfiguration") with `file` ("config.json" or "settings.json") and
@@ -136,7 +141,7 @@ function jsonValues(object, keys, file) {
  *   needs migrating; `extras` are the unknown keys encodeConfigurationFiles writes back to each file
  *   (config.json's other unknown keys ride on the configuration)
  */
-export function decodeConfigurationFiles(configText, settingsText = null) {
+export function decodeConfigurationFiles(configText, settingsText = null, secretsText = null) {
   const configObject = configText === null || configText === undefined ? null : parseConfigText(configText, CONFIG_FILE);
   const settingsObject = settingsText === null || settingsText === undefined ? null : parseConfigText(settingsText, SETTINGS_FILE);
   const source = configObject ?? {};
@@ -180,7 +185,9 @@ export function decodeConfigurationFiles(configText, settingsText = null) {
     // A newer version in settings.json is kept (decoding already made both at least the current one).
     if (settingsObject && fromSettings.version > configuration.version) configuration.version = fromSettings.version;
   }
-  return {configuration, extras, legacy, configObject, settingsObject};
+  // secrets.json last, as Swift reads it: an error in config.json or settings.json is reported first.
+  const secrets = decodeSecretsText(secretsText);
+  return {configuration, extras, legacy, configObject, settingsObject, secrets};
 }
 
 /**
@@ -207,4 +214,35 @@ export function encodeConfigurationFiles(configuration, extras = {}) {
   }
   settings.version = c.version;
   return {config: formatJSON(config), settings: formatJSON(settings)};
+}
+
+/**
+ * secrets.json's text as {name: text} (Swift's SecretsFileCoding): `secrets` (missing or null: none) must
+ * be an object of strings, and `version`, when there, a whole number. Other keys aren't kept. null text:
+ * no file, no secrets. Throws SlatedError("invalidConfiguration") with `file` "secrets.json".
+ */
+export function decodeSecretsText(text) {
+  if (text === null || text === undefined) return {};
+  const object = parseConfigText(text, SECRETS_FILE);
+  const fail = (path, message) => inFile(new SlatedError('invalidConfiguration', message, {codingPath: path}), SECRETS_FILE);
+  const version = object.version;
+  if (version !== undefined && version !== null && !(isNumberValue(version) && asInt(version) !== null)) {
+    throw fail(['version'], 'Expected to decode Int.');
+  }
+  const secrets = object.secrets;
+  if (secrets === undefined || secrets === null) return {};
+  if (!isObject(secrets)) throw fail(['secrets'], 'Expected to decode Dictionary<String, String>.');
+  const out = {};
+  for (const key of Object.keys(secrets)) {
+    if (typeof secrets[key] !== 'string') throw fail(['secrets', key], 'Expected to decode String.');
+    put(out, key, secrets[key]);
+  }
+  return out;
+}
+
+/** secrets.json's text for `secrets` ({name: text}), pretty-printed with sorted keys as Swift writes it. */
+export function encodeSecretsText(secrets) {
+  const values = {};
+  for (const key of Object.keys(secrets ?? {})) put(values, key, String(secrets[key]));
+  return formatJSON({secrets: values, version: SECRETS_VERSION});
 }

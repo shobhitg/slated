@@ -35,6 +35,11 @@ extension AppModel {
 
   /// Copies the value as the file has it (the window's current version, which is what's saved).
   func copyConfigValue(_ key: ConfigKey) {
+    // A secret's text is never copied from here (its hotstring's Copy Value copies the reference).
+    guard key.file != .secrets else {
+      showToast("Secrets aren't copied from here.", symbol: "lock.fill", style: .info)
+      return
+    }
     guard let text = key.valueText(in: configuration) else {
       showToast(
         "\(key.path) isn't in \(key.file.rawValue): it's at its default.", symbol: "info.circle.fill", style: .info)

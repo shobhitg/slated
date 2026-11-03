@@ -1,11 +1,12 @@
 # Configuration
 
-Slated's configuration is two files in `~/.config/slated`, and nothing else:
+Slated's configuration is two files in `~/.config/slated`, and a third once a hotstring is sensitive:
 
 | File | What's in it | Sections |
 |---|---|---|
 | `config.json` | What your keys do | `keyboard` (the Hyper key, key repeat), `bindings`, `hotstrings`, `layouts`, `defaults` |
 | `settings.json` | How Slated behaves | `general`, `windows`, `clipboard`, `automation`, `island` |
+| `secrets.json` | Sensitive hotstrings' text, readable only by you | `secrets` ([below](#sensitive-hotstrings-and-secretsjson)) |
 
 Both start with `"version": 2`. The main window edits them, and you can too: they're plain JSON, and
 comments and trailing commas are allowed. Slated reloads a file the moment it changes. A missing
@@ -14,8 +15,8 @@ so turning the island off never rewrites `config.json`, and a new shortcut never
 `settings.json`. The menus' **Open Config File** and **Open Settings File** open them, as do General's
 **Open config.json** and **Open settings.json** buttons. **Wherever the window names a file, the name
 opens it**: the file at the start of every key below, and `config.json`, `settings.json`,
-`config.v1.json`, `~/.config/slated` (the folder) and `~/.slate.js` / `~/.slate` (while there's a
-Slate config) in the window's text, in your editor (TextEdit when no app opens it), or a note when the
+`config.v1.json`, `secrets.json`, `~/.config/slated` (the folder) and `~/.slate.js` / `~/.slate` (while
+there's a Slate config) in the window's text, in your editor (TextEdit when no app opens it), or a note when the
 file isn't there yet.
 
 **The window shows every setting's key** in small monospace text under its name, so you know what to
@@ -374,8 +375,10 @@ and with GNOME's own `caps:hyper` option holding Super alone shows the sheet too
   "maxItems": 200,
   "persist": true,                // kept across restarts, readable only by you
   "retentionDays": 30,            // pinned items are kept regardless
-  "ignoreConcealed": true,        // skip what password managers mark as secret
-  "excludedApps": ["com.1password.1password", "com.bitwarden.desktop"],
+  "secrets": "masked",            // passwords and keys: "masked" (kept as dots, in memory only) or "skip"
+  "secretMinutes": 60,            // secrets are forgotten after this long, and when Slated quits (0: only then)
+  "secretPatterns": true,         // text that looks like a key, token or card number counts as a secret
+  "excludedApps": ["com.tinyspeck.slackmacgap"],
   "pasteAfterSelecting": true,
   "screenshots": true             // add screenshots saved as files
 }
@@ -415,8 +418,52 @@ Files moved or deleted since are left out; when none is left the row says "Moved
 picking it does nothing, and your clipboard stays as it was. In clipboard.json files are an item
 whose `text` is their names, one per line, and whose `files` lists their paths.
 
+**Passwords and other secrets** are kept, but hidden (`secrets`: `"masked"`, the default), or not
+recorded at all (`"skip"`). A copy is a secret when:
+1. the app that copied it marked it secret (password managers, a browser's Copy Password: the
+   `org.nspasteboard.ConcealedType` pasteboard type on the Mac, `x-kde-passwordManagerHint` on GNOME);
+2. it was copied from a password manager: 1Password, Bitwarden, Apple Passwords, Keychain Access,
+   KeePassXC, Dashlane, LastPass, Proton Pass, Enpass, NordPass, Strongbox, MacPass and others, by
+   bundle id on the Mac and app id on Linux;
+3. it looks like one (`secretPatterns`, on by default): a private key (`-----BEGIN … PRIVATE
+   KEY-----`), a well-known API token (`sk-…`, `ghp_…`, `github_pat_…`, `AKIA…`, `xoxb-…`,
+   `sk_live_…`, `AIza…` and others, also inside other text such as `export KEY=…`), a JSON Web Token,
+   a link with a password in it (`postgres://user:password@host`), a card number (13–19 digits,
+   spaces or dashes allowed, with a card network's prefix and a valid check digit), a password as
+   Apple's Passwords suggests them (`abcdef-ghijk1-mnoPqr`), or one word of 16 or more characters
+   with three kinds of character (lowercase, capitals, digits, symbols), random enough, and not made
+   of words. Words, sentences, links, email addresses, file paths, UUIDs, hashes, hex colors,
+   version numbers and dates never count;
+4. you said so: right-click an item in Settings → Clipboard → **Hide Contents**.
+
+A secret is shown as `••••••••` (always eight dots, never its length) with a lock and the app it
+came from. The eye button beside it shows it until the picker closes; in the picker, holding ⌥
+shows the selected one. Searching never matches a secret's text, only its app's name, so typing
+part of a password finds nothing. Picking it pastes the real text, marked concealed so other
+clipboard managers hide it too.
+
+Secrets live in memory only: they're never written to clipboard.json, and they're forgotten
+`secretMinutes` after they were last copied or picked (60 by default; `0` keeps them until Slated
+quits) and whenever Slated quits. Pinning one doesn't keep it longer. **Show Contents** makes a secret that
+was found by its look, or hidden by hand, an ordinary item that's saved from then on; one an app
+marked or a password manager copied always stays hidden and in memory. **Hide Contents** takes an
+item out of clipboard.json at once. Copies apps mark temporary (a text expander's paste,
+`org.nspasteboard.TransientType`) are never recorded, and neither are images or files an app
+marks secret: only text can be hidden.
+
+`excludedApps` keeps an app's copies out of the history altogether, hidden or not. Nothing is
+excluded by default. A settings.json from before secrets were kept (one with `ignoreConcealed`)
+reads as `"masked"`, and the password managers it excluded by default are taken out of the list, so
+their copies are kept, hidden.
+
+**Screen sharing.** On the Mac the picker and its preview ask macOS to leave them out of screen
+sharing and screenshots (`NSWindow.sharingType = .none`). Some capture paths may still show them;
+see the manual check in [TESTING.md](TESTING.md). GNOME has no such option ([LINUX.md](LINUX.md)).
+
 The log says what kind of thing was copied and how big (characters, an image's size, how many
-files), never the text, an image, a file's name or a path.
+files), never the text, an image, a file's name or a path. For a secret it says only that it was
+one and why (`sensitive: true`, `reason`: `marked`, `app`, `pattern` or `manual`), and how many
+expired, never its length.
 
 **On the Mac** the old switcher's ⌘C, ⌘P and ⌘⌫ are gone: copy, pin and delete in Settings.
 
@@ -429,10 +476,12 @@ Ctrl+Shift+V in terminals. Copied PNG images are kept the same way, in
 - The default shortcut `cmd+shift+v` is Super+Shift+V.
 - History is kept in `~/.local/state/slated/clipboard.json`, readable only by you, in the same format
   as on the Mac.
-- `ignoreConcealed` skips copies that password managers mark as secret (KeePassXC, Firefox and
-  others add `x-kde-passwordManagerHint`). Chrome and other Chromium browsers don't mark copied
-  passwords on Linux, so from those it also skips anything that looks like a password: one word with
-  upper- and lowercase letters plus a digit or symbol. On the Mac, Chrome and Firefox mark them.
+- Secrets work the same way: KeePassXC, Firefox and other password managers add
+  `x-kde-passwordManagerHint`. Chrome and other Chromium browsers don't mark copied passwords on
+  Linux, so from those anything that looks like a password (one word with upper- and lowercase
+  letters plus a digit or symbol) is a secret too, with `secretPatterns` on. On the Mac, Chrome and
+  Firefox mark them. Hide Contents and Show Contents are in the picker there (Ctrl+H), since GNOME's
+  settings don't list the items.
 - `excludedApps` takes GNOME app ids, such as `org.keepassxc.KeePassXC` or `com.bitwarden.desktop`.
 - GNOME's screenshot tool copies each screenshot to the clipboard itself, so screenshots arrive as
   images; `screenshots` is kept in settings.json for the Mac. Files copied in Files (Nautilus) are
@@ -445,7 +494,7 @@ Ctrl+Shift+V in terminals. Copied PNG images are kept the same way, in
 | field | meaning |
 |---|---|
 | `trigger` | What you type, e.g. `;sig`. |
-| `replacement` | The text that replaces it. Placeholders: `{date}`, `{time}`, `{datetime}`, `{clipboard}`, `{date:yyyy-MM-dd}`. Use `{{` / `}}` for literal braces. |
+| `replacement` | The text that replaces it. Placeholders: `{date}`, `{time}`, `{datetime}`, `{clipboard}`, `{date:yyyy-MM-dd}`. Use `{{` / `}}` for literal braces. For a sensitive hotstring, `{"secret": "<name>"}` ([below](#sensitive-hotstrings-and-secretsjson)). |
 | `fire` | `immediately` (default) or `afterDelimiter`: wait for a space, return or punctuation, which is kept. |
 | `caseSensitive` | Default `true`. |
 | `wordBoundary` | Only when the trigger starts a word. Default `false`. |
@@ -455,3 +504,42 @@ Ctrl+Shift+V in terminals. Copied PNG images are kept the same way, in
 
 Hotstrings and the Hyper key don't work while macOS Secure Input is on: password fields, or
 Terminal with Secure Keyboard Entry enabled. macOS hides keystrokes from every app then.
+
+### Sensitive hotstrings and secrets.json
+
+Turn on **Sensitive** in a hotstring's editor and its text moves out of config.json into
+`~/.config/slated/secrets.json`, which only you can read; config.json keeps a reference to it:
+
+```jsonc
+// config.json
+{ "trigger": ";wifi", "replacement": { "secret": "wifi" } }
+
+// secrets.json (mode 0600: readable and writable only by you)
+{ "version": 1, "secrets": { "wifi": "correct-horse-battery-staple-42" } }
+```
+
+- **The reference is the whole shape**: a replacement that's an object with a `secret` (a non-empty
+  name) is sensitive; there's no separate flag. The name comes from the trigger (`;wifi` → `wifi`,
+  `;my.pass` → `my-pass`, then `wifi-2` if it's taken). Turning Sensitive off moves the text back
+  into config.json and removes it from secrets.json.
+- **In the window** the list shows `;wifi → ••••••••` with a lock, and the editor's text field is
+  masked, with an eye to show and edit it; edits go to secrets.json. Its key reads
+  `secrets.json › wifi` (the file's name opens it); Copy Value as JSON on the field copies the
+  reference, never the text. Try It shows the expansion as dots unless the text is shown.
+- **Expanding**: a sensitive hotstring is always typed, never pasted, so its text never goes
+  through the clipboard, whatever `method` says, and it's typed exactly as written (no
+  placeholders). It types any Unicode text.
+- **Without secrets.json** (config.json copied to another computer, or a name that isn't in it) the
+  hotstring says "Its text isn't on this computer yet" with a field to type it, and doesn't expand
+  until then; Overview counts it as something to review.
+- secrets.json follows config.json's rules: Slated reloads it when it changes, a version it can't
+  read shows a banner naming it (quoting nothing from it) and nothing is saved over it, saves are
+  atomic and go through a symlink to the file it points at. It's created with mode 0600 from the
+  first byte, and a looser mode (a file you made or copied by hand) is changed back to 0600 when
+  Slated reads it. Slated writes it only once there's a secret, and only `version` and `secrets`.
+- Deleting a hotstring in the window deletes its secret, unless another hotstring uses it. A secret
+  you add to the file by hand stays until then. Duplicating a sensitive hotstring copies its text
+  under a new name. The Slate importer and the starter configuration never make secrets.
+- The log never has a secret's text, its length or the file's content: saves say `secrets: N`.
+- **On GNOME** espanso types sensitive hotstrings (with `force_mode: keys`), so its match file holds
+  their text; Slated writes that file with mode 0600 ([LINUX.md](LINUX.md)).

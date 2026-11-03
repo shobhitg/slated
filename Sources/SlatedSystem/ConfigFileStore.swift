@@ -74,6 +74,9 @@ public final class ConfigFileStore {
     public var written: [ConfigFile] = []
     /// Why writing the files failed, if it did. The configuration is still the one loaded.
     public var writeError: String?
+    /// secrets.json could be read by others (made or copied by hand), so Slated made it readable only
+    /// by the user.
+    public var secretsPermissionsFixed = false
   }
 
   /// Each file's contents as last read or written, and its modification date, so each change is
@@ -81,26 +84,42 @@ public final class ConfigFileStore {
   private var lastSeen: [ConfigFile: Data] = [:]
   private var lastModified: [ConfigFile: Date] = [:]
 
-  public init(configURL: URL, settingsURL: URL? = nil, home: String) {
+  public init(configURL: URL, settingsURL: URL? = nil, secretsURL: URL? = nil, home: String) {
     self.configURL = configURL
     self.settingsURL =
       settingsURL ?? configURL.deletingLastPathComponent().appendingPathComponent(ConfigFile.settings.rawValue)
+    self.secretsURL =
+      secretsURL ?? configURL.deletingLastPathComponent().appendingPathComponent(ConfigFile.secrets.rawValue)
     self.home = home
   }
+
+  /// secrets.json, beside config.json: sensitive hotstrings' text, readable only by the user (0600).
+  public let secretsURL: URL
 
   public func url(_ file: ConfigFile) -> URL {
     switch file {
     case .config: return configURL
     case .settings: return settingsURL
+    case .secrets: return secretsURL
     }
   }
 
   // MARK: Loading
 
-  /// Reads both files: creates them on a first run, migrates a version 1 config.json. On an error the
-  /// previous configuration stays active and `loadError` explains the problem.
+  /// Reads the files: creates config.json and settings.json on a first run, migrates a version 1
+  /// config.json. On an error the previous configuration stays active and `loadError` explains the
+  /// problem. A secrets.json others could read is made readable only by the user first.
   @discardableResult
   public func load() -> LoadResult {
+    fixedSecretsPermissions = false
+    var result = loadFiles()
+    result.secretsPermissionsFixed = fixedSecretsPermissions
+    return result
+  }
+
+  private var fixedSecretsPermissions = false
+
+  private func loadFiles() -> LoadResult {
     for file in ConfigFile.allCases {
       if let missing = missingLinkTarget(file) {
         // A dotfiles link whose file isn't there: the repo moved or isn't cloned yet, a volume isn't
@@ -114,21 +133,27 @@ public final class ConfigFileStore {
         )
       }
     }
-    var settingsData: Data?
-    if FileManager.default.fileExists(atPath: settingsURL.path) {
-      lastModified[.settings] = modificationDate(.settings)
-      do {
-        settingsData = try Data(contentsOf: settingsURL)
-      } catch {
-        return fail(.settings, "Couldn't read \(settingsURL.path): \(error.localizedDescription)")
+    // settings.json and secrets.json may not be there: every setting at its default, no secrets.
+    var optional: [ConfigFile: Data] = [:]
+    for file in [ConfigFile.settings, .secrets] {
+      let fileURL = url(file)
+      guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        lastSeen[file] = nil
+        lastModified[file] = nil
+        continue
       }
-      lastSeen[.settings] = settingsData
-    } else {
-      lastSeen[.settings] = nil
-      lastModified[.settings] = nil
+      if file == .secrets { fixedSecretsPermissions = makePrivate(.secrets) }
+      lastModified[file] = modificationDate(file)
+      do {
+        optional[file] = try Data(contentsOf: fileURL)
+      } catch {
+        return fail(file, "Couldn't read \(fileURL.path): \(error.localizedDescription)")
+      }
+      lastSeen[file] = optional[file]
     }
+    let settingsData = optional[.settings]
     guard FileManager.default.fileExists(atPath: configURL.path) else {
-      return firstRun(settings: settingsData)
+      return firstRun(settings: settingsData, secrets: optional[.secrets])
     }
     let configData: Data
     lastModified[.config] = modificationDate(.config)
@@ -140,9 +165,10 @@ public final class ConfigFileStore {
     lastSeen[.config] = configData
     let files: SlatedConfiguration.Files
     do {
-      files = try SlatedConfiguration.decodeFiles(config: configData, settings: settingsData)
+      files = try SlatedConfiguration.decodeFiles(
+        config: configData, settings: settingsData, secrets: optional[.secrets])
     } catch let error as ConfigFileError {
-      return fail(error.file, "Couldn't read \(url(error.file).path): \(Self.describe(error.error))")
+      return fail(error.file, "Couldn't read \(url(error.file).path): \(Self.describe(error.error, in: error.file))")
     } catch {
       return fail(.config, "Couldn't read \(configURL.path): \(Self.describe(error))")
     }
@@ -155,17 +181,21 @@ public final class ConfigFileStore {
   }
 
   /// No config.json: the user's Slate config converted, or the starter configuration. A settings.json
-  /// that's there already is kept.
-  private func firstRun(settings: Data?) -> LoadResult {
+  /// that's there already is kept, and so is a secrets.json (for a config.json that comes later).
+  private func firstRun(settings: Data?, secrets: Data?) -> LoadResult {
     var config = SlatedConfiguration.starter
-    if let settings {
+    if settings != nil || secrets != nil {
       do {
-        // Its settings, with config.json's part from the starter.
-        let read = try SlatedConfiguration.decodeFiles(config: Data("{}".utf8), settings: settings).configuration
-        config.adoptSettings(of: read)
-        config.version = read.version
+        // Its settings and secrets, with config.json's part from the starter.
+        let read = try SlatedConfiguration.decodeFiles(config: Data("{}".utf8), settings: settings, secrets: secrets)
+          .configuration
+        if settings != nil {
+          config.adoptSettings(of: read)
+          config.version = read.version
+        }
+        config.secrets = read.secrets
       } catch let error as ConfigFileError {
-        return fail(.settings, "Couldn't read \(settingsURL.path): \(Self.describe(error.error))")
+        return fail(error.file, "Couldn't read \(url(error.file).path): \(Self.describe(error.error, in: error.file))")
       } catch {
         return fail(.settings, "Couldn't read \(settingsURL.path): \(Self.describe(error))")
       }
@@ -176,6 +206,7 @@ public final class ConfigFileStore {
       // Their Slate config is their default, in Slated's own format.
       config = SlatedConfiguration(version: asRead.version)
       config.adoptSettings(of: asRead)
+      config.secrets = asRead.secrets
       result.slateImport = config.merge(importSlate([found]))
     }
     configuration = config
@@ -264,7 +295,11 @@ public final class ConfigFileStore {
     }
     if let loadError { throw ConfigUnreadable(message: "\(loadError) Slated won't save over it until it's fixed.") }
     var written: [ConfigFile] = []
-    for file in ConfigFile.allCases {
+    // A text never exists only in a file not written yet: a new secret goes to secrets.json before
+    // config.json refers to it, and config.json takes a secret's text back before secrets.json drops it.
+    let secretsFirst = !Set(configuration.secrets.keys).isSubset(of: self.configuration.secrets.keys)
+    let order: [ConfigFile] = secretsFirst ? [.secrets, .config, .settings] : [.config, .settings, .secrets]
+    for file in order {
       let data = try configuration.encoded(file)
       let unchanged = (try? self.configuration.encoded(file)) == data
       // config.json is written again when it's gone (deleted by hand): without it, the next launch
@@ -284,9 +319,53 @@ public final class ConfigFileStore {
     let destination = linkTarget(file).url
     try FileManager.default.createDirectory(
       at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try data.write(to: destination, options: .atomic)
+    if file == .secrets {
+      try Self.writePrivately(data, to: destination)
+    } else {
+      try data.write(to: destination, options: .atomic)
+    }
     lastSeen[file] = data
     lastModified[file] = modificationDate(file)
+  }
+
+  /// Writes `data` to `url` atomically and readable only by the user from its first byte: into a new
+  /// file created with mode 0600 beside it, then renamed over it. (`Data.write(options: .atomic)` makes
+  /// its file with the usual 0644, and changing the mode afterwards leaves a moment when others can
+  /// read it.)
+  static func writePrivately(_ data: Data, to url: URL) throws {
+    let temporary = url.deletingLastPathComponent().appendingPathComponent(
+      ".\(url.lastPathComponent).\(UUID().uuidString)")
+    let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+    guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    let wrote = data.withUnsafeBytes { buffer -> Bool in
+      guard var next = buffer.baseAddress else { return true }
+      var left = buffer.count
+      while left > 0 {
+        let count = Darwin.write(fd, next, left)
+        guard count > 0 else { return false }
+        next += count
+        left -= count
+      }
+      return true
+    }
+    let error = errno
+    let synced = wrote && fsync(fd) == 0
+    close(fd)
+    guard synced, rename(temporary.path, url.path) == 0 else {
+      let failure = synced ? errno : error
+      unlink(temporary.path)
+      throw POSIXError(POSIXErrorCode(rawValue: failure) ?? .EIO)
+    }
+  }
+
+  /// Makes `file` (or the file it links to) readable only by its owner when others could read or write
+  /// it: a secrets.json made or copied by hand. Returns whether it changed the mode.
+  private func makePrivate(_ file: ConfigFile) -> Bool {
+    let path = linkTarget(file).url.path
+    guard let mode = (try? FileManager.default.attributesOfItem(atPath: path))?[.posixPermissions] as? NSNumber,
+      mode.intValue & 0o077 != 0
+    else { return false }
+    return (try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)) != nil
   }
 
   // MARK: Watching
@@ -311,8 +390,9 @@ public final class ConfigFileStore {
     lastModified[file] = modificationDate(file)
     if let data = try? Data(contentsOf: url(file)) {
       guard data != lastSeen[file] else { return false }
-    } else if file == .settings && lastSeen[.settings] != nil && missingLinkTarget(.settings) == nil {
-      // settings.json deleted by hand: every setting back to its default.
+    } else if file != .config && lastSeen[file] != nil && missingLinkTarget(file) == nil {
+      // settings.json deleted by hand: every setting back to its default. secrets.json: no secrets, so
+      // sensitive hotstrings wait for their text.
     } else {
       // Gone. A config.json deleted by hand is written again on the next save, but a link to a file
       // that's gone mustn't be (that would replace the link); report it, once.
@@ -353,6 +433,20 @@ public final class ConfigFileStore {
   }
 
   // MARK: Messages
+
+  /// `describe` for an error in `file`. secrets.json's leave out what they quote from the file
+  /// ("Unexpected character 'x'…" could be a character of a secret): the line and column are enough.
+  public static func describe(_ error: Error, in file: ConfigFile) -> String {
+    let message = describe(error)
+    guard file == .secrets else { return message }
+    return redactingQuotes(message)
+  }
+
+  /// `text` without anything in single or double quotes: `Unexpected character 'x' around line 2` →
+  /// `Unexpected character around line 2`.
+  nonisolated public static func redactingQuotes(_ text: String) -> String {
+    text.replacingOccurrences(of: #"\s*'[^']*'|\s*"[^"]*""#, with: "", options: .regularExpression)
+  }
 
   /// Turns decoding errors into something a person can act on.
   public static func describe(_ error: Error) -> String {

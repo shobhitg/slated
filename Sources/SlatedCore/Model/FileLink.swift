@@ -1,13 +1,15 @@
 import Foundation
 
-/// A file of Slated's that the settings window names (config.json, settings.json, the version 1 backup,
-/// the folder they're in, or a Slate config), which opens when its name is clicked.
+/// A file of Slated's that the settings window names (config.json, settings.json, secrets.json, the
+/// version 1 backup, the folder they're in, or a Slate config), which opens when its name is clicked.
 ///
 /// Links in the window's text are `slated-file://config` and the like, routed to the app rather than
 /// opened as URLs. The GNOME preferences have the same links (lib/prefs/filelinks.js).
 public enum FileLink: String, CaseIterable, Hashable, Sendable {
   case config
   case settings
+  /// secrets.json: sensitive hotstrings' text.
+  case secrets
   /// config.v1.json: the copy of a version 1 config.json kept when Slated split it in two.
   case backup
   /// ~/.config/slated.
@@ -21,7 +23,11 @@ public enum FileLink: String, CaseIterable, Hashable, Sendable {
   public static let scheme = "slated-file"
 
   public init(_ file: ConfigFile) {
-    self = file == .config ? .config : .settings
+    switch file {
+    case .config: self = .config
+    case .settings: self = .settings
+    case .secrets: self = .secrets
+    }
   }
 
   /// The link a URL names; nil for any other URL (a web page, a file:// URL).
@@ -37,6 +43,7 @@ public enum FileLink: String, CaseIterable, Hashable, Sendable {
     switch self {
     case .config: return ConfigFile.config.rawValue
     case .settings: return ConfigFile.settings.rawValue
+    case .secrets: return ConfigFile.secrets.rawValue
     case .backup: return "config.v1.json"
     case .folder: return "~/.config/slated"
     case .slateJS: return "~/.slate.js"
@@ -54,11 +61,12 @@ public enum FileLink: String, CaseIterable, Hashable, Sendable {
     }
   }
 
-  /// config.json or settings.json, whose pending edits are saved before it opens.
+  /// config.json, settings.json or secrets.json, whose pending edits are saved before it opens.
   public var configFile: ConfigFile? {
     switch self {
     case .config: return .config
     case .settings: return .settings
+    case .secrets: return .secrets
     default: return nil
     }
   }
@@ -79,6 +87,7 @@ public enum FileLink: String, CaseIterable, Hashable, Sendable {
     switch self {
     case .config: return configFile
     case .settings: return settingsFile
+    case .secrets: return folder.appendingPathComponent(ConfigFile.secrets.rawValue)
     case .backup: return folder.appendingPathComponent("config.v1.json")
     case .folder: return folder
     case .slateJS: return home.appendingPathComponent(".slate.js")
@@ -91,6 +100,8 @@ public enum FileLink: String, CaseIterable, Hashable, Sendable {
     switch self {
     case .config, .settings:
       return "\(name) isn't there yet. Slated creates it the first time it saves a change."
+    case .secrets:
+      return "There's no secrets.json yet. Slated creates it when you make a hotstring Sensitive."
     case .backup:
       return "There's no config.v1.json. Slated keeps one only when it updates a version 1 config.json."
     case .folder:
@@ -116,10 +127,12 @@ public enum FileLink: String, CaseIterable, Hashable, Sendable {
     ("~/.config/slated/config.v1.json", .backup),
     ("~/.config/slated/config.json", .config),
     ("~/.config/slated/settings.json", .settings),
+    ("~/.config/slated/secrets.json", .secrets),
     ("~/.config/slated", .folder),
     ("config.v1.json", .backup),
     ("config.json", .config),
     ("settings.json", .settings),
+    ("secrets.json", .secrets),
     ("~/.slate.js", .slateJS),
     ("~/.slate", .slate),
   ]

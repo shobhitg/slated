@@ -15,12 +15,27 @@ import {
 } from './widgets.js';
 import {confirm} from './bindingeditor.js';
 import {METHOD_HINTS} from './actioneditor.js';
-import {CONFIG_KEYS, appendKey} from '../../core/index.js';
-import {applyKey, attachKey, fieldKey, groupKey, hotstringScope, itemCaption, noKey, setSubtitle, settingKey} from './configkeys.js';
+import {CONFIG_KEYS, appendKey, hotstringSecret, keyDisplay, secretKey} from '../../core/index.js';
+import {applyKey, attachKey, fieldKey, groupKey, hotstringScope, itemCaption, noKey, setSubtitle, setTitle, settingKey} from './configkeys.js';
 
 const FIRE_ITEMS = [{id: 'immediately', label: 'Right away'}, {id: 'afterDelimiter', label: 'After a space or punctuation'}];
 const METHOD_ITEMS = [{id: 'auto', label: 'Automatic'}, {id: 'type', label: 'Typing'}, {id: 'paste', label: 'Pasting'}];
 const SCOPE_ITEMS = [{id: 'everywhere', label: 'Everywhere'}, {id: 'only', label: 'Only in these apps'}, {id: 'except', label: 'Everywhere except these apps'}];
+
+/** What a sensitive hotstring's text shows while it's hidden: always eight dots, whatever its length (as on the Mac). */
+export const MASK = '••••••••';
+const PLACEHOLDERS = 'Placeholders: {date}, {time}, {datetime}, {clipboard}, {date:yyyy-MM-dd}. Use {{ and }} for literal braces.';
+const SENSITIVE_NOTE = 'Its text moves to secrets.json, which only you can read, and stays hidden here. '
+  + 'Always typed, never pasted, so it never goes through the clipboard.';
+const TYPED_NOTE = "espanso types it key by key (force_mode: keys), exactly as written, never pasting it. "
+  + "espanso's match file holds the text, readable only by you.";
+const MISSING_TITLE = "Its text isn't on this computer yet: type it here";
+
+/** A hotstring's text as the window shows it: its replacement, or for a sensitive one its secret's while shown, else eight dots. */
+export function shownText(model, h, revealed = false) {
+  if (hotstringSecret(h) === null) return typeof h.replacement === 'string' ? h.replacement : '';
+  return revealed ? model.hotstringText(h.id) ?? '' : MASK;
+}
 
 function isInStack(nav, page) {
   const stack = nav.get_navigation_stack();
@@ -120,20 +135,63 @@ function pushHotstringEditor(ctx, id) {
 
   // Replacement
   const replacementGroup = group({title: 'Replacement'});
-  groupKey(replacementGroup, fieldKey(keys, 'replacement'),
-    'Placeholders: {date}, {time}, {datetime}, {clipboard}, {date:yyyy-MM-dd}. Use {{ and }} for literal braces.');
+  groupKey(replacementGroup, fieldKey(keys, 'replacement'), PLACEHOLDERS);
   const count = label('', {classes: ['dim-label', 'caption']});
   replacementGroup.set_header_suffix(count);
-  const replacement = textArea({text: h0.replacement, key: fieldKey(keys, 'replacement'), onChange: v => model.setHotstring(id, h => {
-    h.replacement = v;
-  })});
+  // Sensitive: the text moves to secrets.json and stays hidden here until its eye shows it (while this
+  // page is open). Shown or not, Copy Value on it copies the reference in config.json, never the text.
+  let revealed = false;
+  const sensitive = switchRow({
+    title: 'Sensitive', subtitle: SENSITIVE_NOTE, active: hotstringSecret(h0) !== null, key: fieldKey(keys, 'replacement'),
+    onChange: on => {
+      revealed = false;
+      model.setHotstringSensitive(id, on);
+    },
+  });
+  replacementGroup.add(sensitive.row);
+  const replacement = textArea({text: typeof h0.replacement === 'string' ? h0.replacement : '', key: fieldKey(keys, 'replacement'),
+    onChange: v => model.setHotstring(id, h => {
+      h.replacement = v;
+    })});
   replacementGroup.add(replacement.widget);
+  // Where the text is (`secrets.json › pw`, the file's name a link), with the replacement's menu.
+  const secretInfo = {
+    get text() {
+      const name = hotstringSecret(model.hotstring(id) ?? {});
+      return name ? keyDisplay(secretKey(name)) : '';
+    },
+    resolve: () => fieldKey(keys, 'replacement').resolve(),
+  };
+  const masked = new Adw.ActionRow({use_markup: false, title: MASK});
+  attachKey(masked, secretInfo, {title: MASK});
+  const eye = button('', () => {
+    revealed = !revealed;
+    sync();
+  }, {icon: 'view-reveal-symbolic', classes: ['flat'], tooltip: 'Show'});
+  eye.set_valign(Gtk.Align.CENTER);
+  masked.add_prefix(icon('changes-prevent-symbolic'));
+  masked.add_suffix(eye);
+  replacementGroup.add(masked);
+  const secretText = textArea({text: '', key: secretInfo, onChange: v => model.setHotstringSecretText(id, v)});
+  replacementGroup.add(secretText.widget);
+  // Copied in without secrets.json: type the text here; it doesn't expand until then.
+  const missing = new Adw.PasswordEntryRow({use_markup: false, title: MISSING_TITLE, show_apply_button: true});
+  attachKey(missing, secretInfo, {kind: 'entry', title: MISSING_TITLE});
+  missing.connect('apply', () => {
+    model.setHotstringSecretText(id, missing.get_text());
+    missing.set_text('');
+  });
+  replacementGroup.add(missing);
   const method = comboRow({title: 'Insert by', subtitle: METHOD_HINTS[h0.method ?? 'auto'], items: METHOD_ITEMS, selected: h0.method ?? 'auto',
     key: fieldKey(keys, 'method'),
     onChange: v => model.setHotstring(id, h => {
       h.method = v;
     })});
   replacementGroup.add(method.row);
+  // A sensitive hotstring is always typed, whatever its method says (kept for when it isn't sensitive).
+  const typed = new Adw.ActionRow({use_markup: false, title: 'Always typed', subtitle: TYPED_NOTE, activatable: false});
+  typed.set_subtitle_lines(0);
+  replacementGroup.add(typed);
   prefs.add(replacementGroup);
 
   // Where it works
@@ -222,7 +280,8 @@ function pushHotstringEditor(ctx, id) {
     if (quietTry) return;
     const current = tryEntry.get_text();
     const h = model.hotstring(id);
-    const expanded = h ? expandTyping(previous, current, h) : null;
+    // A sensitive hotstring expands to dots here unless its text is shown: the field isn't hidden.
+    const expanded = h ? expandTyping(previous, current, {...h, replacement: shownText(model, h, revealed)}) : null;
     previous = current;
     if (expanded === null) return;
     quietTry = true;
@@ -277,7 +336,9 @@ function pushHotstringEditor(ctx, id) {
     location.update();
     chipHolder.get_first_child() && chipHolder.remove(chipHolder.get_first_child());
     chipHolder.append(triggerChip(h.trigger || 'trigger'));
-    replacementLabel.set_label(h.replacement ? truncate(singleLine(h.replacement), 60) : 'Replacement');
+    const isSensitive = hotstringSecret(h) !== null;
+    const shown = shownText(model, h, revealed);
+    replacementLabel.set_label(shown ? truncate(singleLine(shown), 60) : 'Replacement');
     stateHolder.get_first_child() && stateHolder.remove(stateHolder.get_first_child());
     stateHolder.append(pill(hotstringState(model, h)));
     quietSwitch = true;
@@ -295,8 +356,28 @@ function pushHotstringEditor(ctx, id) {
     fire.set(h.fire);
     caseRow.set(h.caseSensitive !== false);
     word.set(h.wordBoundary === true);
-    replacement.set(h.replacement);
-    count.set_label(`${[...(h.replacement ?? '')].length} characters`);
+    sensitive.set(isSensitive);
+    const missingText = model.isMissingSecret(id);
+    replacement.widget.set_visible(!isSensitive);
+    masked.set_visible(isSensitive && !missingText);
+    secretText.widget.set_visible(isSensitive && !missingText && revealed);
+    missing.set_visible(missingText);
+    method.row.set_visible(!isSensitive);
+    typed.set_visible(isSensitive);
+    if (isSensitive) {
+      applyKey(masked);
+      applyKey(secretText.widget);
+      applyKey(missing);
+      setTitle(masked, revealed ? 'Shown below until you leave this page' : MASK);
+      eye.set_icon_name(revealed ? 'view-conceal-symbolic' : 'view-reveal-symbolic');
+      eye.set_tooltip_text(revealed ? 'Hide' : 'Show');
+      secretText.set(revealed ? model.hotstringText(id) ?? '' : '');
+    } else {
+      replacement.set(typeof h.replacement === 'string' ? h.replacement : '');
+    }
+    // Never a hidden text's length.
+    count.set_label(isSensitive && !revealed ? '' : `${[...shown].length} characters`);
+    setSubtitle(replacementGroup, isSensitive ? 'Typed exactly as written: no placeholders.' : PLACEHOLDERS);
     method.set(h.method ?? 'auto');
     setSubtitle(method.row, METHOD_HINTS[h.method ?? 'auto'] ?? '');
     notes.set(h.notes ?? '');
@@ -391,15 +472,20 @@ export function createHotstringsPane(ctx) {
     rows = [];
     const all = model.configuration.hotstrings;
     countLabel.set_label(String(all.length));
-    const visible = all.filter(h => !query || [h.trigger, h.replacement, h.notes].some(f => (f ?? '').toLowerCase().includes(query)));
+    // A sensitive hotstring's text is never searched: typing part of it finds nothing.
+    const searched = h => [h.trigger, typeof h.replacement === 'string' ? h.replacement : '', h.notes];
+    const visible = all.filter(h => !query || searched(h).some(f => (f ?? '').toLowerCase().includes(query)));
     for (const h of visible) {
       const issues = model.issuesFor(target.hotstring(h.id));
       const issue = issues.find(i => i.severity === 'error') ?? issues.find(i => i.severity === 'warning');
       const caption = issue?.message ?? [gnomeScopeNote(h)?.caption ?? null, h.notes?.split('\n')[0] ?? null].filter(Boolean).join(' · ');
+      const text = shownText(model, h);
       const row = new Adw.ActionRow({
         use_markup: false,
-        title: h.replacement ? truncate(singleLine(h.replacement), 80) : 'Nothing yet', subtitle: caption, activatable: true,
+        title: text ? truncate(singleLine(text), 80) : 'Nothing yet', subtitle: caption, activatable: true,
       });
+      // `;pw → ••••••••` with a lock: a sensitive hotstring's text never shows in the list.
+      if (hotstringSecret(h) !== null) row.add_suffix(icon('changes-prevent-symbolic'));
       row.set_title_lines(1);
       row.set_subtitle_lines(1);
       row.add_prefix(triggerChip(h.trigger || 'new'));

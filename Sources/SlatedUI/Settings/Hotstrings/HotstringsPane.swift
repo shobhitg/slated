@@ -81,7 +81,7 @@ private struct MasterSwitch: View {
         .controlSize(.small)
         .configKeyMenu(ConfigKeys.hotstringsEnabled)
       }
-      if model.showsConfigKeys { ConfigKeyCaption(key: ConfigKeys.hotstringsEnabled) }
+      if model.showsConfigKeys { ConfigKeyCaption(key: ConfigKeys.hotstringsEnabled, alignment: .trailing) }
     }
     .help("Turn all text expansion on or off. Each hotstring keeps its own setting.")
     .configKeyMenu(ConfigKeys.hotstringsEnabled)
@@ -159,10 +159,14 @@ private struct HotstringRow: View {
           .opacity(hotstring.trigger.isEmpty ? 0.5 : 1)
           .layoutPriority(1)
         Image(systemName: "arrow.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
-        Text(hotstring.replacement.isEmpty ? "Nothing yet" : ActionDescriber.singleLine(hotstring.replacement))
-          .font(.system(size: 12.5))
-          .foregroundStyle(hotstring.replacement.isEmpty ? .tertiary : .primary)
-          .lineLimit(1)
+        if hotstring.isSensitive {
+          MaskedLine(fontSize: 12)
+        } else {
+          Text(hotstring.replacement.isEmpty ? "Nothing yet" : ActionDescriber.singleLine(hotstring.replacement))
+            .font(.system(size: 12.5))
+            .foregroundStyle(hotstring.replacement.isEmpty ? .tertiary : .primary)
+            .lineLimit(1)
+        }
         Spacer(minLength: 4)
         if !hotstring.enabled {
           Text("Off").font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)

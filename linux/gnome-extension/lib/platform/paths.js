@@ -3,6 +3,7 @@
 //   ~/.config/slated/config.json          what your keys do (shared with the settings window and the Mac)
 //   ~/.config/slated/settings.json        how Slated behaves (likewise)
 //   ~/.config/slated/config.v1.json       the version 1 config.json the move to two files keeps
+//   ~/.config/slated/secrets.json         sensitive hotstrings' text (mode 0600), once a hotstring is sensitive
 //   ~/.local/state/slated/slated.log      the event log (JSON Lines)
 //   ~/.local/state/slated/status.json     live status for the preferences app
 //   ~/.local/state/slated/snapshots.json  saved window snapshots
@@ -49,6 +50,11 @@ export function settingsPath() {
 
 export function backupPath() {
   return `${configDir()}/config.v1.json`;
+}
+
+/** Sensitive hotstrings' text, beside config.json, readable only by you. */
+export function secretsPath() {
+  return `${configDir()}/secrets.json`;
 }
 
 /** What the move to two files imported (the settings window tells you once from it). */

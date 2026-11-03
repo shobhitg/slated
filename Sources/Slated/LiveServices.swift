@@ -157,6 +157,16 @@ class LiveServices: AppServices {
 
   func togglePinClipboardItem(id: UUID) { engine.clipboard.togglePin(id: id) }
 
+  func hideClipboardItem(id: UUID) {
+    Log.record("ui.clipboard_hide")
+    engine.clipboard.hide(id: id)
+  }
+
+  func unhideClipboardItem(id: UUID) {
+    Log.record("ui.clipboard_unhide")
+    engine.clipboard.unhide(id: id)
+  }
+
   func clearClipboardHistory() {
     Log.record("ui.clipboard_clear")
     engine.clipboard.clear()

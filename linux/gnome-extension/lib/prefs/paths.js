@@ -2,8 +2,9 @@
 // preferences window that's GLib.get_home_dir() and GLib.getenv()).
 //
 // - config: $XDG_CONFIG_HOME/slated/ (default ~/.config/slated/) with config.json (what your keys do)
-//   and settings.json (how Slated behaves), the same files the macOS app uses, and config.v1.json,
-//   the copy of a version 1 config.json the move to two files keeps;
+//   and settings.json (how Slated behaves), the same files the macOS app uses, secrets.json
+//   (sensitive hotstrings' text, mode 0600), and config.v1.json, the copy of a version 1 config.json
+//   the move to two files keeps;
 // - state:  $XDG_STATE_HOME/slated/ (default ~/.local/state/slated/) with status.json, written by
 //   the extension, slated.log, the event log (JSON Lines, same events as on macOS), and
 //   clipboard.json, the clipboard history (mode 0600; only the extension reads and writes it),
@@ -35,6 +36,7 @@ export function slatedPaths(home, getenv = () => null) {
     configDir,
     configFile,
     settingsFile: `${configDir}/settings.json`,
+    secretsFile: `${configDir}/secrets.json`,
     backupFile: `${configDir}/config.v1.json`,
     migrationFile: `${stateHome}/slated/config-migration.json`,
     stateDir: `${stateHome}/slated`,

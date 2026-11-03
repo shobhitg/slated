@@ -101,7 +101,7 @@ function makeHome() {
   const settingsJSON = {
     version: 2,
     // Hand-edited values the Clipboard and Automation pages offer as their own choices and keep.
-    clipboard: {maxItems: 42, shortcut: null},
+    clipboard: {maxItems: 42, shortcut: null, excludedApps: ['com.apple.keychainaccess']},
     automation: {showIndicator: false},
     // The island, off, with the Long delay: General shows it, and saving other pages keeps it.
     island: {enabled: false, cheatSheetDelay: 0.8},
@@ -1077,6 +1077,91 @@ async function run(mode) {
     pop('hotstrings');
   });
 
+  await step('Hotstrings: Sensitive moves the text to secrets.json (0600), masked with an eye; Try It and the list stay masked', async () => {
+    settings.showPane('hotstrings');
+    settings.navigate('hotstrings', {newHotstring: true});
+    let page = visible('hotstrings');
+    titled(page, 'Adw.EntryRow', 'Trigger')[0].set_text(';pw');
+    const id = model.configuration.hotstrings.at(-1).id;
+    model.setHotstring(id, h => {
+      h.replacement = 'hunter2-secret';
+    });
+    const switchRow = titled(page, 'Adw.SwitchRow', 'Sensitive')[0];
+    check(/secrets\.json, which only you can read/.test(plain(prop(world, switchRow, 'subtitle'))), 'says where the text goes');
+    switchRow.set_active(true);
+    await settle();
+    const secretsFile = path.join(files.home, '.config/slated/secrets.json');
+    check(fs.existsSync(secretsFile) && (fs.statSync(secretsFile).mode & 0o777) === 0o600, 'secrets.json, readable only by you');
+    check(JSON.parse(fs.readFileSync(secretsFile, 'utf8')).secrets.pw === 'hunter2-secret', 'the text is in secrets.json');
+    check(!fs.readFileSync(files.configFile, 'utf8').includes('hunter2-secret'), 'and not in config.json');
+    const masked = titled(page, 'Adw.ActionRow', '••••••••')[0];
+    check(masked && prop(world, masked, 'visible') !== false, 'masked: eight dots');
+    check(linksTo(prop(world, masked, 'subtitle'), 'secrets.json', 'secrets') && plain(prop(world, masked, 'subtitle')).includes('secrets.json › pw'),
+      `its key names secrets.json, a link: ${prop(world, masked, 'subtitle')}`);
+    const insertBy = titled(page, 'Adw.ComboRow', 'Insert by')[0];
+    check(prop(world, insertBy, 'visible') === false, 'no Insert by: always typed');
+    check(prop(world, titled(page, 'Adw.ActionRow', 'Always typed')[0], 'visible') !== false, 'and it says so');
+    const pageText = () => JSON.stringify(findAll(world, page, 'Gtk.Label').map(l => prop(world, l, 'label')));
+    check(!pageText().includes('hunter2-secret'), 'the text isn\'t shown anywhere on the page');
+    // Try It expands to dots while hidden.
+    const tryEntry = findAll(world, page, 'Gtk.Entry').find(e => !findAll(world, page, 'Adw.EntryRow').includes(e));
+    tryEntry.set_text(';p');
+    tryEntry.set_text(';pw');
+    check(tryEntry.get_text() === '••••••••', `Try It works, masked: ${tryEntry.get_text()}`);
+    // The eye shows it, in a field whose edits go to secrets.json.
+    const eye = findAll(world, masked, 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'Show')[0];
+    click(eye);
+    const views = findAll(world, page, 'Gtk.TextView').filter(v => world.stateOf(v).props.get('visible') !== false
+      && world.stateOf(world.stateOf(v).parent).props.get('visible') !== false);
+    const bufferText = v => world.stateOf(v.get_buffer()).props.get('text');
+    const shownView = views.find(v => bufferText(v) === 'hunter2-secret');
+    check(shownView, 'shown in a field');
+    shownView.get_buffer().set_text('changed-secret', -1);
+    await settle();
+    check(JSON.parse(fs.readFileSync(secretsFile, 'utf8')).secrets.pw === 'changed-secret', 'edits go to secrets.json');
+    // Copy Value on it copies the reference, never the text.
+    const clicks = world.stateOf(masked).controllers.filter(c => world.stateOf(c).cls === 'Gtk.GestureClick');
+    world.emit(clicks[0], 'pressed', 1, 10, 10);
+    const menu = world.stateOf(masked).expandos._slatedConfigKeyMenu;
+    const menuLabels = findAll(world, menu, 'Gtk.Label').map(l => prop(world, l, 'label'));
+    check(menuLabels.join() === 'Copy Key,Copy Value as JSON,Open config.json', `its menu is the replacement's: ${menuLabels}`);
+    click(findAll(world, menu, 'Gtk.Button').find(b => findAll(world, b, 'Gtk.Label').some(l => prop(world, l, 'label') === 'Copy Key')));
+    check(/^hotstrings\[\d+\]\.replacement$/.test(world.report.clipboard.at(-1)), `Copy Key copies the replacement's path: ${world.report.clipboard.at(-1)}`);
+    pop('hotstrings');
+    // The list: `;pw → ••••••••` with a lock, and search never finds the text.
+    const list = visible('hotstrings');
+    const row = rowsIn(list, (w, s) => s.props.get('title') === '••••••••')[0];
+    check(row, 'masked in the list');
+    check(findAll(world, row, 'Gtk.Image', (w, s) => s.props.get('icon-name') === 'changes-prevent-symbolic').length === 1, 'with a lock');
+    const search = findAll(world, list, 'Gtk.SearchEntry')[0];
+    search.set_text('changed');
+    world.emit(search, 'search-changed');
+    check(!rowsIn(visible('hotstrings'), (w, s) => s.props.get('title') === '••••••••').length, 'typing part of the text finds nothing');
+    search.set_text('');
+    world.emit(search, 'search-changed');
+    // Without its text on this computer: "Its text isn't on this computer yet", typed in a masked field.
+    fs.writeFileSync(secretsFile, '{"version": 1, "secrets": {}}');
+    world.touch(secretsFile);
+    await settle();
+    check(model.isMissingSecret(id), 'missing after a hand edit');
+    activate(rowsIn(visible('hotstrings'), (w, s) => s.props.get('title') === '••••••••')[0]);
+    page = visible('hotstrings');
+    const missing = findAll(world, page, 'Adw.PasswordEntryRow')[0];
+    check(missing && prop(world, missing, 'visible') !== false, 'asks for the text');
+    missing.set_text('typed again');
+    world.emit(missing, 'apply');
+    await settle();
+    check(JSON.parse(fs.readFileSync(secretsFile, 'utf8')).secrets.pw === 'typed again', 'and keeps it in secrets.json');
+    // Off: the text moves back to config.json.
+    titled(page, 'Adw.SwitchRow', 'Sensitive')[0].set_active(false);
+    await settle();
+    check(readFiles(files).hotstrings.find(h => h.id === id).replacement === 'typed again', 'back in config.json');
+    check(!('pw' in JSON.parse(fs.readFileSync(secretsFile, 'utf8')).secrets), 'and gone from secrets.json');
+    click(findAll(world, page, 'Gtk.Button', (w, s) => s.props.get('label') === 'Delete…')[0]);
+    world.emit(world.report.dialogs[world.report.dialogs.length - 1], 'response', 'accept');
+    await settle();
+  });
+
   await step('Layouts: new layout, app options, remove app, delete', async () => {
     settings.showPane('layouts');
     click(findAll(world, visible('layouts'), 'Gtk.Button', (w, s) => s.props.get('tooltip-text') === 'New Layout')[0]);
@@ -1247,9 +1332,25 @@ async function run(mode) {
     check(model.configuration.clipboard.screenshots === false, 'screenshots left out');
     titled(root, 'Adw.SwitchRow', 'Paste after picking')[0].set_active(false);
     check(model.configuration.clipboard.pasteAfterSelecting === false, 'only copies');
-    titled(root, 'Adw.SwitchRow', 'Ignore passwords and other secrets')[0].set_active(false);
-    check(model.configuration.clipboard.ignoreConcealed === false, 'records secrets (why would you)');
-    titled(root, 'Adw.SwitchRow', 'Ignore passwords and other secrets')[0].set_active(true);
+    const secretsRow = titled(root, 'Adw.ComboRow', 'Passwords and other secrets')[0];
+    check(world.stateOf(prop(world, secretsRow, 'model')).items.join('|') === "Keep Hidden|Don't Record", 'kept hidden, or not recorded');
+    check(model.configuration.clipboard.secrets === 'masked' && prop(world, secretsRow, 'selected') === 0, 'hidden by default');
+    const minutesRow = titled(root, 'Adw.ComboRow', 'Forget secrets after')[0];
+    const minuteLabels = world.stateOf(prop(world, minutesRow, 'model')).items;
+    check(minuteLabels.join('|') === '5 minutes|15 minutes|1 hour|4 hours|When Slated quits', `the Mac's choices: ${minuteLabels.join(', ')}`);
+    check(prop(world, minutesRow, 'selected') === 2, 'an hour by default');
+    minutesRow.set_selected(4);
+    check(model.configuration.clipboard.secretMinutes === 0, 'until Slated stops');
+    secretsRow.set_selected(1);
+    check(model.configuration.clipboard.secrets === 'skip', "don't record secrets");
+    check(prop(world, minutesRow, 'sensitive') === false, 'how long matters only while secrets are kept');
+    secretsRow.set_selected(0);
+    check(prop(world, minutesRow, 'sensitive') !== false, 'kept again');
+    const patterns = titled(root, 'Adw.SwitchRow', 'Spot secrets by how they look')[0];
+    check(prop(world, patterns, 'active') === true, 'their look counts by default');
+    patterns.set_active(false);
+    check(model.configuration.clipboard.secretPatterns === false, 'only what apps say');
+    patterns.set_active(true);
     const shortcutRow = titled(root, 'Adw.ActionRow', 'Open the switcher')[0];
     click(buttons(shortcutRow, 'Default')[0]);
     check(model.configuration.clipboard.shortcut === 'shift+cmd+v', 'the default shortcut again');

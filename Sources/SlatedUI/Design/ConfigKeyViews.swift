@@ -13,6 +13,8 @@ struct ConfigKeyCaption: View {
   let text: String
   /// The file the key is in; nil for a field's key, which is relative to its item (`trigger`).
   var file: ConfigFile?
+  /// How a whole key lines up when it takes two lines (a header's caption sits under its control).
+  var alignment: HorizontalAlignment = .leading
 
   /// A field's key, relative to its item.
   init(text: String) {
@@ -20,9 +22,10 @@ struct ConfigKeyCaption: View {
   }
 
   /// A whole key: `settings.json › island.enabled`, its file's name a link.
-  init(key: ConfigKey) {
+  init(key: ConfigKey, alignment: HorizontalAlignment = .leading) {
     text = key.display
     file = key.file
+    self.alignment = alignment
   }
 
   /// The caption's parts: the file its start links to (nil when it names none) and the text after it.
@@ -31,21 +34,47 @@ struct ConfigKeyCaption: View {
     return (FileLink(file), String(text.dropFirst(file.rawValue.count)))
   }
 
+  private var label: String { "Config key: \(text)" }
+
   var body: some View {
     let parts = Self.parts(of: text, file: file)
-    HStack(alignment: .firstTextBaseline, spacing: 0) {
+    Group {
       if let link = parts.link {
-        FileNameLink(link: link)
-          .fixedSize()
-          .layoutPriority(1)
+        // One line when it fits; otherwise the file on the first line and the key under it, rather than
+        // a key cut in the middle. Only a key too long for any room is truncated.
+        ViewThatFits(in: .horizontal) {
+          HStack(alignment: .firstTextBaseline, spacing: 0) {
+            FileNameLink(link: link).fixedSize()
+            Text(verbatim: parts.rest).fixedSize().accessibilityLabel(label)
+          }
+          VStack(alignment: alignment, spacing: 1) {
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+              FileNameLink(link: link).fixedSize()
+              Text(verbatim: " ›").fixedSize().accessibilityHidden(true)
+            }
+            Text(verbatim: Self.keyAfterFile(parts.rest)).fixedSize().accessibilityLabel(label)
+          }
+          HStack(alignment: .firstTextBaseline, spacing: 0) {
+            FileNameLink(link: link).fixedSize().layoutPriority(1)
+            Text(verbatim: parts.rest).lineLimit(1).truncationMode(.middle).accessibilityLabel(label)
+          }
+        }
+      } else {
+        Text(verbatim: parts.rest)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .accessibilityLabel(label)
       }
-      Text(verbatim: parts.rest)
-        .lineLimit(1)
-        .truncationMode(.middle)
-        .accessibilityLabel("Config key: \(text)")
     }
     .font(.system(size: 10.5, design: .monospaced))
     .foregroundStyle(.secondary)
+  }
+
+  /// The key without the separator after the file name: ` › island.enabled` → `island.enabled`.
+  static func keyAfterFile(_ rest: String) -> String {
+    var key = Substring(rest)
+    while let first = key.first, first == " " || first == "›" { key = key.dropFirst() }
+    return String(key)
   }
 }
 
@@ -117,7 +146,8 @@ private struct ConfigKeyMenu: ViewModifier {
         .contentShape(Rectangle())
         .contextMenu {
           Button("Copy Key") { model.copyConfigKey(key) }
-          Button("Copy Value as JSON") { model.copyConfigValue(key) }
+          // Never a secret's text.
+          if key.file != .secrets { Button("Copy Value as JSON") { model.copyConfigValue(key) } }
           Divider()
           Button("Open \(key.file.rawValue)") { model.openConfigFile(key.file) }
         }

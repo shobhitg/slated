@@ -227,6 +227,12 @@ enum ClipboardContent {
     "com.apple.Passwords": "Passwords",
     "com.lastpass.LastPass": "LastPass",
     "com.dashlane.dashlanephonefinal": "Dashlane",
+    "org.keepassxc.keepassxc": "KeePassXC",
+    "me.proton.pass.electron": "Proton Pass",
+    "in.sinew.Enpass-Desktop": "Enpass",
+    "com.nordsec.nordpass": "NordPass",
+    "com.markmcguill.strongbox.mac": "Strongbox",
+    "com.hicknhacksoftware.MacPass": "MacPass",
   ]
 }
 
@@ -242,6 +248,28 @@ enum ClipboardOptions {
     case 1: return "1 day"
     case 7: return "1 week"
     default: return "\(days) days"
+    }
+  }
+
+  /// How long secrets stay (minutes; 0 until Slated quits).
+  static let secretMinutes = [5, 15, 60, 240, 0]
+
+  static func secretMinutesTitle(_ minutes: Int) -> String {
+    switch minutes {
+    case ...0: return "When Slated quits"
+    case 60: return "1 hour"
+    case let m where m % 60 == 0: return "\(m / 60) hours"
+    default: return "\(minutes) minutes"
+    }
+  }
+
+  /// Why an item is hidden, for its row.
+  static func secretReason(_ reason: ClipboardSecretReason) -> String {
+    switch reason {
+    case .marked: return "Marked secret by its app"
+    case .app: return "From a password manager"
+    case .pattern: return "Looks like a password or key"
+    case .manual: return "Hidden by you"
     }
   }
 }

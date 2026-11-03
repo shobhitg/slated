@@ -11,6 +11,8 @@ final class ClipboardPickerPanel: NSPanel {
   private let model: ClipboardPickerModel
   /// The row a click went down on: the click pastes it if it comes up on the same row.
   private var pressedRow: UUID?
+  /// A click went down on an eye button: its mouse-up does nothing else.
+  private var pressedEye = false
 
   init(model: ClipboardPickerModel) {
     self.model = model
@@ -19,6 +21,8 @@ final class ClipboardPickerPanel: NSPanel {
       styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
     becomesKeyOnlyIfNeeded = false
     acceptsMouseMovedEvents = true
+    // Kept out of screen sharing and screenshots: it can show anything you copied.
+    sharingType = .none
     contentView = NSHostingView(rootView: ClipboardPickerView(model: model))
   }
 
@@ -29,10 +33,24 @@ final class ClipboardPickerPanel: NSPanel {
     switch event.type {
     case .keyDown:
       if handleKey(event) { return }
+    case .flagsChanged:
+      // Holding ⌥ shows the selected secret.
+      let held = event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.option)
+      if held != model.optionHeld { model.optionHeld = held }
     case .leftMouseDown:
+      // The eye button shows or hides a secret; the rest of the row pastes it.
+      if let eye = eye(under: event) {
+        pressedEye = true
+        model.toggleReveal(eye)
+        return
+      }
       pressedRow = row(under: event)
       if pressedRow != nil { return }
     case .leftMouseUp:
+      if pressedEye {
+        pressedEye = false
+        return
+      }
       let pressed = pressedRow
       pressedRow = nil
       if let pressed {
@@ -68,8 +86,18 @@ final class ClipboardPickerPanel: NSPanel {
 
   /// The row under a mouse event, in the list's visible part.
   private func row(under event: NSEvent) -> UUID? {
+    point(of: event).flatMap(model.row(at:))
+  }
+
+  /// The secret whose eye button is under a mouse event.
+  private func eye(under event: NSEvent) -> UUID? {
+    point(of: event).flatMap(model.eye(at:))
+  }
+
+  /// Where a mouse event is in the picker, top-left origin.
+  private func point(of event: NSEvent) -> CGPoint? {
     guard let host = contentView else { return nil }
     let point = host.convert(event.locationInWindow, from: nil)
-    return model.row(at: host.isFlipped ? point : CGPoint(x: point.x, y: host.bounds.height - point.y))
+    return host.isFlipped ? point : CGPoint(x: point.x, y: host.bounds.height - point.y)
   }
 }

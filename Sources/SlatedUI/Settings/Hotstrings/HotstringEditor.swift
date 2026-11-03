@@ -7,6 +7,8 @@ struct HotstringEditor: View {
   @Binding var hotstring: Hotstring
   @Environment(AppModel.self) private var model
   @State private var confirmDelete = false
+  /// A sensitive hotstring's text is shown (the eye): until the editor closes or the switch changes.
+  @State private var revealed = false
 
   var body: some View {
     ScrollView {
@@ -16,7 +18,7 @@ struct HotstringEditor: View {
         replacementCard
         appsCard
         SettingsCard(title: "Try It", symbol: "sparkles") {
-          TryItField(hotstring: hotstring)
+          TryItField(hotstring: tryItHotstring)
             .padding(16)
         }
         SettingsCard(title: "Notes", symbol: "note.text") {
@@ -46,10 +48,14 @@ struct HotstringEditor: View {
           TriggerChip(trigger: hotstring.trigger.isEmpty ? "trigger" : hotstring.trigger, size: 15)
             .opacity(hotstring.trigger.isEmpty ? 0.5 : 1)
           Image(systemName: "arrow.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.tertiary)
-          Text(hotstring.replacement.isEmpty ? "Replacement" : ActionDescriber.singleLine(hotstring.replacement))
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(hotstring.replacement.isEmpty ? .tertiary : .primary)
-            .lineLimit(1)
+          if hotstring.isSensitive {
+            MaskedLine(fontSize: 16)
+          } else {
+            Text(hotstring.replacement.isEmpty ? "Replacement" : ActionDescriber.singleLine(hotstring.replacement))
+              .font(.system(size: 17, weight: .semibold))
+              .foregroundStyle(hotstring.replacement.isEmpty ? .tertiary : .primary)
+              .lineLimit(1)
+          }
         }
         let pill = state
         StatusPill(text: pill.text, color: pill.color, symbol: pill.symbol)
@@ -77,6 +83,7 @@ struct HotstringEditor: View {
   private var state: (text: String, color: Color, symbol: String?) {
     switch model.state(for: hotstring) {
     case .notSaved: return ("Not saved", Theme.critical, "exclamationmark.circle.fill")
+    case .missingText: return ("Needs its text", Theme.caution, "exclamationmark.triangle.fill")
     case .off: return ("Off", Theme.neutral, nil)
     case .expansionOff: return ("Expansion is off", Theme.neutral, nil)
     case .paused: return ("Paused", Theme.neutral, "pause.fill")
@@ -142,25 +149,64 @@ struct HotstringEditor: View {
   private var replacementCard: some View {
     SettingsCard(title: "Replacement", symbol: "text.alignleft") {
       VStack(alignment: .leading, spacing: 12) {
-        TextEditor(text: $hotstring.replacement)
-          .font(.system(size: 13))
-          .scrollContentBackground(.hidden)
-          .frame(minHeight: 84, maxHeight: 180)
-          .padding(8)
-          .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-          .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.wellStroke))
-          .configField(ConfigKeys.Hotstring.replacement)
-        HStack {
-          Text("\(hotstring.replacement.count) characters")
-            .font(.system(size: 11).monospacedDigit())
-            .foregroundStyle(.tertiary)
-          Spacer()
+        if hotstring.isSensitive {
+          SensitiveReplacement(hotstring: hotstring, revealed: $revealed)
+        } else {
+          TextEditor(text: $hotstring.replacement)
+            .font(.system(size: 13))
+            .scrollContentBackground(.hidden)
+            .frame(minHeight: 84, maxHeight: 180)
+            .padding(8)
+            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.wellStroke))
+            .configField(ConfigKeys.Hotstring.replacement)
+          HStack {
+            Text("\(hotstring.replacement.count) characters")
+              .font(.system(size: 11).monospacedDigit())
+              .foregroundStyle(.tertiary)
+            Spacer()
+          }
         }
-        LabeledField("Insert by", labelWidth: 60, key: ConfigKeys.Hotstring.method) {
-          InsertMethodPicker(method: $hotstring.method)
+        sensitiveSwitch
+        if hotstring.isSensitive {
+          Hint(
+            "Always typed, never pasted, so its text never goes through the clipboard. Placeholders like {date} are typed as they are."
+          )
+        } else {
+          LabeledField("Insert by", labelWidth: 60, key: ConfigKeys.Hotstring.method) {
+            InsertMethodPicker(method: $hotstring.method)
+          }
         }
       }
       .padding(16)
+    }
+  }
+
+  /// Moves the text into secrets.json (only you can read it) and masks it here, or back.
+  private var sensitiveSwitch: some View {
+    HStack(alignment: .top, spacing: 10) {
+      VStack(alignment: .leading, spacing: 2) {
+        Label("Sensitive", systemImage: "lock.fill")
+          .font(.system(size: 12.5, weight: .medium))
+        LinkedText("Its text moves to secrets.json, which only you can read, and stays hidden here.")
+          .font(.system(size: 11.5))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer(minLength: 8)
+      Toggle(
+        "Sensitive",
+        isOn: Binding(
+          get: { hotstring.isSensitive },
+          set: { on in
+            revealed = false
+            model.setSensitive(on, hotstring: hotstring.id)
+          })
+      )
+      .labelsHidden()
+      .toggleStyle(.switch)
+      .controlSize(.small)
+      .configFieldMenu(ConfigKeys.Hotstring.replacement)
     }
   }
 
@@ -221,8 +267,109 @@ struct HotstringEditor: View {
     }
   }
 
+  /// What Try It expands to: a sensitive hotstring's text only while it's shown, else dots.
+  private var tryItHotstring: Hotstring {
+    guard hotstring.isSensitive else { return hotstring }
+    var shown = hotstring
+    shown.replacement = revealed ? model.secretText(of: hotstring.id) ?? "" : ClipboardItem.mask
+    return shown
+  }
+
   private var notesBinding: Binding<String> {
     Binding(get: { hotstring.notes ?? "" }, set: { hotstring.notes = $0.isEmpty ? nil : $0 })
+  }
+}
+
+/// A sensitive hotstring's text: dots, with an eye to show and edit it (edits go to secrets.json), its
+/// key there, and a field to type it when it isn't on this computer. The field's menu is the
+/// replacement's in config.json: Copy Value copies the reference, never the text.
+private struct SensitiveReplacement: View {
+  let hotstring: Hotstring
+  @Binding var revealed: Bool
+  @Environment(AppModel.self) private var model
+  @State private var entry = ""
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if let text = model.secretText(of: hotstring.id) {
+        if revealed {
+          TextEditor(
+            text: Binding(
+              get: { model.secretText(of: hotstring.id) ?? "" },
+              set: { model.setSecretText($0, hotstring: hotstring.id) })
+          )
+          .font(.system(size: 13))
+          .scrollContentBackground(.hidden)
+          .frame(minHeight: 84, maxHeight: 180)
+          .padding(8)
+          .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+          .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.wellStroke))
+          .configFieldMenu(ConfigKeys.Hotstring.replacement)
+        } else {
+          HStack {
+            MaskedLine(fontSize: 14)
+            Spacer()
+          }
+          .padding(.horizontal, 12)
+          .frame(height: 38)
+          .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+          .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.wellStroke))
+          .contentShape(Rectangle())
+          .configFieldMenu(ConfigKeys.Hotstring.replacement)
+        }
+        HStack(spacing: 8) {
+          caption
+          Spacer(minLength: 8)
+          // Its length only while it's shown.
+          if revealed {
+            Text("\(text.count) characters")
+              .font(.system(size: 11).monospacedDigit())
+              .foregroundStyle(.tertiary)
+          }
+          Button {
+            revealed.toggle()
+          } label: {
+            Label(revealed ? "Hide" : "Show", systemImage: revealed ? "eye.slash" : "eye")
+              .font(.system(size: 11.5))
+          }
+          .buttonStyle(.borderless)
+          .help(revealed ? "Hide the text again" : "Show the text to read or edit it")
+        }
+      } else {
+        Label("Its text isn't on this computer yet", systemImage: "exclamationmark.triangle.fill")
+          .font(.system(size: 12.5, weight: .medium))
+          .foregroundStyle(Theme.caution)
+        LinkedText(
+          "It's in secrets.json on the computer where you made it sensitive. Type it here and it's kept in this computer's secrets.json; until then it doesn't expand."
+        )
+        .font(.system(size: 11.5))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: 8) {
+          SecureField("Its text", text: $entry)
+            .textFieldStyle(.roundedBorder)
+            .onSubmit(save)
+            .configFieldMenu(ConfigKeys.Hotstring.replacement)
+          Button("Save", action: save)
+            .disabled(entry.isEmpty)
+        }
+        caption
+      }
+    }
+  }
+
+  /// Where the text is: `secrets.json › pw`, the file's name a link.
+  @ViewBuilder private var caption: some View {
+    if let name = hotstring.secret, model.showsConfigKeys {
+      ConfigKeyCaption(key: ConfigKeys.secret(named: name))
+        .configFieldMenu(ConfigKeys.Hotstring.replacement)
+    }
+  }
+
+  private func save() {
+    guard !entry.isEmpty else { return }
+    model.setSecretText(entry, hotstring: hotstring.id)
+    entry = ""
   }
 }
 

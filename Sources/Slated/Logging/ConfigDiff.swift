@@ -27,8 +27,12 @@ enum ConfigDiff {
       let c = new.clipboard
       changes.append(
         "clipboard: enabled \(c.enabled), shortcut \(c.shortcut?.string ?? "none"), maxItems \(c.maxItems), "
-          + "persist \(c.persist), retentionDays \(c.retentionDays), excludedApps \(c.excludedApps.count)")
+          + "persist \(c.persist), retentionDays \(c.retentionDays), secrets \(c.secrets.rawValue), "
+          + "secretMinutes \(c.secretMinutes), secretPatterns \(c.secretPatterns), excludedApps \(c.excludedApps.count)"
+      )
     }
+    // secrets.json: how many, never a name or a text.
+    if old.secrets != new.secrets { changes.append("secrets: \(new.secrets.count)") }
     if old.automation != new.automation {
       let a = new.automation
       changes.append(

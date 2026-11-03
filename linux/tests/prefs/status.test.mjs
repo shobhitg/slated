@@ -43,18 +43,18 @@ export default suite('Status and placement', [
     expectEqual(hotkeyCounts(s), {active: 1, failed: 1, duplicate: 1, disabled: 1, unknown: 0});
     // Fields an older extension doesn't write yet come back empty.
     expectEqual(s.automation, {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'});
-    expectEqual(s.clipboard, {enabled: false, items: 0});
+    expectEqual(s.clipboard, {enabled: false, items: 0, secrets: 0});
     expectEqual(s.recentApps, []);
   }],
   ['parses automation, the clipboard and recent apps', () => {
     const s = parseStatus(JSON.stringify({
       ...JSON.parse(EXAMPLE),
       automation: {running: ['Repeat click left every 100 ms', 7], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'toggle'},
-      clipboard: {enabled: true, items: 12.4},
+      clipboard: {enabled: true, items: 12.4, secrets: 2},
       recentApps: [{id: 'steam_app_1', name: 'steam_app_1'}, {id: 'firefox'}, {name: 'no id'}, 'nonsense'],
     }));
     expectEqual(s.automation, {running: ['Repeat click left every 100 ms'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'toggle'});
-    expectEqual(s.clipboard, {enabled: true, items: 12});
+    expectEqual(s.clipboard, {enabled: true, items: 12, secrets: 2}, 'how many are hidden, a count');
     expectEqual(s.recentApps, [{id: 'steam_app_1', name: 'steam_app_1'}, {id: 'firefox', name: 'firefox'}]);
   }],
   ['a saved binding is up to date whatever order its fields are in', () => {

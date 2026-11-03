@@ -78,6 +78,17 @@ public enum SlatedUI {
     ClipboardImagePreview(model: model)
   }
 
+  /// The preview in its panel: borderless, never key, ignoring the mouse, and like the picker's panel
+  /// kept out of screen sharing and screenshots.
+  public static func makeClipboardPreviewPanel(model: ClipboardPickerModel) -> NSPanel {
+    let panel = NSPanel(
+      contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    panel.contentView = NSHostingView(rootView: ClipboardImagePreview(model: model))
+    panel.ignoresMouseEvents = true
+    panel.sharingType = .none
+    return panel
+  }
+
   /// The preview panel's size for the picker's selected item; nil when there's nothing to preview.
   public static func clipboardImagePreviewSize(model: ClipboardPickerModel) -> CGSize? {
     model.previewItem.flatMap(ClipboardImagePreview.size(for:))

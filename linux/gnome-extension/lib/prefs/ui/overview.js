@@ -81,6 +81,7 @@ export function summaryActions(ctx, parent) {
     relogin: {label: 'Log Out…', run: () => ctx.logout()},
     log: {label: 'Open the Log', run: () => launchFile(ctx.paths.logFile, parent, {onError: e => ctx.toast(e.message)})},
     review: {label: 'Review Shortcuts', run: () => ctx.navigate('windows')},
+    hotstrings: {label: 'Review Hotstrings', run: () => ctx.navigate('hotstrings')},
   };
 }
 
@@ -265,7 +266,8 @@ export function createOverviewPane(ctx) {
         suffix: keycaps(chain.keys, {modal: chain.modal})});
     }
     // Not one limited to some apps: those are Mac only (espanso can't tell apps apart on GNOME).
-    const hs = config.hotstrings.find(h => h.enabled !== false && h.trigger && !h.onlyInApps?.length);
+    // Never a sensitive one: its text stays hidden.
+    const hs = config.hotstrings.find(h => h.enabled !== false && h.trigger && !h.onlyInApps?.length && typeof h.replacement === 'string');
     if (hs) tips.push({title: 'Expand text', detail: `Type ${hs.trigger} anywhere to get “${truncate(singleLine(hs.replacement), 24)}”.`, suffix: triggerChip(hs.trigger)});
     if (!tips.length && hyperOn) tips.push({title: 'Hold Caps Lock', detail: "It's your Hyper key now: hold it and press a letter for a ✦ shortcut.", suffix: keycaps('hyper+a')});
     tipRows = rebuildList(tipsGroup, tipRows, running ? tips.slice(0, 3) : []);

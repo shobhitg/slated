@@ -185,7 +185,10 @@ export class SlatedRuntime {
 
     this._step('config', () => {
       this._store = new ConfigStore({
-        paths: {config: Paths.configPath(), settings: Paths.settingsPath(), backup: Paths.backupPath(), record: Paths.migrationRecordPath()},
+        paths: {
+          config: Paths.configPath(), settings: Paths.settingsPath(), backup: Paths.backupPath(), record: Paths.migrationRecordPath(),
+          secrets: Paths.secretsPath(),
+        },
         home: this._home,
         log: this._log,
         timers: this._timers,
@@ -504,7 +507,8 @@ export class SlatedRuntime {
     this._step('hotstrings', () => {
       // Paused: espanso's match file goes, so nothing expands.
       const live = this.paused ? {...config, general: {...config.general, hotstringsEnabled: false}} : config;
-      if (this._espanso) this._hotstrings = this._espanso.apply(live);
+      // Sensitive hotstrings' text comes from secrets.json, which espanso needs to expand them.
+      if (this._espanso) this._hotstrings = this._espanso.apply(live, {secrets: this._store?.secrets ?? {}});
     });
 
     this._step('island', () => this._watchHyper(config, island));
@@ -945,7 +949,7 @@ export class SlatedRuntime {
         stopShortcut: config.automation?.stopShortcut ?? null,
         whileHeld: this._whileHeldMode,
       },
-      clipboard: {enabled: config.clipboard?.enabled !== false, items: this._clipboard?.count ?? 0},
+      clipboard: {enabled: config.clipboard?.enabled !== false, items: this._clipboard?.count ?? 0, secrets: this._clipboard?.secretCount ?? 0},
       recentApps: this._recentApps,
       lastAction: this._lastAction,
       lastError: this._lastError,

@@ -441,15 +441,23 @@ function defaultKeyboard() {
   return {capsLock: 'off', capsLockAlone: 'nothing', hyperModifiers: ['ctrl', 'alt', 'shift', 'cmd']};
 }
 
-const DEFAULT_EXCLUDED_APPS = [
+/** None: password managers' copies are kept, masked, like every secret. */
+const DEFAULT_EXCLUDED_APPS = [];
+
+/**
+ * What `excludedApps` was by default while secrets were skipped (`ignoreConcealed`): password managers. A
+ * file from then has them taken out, so their copies are kept, masked (Swift's legacyExcludedApps).
+ */
+export const LEGACY_EXCLUDED_APPS = Object.freeze([
   'com.1password.1password', 'com.agilebits.onepassword7', 'com.bitwarden.desktop', 'com.apple.keychainaccess',
   'com.apple.Passwords', 'com.lastpass.LastPass', 'com.dashlane.dashlanephonefinal',
-];
+]);
 
-function defaultClipboard() {
+export function defaultClipboard() {
   return {
-    enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
-    excludedApps: [...DEFAULT_EXCLUDED_APPS], pasteAfterSelecting: true, screenshots: true,
+    enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, secrets: 'masked',
+    secretMinutes: 60, secretPatterns: true, excludedApps: [...DEFAULT_EXCLUDED_APPS], pasteAfterSelecting: true,
+    screenshots: true,
   };
 }
 
@@ -468,6 +476,12 @@ function optionalShortcut(c, key, fallback) {
   return v === null ? null : keyCombo(v, c.at(key));
 }
 
+/** A file from before secrets were kept (`ignoreConcealed`, no `secrets`): the old default exclusions go. */
+function legacyExclusions(c, excludedApps) {
+  if (c.raw('ignoreConcealed') === undefined || c.raw('secrets') !== undefined) return excludedApps;
+  return excludedApps.filter((id) => !LEGACY_EXCLUDED_APPS.includes(id));
+}
+
 function clipboard(v, path) {
   const c = new Keyed(v, path);
   const d = defaultClipboard();
@@ -477,8 +491,10 @@ function clipboard(v, path) {
     maxItems: c.optional('maxItems', int) ?? d.maxItems,
     persist: c.optional('persist', bool) ?? d.persist,
     retentionDays: c.optional('retentionDays', int) ?? d.retentionDays,
-    ignoreConcealed: c.optional('ignoreConcealed', bool) ?? d.ignoreConcealed,
-    excludedApps: c.optional('excludedApps', arrayOf(str)) ?? d.excludedApps,
+    secrets: c.optional('secrets', enumOf(['masked', 'skip'], 'ClipboardSecretHandling')) ?? d.secrets,
+    secretMinutes: c.optional('secretMinutes', int) ?? d.secretMinutes,
+    secretPatterns: c.optional('secretPatterns', bool) ?? d.secretPatterns,
+    excludedApps: legacyExclusions(c, c.optional('excludedApps', arrayOf(str)) ?? d.excludedApps),
     pasteAfterSelecting: c.optional('pasteAfterSelecting', bool) ?? d.pasteAfterSelecting,
     screenshots: c.optional('screenshots', bool) ?? d.screenshots,
   };
@@ -675,12 +691,26 @@ function screenDefault(v, path) {
   return {target, ...found[0]};
 }
 
+/**
+ * A hotstring's replacement: its text, or a sensitive one's reference to secrets.json, `{secret: "<name>"}`
+ * (other keys in it aren't kept). Swift's Hotstring decoding.
+ */
+function replacementValue(v, path) {
+  if (!isObject(v)) return str(v, path);
+  const reference = new Keyed(v, path);
+  const name = reference.required('secret', str);
+  if (name === '') {
+    throw decodingError(reference.at('secret'), "A secret's name can't be empty. Name the text's entry in secrets.json.");
+  }
+  return {secret: name};
+}
+
 function hotstring(v, path) {
   const c = new Keyed(v, path);
   const out = {
     id: c.optional('id', uuid) ?? randomUUID(),
     trigger: c.required('trigger', str),
-    replacement: c.optional('replacement', str) ?? '',
+    replacement: c.optional('replacement', replacementValue) ?? '',
   };
   const action = c.optional('action', decodeAction);
   Object.assign(out, {

@@ -31,7 +31,7 @@ enum ConfigValidator {
     var issues: [ValidationIssue] = []
     let builtIns = BuiltInShortcut.allCases.compactMap { builtIn in builtIn.keys(in: config).map { (builtIn, $0) } }
     issues += bindingIssues(config.bindings, knownLayouts: knownLayouts, builtIns: builtIns)
-    issues += hotstringIssues(config.hotstrings, appName: appName)
+    issues += hotstringIssues(config, appName: appName)
     issues += layoutIssues(config.layouts, knownLayouts: knownLayouts)
     return issues
   }
@@ -258,7 +258,8 @@ enum ConfigValidator {
 
   // MARK: Hotstrings
 
-  private static func hotstringIssues(_ hotstrings: [Hotstring], appName: (String) -> String) -> [ValidationIssue] {
+  private static func hotstringIssues(_ config: SlatedConfiguration, appName: (String) -> String) -> [ValidationIssue] {
+    let hotstrings = config.hotstrings
     var issues: [ValidationIssue] = []
     for (index, hotstring) in hotstrings.enumerated() {
       let target = ValidationIssue.Target.hotstring(hotstring.id)
@@ -271,7 +272,13 @@ enum ConfigValidator {
         issues.append(
           .init(severity: .error, target: target, field: .trigger, message: "A trigger can't contain a line break."))
       }
-      if hotstring.replacement.isEmpty, hotstring.action == nil {
+      if config.isMissingSecret(hotstring) {
+        // Saved all the same: the reference is right, the text just isn't on this computer.
+        issues.append(
+          .init(
+            severity: .warning, target: target, field: .replacement,
+            message: "Its text isn't on this computer yet, so it doesn't expand. Type it below."))
+      } else if config.text(of: hotstring)?.isEmpty == true, hotstring.action == nil {
         issues.append(
           .init(
             severity: .warning, target: target, field: .replacement,
@@ -427,6 +434,11 @@ enum ConfigValidator {
     if layoutsHeld {
       result.layouts = lastSaved.layouts
       result.defaults = lastSaved.defaults
+    }
+    // A hotstring held back keeps the secret its saved version refers to: turning Sensitive off on one
+    // with an error mustn't drop its text from secrets.json while config.json still points there.
+    for name in result.hotstrings.compactMap(\.secret) where result.secrets[name] == nil {
+      result.secrets[name] = lastSaved.secrets[name]
     }
     return result
   }

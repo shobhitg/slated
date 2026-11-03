@@ -318,7 +318,7 @@ export default suite('Validation', [
     after.automation.maxRunMinutes = 5;
     const changes = configChanges(before, after);
     expectEqual(changes, [
-      'clipboard: enabled true, shortcut none, maxItems 200, persist true, retentionDays 30, ignoreConcealed true, excludedApps 8, pasteAfterSelecting true, screenshots true',
+      'clipboard: enabled true, shortcut none, maxItems 200, persist true, retentionDays 30, secrets masked, secretMinutes 60, secretPatterns true, excludedApps 1, pasteAfterSelecting true, screenshots true',
       'automation: stopShortcut hyper+esc, stopOnAppSwitch true, maxRunMinutes 5, showIndicator true',
     ]);
     expect(!changes.join(' ').includes('keepassxc'), 'which apps is nobody else\'s business');

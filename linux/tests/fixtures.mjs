@@ -83,7 +83,7 @@ function checkError(label, error, expected) {
 function checkConfigFiles(c) {
   countCheck();
   const label = c.name;
-  const decoded = attempt(() => core.decodeConfigurationFiles(c.input, c.settingsInput ?? null));
+  const decoded = attempt(() => core.decodeConfigurationFiles(c.input, c.settingsInput ?? null, c.secretsInput ?? null));
   if (c.error) {
     if (decoded.error === undefined) return fail(`${label}: expected error ${show(c.error.message)}`);
     checkError(label, decoded.error, c.error);
@@ -105,6 +105,11 @@ function checkConfigFiles(c) {
   const mask = (text) => text.replace(UUID, (u) => (known.includes(u) ? u : 'RANDOM-UUID'));
   expectEqual(mask(encoded.value.config), c.config, `${label} (config.json)`);
   expectEqual(mask(encoded.value.settings), c.settings, `${label} (settings.json)`);
+  if (c.secrets !== undefined) {
+    expectEqual(core.encodeSecretsText(decoded.value.secrets), c.secrets, `${label} (secrets.json)`);
+    const back = attempt(() => core.decodeSecretsText(c.secrets));
+    expectEqual(back.value, decoded.value.secrets, `${label} (secrets.json read back)`);
+  }
   // Writing what was read back gives the same texts again, and, where Swift's does, the same configuration.
   const again = attempt(() => core.decodeConfigurationFiles(encoded.value.config, encoded.value.settings));
   if (again.error) return fail(`${label}: reading the written files failed: ${again.error.message}`);
@@ -529,14 +534,14 @@ export const checkers = {
     const itemsOf = (history) =>
       history.items.map((i) => ({
         text: i.text, app: i.sourceApp, copiedAt: i.copiedAt, pinned: i.pinned, ...(i.image ? {image: i.image} : {}),
-        ...(i.files ? {files: i.files} : {}),
+        ...(i.files ? {files: i.files} : {}), ...(i.secret ? {secret: i.secret} : {}),
       }));
     let counter = 0;
     const newId = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`;
     /** Items listed in a fixture (no ids) as history items, with made-up ids. */
     const fromFixture = (items) =>
       new core.ClipboardHistory(
-        items.map((i) => ({id: newId(), text: i.text, copiedAt: i.copiedAt, sourceApp: i.app, pinned: i.pinned, image: i.image, files: i.files})),
+        items.map((i) => ({id: newId(), text: i.text, copiedAt: i.copiedAt, sourceApp: i.app, pinned: i.pinned, image: i.image, files: i.files, secret: i.secret})),
         {newId},
       );
     return {
@@ -549,7 +554,8 @@ export const checkers = {
           session.steps.forEach((step, i) => {
             const label = `${session.name}, step ${i}`;
             if (step.add) {
-              const added = history.add(step.add.text, {app: step.add.app, at: step.add.at, limit: step.add.limit});
+              const {text, app, at, limit, secret = null} = step.add;
+              const added = history.add(text, {app, at, limit, secret});
               expectEqual(added, step.added, `${label}: add ${show(step.add.text)}`);
             } else if (step.addImage) {
               const {image, app, at, limit} = step.addImage;
@@ -566,6 +572,19 @@ export const checkers = {
             else if (step.clear !== undefined) history.clear(step.clear === 'default' ? undefined : {keepPinned: step.clear});
             else if (step.search !== undefined) {
               expectEqual(history.search(step.search).map((item) => item.text), step.results, `${label}: search ${show(step.search)}`);
+            } else if (step.hide !== undefined) expectEqual(history.hide(idOf(step.hide)), step.changed, `${label}: hide`);
+            else if (step.unhide !== undefined) expectEqual(history.unhide(idOf(step.unhide)), step.changed, `${label}: unhide`);
+            else if (step.expireSecrets) {
+              const {minutes, now} = step.expireSecrets;
+              expectEqual(history.expireSecrets(minutes, now), step.removed, `${label}: expired`);
+              expectEqual(history.nextSecretExpiry(minutes), step.nextExpiry, `${label}: next expiry`);
+            } else if (step.forgetSecrets) expectEqual(history.forgetSecrets(), step.removed, `${label}: forgotten`);
+            else if (step.searchNamed) {
+              const {query, names} = step.searchNamed;
+              const results = history.search(query, {appName: (id) => names[id] ?? id}).map((item) => item.text);
+              expectEqual(results, step.results, `${label}: search ${show(query)} by app name`);
+            } else if (step.encode) {
+              expectEqual(history.toJSON().items.map((item) => item.text), step.encoded, `${label}: clipboard.json`);
             } else fail(`${label}: unknown step ${show(step)}`);
             expectEqual(itemsOf(history), step.items, `${label} (items)`);
           });
@@ -655,6 +674,78 @@ function checkSheet(label, actual, expected) {
   expectEqual(withoutRegions(a), withoutRegions(expected), label);
   expect(regionsMatch, `${label}: regions differ: ${show(a.sections.map((s) => s.items.map((i) => i.region)))}`);
 }
+
+checkers['secrets.json'] = (data) => {
+  /** A session's configuration as Swift lists it: both files' texts, each hotstring's text, what's missing. */
+  const state = (hotstrings, secrets) => {
+    const configuration = core.decodeConfiguration({version: 2, hotstrings});
+    const files = core.encodeConfigurationFiles(configuration);
+    return {
+      config: files.config, secrets: core.encodeSecretsText(secrets),
+      texts: hotstrings.map((h) => core.hotstringText(h, secrets)),
+      missing: hotstrings.map((h) => core.isMissingSecret(h, secrets)),
+      inUse: [...core.secretNamesInUse(hotstrings, secrets)].sort(),
+    };
+  };
+  const pick = (c) => ({config: c.config, secrets: c.secrets, texts: c.texts, missing: c.missing, inUse: c.inUse});
+  return {
+    detect() {
+      for (const c of data.detect) {
+        countCheck();
+        // Samples carry a § inside, so no complete token is in the repository (SampleSecrets.unmark).
+        expectEqual(core.secretPattern(c.text.split('§').join('')), c.pattern, `pattern of ${show(c.text)}`);
+      }
+    },
+    reasons() {
+      for (const c of data.reasons) {
+        countCheck();
+        const reason = core.secretReason({text: c.text, concealed: c.concealed, app: c.app, patterns: c.patterns});
+        expectEqual(reason, c.reason, `reason for ${show(c.text)} from ${show(c.app)}`);
+      }
+    },
+    passwordManagers() {
+      for (const c of data.passwordManagers) {
+        countCheck();
+        expectEqual(core.isPasswordManager(c.id), c.passwordManager, show(c.id));
+      }
+    },
+    names() {
+      for (const c of data.names) {
+        countCheck();
+        expectEqual(core.secretName(c.trigger, c.taken), c.name, `name for ${show(c.trigger)}, ${show(c.taken)} taken`);
+      }
+    },
+    sessions() {
+      for (const session of data.sessions) {
+        countCheck();
+        // The hotstrings as config.json has them, ids and all.
+        let hotstrings = JSON.parse(session.start.config).hotstrings;
+        let secrets = JSON.parse(session.start.secrets).secrets;
+        expectEqual(state(hotstrings, secrets), pick(session.start), `${session.name}: start`);
+        session.steps.forEach((step, i) => {
+          const label = `${session.name}, step ${i}`;
+          if (step.makeSensitive !== undefined) ({hotstrings, secrets} = core.makeSensitive(hotstrings, secrets, step.makeSensitive));
+          else if (step.makeNotSensitive !== undefined) ({hotstrings, secrets} = core.makeNotSensitive(hotstrings, secrets, step.makeNotSensitive));
+          else if (step.setSecretText) secrets = core.setSecretText(hotstrings, secrets, step.setSecretText.index, step.setSecretText.text);
+          else if (step.giveOwnSecret !== undefined) ({hotstrings, secrets} = core.giveOwnSecret(hotstrings, secrets, step.giveOwnSecret));
+          else if (step.forgetSecret !== undefined) secrets = core.forgetSecret(hotstrings, secrets, step.forgetSecret);
+          else if (step.removeHotstring !== undefined) hotstrings = hotstrings.filter((_, k) => k !== step.removeHotstring);
+          else if (step.setSecrets) secrets = {...step.setSecrets};
+          else fail(`${label}: unknown step ${show(step)}`);
+          expectEqual(state(hotstrings, secrets), pick(step), label);
+        });
+      }
+    },
+    keys() {
+      for (const c of data.keys) {
+        countCheck();
+        const key = core.secretKey(c.name);
+        expectEqual({display: core.keyDisplay(key), path: core.keyPath(key)}, {display: c.display, path: c.path}, c.name);
+        expectEqual(core.valueText(core.decodeConfiguration({}), key), null, `${c.name}: never copied`);
+      }
+    },
+  };
+};
 
 checkers['cheatsheet.json'] = (data) => ({
   actions() {

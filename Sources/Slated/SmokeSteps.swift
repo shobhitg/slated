@@ -116,6 +116,10 @@ enum SmokeSteps {
       clipboardScreenshots(engine)
     case "clipboard-files":
       clipboardFiles(engine)
+    case "clipboard-secrets":
+      clipboardSecrets(engine)
+    case "sensitive-hotstring":
+      sensitiveHotstring(engine)
     case "import-slate":
       // "Import Slate Config into Slated…" in the menus; prints what its alert says.
       do {
@@ -289,6 +293,71 @@ enum SmokeSteps {
 
   /// Files copied (on a private pasteboard), put back, then put back again after one and then both
   /// were deleted.
+  /// Secrets through a clipboard service of its own on a private pasteboard: a fake token found by its
+  /// look, a password manager's copy and one an app marked concealed are kept masked; clipboard.json,
+  /// written at once, never has them; they expire; one picked goes back marked concealed.
+  private static func clipboardSecrets(_ engine: Engine) {
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.github.slated.smoke.\(UUID().uuidString)"))
+    defer { pasteboard.releaseGlobally() }
+    let service = ClipboardService(pasteboard: pasteboard)
+    service.apply(engine.configuration.clipboard)
+    // A GitHub token: ghp_ and 36 letters and digits.
+    let token = SampleSecrets.unmark("gh§p_SMOKEaB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1")
+    let copies = [
+      PasteboardWatcher.Copy(text: "an ordinary copy", sourceApp: "com.example.editor"),
+      PasteboardWatcher.Copy(text: token, sourceApp: "com.example.editor"),
+      PasteboardWatcher.Copy(text: "SMOKE-manager-password", sourceApp: "com.1password.1password"),
+      PasteboardWatcher.Copy(text: "SMOKE-marked-password", isConcealed: true, sourceApp: "com.example.browser"),
+      PasteboardWatcher.Copy(text: "SMOKE-transient", isTransient: true, sourceApp: "com.example.expander"),
+    ]
+    for copy in copies { service.record(copy) }
+    let items = service.history.items
+    let reasons = items.compactMap { $0.secret?.rawValue }.sorted().joined(separator: ",")
+    print(
+      "clipboard secrets: \(items.filter(\.isSecret).count) masked (\(reasons)), \(items.filter { !$0.isSecret }.count) ordinary"
+    )
+    let file = URL(fileURLWithPath: SlatedPaths.home).appendingPathComponent(
+      "Library/Application Support/Slated/clipboard.json")
+    let saved = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+    let leaked = [SampleSecrets.unmark("gh§p_SMOKE"), "SMOKE-manager", "SMOKE-marked", "SMOKE-transient"].filter(saved.contains)
+    print(
+      "clipboard.json: \(saved.contains("an ordinary copy") ? "has the ordinary copy" : "missing the ordinary copy"), "
+        + (leaked.isEmpty ? "no secret" : "LEAKED \(leaked)"))
+    if let picked = service.history.items.first(where: { $0.text == token }) {
+      service.copy(id: picked.id)
+      let concealed = pasteboard.types?.contains(PasteboardWatcher.concealedType) == true
+      print(
+        "secret put back: \(pasteboard.string(forType: .string) == token ? "the same text" : "other text"), \(concealed ? "marked concealed" : "not marked")"
+      )
+    }
+    // An hour and a minute later, every secret is gone; the ordinary copy stays.
+    let later = Date().addingTimeInterval(61 * 60)
+    service.now = { later }
+    service.expireSecrets()
+    print(
+      "after 61 minutes: \(service.history.items.filter(\.isSecret).count) secrets, \(service.history.items.count) items"
+    )
+    service.stop()
+  }
+
+  /// Settings → Hotstrings → Sensitive on a new hotstring: its text goes to secrets.json (mode 600), and
+  /// config.json gets only the reference.
+  private static func sensitiveHotstring(_ engine: Engine) {
+    var config = engine.configuration
+    config.hotstrings.append(Hotstring(trigger: ";smokepw", replacement: "SMOKE-hotstring-secret"))
+    config.makeSensitive(hotstringAt: config.hotstrings.count - 1)
+    do { try engine.save(config) } catch { print("save failed:", error.localizedDescription) }
+    let folder = engine.store.fileURL.deletingLastPathComponent()
+    let secrets = folder.appendingPathComponent("secrets.json")
+    let mode = (try? FileManager.default.attributesOfItem(atPath: secrets.path))?[.posixPermissions] as? NSNumber
+    let configText = (try? String(contentsOf: engine.store.fileURL, encoding: .utf8)) ?? ""
+    let secretsText = (try? String(contentsOf: secrets, encoding: .utf8)) ?? ""
+    print(
+      "sensitive hotstring: secrets.json mode \(String(mode?.intValue ?? 0, radix: 8)), "
+        + "\(secretsText.contains("SMOKE-hotstring-secret") ? "has the text" : "missing the text"), "
+        + "config.json \(configText.contains("SMOKE-hotstring") ? "HAS THE TEXT" : "has the reference only")")
+  }
+
   private static func clipboardFiles(_ engine: Engine) {
     let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.github.slated.smoke.\(UUID().uuidString)"))
     defer { pasteboard.releaseGlobally() }
@@ -303,7 +372,9 @@ enum SmokeSteps {
     service.record(PasteboardWatcher.Copy(text: "names", files: files, sourceApp: "com.apple.finder"))
     let items = service.history.items.filter(\.isFiles)
     let named = items.first?.text == "SECRET-NAME report.pdf\nSECRET-NAME notes.txt"
-    print("files copied: \(items.count) item, \(items.first?.files?.count ?? 0) files, text \(named ? "their names" : "wrong")")
+    print(
+      "files copied: \(items.count) item, \(items.first?.files?.count ?? 0) files, text \(named ? "their names" : "wrong")"
+    )
     // Putting an item back moves it to the top as a new item: look it up each time.
     let copy = { service.history.items.first(where: \.isFiles).map { service.copy(id: $0.id) } }
     let putBack = { PasteboardWatcher.fileURLs(on: pasteboard).count }

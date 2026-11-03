@@ -4,19 +4,49 @@ import SwiftUI
 // Clipboard pieces shared by the picker and Settings → Clipboard: a kind-aware one-line preview,
 // the kind badge, a color swatch, and the fanned stack of recent items used as an illustration.
 
+/// A secret's text, hidden: a lock and eight dots, whatever its length.
+struct MaskedLine: View {
+  var fontSize: CGFloat = 13
+  var inverted = false
+
+  var body: some View {
+    HStack(spacing: 5) {
+      Image(systemName: "lock.fill")
+        .font(.system(size: max(fontSize - 3.5, 8), weight: .semibold))
+        .foregroundStyle(inverted ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
+      Text(verbatim: ClipboardItem.mask)
+        .font(.system(size: fontSize - 1, weight: .semibold, design: .monospaced))
+        .foregroundStyle(inverted ? Color.white : Color.primary)
+        .fixedSize()
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Hidden")
+  }
+}
+
 /// A clipboard item on one line, styled by what it is: a link's host, a color's swatch, code in
-/// monospace, an image's size.
+/// monospace, an image's size. A secret shows `MaskedLine` unless it's `revealed`.
 struct ClipPreviewLine: View {
   let item: ClipboardItem
   var fontSize: CGFloat = 13
   var lineLimit = 1
   var inverted = false
+  var revealed = false
 
   var body: some View {
-    let kind = ClipboardContent.kind(of: item.text)
+    if item.isSecret && !revealed {
+      MaskedLine(fontSize: fontSize, inverted: inverted)
+    } else {
+      line
+    }
+  }
+
+  private var line: some View {
+    // A secret, revealed, is shown as plain text: its kind (a number, a link) isn't worth a hint.
+    let kind = item.isSecret ? ClipboardContentKind.text : ClipboardContent.kind(of: item.text)
     let primary: Color = inverted ? .white : .primary
     let secondary: Color = inverted ? .white.opacity(0.75) : .secondary
-    HStack(spacing: 6) {
+    return HStack(spacing: 6) {
       switch kind {
       case _ where item.isImage:
         Text(item.image.map { ClipboardContent.imageTitle($0, app: nil) } ?? "")
@@ -113,7 +143,8 @@ struct ClipSourceIcon: View {
     } else if let app = item.sourceApp {
       AppIconView(bundleID: app, size: size)
     } else {
-      Image(systemName: ClipboardContent.kind(of: item.text).symbol)
+      // A secret's kind would be a hint (a number, a link): it gets the lock.
+      Image(systemName: item.isSecret ? "lock.fill" : ClipboardContent.kind(of: item.text).symbol)
         .font(.system(size: size * 0.42, weight: .semibold))
         .foregroundStyle(.secondary)
         .frame(width: size, height: size)

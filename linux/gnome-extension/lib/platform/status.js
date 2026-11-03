@@ -10,7 +10,7 @@
 //    "hotkeys":{"hyper+a":"active","hyper+q":"failed: <reason>","hyper+w":"duplicate","hyper+z":"disabled"},
 //    "automation":{"running":["Repeat click left every 100 ms"],"shortcuts":["f6"],"stopShortcut":"hyper+esc",
 //                  "whileHeld":"key-repeat"},
-//    "clipboard":{"enabled":true,"items":12},
+//    "clipboard":{"enabled":true,"items":12,"secrets":1},     (secrets: how many are held in memory only)
 //    "recentApps":[{"id":"steam_app_1086940","name":"steam_app_1086940"},{"id":"firefox","name":"Firefox"}],
 //    "lastAction":"Left half · Firefox","lastError":null}
 //
@@ -82,6 +82,8 @@ export function buildStatus(state) {
     clipboard: {
       enabled: state.clipboard?.enabled !== false,
       items: Number.isFinite(state.clipboard?.items) ? state.clipboard.items : 0,
+      // How many of them are secrets, held in memory only: a count, never anything about them.
+      secrets: Number.isFinite(state.clipboard?.secrets) ? state.clipboard.secrets : 0,
     },
     recentApps: (state.recentApps ?? []).filter((app) => app?.id).map((app) => ({id: String(app.id), name: String(app.name ?? app.id)})),
     lastAction: state.lastAction ?? null,

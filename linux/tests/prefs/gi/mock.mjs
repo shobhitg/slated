@@ -440,6 +440,8 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
       state.props.set('text', text);
       emit(object, 'changed');
     },
+    // As GObject does: a property's current value (a text buffer's text, which TextView fields read).
+    'GObject.Object.get_property': (object, state, [name]) => (state.props.has(name) ? state.props.get(name) : null),
     'Gtk.TextView.get_buffer': (object, state) => {
       state.cache.buffer ??= instantiate('Gtk.TextBuffer');
       return state.cache.buffer;
@@ -917,8 +919,14 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
     }
 
     query_info() {
-      const size = fs.statSync(this.path).size;
-      return {get_size: () => size};
+      const stats = fs.statSync(this.path);
+      return {get_size: () => stats.size, get_attribute_uint32: (attribute) => (attribute === 'unix::mode' ? stats.mode & 0o7777 : 0)};
+    }
+
+    set_attribute_uint32(attribute, value) {
+      if (attribute !== 'unix::mode') throw new MockError(`Gio.File: unsupported attribute `);
+      fs.chmodSync(this.path, value);
+      return true;
     }
 
     read() {
@@ -937,9 +945,10 @@ export function createWorld({api, home, mode = 'min', env = {}, dbus = () => {
       };
     }
 
-    replace_contents(bytes) {
+    replace_contents(bytes, _etag, _backup, flags = 0) {
       const tmp = `${this.path}.tmp-${process.pid}`;
-      fs.writeFileSync(tmp, Buffer.from(bytes));
+      // PRIVATE: a new file only you can read (GIO's G_FILE_CREATE_PRIVATE).
+      fs.writeFileSync(tmp, Buffer.from(bytes), {mode: flags & 1 ? 0o600 : 0o644});
       fs.renameSync(tmp, this.path);
       for (const m of monitors) if (m.path === this.path) m.fire();
       return [true, null];

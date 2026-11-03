@@ -80,7 +80,7 @@ private let t0: Double = 800_000_000
 /// One step of a clipboard session. Items are named by text (images by file, files by their names
 /// joined with "\n"); ids Swift generates are random.
 private enum ClipStep {
-  case add(String, app: String? = nil, at: Double, limit: Int = 200)
+  case add(String, app: String? = nil, at: Double, limit: Int = 200, secret: ClipboardSecretReason? = nil)
   case addImage(
     String, width: Int = 64, height: Int = 32, bytes: Int = 900, name: String? = nil, app: String? = nil, at: Double,
     limit: Int = 200)
@@ -95,6 +95,15 @@ private enum ClipStep {
   case togglePinUnknown
   case clear(keepPinned: Bool?)
   case search(String)
+  /// Hide Contents and Show Contents on the item with this text.
+  case hide(String)
+  case unhide(String)
+  case expireSecrets(minutes: Int, now: Double)
+  case forgetSecrets
+  /// A search where a secret matches by its app's name: `names` maps app ids to names.
+  case searchNamed(String, names: [String: String])
+  /// The texts clipboard.json gets (`ClipboardHistory`'s encoding).
+  case encode
 }
 
 private struct ClipSession {
@@ -252,6 +261,49 @@ private let clipSessions: [ClipSession] = [
       .addImage("s.png", width: 2880, height: 1800, bytes: 1_200_000, at: t0 + 3),
       .addImage("t.png", name: "", at: t0 + 4),
     ]),
+  ClipSession(
+    name: "secrets: kept in memory, a copy again keeps the more certain reason, never in clipboard.json",
+    steps: [
+      .add("ordinary", at: t0), .add("hunter2", app: "com.1password.1password", at: t0 + 1, secret: .app),
+      .add("Zq9vLm4TxB2wKp7R", at: t0 + 2, secret: .pattern), .encode,
+      .add("hunter2", app: "com.apple.TextEdit", at: t0 + 3), .add("hunter2", at: t0 + 4, secret: .pattern),
+      .add("hunter2", at: t0 + 5, secret: .marked), .add("ordinary", at: t0 + 6, secret: .manual),
+      .add("Zq9vLm4TxB2wKp7R", at: t0 + 7, secret: .manual), .togglePin("hunter2"), .encode,
+      .add("   ", at: t0 + 8, secret: .pattern), .clear(keepPinned: true), .encode,
+    ]),
+  ClipSession(
+    name: "Hide Contents and Show Contents; what an app marked or a password manager copied stays hidden",
+    steps: [
+      .add("mine", at: t0), .add("looks", at: t0 + 1, secret: .pattern), .add("marked", at: t0 + 2, secret: .marked),
+      .add("manager", at: t0 + 3, secret: .app), .addImage("i.png", at: t0 + 4), .addFiles(["/a/f.txt"], at: t0 + 5),
+      .hide("mine"), .hide("mine"), .hide("i.png"), .hide("f.txt"), .encode, .unhide("mine"), .unhide("looks"),
+      .unhide("marked"), .unhide("manager"), .unhide("mine"), .unhide("i.png"), .encode,
+    ]),
+  ClipSession(
+    name: "secrets expire after secretMinutes, pinned or not; 0 or less keeps them until Slated quits",
+    steps: [
+      .add("old secret", at: t0, secret: .app), .togglePin("old secret"),
+      .add("new secret", at: t0 + 50 * 60, secret: .pattern), .add("old ordinary", at: t0 - 100),
+      .expireSecrets(minutes: 0, now: t0 + day), .expireSecrets(minutes: -5, now: t0 + day),
+      .expireSecrets(minutes: 60, now: t0 + 59 * 60), .expireSecrets(minutes: 60, now: t0 + 60 * 60),
+      .expireSecrets(minutes: 60, now: t0 + 60 * 60 + 0.5), .expireSecrets(minutes: 1, now: t0 + 51 * 60),
+      .add("again", at: t0 + 2 * day, secret: .manual), .forgetSecrets, .forgetSecrets,
+      .expireSecrets(minutes: 60, now: t0 + 3 * day),
+    ]),
+  ClipSession(
+    name: "search: a secret matches by its app's name (or id), never by its text",
+    steps: [
+      .add("hunter2", app: "com.1password.1password", at: t0, secret: .app),
+      .add("hunter2 is my password", app: "com.apple.Notes", at: t0 + 1),
+      .add("Zq9vLm4TxB2wKp7R", at: t0 + 2, secret: .pattern),
+      .add("Crème brûlée", app: "org.keepassxc.KeePassXC", at: t0 + 3, secret: .app),
+      .search("hunter"), .search("Zq9v"), .search("1password"), .search("com"), .search(""),
+      .searchNamed(
+        "1pass", names: ["com.1password.1password": "1Password", "org.keepassxc.KeePassXC": "KeePassXC"]),
+      .searchNamed("notes", names: ["com.apple.Notes": "Notes"]),
+      .searchNamed("keepass xc", names: ["org.keepassxc.KeePassXC": "Keepass XC"]),
+      .searchNamed("brulee", names: [:]), .searchNamed("KÉÉPASS", names: ["org.keepassxc.KeePassXC": "KeePassXC"]),
+    ]),
 ]
 
 /// Paths and the names the history shows for them (`ClipboardItem.fileName(ofPath:)`).
@@ -322,6 +374,7 @@ private func historyItemsJ(_ history: ClipboardHistory) -> J {
       ]
       if let image = item.image { entry["image"] = toJ(image) }
       if let files = item.files { entry["files"] = .array(files.map(J.string)) }
+      if let secret = item.secret { entry["secret"] = .string(secret.rawValue) }
       return .object(entry)
     })
 }
@@ -375,9 +428,13 @@ func clipboardFixtures() -> FixtureFile {
     let steps: [J] = session.steps.map { step in
       var result: [String: J] = [:]
       switch step {
-      case .add(let text, let app, let seconds, let limit):
-        result["add"] = ["text": .string(text), "app": .optional(app), "at": .number(seconds), "limit": .int(limit)]
-        result["added"] = .bool(history.add(text, from: app, at: at(seconds), limit: limit))
+      case .add(let text, let app, let seconds, let limit, let secret):
+        var add: [String: J] = [
+          "text": .string(text), "app": .optional(app), "at": .number(seconds), "limit": .int(limit),
+        ]
+        if let secret { add["secret"] = .string(secret.rawValue) }
+        result["add"] = .object(add)
+        result["added"] = .bool(history.add(text, from: app, at: at(seconds), limit: limit, secret: secret))
       case .addImage(let file, let width, let height, let bytes, let name, let app, let seconds, let limit):
         let image = ClipboardImage(file: file, width: width, height: height, bytes: bytes, name: name)
         result["addImage"] = [
@@ -413,6 +470,27 @@ func clipboardFixtures() -> FixtureFile {
       case .search(let query):
         result["search"] = .string(query)
         result["results"] = .array(history.search(query).map { .string($0.text) })
+      case .hide(let key):
+        result["hide"] = .string(key)
+        result["changed"] = .bool(history.hide(id: history.items.first { named($0, key) }!.id))
+      case .unhide(let key):
+        result["unhide"] = .string(key)
+        result["changed"] = .bool(history.unhide(id: history.items.first { named($0, key) }!.id))
+      case .expireSecrets(let minutes, let now):
+        result["expireSecrets"] = ["minutes": .int(minutes), "now": .number(now)]
+        result["removed"] = .int(history.expireSecrets(olderThanMinutes: minutes, now: at(now)))
+        result["nextExpiry"] =
+          history.nextSecretExpiry(afterMinutes: minutes).map { J.number($0.timeIntervalSinceReferenceDate) } ?? .null
+      case .forgetSecrets:
+        result["forgetSecrets"] = true
+        result["removed"] = .int(history.forgetSecrets())
+      case .searchNamed(let query, let names):
+        result["searchNamed"] = ["query": .string(query), "names": .object(names.mapValues(J.string))]
+        result["results"] = .array(history.search(query) { names[$0] ?? $0 }.map { .string($0.text) })
+      case .encode:
+        result["encode"] = true
+        let saved = try! JSONDecoder().decode(ClipboardHistory.self, from: JSONEncoder().encode(history))
+        result["encoded"] = .array(saved.items.map { .string($0.text) })
       }
       result["items"] = historyItemsJ(history)
       return .object(result)
@@ -445,7 +523,11 @@ func clipboardFixtures() -> FixtureFile {
     description:
       "ClipboardHistory: sessions of add (text), addImage (an image, with a screenshot's `name`), addFiles (absolute "
       + "paths; the item's `text` is their names joined with \"\\n\", listed with `files`), enforce, prune (retention), "
-      + "remove, togglePin, clear and search with fixed dates (seconds since 2001-01-01, as Swift's Date encodes them); "
+      + "remove, togglePin, clear and search with fixed dates (seconds since 2001-01-01, as Swift's Date encodes them), "
+      + "and secrets: add with a `secret` reason (marked, app, pattern, manual; a copy of a secret keeps the more certain "
+      + "one), hide and unhide (Hide and Show Contents; `changed`), expireSecrets (`removed`, `nextExpiry`), "
+      + "forgetSecrets, searchNamed (a secret matches only by its app's name from `names`, else its id) and encode (the "
+      + "texts clipboard.json gets: never a secret's); an item's `secret` is listed when it has one; "
       + "search over a fixed history (case- and diacritic-insensitive, pinned first); fileNames (the name a path "
       + "shows: its last \"/\"-separated component); and the Codable form the Mac app writes to clipboard.json "
       + "(`history`, or `error` for files it can't read). Items are listed without their ids, which Swift generates "

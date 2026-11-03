@@ -231,7 +231,9 @@ function showMenu(widget) {
     list.append(button);
   };
   item('Copy Key', () => copyKey(widget, key));
-  item('Copy Value as JSON', () => copyValue(widget, key));
+  // Never a secret's text: a sensitive hotstring's field copies its reference in config.json (its key is
+  // the replacement's), and secrets.json's own keys have no value to copy.
+  if (key.file !== 'secrets.json') item('Copy Value as JSON', () => copyValue(widget, key));
   item(`Open ${key.file}`, () => context.open(key.file));
   popover.set_child(list);
   popover.set_parent(widget);

@@ -19,6 +19,7 @@ import {
 } from './automation.js';
 import {parseOperation, isNotImplemented, describeError, isHotstringDelimiter} from './engine.js';
 import {islandSettings} from './island.js';
+import {hotstringText} from '../core/index.js';
 
 /** Issue targets are strings: "binding:<id>", "hotstring:<id>", "layout:<name>". */
 export const target = {
@@ -30,12 +31,12 @@ export const target = {
 const issue = (severity, targetKey, field, message) => ({severity, target: targetKey, field, message});
 
 /** Every issue in the configuration. */
-export function validate(config, {knownLayouts = []} = {}) {
+export function validate(config, {knownLayouts = [], secrets = {}} = {}) {
   const layouts = new Set(knownLayouts);
   const builtIns = BUILT_IN_SHORTCUTS.map(builtIn => ({builtIn, keys: builtIn.keys(config)})).filter(b => b.keys);
   return [
     ...bindingIssues(config.bindings ?? [], layouts, builtIns),
-    ...hotstringIssues(config.hotstrings ?? []),
+    ...hotstringIssues(config.hotstrings ?? [], secrets),
     ...layoutIssues(config.layouts ?? [], layouts),
   ];
 }
@@ -391,7 +392,10 @@ function completesOnTheWay(other, h) {
   return null;
 }
 
-function hotstringIssues(hotstrings) {
+/** A sensitive hotstring whose text isn't in secrets.json: a warning, not an error (it's saved, and expands once its text is entered). */
+export const MISSING_SECRET = "Its text isn't on this computer yet. Type it below; it's kept in secrets.json.";
+
+function hotstringIssues(hotstrings, secrets = {}) {
   const issues = [];
   for (const [index, h] of hotstrings.entries()) {
     const t = target.hotstring(h.id);
@@ -402,7 +406,10 @@ function hotstringIssues(hotstrings) {
     }
     // Every character Swift's Character.isNewline takes for one.
     if (/[\n\v\f\r\u0085\u2028\u2029]/.test(trigger)) issues.push(issue('error', t, 'trigger', "A trigger can't contain a line break."));
-    if (!h.replacement && h.action === undefined) {
+    // A sensitive hotstring's text is its secret's (null while it isn't on this computer).
+    const text = hotstringText(h, secrets);
+    if (text === null) issues.push(issue('warning', t, 'replacement', MISSING_SECRET));
+    else if (!text && h.action === undefined) {
       issues.push(issue('warning', t, 'replacement', 'The replacement is empty, so the trigger will just be deleted.'));
     }
     if (h.enabled === false) continue;
@@ -521,7 +528,8 @@ export function configChanges(oldConfig, newConfig) {
   if (!deepEqual(oldConfig.clipboard, newConfig.clipboard)) {
     const c = clipboardSettings(newConfig);
     changes.push(`clipboard: enabled ${c.enabled}, shortcut ${c.shortcut ?? 'none'}, maxItems ${c.maxItems}, persist ${c.persist}, `
-      + `retentionDays ${c.retentionDays}, ignoreConcealed ${c.ignoreConcealed}, excludedApps ${(c.excludedApps ?? []).length}, `
+      + `retentionDays ${c.retentionDays}, secrets ${c.secrets}, secretMinutes ${c.secretMinutes}, secretPatterns ${c.secretPatterns}, `
+      + `excludedApps ${(c.excludedApps ?? []).length}, `
       + `pasteAfterSelecting ${c.pasteAfterSelecting}, screenshots ${c.screenshots}`);
   }
   if (!deepEqual(oldConfig.automation, newConfig.automation)) {

@@ -14,7 +14,7 @@ const state = {
   hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
   hotkeys: {'hyper+z': 'disabled', 'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate'},
   automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
-  clipboard: {enabled: true, items: 12},
+  clipboard: {enabled: true, items: 12, secrets: 1},
   recentApps: [{id: 'steam_app_1086940', name: 'steam_app_1086940'}, {id: 'firefox', name: 'Firefox'}],
   lastAction: 'Left half · Firefox',
   lastError: null,
@@ -49,7 +49,7 @@ test('status.json has exactly the schema the preferences app reads', () => {
     hotstrings: {engine: 'espanso', espansoInstalled: true, matchFile: '/home/me/.config/espanso/match/slated.yml', count: 3},
     hotkeys: {'hyper+a': 'active', 'hyper+q': 'failed: taken', 'hyper+w': 'duplicate', 'hyper+z': 'disabled'},
     automation: {running: ['Repeat click left every 100 ms', 'Hold Shift'], shortcuts: ['f6'], stopShortcut: 'hyper+esc', whileHeld: 'key-repeat'},
-    clipboard: {enabled: true, items: 12},
+    clipboard: {enabled: true, items: 12, secrets: 1},
     recentApps: [{id: 'steam_app_1086940', name: 'steam_app_1086940'}, {id: 'firefox', name: 'Firefox'}],
     lastAction: 'Left half · Firefox',
     lastError: null,
@@ -64,7 +64,7 @@ test('missing parts get safe defaults', () => {
   assert.deepEqual(status.hotstrings, {engine: 'none', espansoInstalled: false, matchFile: null, count: 0});
   assert.deepEqual(status.hotkeys, {});
   assert.deepEqual(status.automation, {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'});
-  assert.deepEqual(status.clipboard, {enabled: true, items: 0});
+  assert.deepEqual(status.clipboard, {enabled: true, items: 0, secrets: 0});
   assert.deepEqual(status.recentApps, []);
   assert.equal(status.lastAction, null);
   assert.equal(status.lastError, null);
@@ -80,7 +80,8 @@ test('hyper.mode only ever takes the schema’s values', () => {
 test('automation.whileHeld is "key-repeat" or "toggle"; clipboard items are a count', () => {
   assert.equal(buildStatus({automation: {whileHeld: 'toggle'}}).automation.whileHeld, 'toggle');
   assert.equal(buildStatus({automation: {whileHeld: 'bogus'}}).automation.whileHeld, 'key-repeat');
-  assert.deepEqual(buildStatus({clipboard: {enabled: false, items: NaN}}).clipboard, {enabled: false, items: 0});
+  assert.deepEqual(buildStatus({clipboard: {enabled: false, items: NaN}}).clipboard, {enabled: false, items: 0, secrets: 0});
+  assert.deepEqual(buildStatus({clipboard: {items: 3, secrets: 2}}).clipboard, {enabled: true, items: 3, secrets: 2}, 'secrets: a count');
   assert.deepEqual(buildStatus({recentApps: [{id: 'a'}, {name: 'no id'}]}).recentApps, [{id: 'a', name: 'a'}]);
 });
 

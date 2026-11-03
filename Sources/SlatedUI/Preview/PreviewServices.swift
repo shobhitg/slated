@@ -46,6 +46,7 @@ public final class PreviewServices: AppServices {
       config.general.showActionHUD = true
       config.bindings = PreviewData.bindings
       config.hotstrings = PreviewData.hotstrings
+      config.secrets = PreviewData.secrets
       config.layouts = PreviewData.layouts
       slateConfig = "~/.slate.js"
       importNotice = config.merge(PreviewData.slateImport)
@@ -229,6 +230,16 @@ public final class PreviewServices: AppServices {
     clipboard.remove(id: id)
     notifyChange()
   }
+  public func hideClipboardItem(id: UUID) {
+    clipboard.hide(id: id)
+    notifyChange()
+  }
+
+  public func unhideClipboardItem(id: UUID) {
+    clipboard.unhide(id: id)
+    notifyChange()
+  }
+
   public func togglePinClipboardItem(id: UUID) {
     clipboard.togglePin(id: id)
     notifyChange()

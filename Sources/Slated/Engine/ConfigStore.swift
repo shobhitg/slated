@@ -3,8 +3,9 @@ import SlatedCore
 import SlatedScript
 import SlatedSystem
 
-/// Slated's two files, `~/.config/slated/config.json` and `settings.json` (`ConfigFileStore` reads and
-/// writes them, and migrates a version 1 config.json), watched for hand edits, with every load logged.
+/// Slated's files, `~/.config/slated/config.json`, `settings.json` and `secrets.json` (`ConfigFileStore` reads
+/// and writes them, and migrates a version 1 config.json), watched for hand edits, with every load logged.
+/// secrets.json's content is never logged: counts, and errors that quote nothing from it.
 final class ConfigStore {
   let files: ConfigFileStore
   var fileURL: URL { files.configURL }
@@ -26,7 +27,7 @@ final class ConfigStore {
     files.importSlate = { paths in SlateConfigImport.importFiles(paths, home: SlatedPaths.home) }
     files.onReload = { [weak self] file, result in
       guard let self else { return }
-      Log.record("config.changed_on_disk", ["path": files.url(file).path])
+      Log.record("config.changed_on_disk", ["path": files.url(file).path, "file": file.rawValue])
       record(result)
       onExternalChange?()
     }
@@ -73,6 +74,9 @@ final class ConfigStore {
     if let error = result.writeError {
       Log.error("config.save_failed", LogPrivacy.message(error), ["path": fileURL.path])
     }
+    if result.secretsPermissionsFixed {
+      Log.record("config.secrets_made_private", level: .notice, ["path": files.secretsURL.path, "mode": "600"])
+    }
     if let report = result.slateImport { onSlateImported?(report) }
   }
 
@@ -110,6 +114,8 @@ final class ConfigStore {
     [
       "path": path, "bindings": config.bindings.count, "hotstrings": config.hotstrings.count,
       "layouts": config.layouts.count, "capsLock": config.keyboard.capsLock.rawValue,
+      // Counts only: never a secret's name or text.
+      "secrets": config.secrets.count, "missingSecrets": config.hotstringsMissingSecrets.count,
     ]
   }
 }

@@ -71,7 +71,7 @@ extension AppModel {
   /// Running apps (with bundle identifiers) as menu choices.
   var runningAppChoices: [AppChoice] {
     runningApps.compactMap { app in
-      app.bundleID.map { AppChoice(bundleID: $0, name: app.name, path: app.path, isDefault: false) }
+      app.bundleID.map { AppChoice(bundleID: $0, name: app.name, path: app.path, isPasswordManager: false) }
     }
   }
 

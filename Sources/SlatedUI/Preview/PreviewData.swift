@@ -96,10 +96,15 @@ enum PreviewData {
         trigger: ";lgtm", replacement: "Looks good to me — ship it! 🚀", method: .paste,
         exceptInApps: ["com.apple.Terminal"]),
       Hotstring(trigger: ";tm", replacement: "™"),
+      // Sensitive: its text is in secrets.json (`secrets`), masked here.
+      Hotstring(trigger: ";wifi", replacement: "", notes: "The office Wi-Fi password.", secret: "wifi"),
       Hotstring(trigger: ";addr", replacement: "221B Baker Street\nLondon NW1 6XE", fire: .afterDelimiter),
       Hotstring(trigger: ";meet", replacement: "Could we find 30 minutes this week?", enabled: false),
     ]
   }
+
+  /// secrets.json's text for the sensitive sample hotstrings.
+  static let secrets = ["wifi": "correct-horse-battery-staple-42"]
 
   // MARK: Layouts
 
@@ -239,6 +244,17 @@ enum PreviewData {
         text: "", copiedAt: now.addingTimeInterval(-28 * hour), sourceApp: "com.apple.Preview",
         image: PreviewImages.photo),
       at: 9)
+    // Secrets, kept masked and in memory only: from a password manager, marked by the app (a browser's
+    // Copy Password), and an API token found by its look.
+    let secrets: [(String, String?, Double, ClipboardSecretReason)] = [
+      ("Tr0ub4dor&3Xq9!zLw", "com.1password.1password", 3 * minute, .app),
+      ("pAss-w0rd!-for-the-bank", "com.apple.Safari", 70 * minute, .marked),
+      (SampleSecrets.unmark("sk§-proj-4Fh7Kq2Lm9Np3Rs8Tv1Wx6Yz0Ab5Cd3Ef7Gh2Jk9Lm4No8Pq1Rs6Tu"), "com.apple.Terminal", 5 * hour, .pattern),
+    ]
+    for (text, app, ago, reason) in secrets {
+      let item = ClipboardItem(text: text, copiedAt: now.addingTimeInterval(-ago), sourceApp: app, secret: reason)
+      items.insert(item, at: items.firstIndex { $0.copiedAt < item.copiedAt } ?? items.endIndex)
+    }
     // Files copied in the Finder: two together, one since moved or deleted, and a picture.
     let finder = "com.apple.finder"
     let files: [(Double, [String])] = [

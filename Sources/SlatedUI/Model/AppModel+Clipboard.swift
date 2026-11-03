@@ -71,6 +71,29 @@ extension AppModel {
     refresh()
   }
 
+  /// "Hide Contents": masked from now on, kept in memory only.
+  func hideClipboardItem(_ id: UUID) {
+    services.hideClipboardItem(id: id)
+    refresh()
+    showToast("Hidden and kept in memory only", symbol: "eye.slash.fill")
+  }
+
+  /// "Show Contents": an ordinary item again, saved from now on.
+  func unhideClipboardItem(_ id: UUID) {
+    services.unhideClipboardItem(id: id)
+    refresh()
+  }
+
+  /// How many items are hidden secrets right now.
+  var secretClipboardCount: Int { clipboardItems.filter(\.isSecret).count }
+
+  /// A search of the history, as the picker and Settings do it: a secret matches only by its app's name.
+  func searchClipboard(_ query: String) -> [ClipboardItem] {
+    ClipboardHistory(items: clipboardItems).search(query) { [runningApps] in
+      AppIcons.displayName(bundleID: $0, running: runningApps)
+    }
+  }
+
   /// Forgets everything except pinned items.
   func clearClipboardHistory() {
     let removed = clipboardItems.count - pinnedClipboardCount
@@ -109,8 +132,8 @@ extension AppModel {
     var bundleID: String
     var name: String
     var path: String?
-    /// One of the password managers excluded by default.
-    var isDefault: Bool
+    /// A password manager: its copies are kept hidden; excluding it keeps them out altogether.
+    var isPasswordManager: Bool
   }
 
   /// The display name of a bundle identifier, for chips.
@@ -118,21 +141,25 @@ extension AppModel {
     AppIcons.displayName(bundleID: bundleID, running: runningApps)
   }
 
-  /// Running apps and the default password managers that aren't excluded yet: defaults first.
+  /// The Mac's password managers Slated knows by name, in its list's order.
+  static var passwordManagerChoices: [String] {
+    PasswordManagers.ids.filter { ClipboardContent.knownAppNames[$0] != nil }
+  }
+
+  /// Password managers (whose copies are kept hidden unless excluded) and running apps that aren't
+  /// excluded yet: password managers first.
   var excludableApps: [AppChoice] {
     let excluded = Set(configuration.clipboard.excludedApps)
-    let defaults = ClipboardSettings.defaultExcludedApps.filter { !excluded.contains($0) }.map { id in
+    let managers = Self.passwordManagerChoices.filter { !excluded.contains($0) }.map { id in
       AppChoice(
         bundleID: id, name: ClipboardContent.knownAppNames[id] ?? id,
-        path: runningApps.first { $0.bundleID == id }?.path, isDefault: true)
+        path: runningApps.first { $0.bundleID == id }?.path, isPasswordManager: true)
     }
     let running = runningApps.compactMap { app -> AppChoice? in
-      guard let id = app.bundleID, !excluded.contains(id), !ClipboardSettings.defaultExcludedApps.contains(id) else {
-        return nil
-      }
-      return AppChoice(bundleID: id, name: app.name, path: app.path, isDefault: false)
+      guard let id = app.bundleID, !excluded.contains(id), !PasswordManagers.contains(id) else { return nil }
+      return AppChoice(bundleID: id, name: app.name, path: app.path, isPasswordManager: false)
     }
-    return defaults + running
+    return managers + running
   }
 
   func excludeFromClipboard(_ bundleID: String) {
@@ -142,15 +169,6 @@ extension AppModel {
 
   func includeInClipboard(_ bundleID: String) {
     configuration.clipboard.excludedApps.removeAll { $0 == bundleID }
-  }
-
-  /// The default password managers that were removed from the excluded list.
-  var missingDefaultExclusions: [String] {
-    ClipboardSettings.defaultExcludedApps.filter { !configuration.clipboard.excludedApps.contains($0) }
-  }
-
-  func restoreDefaultExclusions() {
-    configuration.clipboard.excludedApps += missingDefaultExclusions
   }
 
   // MARK: Shortcuts shared with bindings

@@ -10,11 +10,15 @@
 //   and deleted when its item goes. GNOME's screenshot tool copies every screenshot from GNOME Shell
 //   itself (a Meta.SelectionSourceMemory owner), which is how a screenshot is told apart and left out
 //   when `screenshots` is off. A copy with text and a picture of it (spreadsheet cells) counts
-//   as text, as on the Mac. Skipped: copies whose MIME types include `x-kde-passwordManagerHint` (KeePassXC,
-//   Firefox and other password managers mark secrets that way) when `ignoreConcealed` is on, copies
-//   made in `excludedApps`, and Slated's own writes (insert-text's temporary paste, the switcher's
-//   picks). Chrome and other Chromium browsers mark copied passwords on macOS but not on Linux, so
-//   with `ignoreConcealed` on, a copy from one of them that looks like a password is skipped too.
+//   as text, as on the Mac. Skipped: copies made in `excludedApps`, and Slated's own
+//   writes (insert-text's temporary paste, the switcher's picks).
+// - Secrets (lib/core/secrets.js): a copy whose MIME types include `x-kde-passwordManagerHint` (KeePassXC,
+//   Firefox and other password managers mark secrets that way), one from a password manager, or, with
+//   `secretPatterns`, text that looks like a key, token, card number or random password. Chrome and other
+//   Chromium browsers mark copied passwords on macOS but not on Linux, so a copy from one of them that
+//   looks like a password counts too. With `secrets` "masked" (the default) they're kept in memory only
+//   (the history never writes them), masked in the picker, and forgotten after `secretMinutes` and when
+//   the extension stops; with "skip" they aren't recorded. An image or files marked secret are skipped.
 // - Saving: `$XDG_STATE_HOME/slated/clipboard.json`, mode 0600, in the Mac app's format, a second
 //   after the last change; deleted when `persist` is turned off (and its images when Slated stops).
 //   Unpinned items older than `retentionDays` are forgotten when settings are applied and with every
@@ -33,7 +37,7 @@ import * as Core from '../core/index.js';
 import {CaretTracker} from './caret.js';
 import {COPIED_FILES, FILES_MIME_TYPES, copiedFilesText, fileExists, parseCopiedFiles} from './clipboardFiles.js';
 import {ClipboardImageStore, imageMimeType} from './clipboardImages.js';
-import {ClipboardPicker, PickerModel} from './clipboardPicker.js';
+import {ClipboardPicker, PickerModel, appDisplayName} from './clipboardPicker.js';
 import {readText, remove, writePrivateTextAtomic} from './files.js';
 import {currentScreens} from './screens.js';
 import {Debouncer} from './timers.js';
@@ -76,9 +80,10 @@ const OWN_WRITE_MS = 3000;
 /** The image type GNOME apps put on the clipboard (and the only one recorded). */
 const PNG = 'image/png';
 
-/** What the log says about an item: its length, an image's size and dimensions, or how many files. Never content. */
+/** What the log says about an item: its length, an image's size and dimensions, or how many files; for a secret only that it is one. Never content. */
 function logFields(item) {
   if (item.files) return {kind: 'files', count: item.files.length};
+  if (item.secret) return {sensitive: true};
   if (!item.image) return {chars: [...item.text].length};
   return {kind: 'image', bytes: item.image.bytes, width: item.image.width, height: item.image.height};
 }
@@ -118,10 +123,7 @@ const pointerLocation = () => {
 };
 
 export function defaultClipboardSettings() {
-  return {
-    enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
-    excludedApps: [], pasteAfterSelecting: true, screenshots: true,
-  };
+  return Core.defaultClipboard();
 }
 
 /** The line count the log records for a copy (Swift's `split(whereSeparator: \.isNewline).count`). */
@@ -147,10 +149,12 @@ export class ClipboardService {
    * @param {() => number[]} [options.pointer]  The pointer's [x, y].
    * @param {(model: PickerModel, service: ClipboardService) => object} [options.makeSwitcher]  The St
    *   picker (tests pass a fake).
+   * @param {(appId: string) => string} [options.appName]  An app's name from its id, which a secret's search
+   *   matches (the picker's lookup by default).
    */
   constructor({
     timers, log = null, path, focus, input, now = () => Date.now(), imagesDirectory = null, caret = null,
-    screens = currentScreens, pointer = pointerLocation, makeSwitcher = null,
+    screens = currentScreens, pointer = pointerLocation, makeSwitcher = null, appName = null,
   }) {
     this._timers = timers;
     this._log = log;
@@ -169,17 +173,22 @@ export class ClipboardService {
     this._stopped = false;
     this._loaded = false;
     this._saver = new Debouncer(timers, 1000, () => this._saveNow());
+    /** The timer for the next secret to expire, if one will. */
+    this._expiry = null;
     this.images = new ClipboardImageStore(imagesDirectory ?? `${dirname(path)}/clipboard-images`);
     this._caret = caret ?? new CaretTracker();
     this._screens = screens;
     this._pointer = pointer;
     this._model = new PickerModel({
       history: () => this.history,
+      appName: appName ?? appDisplayName,
       actions: {
         paste: (id) => this.paste(id),
         togglePin: (id) => this.togglePin(id),
         delete: (id) => this.delete(id),
         clear: () => this.clear(),
+        hide: (id) => this.hide(id),
+        unhide: (id) => this.unhide(id),
         close: () => this._switcher?.close(),
       },
     });
@@ -217,6 +226,9 @@ export class ClipboardService {
       history.enforce(next.maxItems);
       history.prune(next.retentionDays, Core.referenceSeconds(this._now()));
     });
+    // Secrets kept from before turning on "Don't Record" go now, and a shorter time limit applies at once.
+    if (next.secrets === 'skip') this._forgetSecrets('secrets are skipped');
+    this._expireSecrets();
     if (next.persist) {
       this._saver.trigger();
     } else {
@@ -224,7 +236,10 @@ export class ClipboardService {
       if (remove(this._path)) this._log?.record('clipboard.forgotten', {reason: 'persist is off'});
     }
     if (changed) {
-      this._log?.record('clipboard.settings', {enabled: next.enabled, persist: next.persist, maxItems: next.maxItems, items: this.count});
+      this._log?.record('clipboard.settings', {
+        enabled: next.enabled, persist: next.persist, maxItems: next.maxItems, secrets: next.secrets, secretMinutes: next.secretMinutes,
+        secretPatterns: next.secretPatterns, items: this.count,
+      });
     }
     this._switcher?.refresh();
   }
@@ -235,6 +250,10 @@ export class ClipboardService {
     this._switcher?.destroy();
     this._switcher = null;
     this._caret?.destroy();
+    // Secrets never outlive the extension (they're never saved either way).
+    this._forgetSecrets('stopped');
+    if (this._expiry !== null) this._timers.clear(this._expiry);
+    this._expiry = null;
     if (this.settings.persist && this._loaded) this._saveNow();
     // History that isn't kept across restarts doesn't leave its images behind either.
     else if (this._loaded) this._removeImages('history is not kept');
@@ -285,12 +304,18 @@ export class ClipboardService {
       mimeTypes = [];
     }
     const app = this._safeApp();
-    if (this.settings.ignoreConcealed && mimeTypes.some((type) => CONCEALED_MIME_TYPES.includes(type))) {
-      this._log?.record('clipboard.skipped', {reason: 'concealed', app: app?.id ?? 'unknown'}, 'debug');
-      return;
-    }
     if (app && appMatchesAny(app, this.settings.excludedApps)) {
       this._log?.record('clipboard.skipped', {reason: 'excluded app', app: app.id}, 'debug');
+      return;
+    }
+    // Marked secret by the app, or copied from a password manager: known before anything is read, so a
+    // secret that isn't to be recorded is never read at all.
+    const marked = mimeTypes.some((type) => CONCEALED_MIME_TYPES.includes(type));
+    // Matched the way excludedApps is (any case, with or without ".desktop": `com.bitwarden.desktop` is a Flatpak id).
+    const fromManager = appMatchesAny(app, Core.PASSWORD_MANAGERS);
+    const known = marked ? 'marked' : fromManager ? 'app' : null;
+    if (known && this.settings.secrets === 'skip') {
+      this._skippedSecret(known, app);
       return;
     }
     const clipboard = St.Clipboard.get_default();
@@ -298,38 +323,134 @@ export class ClipboardService {
     // Files take priority over the names (or paths) that come with them as text.
     const filesType = FILES_MIME_TYPES.find((type) => mimeTypes.includes(type));
     if (!filesType) {
-      this._readCopy(clipboard, mimeTypes, app, screenshot);
+      this._readCopy(clipboard, mimeTypes, app, screenshot, known);
       return;
     }
     clipboard.get_content(St.ClipboardType.CLIPBOARD, filesType, (_c, content) => {
       const paths = parseCopiedFiles(textOf(bytesOf(content)));
-      // A list of web links or network files is text (or an image) as usual.
-      if (paths.length > 0) this._recordFiles(paths, app);
-      else this._readCopy(clipboard, mimeTypes, app, screenshot);
+      // A list of web links or network files is text (or an image) as usual. A secret is text: files
+      // marked secret are left out rather than kept.
+      if (paths.length > 0 && known) this._skippedSecret(known, app);
+      else if (paths.length > 0) this._recordFiles(paths, app);
+      else this._readCopy(clipboard, mimeTypes, app, screenshot, known);
     });
   }
 
-  /** Reads a copy's text, or its PNG when it has no text. */
-  _readCopy(clipboard, mimeTypes, app, screenshot) {
+  /** Reads a copy's text, or its PNG when it has no text. `known`: why it's a secret, when that's known already. */
+  _readCopy(clipboard, mimeTypes, app, screenshot, known = null) {
     clipboard.get_text(St.ClipboardType.CLIPBOARD, (_clipboard, text) => {
-      // Only a copy without text is an image: cells and files come with a picture of themselves.
-      if (typeof text === 'string') this._record(text, app);
+      // Only a copy without text is an image: cells and files come with a picture of themselves. An
+      // image marked secret is left out.
+      if (typeof text === 'string') this._record(text, app, known);
+      else if (known && mimeTypes.includes(PNG)) this._skippedSecret(known, app);
       else if (mimeTypes.includes(PNG)) {
         clipboard.get_content(St.ClipboardType.CLIPBOARD, PNG, (_c, bytes) => this._recordImage(bytes, app, {screenshot}));
       }
     });
   }
 
-  _record(text, app) {
+  /**
+   * Records copied text. A secret (`known`, else its look with `secretPatterns`) is kept masked and in
+   * memory only, or not at all with `secrets` "skip"; the log says only that it was one, and why.
+   */
+  _record(text, app, known = null) {
     if (this._stopped || !this.settings.enabled || typeof text !== 'string') return;
     if (this._takeOwnWrite((w) => w.text === text)) return;
-    if (this.settings.ignoreConcealed && app && appMatchesAny(app, UNMARKED_PASSWORD_APPS) && looksLikePassword(text)) {
-      this._log?.record('clipboard.skipped', {reason: 'looks like a password', app: app.id}, 'debug');
+    const secret = known ?? this._lookOf(text, app);
+    if (secret && this.settings.secrets === 'skip') {
+      this._skippedSecret(secret, app);
       return;
     }
-    if (!this._add((history, at) => history.add(text, {app: app?.id ?? null, at, limit: this.settings.maxItems}))) return;
-    this._log?.record('clipboard.captured', {chars: [...text].length, lines: lineCount(text), app: app?.id ?? 'unknown', items: this.count});
+    if (!this._add((history, at) => history.add(text, {app: app?.id ?? null, at, limit: this.settings.maxItems, secret}))) return;
+    // A secret's length isn't logged either: only that it was one, and why.
+    const size = secret ? {sensitive: true, reason: secret} : {chars: [...text].length, lines: lineCount(text)};
+    this._log?.record('clipboard.captured', {...size, app: app?.id ?? 'unknown', items: this.count});
+    if (secret) {
+      // Off disk at once, not after the usual pause: it may be a copy of an item saved before.
+      if (this.settings.persist) this._saveNow();
+      this._scheduleExpiry();
+    }
     this._changed();
+  }
+
+  /** 'pattern' when `text` looks like a secret (with `secretPatterns` on), else null. */
+  _lookOf(text, app) {
+    if (!this.settings.secretPatterns) return null;
+    if (Core.secretPattern(text) !== null) return 'pattern';
+    // Chromium browsers mark copied passwords on the Mac but not on Linux.
+    if (app && appMatchesAny(app, UNMARKED_PASSWORD_APPS) && looksLikePassword(text)) return 'pattern';
+    return null;
+  }
+
+  _skippedSecret(reason, app) {
+    this._log?.record('clipboard.skipped', {reason: 'secret', secret: reason, app: app?.id ?? 'unknown'}, 'debug');
+  }
+
+  // --- Secrets ---------------------------------------------------------------------------------------
+
+  /** Forgets secrets older than `secretMinutes`, then waits for the next one to expire. */
+  _expireSecrets() {
+    const now = Core.referenceSeconds(this._now());
+    const expired = this._changeHistory((history) => history.expireSecrets(this.settings.secretMinutes, now));
+    if (expired > 0) {
+      this._log?.record('clipboard.secrets_expired', {count: expired, minutes: this.settings.secretMinutes});
+      this._changed();
+    }
+    this._scheduleExpiry();
+  }
+
+  /** A timer for when the next secret expires; none while no secret will. */
+  _scheduleExpiry() {
+    if (this._expiry !== null) this._timers.clear(this._expiry);
+    this._expiry = null;
+    if (this._stopped) return;
+    const next = this.history.nextSecretExpiry(this.settings.secretMinutes);
+    if (next === null) return;
+    const wait = Math.max(Core.referenceToMilliseconds(next) - this._now(), 0) + 500;
+    this._expiry = this._timers.timeout(wait, () => {
+      this._expiry = null;
+      this._expireSecrets();
+    });
+  }
+
+  /** Forgets every secret (the extension stops, or secrets are skipped from now on). Returns how many. */
+  _forgetSecrets(reason) {
+    const forgotten = this.history.forgetSecrets();
+    if (forgotten > 0) {
+      this._log?.record('clipboard.secrets_forgotten', {count: forgotten, reason});
+      this._switcher?.refresh();
+      this.onChange?.();
+    }
+    return forgotten;
+  }
+
+  /** "Hide Contents" (Ctrl+H in the picker): the item becomes a secret and leaves clipboard.json at once. */
+  hide(id) {
+    if (!this.history.hide(id)) return false;
+    this._log?.record('clipboard.hidden', {reason: 'manual'});
+    if (this.settings.persist) this._saveNow();
+    this._scheduleExpiry();
+    this._switcher?.refresh();
+    this.onChange?.();
+    return true;
+  }
+
+  /**
+   * "Show Contents": a secret found by its look, or hidden by hand, becomes an ordinary item, saved from
+   * now on. One its app marked or a password manager copied stays hidden: false.
+   */
+  unhide(id) {
+    const reason = this.history.items.find((i) => i.id === id)?.secret ?? null;
+    if (!this.history.unhide(id)) return false;
+    this._log?.record('clipboard.unhidden', {reason: reason ?? 'none'});
+    this._scheduleExpiry();
+    this._changed();
+    return true;
+  }
+
+  /** How many secrets the history holds (status.json gets this count, nothing else). */
+  get secretCount() {
+    return this.history.items.filter((item) => item.secret).length;
   }
 
   /** Adds copied files (local paths). The log gets how many, never their names. */
@@ -539,7 +660,8 @@ export class ClipboardService {
     } else {
       this.markOwnWrite(item.text);
       clipboard.set_text(St.ClipboardType.CLIPBOARD, item.text);
-      this._changeHistory((history) => history.add(item.text, {app: item.sourceApp, at, limit}));
+      this._changeHistory((history) => history.add(item.text, {app: item.sourceApp, at, limit, secret: item.secret ?? null}));
+      if (item.secret) this._scheduleExpiry();
     }
     this._changed();
     return extra;

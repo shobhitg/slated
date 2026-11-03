@@ -30,7 +30,7 @@ export function emptyStatus() {
     // What runs now (titles as the indicator shows them), the shortcuts that started it, and whether
     // while-held repeats stop as you let go ("key-repeat") or work like toggles ("toggle").
     automation: {running: [], shortcuts: [], stopShortcut: null, whileHeld: 'key-repeat'},
-    clipboard: {enabled: false, items: 0},
+    clipboard: {enabled: false, items: 0, secrets: 0},
     /** Apps used lately, newest first: [{id, name}], the ids onlyInApps takes. */
     recentApps: [],
     lastAction: null,
@@ -130,7 +130,11 @@ export function parseStatus(text) {
     };
   }
   if (isObject(raw.clipboard)) {
-    status.clipboard = {enabled: bool(raw.clipboard.enabled), items: Math.max(0, Math.round(num(raw.clipboard.items)))};
+    // `secrets`: how many of the items are hidden, in memory only (a count; the extension never says more).
+    status.clipboard = {
+      enabled: bool(raw.clipboard.enabled), items: Math.max(0, Math.round(num(raw.clipboard.items))),
+      secrets: Math.max(0, Math.round(num(raw.clipboard.secrets))),
+    };
   }
   if (Array.isArray(raw.recentApps)) {
     status.recentApps = raw.recentApps
@@ -191,7 +195,7 @@ export function extensionState(info, userExtensionsEnabled = null) {
  * @param {object|null} args.build build-info.json contents
  * @param {string|null} args.runningCommit the commit the running extension logged in app.start
  */
-export function runningSummary({status, shell, build = null, runningCommit = null}) {
+export function runningSummary({status, shell, build = null, runningCommit = null, missingSecrets = 0}) {
   const relogin = 'On Wayland, GNOME loads a new or updated extension only when you log in. Log out and back in, then come back here.';
   if (shell.userExtensionsEnabled === false) {
     return {
@@ -259,6 +263,14 @@ export function runningSummary({status, shell, build = null, runningCommit = nul
     if (counts.duplicate) parts.push(plural(counts.duplicate, 'duplicate shortcut'));
     if (counts.failed) parts.push(`${counts.failed} that GNOME refused`);
     return {level: 'warning', running: true, title: 'Some shortcuts need attention', action: 'review', detail: parts.join(' and ')};
+  }
+  // Sensitive hotstrings copied in without secrets.json: they don't expand until their text is typed in.
+  if (missingSecrets > 0) {
+    return {
+      level: 'warning', running: true, title: missingSecrets === 1 ? 'A hotstring needs its text' : 'Some hotstrings need their text',
+      action: 'hotstrings',
+      detail: `${plural(missingSecrets, 'sensitive hotstring')} ${missingSecrets === 1 ? "doesn't" : "don't"} expand: ${missingSecrets === 1 ? 'its' : 'their'} text isn't on this computer yet (secrets.json). Type it in the hotstring's editor.`,
+    };
   }
   return {level: 'ok', running: true, title: "Everything's running", action: null, detail: null};
 }

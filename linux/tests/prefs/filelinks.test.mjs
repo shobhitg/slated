@@ -15,6 +15,8 @@ export default suite('File links', [
     expectEqual(links('These settings are in ~/.config/slated/settings.json;'), ['~/.config/slated/settings.json=settings']);
     expectEqual(links('Open ~/.config/slated/ in Files'), ['~/.config/slated=folder']);
     expectEqual(links('a copy at config.v1.json, beside it'), ['config.v1.json=backup']);
+    expectEqual(links('Its text is in secrets.json (~/.config/slated/secrets.json).'), ['secrets.json=secrets', '~/.config/slated/secrets.json=secrets']);
+    expectEqual(links('mysecrets.json, secrets.json.bak'), []);
     expectEqual(links('Slated looks for ~/.slate.js, then ~/.slate.'), ['~/.slate.js=slate-js', '~/.slate=slate']);
     expectEqual(links('No ~/.slate or ~/.slate.js here'), ['~/.slate=slate', '~/.slate.js=slate-js']);
     expectEqual(links('myconfig.json, config.jsonc, config.json.bak, ~/.slated, a.settings.json'), []);
@@ -30,15 +32,17 @@ export default suite('File links', [
     for (const other of ['https://config', 'file:///home/me/.config/slated/config.json', 'slated-file://nothing', null]) {
       expectEqual(parseLinkUri(other), null, String(other));
     }
-    expectEqual([linkForFile('config.json'), linkForFile('settings.json')], ['config', 'settings']);
+    expectEqual([linkForFile('config.json'), linkForFile('settings.json'), linkForFile('secrets.json')], ['config', 'settings', 'secrets']);
   }],
   ['which name opens which file', () => {
     const paths = slatedPaths('/home/me');
     expectEqual(Object.keys(FILE_LINKS).map(link => linkPath(link, paths)), [
-      '/home/me/.config/slated/config.json', '/home/me/.config/slated/settings.json', '/home/me/.config/slated/config.v1.json',
+      '/home/me/.config/slated/config.json', '/home/me/.config/slated/settings.json', '/home/me/.config/slated/secrets.json',
+      '/home/me/.config/slated/config.v1.json',
       '/home/me/.config/slated', '/home/me/.slate.js', '/home/me/.slate',
     ]);
-    expectEqual(Object.values(FILE_LINKS).map(l => l.logName), ['config.json', 'settings.json', 'config.v1.json', 'folder', '.slate.js', '.slate']);
+    expectEqual(Object.values(FILE_LINKS).map(l => l.logName), ['config.json', 'settings.json', 'secrets.json', 'config.v1.json', 'folder', '.slate.js', '.slate']);
+    expectEqual(missingText('secrets'), "There's no secrets.json yet. Slated creates it when you make a hotstring Sensitive.");
     expectEqual(missingText('slate-js'), "There's no ~/.slate.js in your home folder.");
     expectEqual(missingText('settings'), "settings.json isn't there yet. Slated creates it the first time it saves a change.");
   }],
@@ -50,6 +54,7 @@ export default suite('File links', [
       '<a href="slated-file://settings" title="Open settings.json">settings.json</a> › island.enabled');
     expectEqual(keyLinkMarkup('config.json › hotstrings › "config.json"'),
       '<a href="slated-file://config" title="Open config.json">config.json</a> › hotstrings › "config.json"');
+    expectEqual(keyLinkMarkup('secrets.json › pw'), '<a href="slated-file://secrets" title="Open secrets.json">secrets.json</a> › pw');
     expectEqual(keyLinkMarkup('trigger'), 'trigger');
     expect(!hasUnlinkedFileName(fileLinkMarkup('Not saved: config.json and settings.json changed on disk')));
     expect(hasUnlinkedFileName('Saved in config.json'));

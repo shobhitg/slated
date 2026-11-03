@@ -15,20 +15,20 @@
       "coding": 40,
       "fileNames": 23,
       "search": 183,
-      "sessions": 19
+      "sessions": 23
     },
     "config-keys.json": {
       "actions": 33,
       "examples": 35,
       "fields": 4,
       "items": 8,
-      "notShown": 4,
-      "settings": 31,
-      "values": 34
+      "notShown": 6,
+      "settings": 33,
+      "values": 36
     },
     "config.json": {
-      "decode": 649,
-      "files": 16
+      "decode": 669,
+      "files": 27
     },
     "expressions.json": {
       "closestName": 20,
@@ -70,6 +70,14 @@
       "parse": 50,
       "resolve": 92
     },
+    "secrets.json": {
+      "detect": 232,
+      "keys": 6,
+      "names": 26,
+      "passwordManagers": 40,
+      "reasons": 14,
+      "sessions": 4
+    },
     "settings.json": {
       "accessors": 27,
       "fromSlate": 44,
@@ -96,13 +104,13 @@
     }
   },
   "generator": "swift run SlatedFixtures (Sources/SlatedFixtures); do not edit by hand",
-  "totalVectors": 18543,
+  "totalVectors": 18906,
   "vectors": {
     "automation.json": 103,
     "cheatsheet.json": 144,
-    "clipboard.json": 265,
-    "config-keys.json": 149,
-    "config.json": 665,
+    "clipboard.json": 269,
+    "config-keys.json": 155,
+    "config.json": 696,
     "expressions.json": 876,
     "frames.json": 9978,
     "hotstrings.json": 846,
@@ -110,6 +118,7 @@
     "operations.json": 999,
     "placement.json": 957,
     "screens.json": 2842,
+    "secrets.json": 322,
     "settings.json": 85,
     "slate-config.json": 56,
     "starter.json": 21,

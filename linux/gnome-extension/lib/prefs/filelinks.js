@@ -1,5 +1,5 @@
-// Wherever the preferences name one of Slated's files (config.json, settings.json, config.v1.json,
-// ~/.config/slated, ~/.slate.js, ~/.slate), the name opens it: a port of the Mac's FileLink
+// Wherever the preferences name one of Slated's files (config.json, settings.json, secrets.json,
+// config.v1.json, ~/.config/slated, ~/.slate.js, ~/.slate), the name opens it: a port of the Mac's FileLink
 // (Sources/SlatedCore/Model/FileLink.swift), with the same names, links and words. Pure: the window
 // (ui/filelinks.js) turns the markup into clickable labels and opens what a link names.
 
@@ -19,6 +19,7 @@ export const FILE_LINK_SCHEME = 'slated-file';
 export const FILE_LINKS = Object.freeze({
   config: Object.freeze({name: 'config.json', logName: 'config.json'}),
   settings: Object.freeze({name: 'settings.json', logName: 'settings.json'}),
+  secrets: Object.freeze({name: 'secrets.json', logName: 'secrets.json'}),
   backup: Object.freeze({name: 'config.v1.json', logName: 'config.v1.json'}),
   folder: Object.freeze({name: '~/.config/slated', logName: 'folder'}),
   'slate-js': Object.freeze({name: '~/.slate.js', logName: '.slate.js'}),
@@ -32,10 +33,12 @@ const SPELLINGS = Object.freeze([
   ['~/.config/slated/config.v1.json', 'backup'],
   ['~/.config/slated/config.json', 'config'],
   ['~/.config/slated/settings.json', 'settings'],
+  ['~/.config/slated/secrets.json', 'secrets'],
   ['~/.config/slated', 'folder'],
   ['config.v1.json', 'backup'],
   ['config.json', 'config'],
   ['settings.json', 'settings'],
+  ['secrets.json', 'secrets'],
   ['~/.slate.js', 'slate-js'],
   ['~/.slate', 'slate'],
 ]);
@@ -56,9 +59,10 @@ export function parseLinkUri(uri) {
   return Object.hasOwn(FILE_LINKS, link) ? link : null;
 }
 
-/** The link for one of the two files a key is in: 'config.json' → 'config'. */
+/** The link for one of the files a key is in: 'config.json' → 'config'. */
 export function linkForFile(file) {
-  return file === 'settings.json' ? 'settings' : 'config';
+  if (file === 'settings.json') return 'settings';
+  return file === 'secrets.json' ? 'secrets' : 'config';
 }
 
 const isWordChar = c => /[\p{L}\p{N}_-]/u.test(c);
@@ -114,7 +118,7 @@ export function fileLinkMarkup(text, options) {
  */
 export function keyLinkMarkup(text) {
   const value = String(text ?? '');
-  for (const file of ['config.json', 'settings.json']) {
+  for (const file of ['config.json', 'settings.json', 'secrets.json']) {
     if (value.startsWith(`${file} ›`)) return linkMarkup(file, linkForFile(file)) + escapeText(value.slice(file.length));
   }
   return escapeText(value);
@@ -138,6 +142,7 @@ export function linkPath(link, paths) {
   switch (link) {
   case 'config': return paths.configFile;
   case 'settings': return paths.settingsFile;
+  case 'secrets': return paths.secretsFile ?? `${paths.configDir}/secrets.json`;
   case 'backup': return paths.backupFile;
   case 'folder': return paths.configDir;
   case 'slate-js': return `${paths.home}/.slate.js`;
@@ -152,6 +157,7 @@ export function missingText(link) {
   case 'config':
   case 'settings':
     return `${FILE_LINKS[link].name} isn't there yet. Slated creates it the first time it saves a change.`;
+  case 'secrets': return "There's no secrets.json yet. Slated creates it when you make a hotstring Sensitive.";
   case 'backup': return "There's no config.v1.json. Slated keeps one only when it updates a version 1 config.json.";
   case 'folder': return "~/.config/slated isn't there yet. Slated creates it the first time it saves a change.";
   default: return `There's no ${FILE_LINKS[link]?.name ?? 'such file'} in your home folder.`;

@@ -124,6 +124,7 @@ private struct HeroCard: View {
     var items: [String] = []
     if !model.runtimeStatus.accessibilityGranted { items.append("Accessibility") }
     if model.problemBindingCount > 0 { items.append("shortcuts") }
+    if model.missingSecretCount > 0 { items.append("hotstrings") }
     // file link: counted, not shown
     if model.loadError != nil { items.append("config.json") }
     return items
@@ -165,6 +166,7 @@ private struct HeroCard: View {
       return ("Grant Accessibility Access", { model.requestAccessibility() })
     }
     if model.problemBindingCount > 0 { return ("Review Shortcuts", { model.selectedPane = .windows }) }
+    if model.missingSecretCount > 0 { return ("Review Hotstrings", { model.reviewMissingSecrets() }) }
     return nil
   }
 }
@@ -202,9 +204,13 @@ private struct StatusGrid: View {
         StatusTile(
           title: "Hotstrings", symbol: "text.insert", tint: SettingsPane.hotstrings.tint,
           value: status.hotstringsEnabled ? "\(model.enabledHotstringCount) active" : "Off",
-          state: status.hotstringsActive ? .good : .neutral,
-          detail: status.hotstringsEnabled ? "Text expansion is on" : "Turned off"
-        ) { EmptyView() }
+          state: model.missingSecretCount > 0 ? .attention : (status.hotstringsActive ? .good : .neutral),
+          detail: hotstringDetail
+        ) {
+          if model.missingSecretCount > 0 {
+            Button("Review") { model.reviewMissingSecrets() }
+          }
+        }
       }
       HStack(spacing: 12) {
         StatusTile(
@@ -250,6 +256,12 @@ private struct StatusGrid: View {
         }
       }
     }
+  }
+
+  private var hotstringDetail: String {
+    let missing = model.missingSecretCount
+    if missing > 0 { return missing == 1 ? "1 needs its text" : "\(missing) need their text" }
+    return model.runtimeStatus.hotstringsEnabled ? "Text expansion is on" : "Turned off"
   }
 
   private var clipboardDetail: String {

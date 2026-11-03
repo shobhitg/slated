@@ -498,6 +498,7 @@ export function createFakeGnome({home = '/nonexistent', env = {}, screens = fixt
       return {
         get_size: () => stats.size,
         get_attribute_uint64: () => Math.floor(stats.mtimeMs / 1000),
+        get_attribute_uint32: (attribute) => (attribute === 'unix::mode' ? stats.mode & 0o7777 : 0),
         get_file_type: () => (stats.isDirectory() ? 2 : 1),
         // standard::fast-content-type: guessed from the name alone.
         get_attribute_string: () => contentTypeOf(this.path),

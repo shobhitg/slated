@@ -3,12 +3,17 @@ import SlatedCore
 import SlatedSystem
 import SlatedUI
 
-/// Clipboard history: records copies of text, images and files (skipping concealed items and excluded
-/// apps) and screenshots saved as files, stores them privately, and pastes a picked item back into
-/// the app you were using.
+/// Clipboard history: records copies of text, images and files (skipping excluded apps and what apps
+/// mark temporary) and screenshots saved as files, stores them privately, and pastes a picked item back
+/// into the app you were using.
+///
+/// Secrets (`ClipboardSecrets`: marked by their app, copied from a password manager, or looking like a
+/// key) are kept masked and in memory only (`ClipboardHistory` never encodes them), forgotten after
+/// `clipboard.secretMinutes` and when Slated quits; or skipped, with `clipboard.secrets` "skip".
 ///
 /// The event log records that something was copied or pasted (length, an image's size and
-/// dimensions, how many files), never the text, the image, or a file's name or path.
+/// dimensions, how many files; for a secret, only that it was one and why), never the text, the
+/// image, or a file's name or path.
 final class ClipboardService {
   private(set) var settings = ClipboardSettings()
   private(set) var history = ClipboardHistory()
@@ -86,13 +91,23 @@ final class ClipboardService {
       history.enforce(limit: settings.maxItems)
       history.prune(olderThanDays: settings.retentionDays, now: Date())
     }
+    // Secrets kept from before turning on "Don't Record" go now, and a shorter time limit applies at once.
+    if settings.secrets == .skip {
+      let forgotten = history.forgetSecrets()
+      if forgotten > 0 {
+        Log.record("clipboard.secrets_forgotten", ["count": forgotten, "reason": "secrets are skipped"])
+      }
+    }
+    expireSecrets()
     if settings.persist { scheduleSave() } else { try? FileManager.default.removeItem(at: fileURL) }
     if changed {
       Log.record(
         "clipboard.settings",
         [
           "enabled": settings.enabled, "persist": settings.persist, "maxItems": settings.maxItems,
-          "screenshots": settings.screenshots, "items": history.items.count,
+          "screenshots": settings.screenshots, "secrets": settings.secrets.rawValue,
+          "secretMinutes": settings.secretMinutes, "secretPatterns": settings.secretPatterns,
+          "items": history.items.count,
         ])
     }
   }
@@ -100,9 +115,60 @@ final class ClipboardService {
   func stop() {
     watcher.stop()
     screenshots?.stop()
+    expiryTimer?.invalidate()
+    expiryTimer = nil
+    // Secrets never outlive Slated (they're never saved either way).
+    let forgotten = history.forgetSecrets()
+    if forgotten > 0 { Log.record("clipboard.secrets_forgotten", ["count": forgotten, "reason": "quit"]) }
     saveNow()
     // History that isn't kept across restarts doesn't leave its images behind either.
     if !settings.persist { images.removeFiles(except: []) }
+  }
+
+  // MARK: Secrets
+
+  /// Fires when the next secret expires.
+  private var expiryTimer: Timer?
+
+  /// Forgets secrets older than `clipboard.secretMinutes`, then waits for the next one to expire.
+  func expireSecrets() {
+    let expired = history.expireSecrets(olderThanMinutes: settings.secretMinutes, now: now())
+    if expired > 0 {
+      Log.record("clipboard.secrets_expired", ["count": expired, "minutes": settings.secretMinutes])
+      changed()
+    }
+    scheduleExpiry()
+  }
+
+  /// A timer for when the next secret expires; none while no secret will.
+  private func scheduleExpiry() {
+    expiryTimer?.invalidate()
+    expiryTimer = nil
+    guard let next = history.nextSecretExpiry(afterMinutes: settings.secretMinutes) else { return }
+    let timer = Timer(fire: max(next, now()).addingTimeInterval(0.5), interval: 0, repeats: false) { [weak self] _ in
+      MainActor.assumeIsolated { self?.expireSecrets() }
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    expiryTimer = timer
+  }
+
+  /// "Hide Contents": the item becomes a secret, and leaves clipboard.json right away.
+  func hide(id: UUID) {
+    guard history.hide(id: id) else { return }
+    Log.record("clipboard.hidden", ["reason": ClipboardSecretReason.manual.rawValue])
+    saveNow()
+    scheduleExpiry()
+    onChange?()
+  }
+
+  /// "Show Contents": a secret found by its look or hidden by hand becomes an ordinary item, saved from
+  /// now on. One its app marked secret or copied from a password manager stays hidden.
+  func unhide(id: UUID) {
+    let reason = history.items.first { $0.id == id }?.secret
+    guard history.unhide(id: id) else { return }
+    Log.record("clipboard.unhidden", ["reason": reason?.rawValue ?? "none"])
+    scheduleExpiry()
+    changed()
   }
 
   // MARK: Recording
@@ -112,15 +178,26 @@ final class ClipboardService {
       ignoreNextCopy = false
       return
     }
-    // A hotstring replacement Slated is pasting: never history, whatever the concealed-items setting.
+    // A hotstring replacement Slated is pasting: never history. Nor is what apps mark temporary (a text
+    // expander's paste) unless they also mark it secret.
     guard settings.enabled, !copy.isSlatedPaste, copy.text != nil || copy.image != nil || copy.files != nil
     else { return }
-    if settings.ignoreConcealed && copy.isConcealed {
-      Log.record("clipboard.skipped", level: .debug, ["reason": "concealed", "app": copy.sourceApp ?? "unknown"])
+    if copy.isTransient && !copy.isConcealed {
+      Log.record("clipboard.skipped", level: .debug, ["reason": "transient", "app": copy.sourceApp ?? "unknown"])
       return
     }
     if let app = copy.sourceApp, settings.excludedApps.contains(app) {
       Log.record("clipboard.skipped", level: .debug, ["reason": "excluded app", "app": app])
+      return
+    }
+    // A secret is text: an image or files marked secret are left out rather than kept.
+    let secret = ClipboardSecrets.reason(
+      text: copy.text ?? "", concealed: copy.isConcealed, sourceApp: copy.sourceApp,
+      patterns: settings.secretPatterns && copy.text != nil)
+    if let secret, settings.secrets == .skip || copy.text == nil || copy.files != nil {
+      Log.record(
+        "clipboard.skipped", level: .debug,
+        ["reason": "secret", "secret": secret.rawValue, "app": copy.sourceApp ?? "unknown"])
       return
     }
     if let files = copy.files {
@@ -130,14 +207,21 @@ final class ClipboardService {
         "clipboard.captured",
         ["kind": "files", "count": paths.count, "app": copy.sourceApp ?? "unknown", "items": history.items.count])
     } else if let text = copy.text {
-      guard add({ $0.add(text, from: copy.sourceApp, at: $1, limit: settings.maxItems) }) else { return }
+      guard add({ $0.add(text, from: copy.sourceApp, at: $1, limit: settings.maxItems, secret: secret) }) else {
+        return
+      }
+      // A secret's length isn't logged either: only that it was one, and why.
+      let size: [String: Any] =
+        secret.map { ["sensitive": true, "reason": $0.rawValue] }
+        ?? ["chars": text.count, "lines": text.split(whereSeparator: \.isNewline).count]
       Log.record(
         "clipboard.captured",
-        [
-          "chars": text.count, "lines": text.split(whereSeparator: \.isNewline).count,
-          "app": copy.sourceApp ?? "unknown",
-          "items": history.items.count,
-        ])
+        size.merging(["app": copy.sourceApp ?? "unknown", "items": history.items.count]) { a, _ in a })
+      if secret != nil {
+        // Off disk at once, not after the usual pause: it may be a copy of an item saved before.
+        saveNow()
+        scheduleExpiry()
+      }
     } else if let copied = copy.image {
       record(copied, from: copy.sourceApp)
     }
@@ -314,13 +398,14 @@ final class ClipboardService {
     Log.record("clipboard.copied", Self.size(of: item))
   }
 
-  /// What the log says about an item: its length, an image's size and dimensions, or how many files.
-  /// Never content, names or paths.
+  /// What the log says about an item: its length, an image's size and dimensions, or how many files;
+  /// for a secret, only that it is one. Never content, names or paths.
   private static func size(of item: ClipboardItem) -> [String: Any] {
     if let image = item.image {
       return ["kind": "image", "bytes": image.bytes, "width": image.width, "height": image.height]
     }
     if let files = item.files, item.isFiles { return ["kind": "files", "count": files.count] }
+    if item.isSecret { return ["sensitive": true] }
     return ["chars": item.text.count]
   }
 
@@ -401,8 +486,12 @@ final class ClipboardService {
       changeHistory { $0.add(image: image, from: item.sourceApp, at: Date(), limit: settings.maxItems) }
     } else {
       ignoreNextCopy = true
-      PasteboardWatcher.write(item.text, to: pasteboard)
-      changeHistory { $0.add(item.text, from: item.sourceApp, at: Date(), limit: settings.maxItems) }
+      // A secret goes back marked concealed, so other clipboard managers hide it too.
+      PasteboardWatcher.write(item.text, to: pasteboard, secret: item.isSecret)
+      changeHistory {
+        $0.add(item.text, from: item.sourceApp, at: now(), limit: settings.maxItems, secret: item.secret)
+      }
+      if item.isSecret { scheduleExpiry() }
     }
     changed()
     return true

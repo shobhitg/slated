@@ -17,7 +17,7 @@
 //
 // Pure ES module: file access comes in through `io`.
 
-import {decodeConfigurationFiles, encodeConfigurationFiles, starterConfiguration} from '../core/index.js';
+import {decodeConfigurationFiles, encodeConfigurationFiles, encodeSecretsText, starterConfiguration} from '../core/index.js';
 import {importSlateScript, importClassic, planImport} from './importer.js';
 import {describeError} from './engine.js';
 import {newId} from './ids.js';
@@ -38,6 +38,8 @@ export const DEFAULT_SLATE_PATHS = Object.freeze(['~/.slate.js', '~/.slate']);
  * @property {(path: string) => string|null} readFile a Slate file (and what it sources), null when missing
  * @property {() => string|null} [readRecord] config-migration.json in the state folder
  * @property {(text: string) => void} [writeRecord]
+ * @property {() => string|null} [readSecrets] secrets.json's text (sensitive hotstrings' text), null when it doesn't exist
+ * @property {(text: string) => void} [writeSecrets] writes secrets.json atomically, readable only by you (0600)
  */
 
 /**
@@ -112,23 +114,42 @@ function slateCounts(summary) {
 const withNewline = text => (text.endsWith('\n') ? text : `${text}\n`);
 
 /**
- * Which files' content differs between two configurations (a save writes only those).
- * @returns {{config: boolean, settings: boolean, texts: {config: string, settings: string}}}
+ * Which files' content differs between two configurations (a save writes only those). `secrets`,
+ * {before, after} ({name: text} each), adds secrets.json: sensitive hotstrings' text lives beside the
+ * configuration, never in it.
+ * @returns {{config: boolean, settings: boolean, secrets: boolean, texts: {config: string, settings: string, secrets: string|null}}}
  */
-export function changedFiles(before, after, extras = {}) {
+export function changedFiles(before, after, extras = {}, secrets = null) {
   const old = before ? encodeConfigurationFiles(before, extras) : {config: null, settings: null};
   const texts = encodeConfigurationFiles(after, extras);
-  return {config: texts.config !== old.config, settings: texts.settings !== old.settings, texts};
+  const secretsText = secrets ? encodeSecretsText(secrets.after ?? {}) : null;
+  const secretsChanged = Boolean(secrets) && encodeSecretsText(secrets.before ?? {}) !== secretsText;
+  return {config: texts.config !== old.config, settings: texts.settings !== old.settings, secrets: secretsChanged, texts: {...texts, secrets: secretsText}};
+}
+
+/** Whether `after` has a secret name `before` didn't: then secrets.json is written before config.json refers to it. */
+export function gainsSecretName(before, after) {
+  const old = new Set(Object.keys(before ?? {}));
+  return Object.keys(after ?? {}).some((name) => !old.has(name));
 }
 
 /**
  * Writes the configuration's files: settings.json first, then config.json, each only when `which`
- * says so. Throws what the writes throw.
- * @returns {{configText: string|null, settingsText: string|null}} what was written
+ * says so; and secrets.json (`which.secrets`, from `secrets.after`) before them when it gains a name,
+ * after them otherwise, so a sensitive hotstring's text is never only in a file not written yet.
+ * Throws what the writes throw.
+ * @returns {{configText: string|null, settingsText: string|null, secretsText: string|null}} what was written
  */
-export function writeConfigFiles(io, configuration, extras, which = {config: true, settings: true}) {
+export function writeConfigFiles(io, configuration, extras, which = {config: true, settings: true}, secrets = null) {
   const texts = encodeConfigurationFiles(configuration, extras);
-  const out = {configText: null, settingsText: null};
+  const out = {configText: null, settingsText: null, secretsText: null};
+  const writeSecrets = () => {
+    if (!which.secrets || !secrets || !io.writeSecrets) return;
+    out.secretsText = withNewline(encodeSecretsText(secrets.after ?? {}));
+    io.writeSecrets(out.secretsText);
+  };
+  const secretsFirst = gainsSecretName(secrets?.before, secrets?.after);
+  if (secretsFirst) writeSecrets();
   if (which.settings) {
     out.settingsText = withNewline(texts.settings);
     io.writeSettings(out.settingsText);
@@ -137,7 +158,17 @@ export function writeConfigFiles(io, configuration, extras, which = {config: tru
     out.configText = withNewline(texts.config);
     io.writeConfig(out.configText);
   }
+  if (!secretsFirst) writeSecrets();
   return out;
+}
+
+/**
+ * What to say about an error in secrets.json, for the banner and the log: the message without anything
+ * it quotes from the file (a character of a secret), as the Mac does. Other files' errors as they are.
+ */
+export function redactedError(message, file) {
+  if (file !== 'secrets.json') return message;
+  return String(message).replace(/\s*'[^']*'|\s*"[^"]*"/g, '');
 }
 
 // --- The record the settings window tells you from --------------------------------------------------
@@ -187,33 +218,43 @@ function saveRecord(io, record, log) {
  * @param {() => string} [options.makeId] ids for imported bindings
  * @param {(event: string, data?: object, level?: string) => void} [options.log]
  * @param {() => Date} [options.now]
- * @returns {{configuration?, extras?, configText: string|null, settingsText: string|null,
- *   created?: boolean, migrated?: boolean, record?: object, error?: Error, writeError?: Error}}
- *   `error` (with `file`): nothing usable was read, and nothing was written. `writeError`: the
- *   configuration is usable but creating or migrating the files failed.
+ * @returns {{configuration?, extras?, secrets?, configText: string|null, settingsText: string|null,
+ *   secretsText: string|null, created?: boolean, migrated?: boolean, record?: object, error?: Error,
+ *   writeError?: Error}} `error` (with `file`): nothing usable was read, and nothing was written.
+ *   `writeError`: the configuration is usable but creating or migrating the files failed. `secrets`:
+ *   secrets.json as {name: text} (empty without the file); it's read, never created or migrated.
  */
 export function loadConfigFiles(io, {by = 'settings', makeId = newId, log = () => {}, now = () => new Date()} = {}) {
   let configText;
   let settingsText;
+  let secretsText = null;
   try {
     configText = io.readConfig();
   } catch (error) {
-    return {error: readError(error, 'config.json'), configText: null, settingsText: null};
+    return {error: readError(error, 'config.json'), configText: null, settingsText: null, secretsText: null};
   }
   try {
     settingsText = io.readSettings();
   } catch (error) {
-    return {error: readError(error, 'settings.json'), configText, settingsText: null};
+    return {error: readError(error, 'settings.json'), configText, settingsText: null, secretsText: null};
+  }
+  try {
+    secretsText = io.readSecrets?.() ?? null;
+  } catch (error) {
+    return {error: readError(error, 'secrets.json'), configText, settingsText: settingsText ?? null, secretsText: null};
   }
   const context = {io, by, makeId, log, now};
-  if (configText === null || configText === undefined) return create(context, settingsText ?? null);
+  if (configText === null || configText === undefined) return create(context, settingsText ?? null, secretsText);
   let decoded;
   try {
-    decoded = decodeConfigurationFiles(configText, settingsText ?? null);
+    decoded = decodeConfigurationFiles(configText, settingsText ?? null, secretsText);
   } catch (error) {
-    return {error, configText, settingsText: settingsText ?? null};
+    return {error, configText, settingsText: settingsText ?? null, secretsText};
   }
-  const result = {configuration: decoded.configuration, extras: decoded.extras, configText, settingsText: settingsText ?? null};
+  const result = {
+    configuration: decoded.configuration, extras: decoded.extras, secrets: decoded.secrets ?? {}, configText,
+    settingsText: settingsText ?? null, secretsText,
+  };
   return decoded.legacy ? migrate(context, decoded, result) : result;
 }
 
@@ -223,13 +264,16 @@ function readError(error, file) {
   return out;
 }
 
-/** First run: the Slate config imported, or the starter bindings; settings.json's settings if it's there. */
-function create({io, by, makeId, log, now}, settingsText) {
+/**
+ * First run: the Slate config imported, or the starter bindings; settings.json's settings if it's there,
+ * and secrets.json's secrets (for a config.json copied in later).
+ */
+function create({io, by, makeId, log, now}, settingsText, secretsText = null) {
   let base;
   try {
-    base = decodeConfigurationFiles(null, settingsText);
+    base = decodeConfigurationFiles(null, settingsText, secretsText);
   } catch (error) {
-    return {error, configText: null, settingsText};
+    return {error, configText: null, settingsText, secretsText};
   }
   let configuration = base.configuration;
   let slate = null;
@@ -242,7 +286,7 @@ function create({io, by, makeId, log, now}, settingsText) {
     const starter = starterConfiguration();
     configuration = {...configuration, keyboard: starter.keyboard, bindings: starter.bindings};
   }
-  const result = {configuration, extras: base.extras, configText: null, settingsText, created: true};
+  const result = {configuration, extras: base.extras, secrets: base.secrets ?? {}, configText: null, settingsText, secretsText, created: true};
   try {
     const written = writeConfigFiles(io, configuration, base.extras, {config: true, settings: settingsText === null});
     result.configText = written.configText;

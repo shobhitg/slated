@@ -4,12 +4,12 @@
 
 | Layer | Where | Run | What it covers |
 |---|---|---|---|
-| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, repeat timing), the settings app's view models (validation, editors, layouts, clipboard picker and its placement, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction, the screenshot folder watcher on temporary folders, copied files on private pasteboards). |
+| Unit | `Tests/SlatedTests/*Tests.swift` | `make test` | Pure logic (model and JSON, key combos, expressions, Slate syntax, `.slate` parsing, frame math, screen resolution, hotstring matching, clipboard history, which copies are secrets (`SecretDetectionTests`: many true and false cases), secrets kept in memory and expiring, sensitive hotstrings and the Sensitive switch, repeat timing), the settings app's view models (validation, editors, layouts, clipboard picker and its placement, masked secrets with the eye and ⌥, notch island, cheat sheet) and macOS contracts (event tap, hidutil parsing, log redaction, the screenshot folder watcher on temporary folders, copied files on private pasteboards). |
 | Script engine | `Tests/SlatedTests/SlateScriptTests.swift` | `make test` | The Slate JavaScript API against a fake Mac (`FakeScriptHost`). |
 | Platform contract | `Tests/SlatedTests/JavaScriptCoreContractTests.swift`, `MacOSContractTests.swift`, `HIDRemapperTests.swift` | `make test` | macOS behavior Slated depends on: JavaScriptCore's error lines, stacks and exceptions inside callbacks; `hidutil`'s output; what folder watchers and atomic saves do with edited and symlinked files. Fails first if a macOS update changes it. |
 | Your config | `StarterTests.swift` | `make test` | The built-in starter bindings behave exactly like `~/.slate.js` on landscape, portrait and square screens, and the importer converts it completely. Skipped when `~/.slate.js` doesn't exist (e.g. CI). |
-| Config files and import | `ConfigFileStoreTests.swift`, `SlateImportTests.swift`, `ConfigurationTests.swift` | `make test` | config.json and settings.json in temporary homes: the migration of a version 1 config.json and its Slate config (backup never overwritten, an existing settings.json winning, idempotent, broken files left alone), first runs, saves that write only their own file; the Slate import and its merge rule. |
-| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, the migration of a version 1 config.json, the Slate import, saves that write only their own file, hand-edited, broken and symlinked config.json and settings.json, unknown operations, duplicate shortcuts, automation config, island settings and the Hyper cheat sheet, config races and reloads, log privacy. It also checks what lands in the event log, including crash detection. |
+| Config files and import | `ConfigFileStoreTests.swift`, `SecretsFileTests.swift`, `SlateImportTests.swift`, `ConfigurationTests.swift` | `make test` | config.json, settings.json and secrets.json in temporary homes (secrets.json: mode 0600 from the first byte, written before config.json refers to a new secret, a looser mode fixed, broken files named without quoting them, symlinks, hand edits and deletion): the migration of a version 1 config.json and its Slate config (backup never overwritten, an existing settings.json winning, idempotent, broken files left alone), first runs, saves that write only their own file; the Slate import and its merge rule. |
+| Smoke | `Tests/Smoke/run.sh`, fixtures in `Tests/Smoke/fixtures/` | `make smoke` | The real app binary (`Slated --smoke`) against temporary home folders: first run with and without Slate configs, the migration of a version 1 config.json, the Slate import, saves that write only their own file, hand-edited, broken and symlinked config.json and settings.json, unknown operations, duplicate shortcuts, automation config, island settings and the Hyper cheat sheet, config races and reloads, log privacy, and secrets (a fake token, a password manager's copy and a concealed one kept masked and never in clipboard.json, pasted back concealed, expiring; a sensitive hotstring's text only in secrets.json, mode 600). It also checks what lands in the event log, including crash detection. |
 | Installer | `Tests/Installer/run.sh` | `make test-install` | `./install.sh` in a throwaway folder and home: install, launch (a test run, which leaves the keyboard alone), confirm the start via the log, reinstall over the running app (clean quit, new session, no crash), SIGQUIT, uninstall, `--purge`, and a hung Slated forced to quit whose Caps Lock mapping comes off (a stand-in `hidutil` on `PATH`). Launches the app for a few seconds. |
 | Installer scripts | `Tests/Installer/test_restore_caps_lock.py` | `make test-scripts` | `scripts/restore-caps-lock.py` against a stand-in `hidutil`, for every case in `Tests/Installer/caps-lock-cases.json`; `HIDRemapperTests` checks Slated against the same cases, so the installer and the app agree on which Caps Lock mapping is Slated's. |
 | Golden vectors | `fixtures/`, written by the `SlatedFixtures` target | `make fixtures`, `make check-fixtures` | SlatedCore's results (errors included) for ~4,500 curated inputs, ~16,400 expected results: every input in the unit tests and many more. `check-fixtures` fails when `fixtures/` is stale or the generator isn't deterministic. |
@@ -69,12 +69,13 @@ suites, Swift writes its answers down and JavaScript must give the same ones:
    | `operations.json` | Every operation form and error (automation and clipboard history included); canonical Action JSON; `format`; Action decoding. |
    | `keys.json` | Key combos (parse, canonical string, display), key names (modifier keys, mouse buttons 3–5), Slate keystrokes. |
    | `automation.json` | `press`/`hold` inputs, `RepeatSchedule` timing with fixed random values, `Action.isAutomation`. |
-   | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear, images, screenshot names, files), Foundation's case- and diacritic-insensitive search, the name a file path shows (`fileNames`), and the clipboard.json the Mac app writes (image and files items too). |
+   | `clipboard.json` | `ClipboardHistory` sessions with fixed dates (add, dedupe, limit, retention, pin, remove, clear, images, screenshot names, files, secrets: their reasons, Hide/Show Contents, expiry, search by app name only, never in clipboard.json), Foundation's case- and diacritic-insensitive search, the name a file path shows (`fileNames`), and the clipboard.json the Mac app writes (image and files items too). |
    | `placement.json` | `PopupPlacement`: the clipboard picker below the caret or pointer (above near the bottom), its image preview beside it, clamping, the screen showing an anchor, and which caret rects apps report are usable (CoreGraphics' edge and empty-rect rules). |
    | `screens.json` | Screen setups, screen references and their resolution, ordering. |
    | `frames.json` | `targetFrame` for every geometry operation × setup × window × settings, and `targetOrigin`. |
    | `slate-config.json` | Classic `.slate` files with sourced files, diagnostics and line numbers. |
-   | `config.json` | Reading config.json and settings.json (JSON5 included, `onlyInApps`, clipboard and automation settings, version 1 files and what they say about Slate) and the exact text Swift writes for each. |
+   | `config.json` | Reading config.json, settings.json and secrets.json (JSON5 included, `onlyInApps`, clipboard settings and the migration of `ignoreConcealed`, sensitive hotstrings' references, automation settings, version 1 files and what they say about Slate) and the exact text Swift writes for each. |
+   | `secrets.json` | Which text looks like a secret (~230 true and false cases, every pattern and guard), the reason a copy is a secret, password managers by id, secret names from triggers, the Sensitive switch on a configuration, and a secret's config key. |
    | `starter.json`, `settings.json`, `hotstrings.json` | The starter config; Slate settings; hotstring typing sessions and templates. |
    | `cheatsheet.json` | The island's cheat sheet (SlatedUI's `CheatSheet`): every kind of action's title, section, region and symbol, names and script summaries, and whole Hyper and modal sheets in keyboard order. |
 
@@ -178,6 +179,15 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
 - [ ] Two hotstrings with the same trigger: the one higher in Settings → Hotstrings expands, and the
       other says it never fires. Dragging that one to the top makes it expand instead, and the warning
       moves to the other.
+- [ ] Sensitive: turn on Sensitive for a hotstring whose text has emoji, accents and braces
+      (`P@ss{w0rd} 👍🏽 é`). The list shows `•••••••• ` with a lock, the editor masks the text with an
+      eye, and its key reads `secrets.json › name`; clicking `secrets.json` opens it.
+      `ls -l ~/.config/slated/secrets.json` shows `-rw-------`, config.json has
+      `{"secret": "name"}` and not the text. Typing the trigger in TextEdit types the text exactly
+      (braces too), and the clipboard is untouched (paste afterwards: your previous copy). Copy Value
+      as JSON on its field copies the reference. Turning Sensitive off brings the text back into
+      config.json. Rename secrets.json: the editor says "Its text isn't on this computer yet", it
+      doesn't expand, Overview asks to review it; typing the text there fixes it.
 
 **Settings UI**
 - [ ] First launch (`make reset-permissions`, then `./install.sh`): the main window comes to the
@@ -284,8 +294,26 @@ for Hyper key checks, also turn off Karabiner-Elements' Caps Lock rule.
       size for the 1680×1050 display" (the tests can only read the source).
 
 **Clipboard history**
-- [ ] Copying text in a few apps adds it to Settings → Clipboard, newest first. Copying a password
-      from 1Password, Bitwarden or Keychain Access doesn't.
+- [ ] Copying text in a few apps adds it to Settings → Clipboard, newest first.
+- [ ] Secrets: copy a password from 1Password (or Bitwarden, Apple Passwords, Keychain Access), use
+      Copy Password in Safari or Chrome, and copy an API key from a note (`ghp_` and 36 letters and
+      digits). Each shows as `••••••••` with a lock and its app in the picker and in Settings →
+      Clipboard ("From a password manager", "Marked secret by its app", "Looks like a password or
+      key"). Typing part of one in the picker or Settings' search finds nothing; typing its app's
+      name finds it. Holding ⌥ shows the selected one; its eye shows it until the picker closes.
+      Picking it pastes the real text. Ordinary words, links, paths and UUIDs stay visible.
+- [ ] `~/Library/Application Support/Slated/clipboard.json` never contains a secret
+      (`grep` for it), not even after Hide Contents on an item saved earlier (it leaves at once).
+      Show Contents on the API key makes it ordinary (saved from then on); on the 1Password one it's
+      greyed out. The log has `clipboard.captured` with `"sensitive":true` and a `reason`, no
+      `chars`. Quitting Slated forgets every secret; with "Forget secrets after" at 5 minutes they go
+      after 5 minutes (`clipboard.secrets_expired`). "Don't Record" keeps them out altogether.
+- [ ] **Screen sharing.** Share your whole screen in a call (Zoom, Meet in Chrome, Teams, FaceTime's
+      SharePlay screen) and on a second device, or record it with ⇧⌘5 and QuickTime. Open the picker
+      with an image selected: the picker and its preview don't appear for the other side or in the
+      recording, while the rest of the screen does. Note any app where they do (macOS 15 and later
+      may still show them to some ScreenCaptureKit captures); a ⇧⌘4 screenshot of the area shouldn't
+      show them either.
 - [ ] ⇧⌘V opens the small picker just below the text caret, its left edge at the caret, in:
       TextEdit, Safari (a text field on a page, and the address bar), VS Code (an editor), Terminal
       (at the prompt). `clipboard.switcher_opened` in the log says `"anchor":"caret"`; an app that

@@ -18,11 +18,19 @@
 // Not mappable, logged once: onlyInApps (skipped: espanso can't tell apps apart on GNOME Wayland),
 // exceptInApps (expands everywhere), action (espanso can't run Slated actions).
 //
+// Sensitive hotstrings (`replacement: {secret: name}`) get their text from secrets.json, as written: no
+// placeholders, `force_mode: keys` (always typed, never pasted, so the text doesn't go through the
+// clipboard), and text with `{{` in it passed through an `echo` variable that espanso doesn't
+// interpret. One whose text isn't on this computer is left out. espanso has to have the text to expand
+// it, so the match file holds it: it's written readable only by you (0600).
+//
 // Replacement text is never logged.
 
 import Gio from 'gi://Gio';
 
-import {exists, findProgram, readText, remove, writeTextAtomic} from './files.js';
+import {hotstringSecret} from '../core/index.js';
+
+import {exists, findProgram, makePrivate, readText, remove, writePrivateTextAtomic} from './files.js';
 
 export const MATCH_FILE_NAME = 'slated.yml';
 
@@ -169,10 +177,21 @@ function dateVar(name, format) {
 }
 
 /**
- * espanso matches for the hotstrings in `config.json`.
- * Returns `{matches, skipped: [{trigger, reason}], approximations: [{trigger, option, note}]}`.
+ * A sensitive hotstring's text as espanso's `replace`, typed as written: text espanso would read as a
+ * variable (`{{`) goes through an `echo` variable whose text it doesn't interpret.
  */
-export function buildEspansoMatches(hotstrings, {enabled = true} = {}) {
+export function literalToEspanso(text) {
+  const value = String(text ?? '');
+  if (!value.includes('{{')) return {replace: value, vars: []};
+  return {replace: '{{slated_text}}', vars: [{name: 'slated_text', type: 'echo', params: {echo: value}, inject_vars: false}]};
+}
+
+/**
+ * espanso matches for the hotstrings in `config.json`, with sensitive hotstrings' text from `secrets`
+ * (secrets.json, {name: text}). Returns `{matches, skipped: [{trigger, reason}], approximations: [{trigger,
+ * option, note}]}`; a sensitive match has `sensitive: true` (not written to the file).
+ */
+export function buildEspansoMatches(hotstrings, {enabled = true, secrets = {}} = {}) {
   const matches = [];
   const skipped = [];
   const approximations = [];
@@ -184,13 +203,20 @@ export function buildEspansoMatches(hotstrings, {enabled = true} = {}) {
       skipped.push({trigger, reason: "onlyInApps: espanso can't tell apps apart on GNOME Wayland"});
       continue;
     }
-    const {replace, vars} = templateToEspanso(h.replacement ?? '');
+    const secret = hotstringSecret(h);
+    if (secret !== null && !Object.prototype.hasOwnProperty.call(secrets ?? {}, secret)) {
+      skipped.push({trigger, reason: "sensitive, and its text isn't on this computer yet (secrets.json)"});
+      continue;
+    }
+    const {replace, vars} = secret !== null ? literalToEspanso(secrets[secret]) : templateToEspanso(h.replacement ?? '');
     const match = {trigger, replace};
     if (vars.length) match.vars = vars;
     if (h.wordBoundary || h.fire === 'afterDelimiter') match.word = true;
     if (h.caseSensitive === false) match.propagate_case = true;
-    if (h.method === 'type') match.force_mode = 'keys';
+    // A sensitive hotstring is always typed, whatever its method: its text never goes through the clipboard.
+    if (secret !== null || h.method === 'type') match.force_mode = 'keys';
     else if (h.method === 'paste') match.force_mode = 'clipboard';
+    if (secret !== null) match.sensitive = true;
     matches.push(match);
 
     if (h.fire === 'afterDelimiter' && !h.wordBoundary) {
@@ -247,6 +273,11 @@ export function espansoYaml(matches) {
           lines.push('        params:');
           lines.push(`          format: ${yamlQuote(v.params.format)}`);
         }
+        if (v.params?.echo !== undefined) {
+          lines.push('        params:');
+          lines.push(`          echo: ${yamlQuote(v.params.echo)}`);
+        }
+        if (v.inject_vars === false) lines.push('        inject_vars: false');
       }
     }
   }
@@ -308,10 +339,13 @@ export class EspansoSync {
     }
   }
 
-  /** Writes or removes the match file for `config`. Returns the hotstrings part of status.json. */
-  apply(config) {
+  /**
+   * Writes or removes the match file for `config`, with sensitive hotstrings' text from `secrets`
+   * (secrets.json). Returns the hotstrings part of status.json.
+   */
+  apply(config, {secrets = {}} = {}) {
     const enabled = config?.general?.hotstringsEnabled !== false;
-    const result = buildEspansoMatches(config?.hotstrings ?? [], {enabled});
+    const result = buildEspansoMatches(config?.hotstrings ?? [], {enabled, secrets});
     const installed = this.installed;
     if (!installed) {
       if (enabled && result.matches.length > 0 && !this._warnedUnavailable) {
@@ -337,9 +371,13 @@ export class EspansoSync {
         return {engine: 'espanso', espansoInstalled: true, matchFile: path, count: 0};
       }
       const text = espansoYaml(result.matches);
+      const sensitive = result.matches.filter((m) => m.sensitive).length;
+      // Readable only by you: it holds sensitive hotstrings' text, which espanso needs to expand them.
       if (readText(path) !== text) {
-        writeTextAtomic(path, text);
-        this._log?.record('espanso.written', {path, count: result.matches.length, skipped: result.skipped.length});
+        writePrivateTextAtomic(path, text);
+        this._log?.record('espanso.written', {path, count: result.matches.length, skipped: result.skipped.length, sensitive});
+      } else {
+        makePrivate(path);
       }
       this._wrote = true;
       return {engine: 'espanso', espansoInstalled: true, matchFile: path, count: result.matches.length};

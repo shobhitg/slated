@@ -49,8 +49,12 @@ public struct ConfigKey: Hashable, Sendable {
 
   /// What the window shows: `settings.json › island.cheatSheetDelay`,
   /// `config.json › hotstrings › ";sig" › replacement`, or with an item that has no unique name,
-  /// `config.json › bindings[3].keys`.
-  public var display: String { file.rawValue + " › " + Self.describe(components[...]) }
+  /// `config.json › bindings[3].keys`. secrets.json has one section, so a secret shows its name alone:
+  /// `secrets.json › pw`.
+  public var display: String {
+    let isSecret = file == .secrets && components.count > 1 && components.first == .key("secrets")
+    return file.rawValue + " › " + Self.describe(isSecret ? components.dropFirst() : components[...])
+  }
 
   /// The part after `base` (an item), as a field of that item's editor shows it: `replacement`,
   /// `action.direction`, `action.operations[1].x`.
@@ -81,8 +85,10 @@ public struct ConfigKey: Hashable, Sendable {
   }
 
   /// What Copy Value as JSON copies: the value as the file has it, pretty-printed with sorted keys.
+  /// Nothing from secrets.json: a sensitive hotstring's Copy Value copies its reference in config.json,
+  /// never its text.
   public func valueText(in configuration: SlatedConfiguration) -> String? {
-    guard let value = value(in: configuration) else { return nil }
+    guard file != .secrets, let value = value(in: configuration) else { return nil }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     return (try? encoder.encode(value)).flatMap { String(data: $0, encoding: .utf8) }

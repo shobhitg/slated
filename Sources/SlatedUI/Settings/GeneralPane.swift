@@ -74,6 +74,14 @@ struct GeneralPane: View {
         CardDivider()
         fileRow("Settings", file: .settings, url: model.services.settingsFileURL)
         CardDivider()
+        // Sensitive hotstrings' text, once there is any: readable only by you.
+        if !model.configuration.secrets.isEmpty || model.configuration.hotstrings.contains(where: \.isSensitive) {
+          fileRow(
+            "Secrets", file: .secrets,
+            url: model.services.configurationFileURL.deletingLastPathComponent().appendingPathComponent(
+              ConfigFile.secrets.rawValue))
+          CardDivider()
+        }
         HStack(spacing: 8) {
           SaveStatusLabel()
           Spacer()

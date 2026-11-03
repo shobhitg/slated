@@ -39,10 +39,13 @@ public struct ClipboardItem: Hashable, Sendable, Codable, Identifiable {
   /// Set for copied files: their absolute paths, in the order they were copied. Optional, so
   /// histories saved before files were kept still read.
   public var files: [String]?
+  /// Why this text is a secret, when it is: kept in memory only (`ClipboardHistory` never encodes it),
+  /// shown as dots until revealed, forgotten after `clipboard.secretMinutes` and when Slated quits.
+  public var secret: ClipboardSecretReason?
 
   public init(
     id: UUID = UUID(), text: String, copiedAt: Date, sourceApp: String? = nil, pinned: Bool = false,
-    image: ClipboardImage? = nil, files: [String]? = nil
+    image: ClipboardImage? = nil, files: [String]? = nil, secret: ClipboardSecretReason? = nil
   ) {
     self.id = id
     self.text = text
@@ -51,7 +54,18 @@ public struct ClipboardItem: Hashable, Sendable, Codable, Identifiable {
     self.pinned = pinned
     self.image = image
     self.files = files
+    self.secret = secret
   }
+
+  /// `secret` isn't one: a file never makes an item a secret (and never holds one, see
+  /// `ClipboardHistory.encode`).
+  private enum CodingKeys: String, CodingKey { case id, text, copiedAt, sourceApp, pinned, image, files }
+
+  /// A secret: masked wherever it's shown, in memory only.
+  public var isSecret: Bool { secret != nil }
+
+  /// What a masked item shows instead of its text: always eight dots, whatever its length.
+  public static let mask = "••••••••"
 
   public var isImage: Bool { image != nil }
   /// Files copied in the Finder (an image item is an image, whatever else it has).
@@ -75,22 +89,43 @@ public struct ClipboardItem: Hashable, Sendable, Codable, Identifiable {
 
 /// The clipboard history itself: newest first, de-duplicated, bounded. Pure value type; the app adds
 /// pasteboard watching, persistence and the image files (`imageFiles` says which are still needed).
+///
+/// Secrets (`ClipboardItem.secret`) live here like any item, but encoding leaves them out: the
+/// clipboard.json the app writes never has one.
 public struct ClipboardHistory: Hashable, Sendable, Codable {
   public private(set) var items: [ClipboardItem]
 
   public init(items: [ClipboardItem] = []) { self.items = items }
 
+  private enum CodingKeys: String, CodingKey { case items }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    items = try c.decode([ClipboardItem].self, forKey: .items)
+  }
+
+  /// Every item except secrets, which stay in memory.
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(items.filter { !$0.isSecret }, forKey: .items)
+  }
+
   /// Records a copy. Returns false when there was nothing worth keeping (empty or whitespace only).
-  /// Copying something already in the history moves it to the top (keeping its pin).
+  /// Copying something already in the history moves it to the top (keeping its pin). `secret` says
+  /// why it's a secret; a copy of a secret already there stays one, for the more certain reason.
   @discardableResult
-  public mutating func add(_ text: String, from app: String? = nil, at date: Date, limit: Int) -> Bool {
+  public mutating func add(
+    _ text: String, from app: String? = nil, at date: Date, limit: Int, secret: ClipboardSecretReason? = nil
+  ) -> Bool {
     guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
     var pinned = false
+    var reason = secret
     if let existing = items.firstIndex(where: { $0.isText && $0.text == text }) {
       pinned = items[existing].pinned
+      reason = ClipboardSecretReason.stronger(secret, items[existing].secret)
       items.remove(at: existing)
     }
-    items.insert(ClipboardItem(text: text, copiedAt: date, sourceApp: app, pinned: pinned), at: 0)
+    items.insert(ClipboardItem(text: text, copiedAt: date, sourceApp: app, pinned: pinned, secret: reason), at: 0)
     enforce(limit: limit)
     return true
   }
@@ -163,16 +198,71 @@ public struct ClipboardHistory: Hashable, Sendable, Codable {
     items = keepPinned ? items.filter(\.pinned) : []
   }
 
+  // MARK: Secrets
+
+  /// "Hide Contents": makes a text item a secret, by hand. Returns whether it changed (images, files
+  /// and items already secret don't).
+  @discardableResult
+  public mutating func hide(id: UUID) -> Bool {
+    guard let i = items.firstIndex(where: { $0.id == id }), items[i].isText, items[i].secret == nil else {
+      return false
+    }
+    items[i].secret = .manual
+    return true
+  }
+
+  /// "Show Contents": a secret found by its look, or hidden by hand, becomes an ordinary item again
+  /// (saved from then on). One its app marked secret, or copied from a password manager, stays a secret:
+  /// returns false, as for an item that isn't one.
+  @discardableResult
+  public mutating func unhide(id: UUID) -> Bool {
+    guard let i = items.firstIndex(where: { $0.id == id }), let reason = items[i].secret, !reason.isLocked else {
+      return false
+    }
+    items[i].secret = nil
+    return true
+  }
+
+  /// Forgets secrets copied more than `minutes` minutes before `now`, pinned or not. `minutes <= 0`
+  /// keeps them until Slated quits. Returns how many went.
+  @discardableResult
+  public mutating func expireSecrets(olderThanMinutes minutes: Int, now: Date) -> Int {
+    guard minutes > 0 else { return 0 }
+    let cutoff = now.addingTimeInterval(-Double(minutes) * 60)
+    let before = items.count
+    items.removeAll { $0.isSecret && $0.copiedAt < cutoff }
+    return before - items.count
+  }
+
+  /// When the next secret expires (`expireSecrets`), if one will.
+  public func nextSecretExpiry(afterMinutes minutes: Int) -> Date? {
+    guard minutes > 0 else { return nil }
+    return items.filter(\.isSecret).map(\.copiedAt).min().map { $0.addingTimeInterval(Double(minutes) * 60) }
+  }
+
+  /// Forgets every secret (Slated is quitting). Returns how many went.
+  @discardableResult
+  public mutating func forgetSecrets() -> Int {
+    let before = items.count
+    items.removeAll(where: \.isSecret)
+    return before - items.count
+  }
+
+  // MARK: Search
+
   /// Items matching every word of `query` (case- and diacritic-insensitive), newest first, pinned
   /// items first. An empty query returns everything. Only `text` is searched: files match by name,
-  /// and a query never matches an image (not even a screenshot's name).
-  public func search(_ query: String) -> [ClipboardItem] {
+  /// and a query never matches an image (not even a screenshot's name). A secret matches by the name
+  /// of the app it came from (`appName`, given the app's id), never by its text: typing part of a
+  /// password finds nothing.
+  public func search(_ query: String, appName: (String) -> String = { $0 }) -> [ClipboardItem] {
     let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
     let matches =
       words.isEmpty
       ? items
       : items.filter { item in
-        words.allSatisfy { item.text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+        let text = item.isSecret ? item.sourceApp.map(appName) ?? "" : item.text
+        return words.allSatisfy { text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
       }
     return matches.filter(\.pinned) + matches.filter { !$0.pinned }
   }

@@ -65,7 +65,9 @@ let automationModelTests = Suite(
         let config = try SlatedConfiguration.decode(from: Data("{}".utf8))
         expect(config.clipboard.enabled)
         expectEqual(config.clipboard.shortcut, KeyCombo(string: "cmd+shift+v"))
-        expect(config.clipboard.excludedApps.contains("com.1password.1password"))
+        // Password managers' copies are kept, masked: nothing is excluded by default.
+        expectEqual(config.clipboard.excludedApps, [])
+        expectEqual(config.clipboard.secrets, .masked)
         expectEqual(config.automation.stopShortcut, KeyCombo(string: "hyper+esc"))
         expect(config.automation.stopOnAppSwitch)
         let off = try SlatedConfiguration.decode(

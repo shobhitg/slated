@@ -423,6 +423,42 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+/* A secret: eight dots, a lock, its app, and the eye that shows it. */
+.slated-clipboard-masked {
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.slated-clipboard-lock {
+  icon-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.slated-clipboard-secret-app {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.slated-clipboard-eye {
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.slated-clipboard-eye:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.slated-clipboard-eye-icon {
+  icon-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.slated-clipboard-row:selected .slated-clipboard-lock,
+.slated-clipboard-row:selected .slated-clipboard-secret-app,
+.slated-clipboard-row:selected .slated-clipboard-eye-icon {
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .slated-clipboard-thumbnail,
 .slated-clipboard-preview-image {
   border-radius: 4px;

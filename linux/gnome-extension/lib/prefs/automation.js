@@ -9,20 +9,13 @@
 import {isObject, deepEqual} from './util.js';
 import {actionTitle, secondsText, containsAutomation, resolveAction} from './actions.js';
 import {keysCombo, keysString, keyLabel, comboLabel, isModifierKey, statusKey} from './keys.js';
+import {defaultClipboard, isPasswordManager} from '../core/index.js';
 
 // --- Settings defaults (Swift's ClipboardSettings and AutomationSettings) ---------------------------
 
-/** The Mac's default excluded apps: password managers, by bundle identifier. */
-export const MAC_PASSWORD_MANAGERS = Object.freeze([
-  'com.1password.1password', 'com.agilebits.onepassword7', 'com.bitwarden.desktop', 'com.apple.keychainaccess',
-  'com.apple.Passwords', 'com.lastpass.LastPass', 'com.dashlane.dashlanephonefinal',
-]);
-
+/** The engine's defaults: secrets kept masked for an hour, nothing excluded (password managers' copies are kept, hidden). */
 export function defaultClipboardSettings() {
-  return {
-    enabled: true, shortcut: 'shift+cmd+v', maxItems: 200, persist: true, retentionDays: 30, ignoreConcealed: true,
-    excludedApps: [...MAC_PASSWORD_MANAGERS], pasteAfterSelecting: true, screenshots: true,
-  };
+  return defaultClipboard();
 }
 
 export function defaultAutomationSettings() {
@@ -53,6 +46,17 @@ export function timeLimitTitle(minutes) {
 export const MAX_ITEMS = Object.freeze([50, 100, 200, 500, 1000]);
 /** Days to keep clipboard items; 0 is forever (listed last). */
 export const RETENTION_DAYS = Object.freeze([1, 7, 30, 90, 0]);
+
+/** How long secrets stay, in minutes; 0 (listed last) keeps them until Slated stops. */
+export const SECRET_MINUTES = Object.freeze([5, 15, 60, 240, 0]);
+
+/** "5 minutes", "1 hour", "4 hours", "When Slated quits" (0 or less): the Mac's words. */
+export function secretMinutesTitle(minutes) {
+  if (!(minutes > 0)) return 'When Slated quits';
+  if (minutes === 60) return '1 hour';
+  if (minutes % 60 === 0) return `${minutes / 60} hours`;
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
 
 export function retentionTitle(days) {
   if (days === 0) return 'Forever';
@@ -456,7 +460,7 @@ const PASSWORD_MANAGER_NAME = /password|keepass|bitwarden|1password|secrets|keyr
 /** Installed apps that look like password managers ({id, name} from the app list), known ids first. */
 export function passwordManagerApps(installed) {
   const known = new Set(LINUX_PASSWORD_MANAGERS.map(m => normalizeAppId(m.id)));
-  return installed.filter(app => known.has(normalizeAppId(app.id)) || PASSWORD_MANAGER_NAME.test(app.name));
+  return installed.filter(app => known.has(normalizeAppId(app.id)) || isPasswordManager(normalizeAppId(app.id)) || PASSWORD_MANAGER_NAME.test(app.name));
 }
 
 /**

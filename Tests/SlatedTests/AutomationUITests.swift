@@ -292,19 +292,19 @@ let uiClipboardTests = Suite(
       }
     ),
     (
-      "excluded apps offer the default password managers first, then running apps",
+      "excluded apps offer password managers first, then running apps; none is excluded by default",
       {
         try onMain {
           let model = AppModel(services: PreviewServices())
-          // Every default is excluded at first, so only running apps are offered.
-          expect(model.excludableApps.allSatisfy { !$0.isDefault })
-          expect(model.missingDefaultExclusions.isEmpty)
-          model.includeInClipboard("com.1password.1password")
+          // Password managers' copies are kept, hidden: nothing is excluded at first.
+          expectEqual(model.configuration.clipboard.excludedApps, [])
           expectEqual(model.excludableApps.first?.bundleID, "com.1password.1password")
           expectEqual(model.excludableApps.first?.name, "1Password")
-          expectEqual(model.missingDefaultExclusions, ["com.1password.1password"])
-          model.restoreDefaultExclusions()
+          expect(model.excludableApps.first?.isPasswordManager == true)
+          expect(model.excludableApps.filter(\.isPasswordManager).allSatisfy { PasswordManagers.contains($0.bundleID) })
+          model.excludeFromClipboard("com.1password.1password")
           expect(model.configuration.clipboard.excludedApps.contains("com.1password.1password"))
+          expect(!model.excludableApps.contains { $0.bundleID == "com.1password.1password" })
           model.excludeFromClipboard("com.apple.Safari")
           model.excludeFromClipboard("com.apple.Safari")
           expectEqual(model.configuration.clipboard.excludedApps.filter { $0 == "com.apple.Safari" }.count, 1)

@@ -88,6 +88,10 @@ private func onMain(_ body: @MainActor () throws -> Void) throws {
     Variant(name: "hotstrings editor", pane: .hotstrings) { model in
       model.selectedHotstringID = model.configuration.hotstrings.first?.id
     },
+    // A sensitive one: the masked field, its secrets.json key and the Sensitive switch.
+    Variant(name: "sensitive hotstring editor", pane: .hotstrings) { model in
+      model.selectedHotstringID = model.configuration.hotstrings.first(where: \.isSensitive)?.id
+    },
     Variant(name: "layouts editor", pane: .layouts) { $0.selectedLayout = .slated(name: "Coding") },
     Variant(name: "automation running", pane: .automation) { _ in },
     Variant(name: "first-run overview", scenario: .firstRun, pane: .overview),
