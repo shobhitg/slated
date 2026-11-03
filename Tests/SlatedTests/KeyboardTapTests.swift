@@ -49,9 +49,16 @@ private func recordingTap(hid: FakeHID = FakeHID()) -> (KeyboardTap, TapRecorder
 
 private let hyperFlags: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
 
-/// Lets the main-actor callbacks the tap dispatched run.
+/// Lets the main-actor callbacks the tap dispatched run: waits for a block queued after them (the main queue
+/// runs in order), at least 50 ms and at most 5 s. A fixed 50 ms wasn't always enough on a loaded CI machine.
 private func deliverCallbacks() {
-  RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+  final class Flag: @unchecked Sendable { var raised = false }
+  let drained = Flag()
+  DispatchQueue.main.async { drained.raised = true }
+  let start = Date()
+  while (!drained.raised || Date().timeIntervalSince(start) < 0.05) && Date().timeIntervalSince(start) < 5 {
+    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+  }
 }
 
 private var hyperOn: KeyboardTap.Options {

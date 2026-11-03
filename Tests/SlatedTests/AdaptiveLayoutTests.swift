@@ -130,7 +130,16 @@ let uiAdaptiveLayoutTests = Suite(
           let window = SlatedUI.makeMainWindow(model: AppModel(services: PreviewServices()))
           defer { window.close() }
           expectEqual(window.contentMinSize, CGSize(width: 640, height: 480))
-          expectEqual(window.contentRect(forFrameRect: window.frame).size, SlatedUI.mainWindowSize)
+          // 1080 × 720, or as much of it as the screen has room for: macOS fits a new window to the screen
+          // (CI's virtual display is 1024 × 768).
+          let room = (window.screen ?? NSScreen.main)?.visibleFrame.size ?? SlatedUI.mainWindowSize
+          let size = window.contentRect(forFrameRect: window.frame).size
+          if room.width >= SlatedUI.mainWindowSize.width && room.height >= SlatedUI.mainWindowSize.height {
+            expectEqual(size, SlatedUI.mainWindowSize)
+          } else {
+            expect(size.width <= room.width && size.height <= room.height, "\(size) fits in \(room)")
+            expect(size.width >= 640 && size.height >= 480, "\(size) is at least the minimum")
+          }
         }
       }
     ),
